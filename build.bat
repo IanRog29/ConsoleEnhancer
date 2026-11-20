@@ -11,7 +11,7 @@ if not exist "%CSC%" (echo *** No esta %CSC% ^(.NET Framework 4.8^) *** & exit /
 if not exist bin mkdir bin
 "%CSC%" /nologo /target:winexe /codepage:65001 /optimize+ /out:bin\ConsoleEnhancer.exe ^
   /win32icon:recursos\prisma.ico /resource:recursos\prisma.ico,Prisma.ico ^
-  /r:System.dll /r:System.Core.dll /r:System.Drawing.dll /r:System.Windows.Forms.dll /r:System.Xml.dll ^
+  /r:System.dll /r:System.Core.dll /r:System.Drawing.dll /r:System.Windows.Forms.dll /r:System.Xml.dll /r:System.Management.dll ^
   /r:"%FW%\System.Web.Extensions.dll" /r:"%FW%\System.IO.Compression.dll" /r:"%FW%\System.IO.Compression.FileSystem.dll" ^
   /r:"%FW%\WPF\UIAutomationClient.dll" /r:"%FW%\WPF\UIAutomationTypes.dll" /r:"%FW%\WPF\WindowsBase.dll" ^
   src\Lanzador\*.cs src\Deteccion\*.cs

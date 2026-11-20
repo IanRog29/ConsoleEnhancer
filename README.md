@@ -184,6 +184,15 @@ quita): una escena oscura o un fundido ya no lo hacen saltar.
 **No hay sonido.** En el asistente, paso del sonido: prueba otra entrada con *Probar sonido* (algunas capturadoras dan el audio por el
 propio dispositivo de vídeo y otras como un micrófono aparte).
 
+**El sonido se oye dos veces (eco).** Algo más reproduce la capturadora a la vez que la app. Desde la 1.0.6 la app quita sola
+*Escuchar este dispositivo* de Windows en la entrada de la capturadora mientras suena por ella (y lo devuelve al salir), cierra un audio
+suyo que se quedara abierto de una sesión anterior y avisa en pantalla si RECentral, OBS (con monitorización), Streamlabs o XSplit
+también suenan. Lo que no puede ver: la salida HDMI de paso de la capturadora conectada a una tele o un monitor con altavoces; baja
+su volumen o usa otra salida. `sonido_doble=0` en el ini lo deja como antes. *Hearing the sound twice (echo): since 1.0.6 the app
+turns off Windows "Listen to this device" on the capture card input while it plays it (restored on exit), closes a leftover audio
+player from a previous session and warns if RECentral/OBS/Streamlabs/XSplit are also playing; an HDMI pass-through to a TV with
+speakers also doubles it.*
+
 **No me sale DLSS o la generación de fotogramas.** DLSS solo existe en NVIDIA GeForce RTX; Smooth Motion en RTX 40/50; la generación
 necesita una pantalla de 100 Hz o más. Con otras gráficas va FSR 1 y la generación que tenga tu gráfica. Actualiza el driver.
 

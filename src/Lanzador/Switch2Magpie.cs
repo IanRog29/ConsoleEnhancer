@@ -1427,6 +1427,7 @@ namespace ConsoleEnhancer
                             { c.EngineInByCap[key.Substring(14)] = val.Trim().ToLowerInvariant(); break; }
                             if (c.ParseD5Opt(key, val)) break; // (escalador_<modo>_dlss5 y demas: ver Config.D5ScalerTable)
                             if (c.ParseCierres(key, val)) break; // (20-11, CIERRES: apagado_confirmar y demas, src\Cierres.cs)
+                            if (c.ParseSonidoDoble(key, val)) break; // (21-11: sonido_doble, src\SonidoDoble.cs)
                             if (key.StartsWith("mando_") && PadOptions.Parse(key, val)) break; // (18-11, MANDOS: modo PC, src\Mandos.cs)
                             Log.Write("Aviso: clave desconocida en ini: " + key); break;
                     }
@@ -11630,6 +11631,7 @@ namespace ConsoleEnhancer
 
         void ExitApp()
         {
+            SonidoDobleAlAcabar(); // (21-11: src\SonidoDoble.cs)
             QuitarGanchos();
             CloseSplash();
             tray.Visible = false;
@@ -11930,6 +11932,8 @@ namespace ConsoleEnhancer
                 try { sc.Kill(); Log.Write("Cerrado un Streaming Center que seguia abierto"); }
                 catch (Exception ex) { Log.Error("Cerrando Streaming Center", ex); }
             }
+            // (21-11) ni Windows ("Escuchar este dispositivo") ni un mpv de audio de otra sesion lo reproducen a la vez: src\SonidoDoble.cs
+            SonidoDobleAlEmpezar();
             Thread t = new Thread(ConsoleAudioLoop);
             t.IsBackground = true;
             t.Start();
@@ -11945,6 +11949,7 @@ namespace ConsoleEnhancer
                 try { if (!a.HasExited) a.Kill(); } catch { }
             }
             if (scStarted || (!cfg.ConsoleAudio && cfg.StartStreamingCenter)) CloseStreamingCenter();
+            SonidoDobleAlAcabar(); // (21-11: devuelve "Escuchar este dispositivo" si la app lo quito)
         }
 
         // Los procesos cuyo sonido es el de la consola
@@ -12072,7 +12077,9 @@ namespace ConsoleEnhancer
             psi.CreateNoWindow = true;
             psi.WorkingDirectory = Path.GetDirectoryName(cfg.MpvPath);
             Log.Write("Audio de la consola: pin " + pin + ": " + psi.Arguments);
-            return Process.Start(psi);
+            Process p = Process.Start(psi);
+            AudioJob.Hold(p); // (21-11: se cierra con la app aunque esta muera de golpe; src\SonidoDoble.cs)
+            return p;
         }
 
         // Vigila el mpv de audio hasta que se cierre. true = este pin no suena: hay que probar otro
