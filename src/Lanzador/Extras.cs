@@ -22,8 +22,8 @@ namespace ConsoleEnhancer
     static class Apoyo
     {
         public const string KoFi = "https://ko-fi.com/ianrog29";
-        public const string Repo = "https://github.com/ianu29/ConsoleEnhancer";
-        public const string Releases = "https://github.com/ianu29/ConsoleEnhancer/releases";
+        public const string Repo = "https://github.com/IanRog29/ConsoleEnhancer";
+        public const string Releases = "https://github.com/IanRog29/ConsoleEnhancer/releases";
 
         public static string Linea
         {

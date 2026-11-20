@@ -461,7 +461,7 @@ namespace ConsoleEnhancer
             string v = "";
             try { Version x = Assembly.GetExecutingAssembly().GetName().Version; if (x != null && x.Major + x.Minor + x.Build > 0) v = " " + x.ToString(3); } catch { }
             return "ConsoleEnhancer" + v + "\r\n" +
-                   Tx.T("Copyright (C) 2026 ianu29 y colaboradores de ConsoleEnhancer", "Copyright (C) 2026 ianu29 and ConsoleEnhancer contributors") + "\r\n" +
+                   Tx.T("Copyright (C) 2026 IanRog29 y colaboradores de ConsoleEnhancer", "Copyright (C) 2026 IanRog29 and ConsoleEnhancer contributors") + "\r\n" +
                    Apoyo.Repo + "\r\n\r\n" +
                    Tx.T("Software libre: puedes repartirlo y cambiarlo según la GNU GPL versión 3 (con un permiso adicional para usarlo con las " +
                         "librerías de NVIDIA, AMD e Intel: LICENSE-EXCEPTION.txt). Va SIN NINGUNA GARANTÍA. Licencias y componentes de terceros: " +

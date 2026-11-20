@@ -1,9 +1,9 @@
 ConsoleEnhancer - Additional permission under GNU GPL version 3 section 7
 =========================================================================
 
-Copyright (C) 2026 ianu29 and ConsoleEnhancer contributors
-(Copyright (C) 2026 ianu29 y colaboradores de ConsoleEnhancer)
-https://github.com/ianu29/ConsoleEnhancer
+Copyright (C) 2026 IanRog29 and ConsoleEnhancer contributors
+(Copyright (C) 2026 IanRog29 y colaboradores de ConsoleEnhancer)
+https://github.com/IanRog29/ConsoleEnhancer
 
 ConsoleEnhancer is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License
 version 3 as published by the Free Software Foundation (see LICENSE). It is distributed WITHOUT ANY WARRANTY; without even the

@@ -22,7 +22,7 @@ param(
     [string]$Destino = '',
     [string]$Streamline = '',
     [string]$Version = '',
-    [string]$Web = 'https://github.com/ianu29/ConsoleEnhancer',
+    [string]$Web = 'https://github.com/IanRog29/ConsoleEnhancer',
     [switch]$Forzar,
     [switch]$Zip,
     [switch]$SinDescargar

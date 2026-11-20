@@ -1,7 +1,7 @@
 # ConsoleEnhancer
 
 [![Licencia: GPL-3.0](https://img.shields.io/badge/licencia-GPL--3.0-blue.svg)](LICENSE)
-[![Release](https://img.shields.io/github/v/release/ianu29/ConsoleEnhancer?label=descargar&sort=semver)](https://github.com/ianu29/ConsoleEnhancer/releases)
+[![Release](https://img.shields.io/github/v/release/IanRog29/ConsoleEnhancer?label=descargar&sort=semver)](https://github.com/IanRog29/ConsoleEnhancer/releases)
 [![Windows 10/11](https://img.shields.io/badge/Windows-10%20%2F%2011%20(64%20bits)-0078D6.svg)](#requisitos)
 [![Ko-fi](https://img.shields.io/badge/Ko--fi-apoya%20el%20proyecto-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/ianrog29)
 
@@ -18,14 +18,14 @@ sofá, sin ratón ni teclado; y al apagar la consola, la app se cierra sola y, s
   cambias de modo (30 / 60 fps, generación sí / no, resolución de captura) con los botones del mando.
 - **Gratis, libre (GPL-3.0) y sin anuncios ni telemetría.**
 
-Creado y mantenido por **ianu29** · [Código y descargas](https://github.com/ianu29/ConsoleEnhancer) ·
+Creado y mantenido por **IanRog29** · [Código y descargas](https://github.com/IanRog29/ConsoleEnhancer) ·
 **[English below](#english)**
 
 ---
 
 ## Inicio rápido
 
-1. Baja el último **`ConsoleEnhancer-vX.Y.Z.zip`** de **[Releases](https://github.com/ianu29/ConsoleEnhancer/releases)** (no el botón
+1. Baja el último **`ConsoleEnhancer-vX.Y.Z.zip`** de **[Releases](https://github.com/IanRog29/ConsoleEnhancer/releases)** (no el botón
    verde "Code": eso es el código fuente).
 2. **Descomprímelo** en una carpeta tuya: Documentos, el Escritorio, `D:\Juegos`... (no en *Archivos de programa*).
 3. Abre **`ConsoleEnhancer.exe`** y sigue el asistente. Ya está: enciende la consola.
@@ -210,7 +210,7 @@ desactívalo en el menú de la bandeja. Cerrar la app a mano nunca apaga nada.
   `runtimes\dlssg_sm86` un runtime de la comunidad con DLL autofirmadas. No están en el repositorio ni en el zip, la app no los baja, y
   su uso puede ir contra las condiciones de NVIDIA. Si ya los tienes, puedes añadirlos tú (bandeja > *Añadir DLSS 5*, que los copia a
   `extras\`) bajo tu responsabilidad: la app avisa de que no son oficiales.
-- **Autor**: ConsoleEnhancer lo crea y mantiene **ianu29** (con las aportaciones de sus colaboradores). Copyright (C) 2026 ianu29 y
+- **Autor**: ConsoleEnhancer lo crea y mantiene **IanRog29** (con las aportaciones de sus colaboradores). Copyright (C) 2026 IanRog29 y
   colaboradores de ConsoleEnhancer.
 - **Donaciones**: voluntarias (Ko-fi); no dan acceso a nada extra ni compran DLL de terceros.
 - **Marcas**: NVIDIA, GeForce RTX, DLSS, Reflex, AMD, FSR, FidelityFX, Intel, XeSS, Nintendo, PlayStation, Xbox, Windows y demás son de
@@ -301,11 +301,11 @@ app opens by itself; the picture is **upscaled to 4K** (DLSS, FSR, XeSS, RTX Vid
   generation on / off, capture resolution) with the controller buttons.
 - **Free, open source (GPL-3.0), no ads, no telemetry.** The interface is in Spanish and English; code comments and logs are in Spanish.
 
-Created and maintained by **ianu29** · [Source and downloads](https://github.com/ianu29/ConsoleEnhancer)
+Created and maintained by **IanRog29** · [Source and downloads](https://github.com/IanRog29/ConsoleEnhancer)
 
 ## Quick start
 
-1. Download the latest **`ConsoleEnhancer-vX.Y.Z.zip`** from **[Releases](https://github.com/ianu29/ConsoleEnhancer/releases)** (not the
+1. Download the latest **`ConsoleEnhancer-vX.Y.Z.zip`** from **[Releases](https://github.com/IanRog29/ConsoleEnhancer/releases)** (not the
    green "Code" button: that is the source code).
 2. **Unzip** it into one of your own folders (Documents, Desktop, `D:\Games`...), not *Program Files*.
 3. Open **`ConsoleEnhancer.exe`** and follow the wizard. Done: turn the console on.
@@ -391,7 +391,7 @@ stick = mouse, A = click, B = Esc, L3 = on-screen keyboard).
 - **"DLSS 5" is not included**: the community-modified `nvngx_dlssnr.dll` and the `dlssg_sm86` runtime are never in the repository or
   the zip and are not downloaded; using them may breach NVIDIA's terms. If you already have them you may add them yourself (tray >
   *Add DLSS 5*, which copies them to `extras\`) at your own risk.
-- **Author**: created and maintained by **ianu29** (with its contributors). Copyright (C) 2026 ianu29 and ConsoleEnhancer contributors.
+- **Author**: created and maintained by **IanRog29** (with its contributors). Copyright (C) 2026 IanRog29 and ConsoleEnhancer contributors.
   Donations (Ko-fi) are voluntary and unlock nothing.
 - **Trademarks** belong to their owners and are used only to describe compatibility. Not affiliated with, sponsored or endorsed by
   NVIDIA, AMD, Intel, Nintendo, Sony or Microsoft. Uses NVIDIA DLSS, NVIDIA Reflex and NVIDIA Streamline.
