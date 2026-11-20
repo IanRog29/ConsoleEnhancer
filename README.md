@@ -96,6 +96,10 @@ y contar en qué PC y con qué consola lo usas.
   más, a 119,88 Hz, sin VRR o sin NVIDIA no se toca nada).
 - **Selector de generación de fotogramas**: L3 jugando (o Ctrl+G con el teclado sobre la imagen) recorre los tipos que tiene tu
   gráfica y lo recuerda por juego. Solo se ofrece lo que llega a ritmo.
+- **Modo 120 fps (esports)**: para los juegos de 120 Hz de la consola, captura a 120 sin generación de fotogramas y con el menor
+  retraso. El botón de modo pasa 30 → 60 → 120 solo si la consola saca 120, la tele va a **120 Hz o más** y la captura de ahora es una
+  que tu capturadora da a 120 (normalmente **1080p o 1440p**; el asistente lo lee de la capturadora, capturas_120). A 4K sigue 30 ↔ 60:
+  la app no te baja la resolución sola. Si no cabe, un aviso dice por qué. permitir_120=auto (1 / 0 para forzarlo / quitarlo).
 - **Menú de la consola a 4K nativo**: el HOME de la Switch 2, el menú de la PS5 y el de Xbox se reconocen y van sin escalado ni
   generación, y sin "DLSS 5" (tal cual, con ~10 ms menos de retraso; `motor_dlss5_home=0`); los cambios menú ↔ juego tardan menos de 1 s.
 - **Reconoce cada juego y le guarda su perfil** (`juegos\perfiles.txt`): en la Switch / Switch 2 lee el nombre del juego en el HOME
@@ -104,6 +108,10 @@ y contar en qué PC y con qué consola lo usas.
   centro de control o el conmutador de juegos (botón PS) y le guarda su perfil igual; en la **Xbox Series**, en la Guía y las fichas de
   Inicio (*preliminar: sin probar aún con una Xbox de verdad*). Si no reconoce el juego, usa el perfil único de la consola, como antes
   (`ps5_reconocer_juegos=1`, `xbox_reconocer_juegos=1`; 0 = un solo perfil para toda la consola).
+  **Importante en la PS5/Xbox:** el nombre del juego solo aparece en el centro de control / conmutador (botón PS) o en la Guía, no durante
+  el juego. Para que la app recuerde cada juego con su perfil, **pulsa el botón PS una vez al entrar en el juego** (se abre el centro de
+  control, la app lee el nombre y ya queda guardado); a partir de ahí se re-aplica solo. El menú de la consola se muestra a 4K nativo
+  siempre que haga falta para esto, independientemente de `home_4k_nativo` (esa opción solo afecta al HOME de la Switch 2).
 - **Mandos**: Xbox / XInput, DualSense / DualShock 4, mandos de Switch y Switch 2, 8BitDo, GameSir y genéricos HID, sin programas
   aparte. La app lee el mando sin quitárselo a la consola y, fuera de la imagen, maneja el PC (modo PC).
 - **Iniciar con Windows** (tarea del usuario, sin permisos de administrador) con la pantalla en negro hasta que hay imagen y,
@@ -135,7 +143,7 @@ Para quitarlo: icono de la bandeja > **Quitar DLSS 5** (borra la copia de `extra
 Con la imagen de la consola delante. La app lee el mando sin quitárselo a la consola: la pulsación también le llega a ella (Options
 abre el menú del juego en la PS5, etc.).
 
-| Mando | Modo **30 ↔ 60** fps | Generación de fotogramas **sí / no** |
+| Mando | Modo **30 → 60 → 120** fps | Generación de fotogramas **sí / no** |
 |---|---|---|
 | Xbox / XInput (GameSir, 8BitDo en modo X) | Menú (≡) | Vista (⧉) |
 | PlayStation 5 (DualSense / Edge) | Options | Crear |
@@ -144,7 +152,8 @@ abre el menú del juego en la PS5, etc.).
 | Genérico HID | Start | Select |
 
 La generación también va con Captura (Switch, 8BitDo), el panel táctil (PlayStation) o el botón de captura del GameSir. Para la
-distribución de antes (Vista = modo 30, Menú = modo 60): `mando_botones=prisma` o bandeja > Imagen.
+distribución de antes (Vista = modo 30, Menú = modo 60): `mando_botones=prisma` o bandeja > Imagen. El 120 solo aparece donde cabe (ver
+*Modo 120 fps*); si no, el botón alterna 30 ↔ 60.
 
 | Botón | Qué hace |
 |---|---|
@@ -169,6 +178,8 @@ igual. Si dice que no puede escribir, la carpeta es de solo lectura (Archivos de
 **Pantalla negra o "No Signal".** Comprueba que la imagen se ve en el *Probar imagen* del asistente. Cierra cualquier programa que use
 la capturadora (OBS, el software del fabricante, Discord con la cámara...). Si la consola cifra la salida (**HDCP**), la imagen sale
 negra: apágalo en la consola (PS5: Ajustes > Sistema > HDMI > *Activar HDCP*). ConsoleEnhancer no quita protecciones anticopia.
+El aviso de HDCP solo sale con la imagen negra de verdad y la consola en silencio 20 s seguidos (`hdcp_aviso_s`; `hdcp_aviso=0` lo
+quita): una escena oscura o un fundido ya no lo hacen saltar.
 
 **No hay sonido.** En el asistente, paso del sonido: prueba otra entrada con *Probar sonido* (algunas capturadoras dan el audio por el
 propio dispositivo de vídeo y otras como un micrófono aparte).
@@ -301,6 +312,10 @@ app opens by itself; the picture is **upscaled to 4K** (DLSS, FSR, XeSS, RTX Vid
   per game and restored next time. On **PS5** it reads the game name in the control center or game switcher (PS button) and keeps a
   profile per game too; on **Xbox Series**, in the Guide and Home tiles (*preliminary: not yet tested with a real Xbox*). If the game is
   not recognised, the single console-wide profile is used as before (`ps5_reconocer_juegos` / `xbox_reconocer_juegos`, 0 = one profile).
+  **Important on PS5/Xbox:** the game name only shows in the control center / switcher (PS button) or the Guide, not during gameplay. So the
+  app remembers each game, **press the PS button once after entering a game** (the control center opens, the app reads the name and saves
+  it); it is re-applied automatically afterwards. The console menu is shown at native 4K whenever this needs it, regardless of
+  `home_4k_nativo` (that option only affects the Switch 2 HOME).
 - **Made for the living room**: starts with Windows on a black screen until the picture shows; switch modes (30 / 60 fps, frame
   generation on / off, capture resolution) with the controller buttons.
 - **Free, open source (GPL-3.0), no ads, no telemetry.** The interface is in Spanish and English; code comments and logs are in Spanish.
@@ -353,7 +368,7 @@ generation needs a 100 Hz+ display.
 
 With the console picture in front (the console also receives the press):
 
-| Controller | 30 ↔ 60 fps mode | Frame generation on / off |
+| Controller | 30 → 60 → 120 fps mode | Frame generation on / off |
 |---|---|---|
 | Xbox / XInput (GameSir, 8BitDo in X mode) | Menu (≡) | View (⧉) |
 | PlayStation 5 (DualSense / Edge) | Options | Create |
@@ -361,7 +376,7 @@ With the console picture in front (the console also receives the press):
 | Nintendo Switch / Switch 2 (Pro, Joy-Con, 8BitDo in Switch mode) | + | − |
 | Generic HID | Start | Select |
 
-Frame generation also works with Capture, the touchpad or the GameSir capture button. **D-pad** = capture at 720p / 1080p / 1440p /
+The 120 fps (esports) mode joins the cycle only when the console outputs 120, the TV runs at **120 Hz or more** and the current capture is one your capture card lists at 120 (usually **1080p or 1440p**; read from the device by the wizard, `capturas_120`); at 4K it stays 30 ↔ 60. It captures at 120 with no frame generation for the lowest latency. Frame generation also works with Capture, the touchpad or the GameSir capture button. **D-pad** = capture at 720p / 1080p / 1440p /
 4K · **L3** = frame generation type (hold 1 s: dither filter) · **R3** = main / alternative upscaler · **A X Y B, L1 L2 R2 R1** = only
 with the unofficial "DLSS 5" extra · keyboard **Ctrl+G** = like L3. Outside the console picture the controller drives the PC (left
 stick = mouse, A = click, B = Esc, L3 = on-screen keyboard).
@@ -373,7 +388,8 @@ stick = mouse, A = click, B = Esc, L3 = on-screen keyboard).
   (also in `licencias\VERSIONES.txt`) elsewhere and put them in a `descargas\` folder next to the exe.
 - **Black screen / "No Signal"**: check *Test picture* in the wizard, close other programs using the capture card (OBS, vendor
   software...). If the console uses **HDCP** the picture is black: turn it off in the console (PS5: Settings > System > HDMI > *Enable
-  HDCP*). ConsoleEnhancer does not remove copy protection.
+  HDCP*). ConsoleEnhancer does not remove copy protection. The HDCP warning only shows after 20 s of truly black picture with a silent
+  console (`hdcp_aviso_s`; `hdcp_aviso=0` turns it off), so dark scenes and fades no longer trigger it.
 - **No sound**: try another input with *Test sound* in the wizard.
 - **No DLSS / frame generation**: DLSS needs a GeForce RTX, Smooth Motion an RTX 40/50, frame generation a 100 Hz+ display.
 - **"Recovering the picture"**: the picture froze with the console on (usually the GPU) and the app reopened it by itself. If it

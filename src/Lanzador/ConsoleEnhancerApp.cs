@@ -326,6 +326,10 @@ namespace ConsoleEnhancer
                 sb.AppendLine("framerate=" + p.CapFps);
                 string pf = p.CapFormato == "NV12" ? "nv12" : p.CapFormato == "YUY2" ? "yuyv422" : p.CapFormato == "RGB24" ? "bgr24" : p.CapFormato == "RGB32" ? "bgr0" : "";
                 sb.AppendLine("pixel_format=" + pf);
+                // (fusion I, modo 120 de Prisma) las capturas que ESTA capturadora lista a 120 (Plan.Capturas120); vacio = sin modo 120
+                string fr120;
+                sb.AppendLine("capturas_120=" + p.Capturas120(out fr120));
+                if (fr120.Length > 0) sb.AppendLine("framerate_120=" + fr120);
             }
             AudioEntrada au = audioElegido ?? p.Audio;
             sb.AppendLine("console_audio=" + (au != null ? "1" : "0"));

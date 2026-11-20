@@ -11,7 +11,9 @@
 // Con la carpeta de la app sin permiso de escritura (Archivos de programa) lo explica y sale.
 // Pruebas / scripts: ConsoleEnhancer.exe --componentes=<carpeta> (los baja o coge de <carpeta>\descargas, sin preguntar ni ventanas,
 // informe en <carpeta>\componentes.log; 0 = bien). Ademas: "Acerca de y licencias" de la bandeja (AcercaDe, abajo).
-// (20-11-2026, agente GITHUB: preparar el repositorio publico)
+// Vista previa de la ventana sin red ni consola: ConsoleEnhancer.exe --ui-preview=componentes;<carpeta> (una imagen PNG de cada
+// estado -inicial, comprobando, descargando con %, sacando, error de huella, sin internet- en espanol e ingles; ver Componentes.Preview).
+// (20-11-2026, agente GITHUB: preparar el repositorio publico; 20-11 agente CE-UI: la ventana ya no corta el texto y se ajusta al contenido)
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -297,32 +299,124 @@ namespace ConsoleEnhancer
         {
             try { return new DriveInfo(Path.GetPathRoot(Path.GetFullPath(dir))).AvailableFreeSpace; } catch { return long.MaxValue; }
         }
+
+        // ---- vista previa sin red ni consola: --ui-preview=componentes;<carpeta> ----
+        // (20-11, CE-UI) Dibuja la ventana del primer arranque en sus estados (inicial, comprobando, descargando con %, sacando,
+        // error de huella y sin internet) en espanol e ingles y los guarda como PNG, para revisar que no se corta ningun texto sin
+        // tener que bajar nada. Usa datos de ejemplo: no lee componentes.json ni escribe en la carpeta de la app.
+        public static int Preview(string carpeta)
+        {
+            Directory.CreateDirectory(carpeta);
+            try { Application.EnableVisualStyles(); } catch { }
+            List<Componente> faltan = Ejemplo();
+            // una ruta larga a proposito, para comprobar que la etiqueta no la corta
+            string dir = @"D:\Juegos\Consolas\ConsoleEnhancer (portable, carpeta de ejemplo bien larga)";
+            string[] estados = { "inicial", "comprobando", "descargando", "sacando", "error", "sin-internet" };
+            foreach (string lang in new string[] { "es", "en" })
+            {
+                Tx.Ingles = lang == "en";
+                try { Idioma.Poner(lang); } catch { }
+                foreach (string e in estados)
+                {
+                    using (ComponentesForm f = new ComponentesForm(faltan, dir, false))
+                    {
+                        f.StartPosition = FormStartPosition.Manual; f.Location = new Point(-4000, -4000); f.ShowInTaskbar = false;
+                        f.Show();
+                        for (int i = 0; i < 4; i++) { Application.DoEvents(); Thread.Sleep(15); }
+                        f.PreviewEstado(e);
+                        for (int i = 0; i < 4; i++) { Application.DoEvents(); Thread.Sleep(15); }
+                        using (Bitmap b = new Bitmap(f.Width, f.Height))
+                        {
+                            f.DrawToBitmap(b, new Rectangle(0, 0, f.Width, f.Height));
+                            b.Save(Path.Combine(carpeta, "componentes_" + lang + "_" + e + ".png"), System.Drawing.Imaging.ImageFormat.Png);
+                        }
+                        f.Close();
+                    }
+                }
+            }
+            Log.Write("Componentes: vista previa en " + carpeta);
+            return 0;
+        }
+
+        // Dos componentes de ejemplo para la vista previa (no se baja nada; los textos y tamanos son realistas)
+        static List<Componente> Ejemplo()
+        {
+            List<Componente> l = new List<Componente>();
+            Componente mpv = new Componente();
+            mpv.Nombre = "mpv"; mpv.Titulo = "mpv"; mpv.Version = "0.39.0";
+            mpv.DescripcionEs = "reproductor que enseña la imagen de la capturadora con poca latencia";
+            mpv.DescripcionEn = "player that shows the capture picture with low latency";
+            mpv.Licencia = "GPL-2.0-or-later"; mpv.Bytes = 45000000L;
+            mpv.Url = "https://github.com/mpv-player/mpv/releases/download/v0.39.0/mpv-x86_64-20250101.zip";
+            l.Add(mpv);
+            Componente mag = new Componente();
+            mag.Nombre = "magpie"; mag.Titulo = "Magpie"; mag.Version = "0.11.0-pre";
+            mag.DescripcionEs = "reescalado de la imagen y generación de fotogramas (FSR, NIS y la generación de Magpie)";
+            mag.DescripcionEn = "image upscaling and frame generation (FSR, NIS and Magpie's own frame generation)";
+            mag.Licencia = "GPL-3.0-only"; mag.Bytes = 620000000L;
+            mag.Url = "https://github.com/Blinue/Magpie/releases/download/v0.11.0-pre/Magpie-v0.11.0-pre-x64.zip";
+            l.Add(mag);
+            return l;
+        }
     }
 
-    // La ventana de la primera vez: que falta, de donde sale, cuanto ocupa; [Descargar] / [Salir]
+    // La ventana de la primera vez: que falta, de donde sale, cuanto ocupa; [Descargar] / [Salir].
+    // (20-11, CE-UI) La ventana se ajusta al contenido y TODAS las etiquetas crecen a lo alto solas (AutoSize + ancho maximo con
+    // salto de linea), para que ni el texto largo del ingles, ni las rutas largas, ni los mensajes de error se corten. Antes tenian
+    // alto fijo (230 / 40 px) y recortaban el texto. Aspecto oscuro, igual que el asistente del primer arranque (Prisma), para que
+    // las dos ventanas combinen. El escalado por DPI lo hace Windows (la app no declara conciencia de DPI), asi que aqui k vale 1 y
+    // el texto fluido evita recortes aunque Windows estire la ventana en una tele 4K.
     sealed class ComponentesForm : Form
     {
+        // mismos colores que el asistente (Asistente.cs), para que las dos ventanas del primer arranque combinen
+        static readonly Color Fondo = Color.FromArgb(18, 20, 28), Panel_ = Color.FromArgb(30, 33, 45),
+                              TextoCol = Color.FromArgb(230, 234, 242), Suave = Color.FromArgb(150, 158, 175), Acento = Color.FromArgb(0, 190, 240);
+
         readonly List<Componente> faltan;
         readonly string dir;
-        readonly Label texto, estado;
-        readonly TextBox enlaces;
+        readonly Label estado;
         readonly ProgressBar barra;
         readonly Button bajar, salir;
         volatile bool cancelar;
         Thread hilo;
         public bool Hecho;
 
+        // DPI a mano por si algun dia la app declara conciencia de DPI; hoy da 1 (Windows escala la ventana sola)
+        static float Escala() { try { using (Graphics g = Graphics.FromHwnd(IntPtr.Zero)) return Math.Max(1f, g.DpiX / 96f); } catch { return 1f; } }
+        readonly float k = Escala();
+        int S(int v) { return (int)Math.Round(v * k); }
+
         public ComponentesForm(List<Componente> faltan, string dir, bool soloActualizar, bool reparar = false)
         {
             this.faltan = faltan;
             this.dir = dir;
             Text = "ConsoleEnhancer";
-            try { Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch { }
-            Font = new Font("Segoe UI", 10f);
+            try { Icon own = PrismaUi.AppIcon(32); Icon = own != null ? own : Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch { }
+            BackColor = Fondo; ForeColor = TextoCol;
+            Font = PrismaUi.BodyFontPt(10f);
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false; MinimizeBox = false;
+            AutoScaleMode = AutoScaleMode.None;   // el reparto se hace a mano; nada de doble escalado
             StartPosition = FormStartPosition.CenterScreen;
-            ClientSize = new Size(720, 470);
+
+            const int M = 24;     // margen
+            const int W = 600;    // ancho del contenido (logico)
+            const int gap = 12;   // aire entre bloques
+            int y = S(M);
+
+            // ---- cabecera: logotipo + nombre (como en la bandeja / el asistente) ----
+            int logo = S(30);
+            PictureBox pb = new PictureBox();
+            pb.SetBounds(S(M), y, logo, logo); pb.SizeMode = PictureBoxSizeMode.Zoom; pb.BackColor = Color.Transparent;
+            try { Icon ico = PrismaUi.AppIcon(logo); if (ico != null) { pb.Image = ico.ToBitmap(); ico.Dispose(); } } catch { }
+            Controls.Add(pb);
+            Label cab = new Label();
+            cab.AutoSize = true; cab.UseMnemonic = false; cab.Font = PrismaUi.TitleFontPt(14f); cab.ForeColor = TextoCol;
+            cab.Text = PrismaUi.ShownName;
+            cab.Location = new Point(S(M) + logo + S(10), y + (logo - cab.PreferredSize.Height) / 2);
+            Controls.Add(cab);
+            y += logo + S(gap);
+
             long total = 0;
             StringBuilder lista = new StringBuilder(), urls = new StringBuilder();
             foreach (Componente c in faltan)
@@ -332,9 +426,8 @@ namespace ConsoleEnhancer
                      .Append(", ").Append(Mb(c.Bytes)).Append(" MB)\r\n");
                 urls.Append(c.Url).Append("\r\n");
             }
-            texto = new Label();
-            texto.SetBounds(16, 12, 688, 230);
-            texto.Text = (reparar
+            // ---- texto principal: intro + la lista + de donde sale y cuanto ocupa (una etiqueta que crece sola, no se corta) ----
+            string cuerpo = (reparar
                 ? Tx.T("Se vuelven a bajar estos programas de sus páginas oficiales (para reparar una instalación dañada):\r\n\r\n",
                        "These programs are downloaded again from their official pages (to repair a damaged install):\r\n\r\n")
                 : soloActualizar
@@ -345,45 +438,111 @@ namespace ConsoleEnhancer
                        "ConsoleEnhancer uses two free third-party programs that are not inside its zip: each one is downloaded from its " +
                        "official page, with its own license and source code. They are downloaded now, only once:\r\n\r\n")) +
                 lista.ToString() + "\r\n" +
-                Tx.T("Se bajan de sus releases oficiales de GitHub, se comprueba su huella SHA-256 y se guardan en esta carpeta (" + dir + "). " +
+                Tx.T("Se bajan de sus releases oficiales de GitHub, se comprueba su huella SHA-256 y se guardan en esta carpeta:\r\n" + dir + "\r\n" +
                      "No se baja ninguna DLL no oficial. Unos " + Mb(total) + " MB; luego ocupan aprox. 1 GB.",
-                     "They come from their official GitHub releases, their SHA-256 is checked and they are saved in this folder (" + dir + "). " +
+                     "They come from their official GitHub releases, their SHA-256 is checked and they are saved in this folder:\r\n" + dir + "\r\n" +
                      "No unofficial DLL is downloaded. About " + Mb(total) + " MB; about 1 GB once installed.");
-            Controls.Add(texto);
-            Label sin = new Label();
-            sin.SetBounds(16, 246, 688, 40);
-            sin.Text = Tx.T("¿Sin internet en este PC? Baja estos ficheros en otro y ponlos en la carpeta \"descargas\" de la app:",
-                            "No internet on this PC? Download these files elsewhere and put them in the app's \"descargas\" folder:");
-            Controls.Add(sin);
-            enlaces = new TextBox();
+            Parrafo(cuerpo, false, S(M), S(W), ref y); y += S(gap);
+
+            // ---- sin internet: poner los zip a mano ----
+            Parrafo(Tx.T("¿Sin internet en este PC? Baja estos ficheros en otro y ponlos en la carpeta \"descargas\" de la app:",
+                         "No internet on this PC? Download these files elsewhere and put them in the app's \"descargas\" folder:"), true, S(M), S(W), ref y);
+            y += S(4);
+            TextBox enlaces = new TextBox();
             enlaces.Multiline = true; enlaces.ReadOnly = true; enlaces.WordWrap = false; enlaces.ScrollBars = ScrollBars.Horizontal;
-            enlaces.SetBounds(16, 288, 688, 58);
+            enlaces.BorderStyle = BorderStyle.FixedSingle; enlaces.BackColor = Color.FromArgb(12, 13, 18); enlaces.ForeColor = Suave;
             enlaces.Font = new Font("Consolas", 8.5f);
             enlaces.Text = urls.ToString().TrimEnd();
             enlaces.TabStop = false;
+            int lineasUrl = Math.Max(2, faltan.Count);
+            // alto para todas las lineas MAS la barra de scroll horizontal (si no, la ultima url queda tapada por la barra)
+            enlaces.SetBounds(S(M), y, S(W), enlaces.Font.Height * lineasUrl + SystemInformation.HorizontalScrollBarHeight + S(8));
             Controls.Add(enlaces);
+            y += enlaces.Height + S(gap);
+
+            // ---- barra de progreso + estado (el estado crece a lo alto para no cortar ni los errores largos) ----
             barra = new ProgressBar();
-            barra.SetBounds(16, 356, 688, 18);
+            barra.SetBounds(S(M), y, S(W), S(16));
             barra.Maximum = 1000;
             Controls.Add(barra);
+            y += barra.Height + S(8);
             estado = new Label();
-            estado.SetBounds(16, 378, 688, 40);
+            estado.AutoSize = false; estado.UseMnemonic = false; estado.ForeColor = TextoCol;
+            estado.SetBounds(S(M), y, S(W), estado.Font.Height * 3 + S(6));   // sitio para 3 lineas (SHA-256, "sin internet", etc.)
             Controls.Add(estado);
-            bajar = new Button();
-            bajar.Text = reparar ? Tx.T("Volver a bajar", "Download again") : soloActualizar ? Tx.T("Actualizar", "Update") : Tx.T("Descargar", "Download");
-            bajar.SetBounds(468, 424, 116, 32);
+            y += estado.Height + S(gap);
+
+            // ---- botones, abajo a la derecha, con ancho segun su texto (no se solapan ni se salen) ----
+            bajar = BotonCe(reparar ? Tx.T("Volver a bajar", "Download again") : soloActualizar ? Tx.T("Actualizar", "Update") : Tx.T("Descargar", "Download"));
+            salir = BotonCe(soloActualizar ? Tx.T("Ahora no", "Not now") : Tx.T("Salir", "Exit"));
+            int bH = S(34), right = S(M) + S(W);
+            salir.SetBounds(right - salir.Width, y, salir.Width, bH);
+            bajar.SetBounds(salir.Left - S(10) - bajar.Width, y, bajar.Width, bH);
             bajar.Click += delegate { Empezar(); };
-            Controls.Add(bajar);
-            salir = new Button();
-            salir.Text = soloActualizar ? Tx.T("Ahora no", "Not now") : Tx.T("Salir", "Exit");
-            salir.SetBounds(592, 424, 112, 32);
             salir.Click += delegate { if (hilo != null && hilo.IsAlive) { cancelar = true; salir.Enabled = false; } else Close(); };
-            Controls.Add(salir);
+            Controls.Add(bajar); Controls.Add(salir);
             AcceptButton = bajar;
+
+            ClientSize = new Size(S(M) + S(W) + S(M), y + bH + S(M));
+            MinimumSize = Size;   // ya esta ajustada al contenido; no encoger
             FormClosing += delegate(object s, FormClosingEventArgs e) { if (hilo != null && hilo.IsAlive) { cancelar = true; e.Cancel = true; } };
         }
 
+        // Una etiqueta que ocupa lo que haga falta a lo alto (ancho fijo, salto de linea): nunca corta el texto
+        void Parrafo(string t, bool suave, int x, int wpx, ref int y)
+        {
+            Label l = new Label();
+            l.AutoSize = true; l.UseMnemonic = false;
+            l.MaximumSize = new Size(wpx, 0);
+            l.ForeColor = suave ? Suave : TextoCol;
+            l.Text = t;
+            l.Location = new Point(x, y);
+            Controls.Add(l);
+            y += l.PreferredSize.Height;
+        }
+
+        // Boton plano oscuro con borde de acento, ancho segun su texto (minimo sensato)
+        Button BotonCe(string t)
+        {
+            Button b = new Button();
+            b.Text = t; b.FlatStyle = FlatStyle.Flat; b.FlatAppearance.BorderColor = Acento; b.BackColor = Panel_; b.ForeColor = TextoCol;
+            int w = S(118);
+            try { w = Math.Max(w, TextRenderer.MeasureText(t, Font).Width + S(28)); } catch { }
+            b.Width = w; b.Height = S(34);
+            return b;
+        }
+
         static long Mb(long bytes) { return (bytes + 500000) / 1000000; }   // (MB de 10^6, como en el README)
+
+        // (20-11, CE-UI) pone la ventana en un estado concreto para la vista previa (Componentes.Preview)
+        internal void PreviewEstado(string tipo)
+        {
+            switch (tipo)
+            {
+                case "comprobando":
+                    bajar.Enabled = false; salir.Text = Tx.T("Cancelar", "Cancel");
+                    estado.Text = Tx.T("Comprobando ", "Checking ") + "Magpie-v0.11.0-pre-x64.zip...";
+                    barra.Value = 0; break;
+                case "descargando":
+                    bajar.Enabled = false; salir.Text = Tx.T("Cancelar", "Cancel");
+                    estado.Text = Tx.T("Bajando ", "Downloading ") + "Magpie 0.11.0-pre: 214 / 620 MB (18.6 MB/s)";
+                    barra.Value = 345; break;
+                case "sacando":
+                    bajar.Enabled = false; salir.Text = Tx.T("Cancelar", "Cancel");
+                    estado.Text = Tx.T("Sacando ", "Extracting ") + "Magpie: 1234" + Tx.T(" ficheros", " files");
+                    barra.Value = 1000; break;
+                case "error":
+                    bajar.Enabled = true; bajar.Text = Tx.T("Reintentar", "Retry"); salir.Text = Tx.T("Salir", "Exit");
+                    estado.Text = Tx.T("La descarga de ", "The download of ") + "Magpie" +
+                                  Tx.T(" no tiene la huella SHA-256 esperada (", " does not have the expected SHA-256 (") +
+                                  "9f2c8b17a4e03d5c6f1289ab)"; break;
+                case "sin-internet":
+                    bajar.Enabled = true; bajar.Text = Tx.T("Reintentar", "Retry"); salir.Text = Tx.T("Salir", "Exit");
+                    estado.Text = Tx.T("No se pudo bajar (¿sin internet?): ", "Download failed (no internet?): ") +
+                                  Tx.T("No se puede resolver el nombre del servidor remoto 'github.com'.", "The remote name could not be resolved: 'github.com'.");
+                    barra.Value = 0; break;
+            }
+        }
 
         void Poner(string t, long hecho, long total)
         {

@@ -95,7 +95,8 @@ namespace ConsoleEnhancer.Motor
         public bool NrMask = true, NrUi = true;
         public string NrDir = "";   // ConsoleEnhancer: la carpeta magpie de la app (el lanzador la pasa con dlss5_dir)
         public int Reflex = 1;                      // 0 off, 1 baja latencia, 2 + boost
-        public int Mode = 60;                       // 60 | 30 (30: solo imagenes nuevas)
+        public int Mode = 60;                       // 60 | 30 | 120 (30: solo imagenes nuevas; 120: esports, captura a 120, sin generacion, minimo proceso)
+        public bool Is120 { get { return Mode >= 120; } }   // 20-11 (HZ120): modo 120 fps de baja latencia
         public int Dedupe = -1;                     // -1 auto (modo 30 o con generacion), 0 no, 1 si
         public bool Motion = true;
         public bool Aa = true, Dedither = true;     // bordes (FXAA) y tramado de 5 bits, como scripts\s2_aa.glsl de mpv

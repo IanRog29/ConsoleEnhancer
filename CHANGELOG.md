@@ -5,6 +5,22 @@ publicada es una etiqueta `vX.Y.Z` de git; GitHub Actions monta su zip y copia a
 
 ## [Sin publicar]
 
+## [1.0.2] - 2026-11-20
+
+### Añadido
+- **Modo 120 fps (esports)**: para los juegos de 120 Hz, captura a 120 sin generación de fotogramas y con el menor retraso. El botón de
+  modo pasa 30 → 60 → 120 solo si la consola saca 120, la tele va a 120 Hz o más y la captura de ahora es una que tu capturadora lista a
+  120 (normalmente 1080p / 1440p; el asistente lo lee de la capturadora: `capturas_120`). A 4K sigue 30 ↔ 60. `permitir_120=auto`.
+  *120 fps esports mode (1080p / 1440p capture and a 120 Hz TV).*
+
+### Arreglado
+- **Falso aviso de HDCP**: solo salta con la imagen negra de verdad y la consola en silencio 20 s seguidos (antes, escenas oscuras o
+  fundidos lo hacían saltar). `hdcp_aviso`, `hdcp_aviso_s`. *No more false HDCP warnings.*
+- **Ventana de la primera descarga** (mpv y Magpie): ya no corta el texto, en español ni en inglés. *The first-run download window no
+  longer cuts off text.*
+- Recordatorio de la 1.0.1: la PS5 (y, preliminar, la Xbox) reconocen cada juego y le guardan su perfil; además, su menú siempre va a
+  4K nativo aunque un ini viejo traiga `home_4k_nativo=0` (si no, no se podía reconocer el juego).
+
 ## [1.0.1] - 2026-11-20
 
 ### Añadido
@@ -78,6 +94,7 @@ support:* https://ko-fi.com/ianrog29
   mpv y Magpie no se reparten (los baja la app). Nada no oficial ("DLSS 5", `dlssg_sm86`).
 - Autor: IanRog29 y colaboradores de ConsoleEnhancer (`LICENSE-EXCEPTION.txt`, *Acerca de*). Donaciones por Ko-fi, voluntarias.
 
-[Sin publicar]: ../../compare/v1.0.1...HEAD
+[Sin publicar]: ../../compare/v1.0.2...HEAD
+[1.0.2]: ../../releases/tag/v1.0.2
 [1.0.1]: ../../releases/tag/v1.0.1
 [1.0.0]: ../../releases/tag/v1.0.0

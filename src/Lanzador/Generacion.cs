@@ -164,6 +164,7 @@ namespace ConsoleEnhancer
         // La linea de detalle del aviso: x2 y lo de DLSS 5 que cabe con ella
         string GenDetail(string t, bool engine)
         {
+            if (cfg.Mode120) return "120 fps (esports) · sin generacion · baja latencia"; // 20-11 (HZ120): a 120 no hay generacion
             string fps = (cfg.CapMode ? "30" : "60") + " → " + ((cfg.CapMode ? 30 : 60) * cfg.FgMultNow) + " fps";
             if (engine) return fps + " · motor propio" + (t == "dlss" ? " con Reflex" : "");
             if (cfg.Dlss5Off) return fps + " · sin DLSS 5";

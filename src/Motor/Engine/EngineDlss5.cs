@@ -203,7 +203,7 @@ void main(uint3 id : SV_DispatchThreadID) {
             double p = stats.LastGpuP95;
             // (como AutoPresetTick: no mientras el lanzador cambia de imagen -la grafica la comparte con Magpie- ni recien creado)
             if (Program.FocusHold || Clock.Ms(nrCreatedAt, now) < 5000 || p <= 0) { nrOver = nrOverHard = 0; return; }
-            double limit = AdTope;   // (ConsoleEnhancer: el mismo tope que EngineAdapta.cs; en Prisma el de AutoPresetTick, sin lo de Smooth Motion)
+            double limit = AdTope;   // (ConsoleEnhancer: el mismo tope que EngineAdapta.cs; en Prisma el de AutoPresetTick, sin lo de Smooth Motion; a 120 los 8 ms de Prisma HZ120)
             nrOverHard = p > limit * 1.6 ? nrOverHard + 1 : 0;   // muy por encima: 2 s
             nrOver = p > limit * 1.15 ? nrOver + 1 : 0;           // por encima: 5 s
             if (nrOverHard < 2 && nrOver < 5) return;

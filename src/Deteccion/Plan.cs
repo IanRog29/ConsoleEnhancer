@@ -143,6 +143,24 @@ namespace ConsoleEnhancer.Deteccion
             return sb.ToString();
         }
 
+        // (fusion I) Capturas a 120 de los formatos leidos de la capturadora: "1920x1080,2560x1440" o "" (no se sabe o no hay)
+        public string Capturas120(out string framerate)
+        {
+            framerate = "";
+            if (Captura == null || Captura.Formatos == null || Captura.Formatos.Count == 0) return "";
+            List<string> r = new List<string>();
+            double mejor = 0;
+            foreach (string t in new[] { "1280x720", "1920x1080", "2560x1440" })
+                foreach (FormatoCaptura f in Captura.Formatos)
+                    if (!f.Comprimido && f.FpsMax >= 119 && (f.Ancho + "x" + f.Alto) == t)
+                    {
+                        if (!r.Contains(t)) r.Add(t);
+                        if (mejor == 0 || Math.Abs(f.FpsMax - 120) < Math.Abs(mejor - 120)) mejor = f.FpsMax;
+                    }
+            if (r.Count > 0) framerate = mejor >= 119.5 ? "120" : "120000/1001";
+            return string.Join(",", r.ToArray());
+        }
+
         // Los ajustes de serie para el ini de ConsoleEnhancer (mismos nombres que switch2.ini donde existen)
         public string ComoIni()
         {
@@ -155,6 +173,12 @@ namespace ConsoleEnhancer.Deteccion
                 sb.AppendLine("video_size=" + CapW + "x" + CapH);
                 sb.AppendLine("framerate=" + CapFps);
                 sb.AppendLine("pixel_format=" + CapFormato);
+                // (fusion I, modo 120 de Prisma HZ120) las capturas que ESTA capturadora lista a 120 (sin comprimir, de las que usa la app:
+                // 720p / 1080p / 1440p; a 4K el boton sigue 30 <-> 60). Sin formatos leidos (asistente sin abrirla): vacio = sin modo 120
+                string fr120;
+                sb.AppendLine("# Modo 120 fps (esports): solo con estas capturas, la tele a 120 Hz o mas y una consola que saque 120 (permitir_120=auto)");
+                sb.AppendLine("capturas_120=" + Capturas120(out fr120));
+                if (fr120.Length > 0) sb.AppendLine("framerate_120=" + fr120);
             }
             if (Audio != null) { sb.AppendLine("audio_dispositivo=" + Audio.Nombre); sb.AppendLine("audio_origen=" + Audio.Origen); }
             sb.AppendLine("consola=" + Consola);
@@ -299,8 +323,13 @@ namespace ConsoleEnhancer.Deteccion
             // ---- HDR, RTX HDR y VRR (20-11, HdrVrr.cs): lo que deja la pantalla y la grafica y lo de serie
             PlanHdrVrr.Elegir(hw, p, pref);
 
-            // ---- HOME a 4K nativo (Switch 2): pantalla 4K y capturadora que coja 4K60
-            p.HomeNativo = p.Consola == "switch2" && p.OutH >= 2160 && CapturaAdmite(p.Captura, 2160, 59);
+            // ---- Menu / HOME a 4K nativo: la Switch 2 (su HOME) y las consolas con menu propio reconocido (PS5, Xbox Series), con pantalla
+            // 4K y capturadora que coja 4K60. Con consola=auto tambien (detras puede estar cualquiera; en marcha solo se usa si la consola
+            // puesta lo admite: src\Lanzador\ConsolasApp.cs). 20-11 (CE-PERFILES): antes solo la Switch 2, asi que a la PS5 / Xbox se les
+            // escribia home_4k_nativo=0 y su menu propio NO salia a 4K nativo; sin ese paso no habia ciclo entrar/salir del menu y el perfil
+            // por juego (nombre en el centro de control / conmutador, src\Lanzador\MenuPs5.cs) no se guardaba ni se re-aplicaba
+            bool menuNativo = p.Consola == "switch2" || p.Consola == "ps5" || p.Consola == "xboxseries" || p.Consola == "" || p.Consola == "auto";
+            p.HomeNativo = menuNativo && p.OutH >= 2160 && CapturaAdmite(p.Captura, 2160, 59);
             if (cons != null && (bool)cons[4]) p.Motivos.Add(Tx.T("Consola con tramado de 5 bits: filtro de bordes y tramado (s2_aa) encendido", "5-bit dithering console: dedither filter on"));
             if (cons != null && (bool)cons[3] && p.Pantalla != null && p.Pantalla.HzMax >= 120 && CapturaAdmite(p.Captura, Math.Min(p.CapH, 1080), 119))
                 p.Motivos.Add(Tx.T("La consola y la capturadora llegan a 120 Hz: en los juegos de 120 no hace falta generación (captura a 120)", "Console and capture reach 120 Hz: capture at 120 for 120 Hz games"));

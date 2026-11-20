@@ -166,18 +166,22 @@ namespace ConsoleEnhancer
         // (GamepadLoop, con la imagen delante y fuera del HOME) el boton Vista / Share / Crear / -
         void CeBotonVista()
         {
-            if (BotonesCe.Prisma) { SetMode(true); return; }
+            if (BotonesCe.Prisma) { CycleMode(-1); return; }   // (fusion I, Prisma HZ120: Share / - baja 120 -> 60 -> 30)
             Log.Write("Mando: " + BotonesCe.NombreVista(PadHub.Shared.MainKind, false) + " = generacion de fotogramas " + (fgWanted ? "no" : "si"));
             PadCaptureButton(false);   // (lo mismo que Captura / panel tactil: la generacion si / no, con su espera de 0,6 s)
         }
 
-        // El boton Options / Menu / + : modo 30 <-> 60
+        // El boton Options / Menu / + : modo 30 -> 60 -> 120 -> 30 (fusion I, modo 120 de Prisma HZ120: el 120 solo si cabe, Puede120;
+        // si no, 30 <-> 60 como antes y, al pasar del 60, el aviso de por que no hay 120 la primera vez)
         void CeBotonMenu()
         {
-            if (BotonesCe.Prisma) { SetMode(false); return; }
-            bool cap = !cfg.CapMode;
-            Log.Write("Mando: " + BotonesCe.NombreMenu(PadHub.Shared.MainKind, false) + " = modo " + (cap ? "30" : "60") + " fps");
-            SetMode(cap);
+            if (BotonesCe.Prisma) { CycleMode(+1); return; }   // (Options / + sube 30 -> 60 -> 120)
+            int cur = cfg.Mode120 ? 120 : cfg.CapMode ? 30 : 60;
+            int next = cur == 30 ? 60 : cur == 60 ? (Puede120() ? 120 : 30) : 30;
+            if (cur == 60 && next == 30 && !avisado120) { avisado120 = true; Osd(Aviso120NoCabe()); }
+            Log.Write("Mando: " + BotonesCe.NombreMenu(PadHub.Shared.MainKind, false) + " = modo " + next + " fps");
+            SetModeN(next);
         }
+        bool avisado120;
     }
 }

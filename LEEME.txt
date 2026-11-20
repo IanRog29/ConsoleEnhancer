@@ -38,7 +38,9 @@ COMO SE USA
   - Mando, botones, telon, DLSS 5 (solo si el usuario pone la DLL en extras\: aviso de no oficial), modo 30/60, HOME de la Switch 2:
     como en Prisma (con Mandos.cs, Consolas.cs consola=auto, Pasadas.cs, ColaSm.cs... de los demas agentes).
   - Pruebas sin consola: --asistente-auto (plan sin preguntar), --dry-run, --datos=<carpeta>, --simula=<caso> (plan de otro PC, con
-    --asistente-auto), --ui-preview=asistente;<carpeta> (imagenes del asistente sin abrir nada).
+    --asistente-auto), --ui-preview=asistente;<carpeta> (imagenes del asistente sin abrir nada), --ui-preview=componentes;<carpeta>
+    (la ventana del primer arranque que baja mpv/Magpie, en sus estados -inicial, comprobando, descargando, sacando, error, sin
+    internet-, es/en, sin red; 20-11 CE-UI: esa ventana ya se ajusta al contenido y no corta el texto).
 
 CADENA SEGUN LA GRAFICA (src\Deteccion\Plan.cs)
   RTX 50: DLSS SR + Reflex + DLSS-G (x2; x3/x4 con pantallas de 180/240 Hz). RTX 40: DLSS SR + Reflex + Smooth Motion x2 (DLSS-G a
@@ -57,10 +59,10 @@ COMPILAR Y EMPAQUETAR (C# 5, nada que instalar)
   Desde el 19-11: mpv, Magpie y Streamline salen de terceros\ (scripts\descargar_dependencias.ps1, versiones fijas de GitHub con
   SHA-256), no de mpv aparte ni de las carpetas de Prisma. Ver README.md.
   BASES PARA LA PROXIMA FUSION (lo de Prisma y del motor que ya esta en ConsoleEnhancer), LAS VIGENTES:
-    Prisma: Switch2Magpie\base_consoleenhancer\base_prisma_20-11_1411 (todo src de Prisma congelado a las 14:11, fusion H: PS5JUEGO,
-            con lo de CONSOLA y LATENCIA5). Las de las 06:00, 06:38 y 06:51 ya no.
-    Motor:  Switch2Magpie\base_consoleenhancer\base_motor_20-11_0651 (src\Engine, Capture y Native a las 06:51; la base del motor es su
-            carpeta Engine). La de las 06:00 ya no.
+    Prisma: Switch2Magpie\base_consoleenhancer\base_prisma_20-11_1522 (todo src de Prisma congelado a las 15:22, fusion I: HDCP120 y
+            HZ120, con PS5JUEGO, CONSOLA y LATENCIA5). Las de antes ya no.
+    Motor:  Switch2Magpie\base_consoleenhancer\base_motor_20-11_1522 (src\Engine, Capture y Native a las 15:22; la base del motor es su
+            carpeta Engine). Las de antes ya no.
   Script: Switch2Magpie\base_consoleenhancer\fusionar_e.ps1 (-BasePrisma / -BaseMotor = las vigentes; -OtroPrisma / -OtroMotor = copias
   congeladas de ese momento, no las carpetas vivas, que otros agentes siguen cambiando).
 
@@ -389,3 +391,51 @@ Switch2Magpie\LEEME.txt (LATENCIA3). Copias: src\Lanzador\Switch2Magpie.cs/ColaS
     filtros de nombres bien; --asistente-auto --dry-run (ini con ps5_reconocer_juegos=1 y xbox_reconocer_juegos=1). Zip:
     scripts\empaquetar.ps1 -Zip -Forzar -Version v1.0.1 -> dist\ConsoleEnhancer-v1.0.1.zip.
   - Sin probar: con la PS5 en vivo (en Prisma solo con mockups del centro de control / conmutador); la Xbox entera (sin consola).
+
+20-11-2026 15:10 (agente CE-PERFILES): la PS5 no guardaba el perfil por juego en ConsoleEnhancer (en Prisma si). CAUSA REAL: el plan de la
+  imagen (src\Deteccion\Plan.cs) ponia home_4k_nativo=1 SOLO con la Switch 2; para la PS5 / Xbox escribia home_4k_nativo=0 en el ini del
+  usuario. Con home_4k_nativo=0, cfg.HomeNativeEnabled queda apagado para la consola con menu propio (src\Lanzador\ConsolasApp.cs), asi que
+  su menu NO sale a 4K nativo y NO hay ciclo entrar/salir del menu; ese ciclo (MenuPs5Salir -> EnterGame) es el UNICO que guarda y re-aplica
+  el perfil "PS5: <juego>". El nombre si se reconoce (se escribe en el log "Juego de la PS5 reconocido"), pero el perfil nunca se creaba.
+  En Prisma no se ve porque su switch2.ini ya trae home_4k_nativo=1. El ps5_reconocer_juegos / xbox_reconocer_juegos ya valia 1 por defecto
+  (Config) aunque falte en el ini; no era eso. El arranque como generica de las 14:24 fue por ser la PRIMERA vez (juegos\consola.txt aun no
+  existia); ya existe (=ps5), asi que ahora arranca como PS5 ("la ultima vista"), comprobado con --test-consolas.
+  - Arreglado: (1) Plan.cs: home_4k_nativo=1 tambien para ps5 / xboxseries y para consola=auto (con pantalla 4K y captura 4K60), no solo
+    switch2. (2) ConsolasApp.cs (ConsolaAlAbrir y CambioDeConsola, 2 lineas; VIENE DE LA LOGICA DE CE, no de Prisma): la consola con menu
+    propio SIEMPRE a 4K nativo aunque el ini traiga home_4k_nativo=0 -> cfg.HomeNativeEnabled = (homeIni && c.TieneHome) || c.MenuPropio.
+    Asi el ini viejo del usuario (home_4k_nativo=0) ya no apaga el perfil por juego de la PS5, sin depender de que el asistente reescriba el
+    ini. OJO FUSION: ConsolasApp.cs es identico en Prisma; estas 2 lineas hay que llevarlas a Prisma tambien (alli estaba latente, oculto
+    por su ini=1). Copias *.antes-ceperfiles.
+  - Uso (PS5/Xbox): el nombre del juego solo sale en el centro de control / conmutador (boton PS) o la Guia, NO durante el juego. Para que
+    recuerde cada juego hay que pulsar el boton PS una vez al entrar; documentado en README (es/en). Durante el gameplay no hay forma de
+    leerlo.
+  - Probado: build.bat (ok), tests\build_deteccion.bat (ok), DeteccionTest --simula=todo (sin excepciones; ahora da "HOME a 4K nativo: si"
+    para PS5/auto con 4K), --test-consolas (0 fallos; con consola.txt=ps5 arranca como PS5), --test-nombres (0 fallos), --test-juegos-consola
+    con mockups del centro de control: lee "Bloodborne", "God of War Ragnarok", "EA SPORTS FC 26" (3/4; la captura real de juegos\debug es
+    una pantalla de juego, no el centro de control, y correctamente no da nombre) y descarta reloj/rotulos.
+  - Sin probar: la PS5 en vivo (solo con mockups); la Xbox entera.
+
+20-11-2026 15:22 (agente FUSION, fusion I, para la v1.0.2): HDCP120 y HZ120 de Prisma (falso aviso de HDCP y modo 120 fps esports)
+  - Bases nuevas vigentes: base_prisma_20-11_1522 y base_motor_20-11_1522. fusionar_e.ps1 desde base_prisma_20-11_1411 /
+    base_motor_20-11_0651\Engine, sobre el arbol de CE con los cambios SIN commit de otros dos agentes (CE-PERFILES: Plan.cs, ConsolasApp.cs
+    HomeNativeEnabled; CE-UI: Componentes.cs, el --ui-preview=componentes de Switch2Magpie.cs), que se conservan. Copias *.antes-fusioni.
+      * Limpias: Generacion.cs, Mandos.cs; motor Common.cs, Engine.cs, EngineTirones.cs.
+      * ConsolasApp.cs, 2 conflictos: el mismo arreglo de HomeNativeEnabled en los dos (Prisma lo copio de CE): una sola vez, con el
+        comentario de CE; el HDCP nuevo (HdcpDarkLit < 0,004 y silencio hdcp_aviso_s) entra limpio.
+      * Switch2Magpie.cs, 4 conflictos, lo de los dos: EngineSmoothMode (lo de CE con la pantalla a 100 Hz + "a 120 sin Smooth Motion"),
+        los botones (los de CE, BotonesCe.cs, con la escalera nueva), EngineLive (la generacion de CE con 60 Hz + mode=120 sin generacion;
+        el escalador de CE, Ce.EngineUpscaler), LavfOptions (el pixel_format opcional de CE + FramerateNow). El hook de UI se queda.
+      * EngineDlss5.cs, 1 conflicto: el tope del guardian sigue siendo AdTope (CE) y AdTope ahora da 8 ms a 120 (lo de Prisma).
+  - Adaptado a CE: Config.Capturas120 de serie VACIO (en Prisma 1080p y 1440p de la GC573): las capturas a 120 las escribe el plan
+    (Plan.Capturas120 desde los formatos que LISTA la capturadora, sin comprimir y a >= 119 fps, de 720p / 1080p / 1440p, y framerate_120;
+    Ce.PlanComoIni). Sin formatos leidos (asistente sin abrirla, --asistente-auto) queda capturas_120= y no hay modo 120: lo prudente.
+    Botones de CE (mando_botones=ce): Options / Menu / + = 30 -> 60 -> 120 -> 30 (el 120 solo si Puede120: la consola saca 120, la tele a
+    >= 120 Hz, la captura en capturas_120); sin 120, 30 <-> 60 como antes y, la primera vez, el aviso de por que no (Aviso120NoCabe).
+    Con mando_botones=prisma, la escalera de Prisma (Share baja, Options sube). recursos\base.ini: permitir_120=auto, hdcp_aviso=1,
+    hdcp_aviso_s=20.
+  - README (es / en: modo 120 con sus requisitos y la tabla de botones; el aviso de HDCP), CHANGELOG.md [1.0.2].
+  - Probado: build.bat, build_motor.bat, tests\build_deteccion.bat; DeteccionTest --simula=todo (23 PCs, sin excepciones); --test-consolas (0
+    fallos); --asistente-auto --dry-run (permitir_120=auto, capturas_120= vacio sin formatos leidos, hdcp_aviso / _s, ps5_reconocer_juegos,
+    home_4k_nativo=1); --ui-preview=componentes (12 imagenes, es / en, los 6 estados). Zip: empaquetar.ps1 -Zip -Forzar -Version v1.0.2.
+  - Sin probar: el modo 120 entero (sin consola ni GPU: ni el motor a 120, ni el cambio de fps de la fuente, ni Magpie a 120); capturas_120
+    escrito desde los formatos de una capturadora de verdad (el asistente abriendola); el aviso de HDCP con una consola.

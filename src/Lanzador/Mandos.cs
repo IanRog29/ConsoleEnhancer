@@ -194,7 +194,7 @@ namespace ConsoleEnhancer
             string s = "cruceta = captura, " + Name(k, PadBtn.X, false) + "/" + Name(k, PadBtn.Y, false) + "/" + Name(k, PadBtn.B, false) +
                        " = 1/2/3 pasadas de DLSS 5, " + Name(k, PadBtn.A, false) + " = DLSS 5 si/no, " +
                        Name(k, PadBtn.LB, false) + "/" + lt + "/" + rt + "/" + Name(k, PadBtn.RB, false) + " = nivel 1-4, " +
-                       Name(k, PadBtn.View, false) + " / " + Name(k, PadBtn.Start, false) + " = modo 30 / 60 fps, " +
+                       Name(k, PadBtn.View, false) + " / " + Name(k, PadBtn.Start, false) + " = modo 30 / 60 / 120 fps (baja / sube; 120 solo si la captura y la tele lo admiten), " +
                        "L3 = tipo de generacion (selector; mantenido 1 s = filtro de tramado), R3 = escalador";
             if (IsNintendo(k) || k == PadKind.GameSir) s += ", " + Name(k, PadBtn.Capture, false) + " = generacion de fotogramas";
             else if (IsPlayStation(k)) s += ", panel tactil = generacion de fotogramas";

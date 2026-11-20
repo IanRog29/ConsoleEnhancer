@@ -81,6 +81,7 @@ namespace ConsoleEnhancer.Motor
             get
             {
                 // los de AutoPresetTick; con Smooth Motion (la generacion del driver no se ve aqui) algo menos
+                if (s.Is120) return 8.0;   // (fusion I, Prisma HZ120: el modo 120, sin generacion; el de AutoPresetTick)
                 if (s.SmoothMode > 0) return s.Mode == 30 ? 27.0 : 12.5;
                 return s.Mode == 30 ? (fgApplied ? 26.0 : 31.0) : (fgApplied ? 11.0 : 15.5);
             }

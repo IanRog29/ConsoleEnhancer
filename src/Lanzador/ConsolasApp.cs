@@ -18,6 +18,9 @@ namespace ConsoleEnhancer
         volatile string audioNow;                    // lo ultimo del medidor de audio de la consola: "sound" / "silent" / null
         DateTime darkSince = DateTime.MinValue;      // PlayStation: negro y en silencio desde (el HDCP)
         bool hdcpSaid;
+        // 20-11 (HDCP120): negro DE VERDAD para el aviso de HDCP (lit por debajo de esto = casi 0 % con luz). Mucho mas estricto que
+        // HomeLabel.DarkLit (0,03, que cuenta tambien una pantalla de carga oscura): el HDCP da negro liso, una carga o una escena oscura no
+        const double HdcpDarkLit = 0.004;
         DateTime fps40Since = DateTime.MinValue;     // un juego a 40 desde
         bool fps40Said;
         string waitHint = "Pulsa Esc para cancelar"; // WaitForSignal: el texto pequeño de "Enciende la consola" puesto
@@ -33,7 +36,11 @@ namespace ConsoleEnhancer
             obsStart = DateTime.Now;
             ConsolaPerfil c = Consolas.Actual;
             // (19-11: la PS5 tambien, con su menu propio: src\MenuPs5.cs; se empieza en su menu a 4K nativo, como en el HOME)
-            cfg.HomeNativeEnabled = homeIni && (c.TieneHome || c.MenuPropio);
+            // 20-11 (CE-PERFILES): las consolas con menu propio (PS5, Xbox) necesitan su menu a 4K nativo para reconocer cada juego en el
+            // centro de control / conmutador y guardar y re-aplicar su perfil; eso NO depende de home_4k_nativo (clave pensada para el HOME de
+            // la Switch 2, que si se puede querer escalado). Un ini viejo con home_4k_nativo=0 (lo escribia el plan para todo lo que no fuera
+            // Switch 2) ya no apaga el reconocimiento por juego de la PS5: su menu propio siempre sale a 4K nativo
+            cfg.HomeNativeEnabled = (homeIni && c.TieneHome) || c.MenuPropio;
             if (!c.TieneHome) AplicarPerfilConsola(c);
             else if (!c.CapturaUtil(cfg.VideoSize)) cfg.VideoSize = c.CapturaCercana(cfg.VideoSize);
         }
@@ -60,9 +67,11 @@ namespace ConsoleEnhancer
                 SaveText(Paths.Dlss5LevelFile, p.Level.ToString(CultureInfo.InvariantCulture));
                 dlss5Passes = p.Passes;
                 SaveText(Paths.Dlss5PassesFile, p.Passes.ToString(CultureInfo.InvariantCulture));
-                cfg.CapMode = p.Cap;
-                SaveText(Paths.ModeFile, p.Cap ? "30" : "60");
-                want30 = p.Cap;
+                bool pm120 = p.Mode120 && Puede120(c.CapturaCercana(p.Capture)); // 20-11 (HZ120): 120 solo si la captura/consola/tele lo admiten
+                cfg.CapMode = p.Cap && !pm120;
+                cfg.Mode120 = pm120;
+                SaveText(Paths.ModeFile, pm120 ? "120" : cfg.CapMode ? "30" : "60");
+                want30 = cfg.CapMode;
                 slow30 = fast60 = 0;
                 cfg.VideoSize = c.CapturaCercana(p.Capture);
                 SaveText(Paths.CaptureFile, cfg.VideoSize);
@@ -90,7 +99,9 @@ namespace ConsoleEnhancer
         void CambioDeConsola(ConsolaPerfil nueva)
         {
             EsperasApagadoAlMotor(nueva);
-            cfg.HomeNativeEnabled = homeIni && (nueva.TieneHome || nueva.MenuPropio);
+            // 20-11 (CE-PERFILES): el menu propio (PS5, Xbox) siempre a 4K nativo (para el perfil por juego), aunque el ini traiga
+            // home_4k_nativo=0; este solo manda sobre el HOME de la Switch 2 (ver ConsolaAlAbrir)
+            cfg.HomeNativeEnabled = (homeIni && nueva.TieneHome) || nueva.MenuPropio;
             // Con HOME (la Switch 2): nada mas; en cuanto se vea su HOME, a 4K nativo como siempre (AnalyzeGrab / HomeTick)
             if (nueva.TieneHome) return;
             lock (homeSync) { ps5MenuHits = 0; ps5OutHits = 0; menuMaq.Reiniciar(); } // (19-11: con menu propio, su menu se mira desde ahora: MenuPs5Captura)
@@ -174,15 +185,25 @@ namespace ConsoleEnhancer
                 }
             }
             ConsolaPerfil c = Consolas.Actual;
-            if (!c.HdcpEnJuegos) return;
+            // 20-11 (HDCP120): el aviso de HDCP salia en falso CON imagen (fallo 2). Dos culpas conocidas: con captura 4K en yuy2 la copia
+            // que da el motor puede venir solo en luma/gris (lit sale bajo aunque haya imagen) y el medidor de audio cambia sound/silent muy
+            // seguido; con el umbral de antes (6 s, DarkLit = negro O carga) bastaba un rato oscuro para avisar. Ahora, conservador (mejor
+            // no avisar que avisar en falso): negro DE VERDAD (lit ~0, mucho mas estricto que DarkLit, que cuenta tambien una carga oscura) +
+            // en silencio, seguidos cfg.HdcpWarnSecs (de serie 20 s, antes 6). Un solo fotograma con algo de luz o con sonido reinicia la
+            // cuenta: una copia 4K en luma/gris o un cambio suelto de sonido/silencio ya no disparan el aviso. Clave del ini hdcp_aviso=0 lo
+            // apaga del todo. No afecta al apagado por consola (eso es NegroApagadoS, aparte: la PlayStation nunca se apaga por negro)
+            if (!cfg.HdcpWarn || !c.HdcpEnJuegos) { darkSince = DateTime.MinValue; hdcpSaid = false; return; }
             double lit;
             HomeLabel.Thumb(small, out lit);
-            bool dark = lit < HomeLabel.DarkLit && audioNow == "silent";
+            bool dark = lit < HdcpDarkLit && audioNow == "silent";
             if (!dark) { darkSince = DateTime.MinValue; hdcpSaid = false; return; }
             if (darkSince == DateTime.MinValue) { darkSince = now; return; }
-            if (hdcpSaid || (now - darkSince).TotalSeconds < 6) return;
+            double secs = (now - darkSince).TotalSeconds;
+            if (hdcpSaid || secs < cfg.HdcpWarnSecs) return;
             hdcpSaid = true;
-            Log.Write("Consola " + c.Corto + ": negro y en silencio " + (int)(now - darkSince).TotalSeconds + " s: puede ser el HDCP (" + c.ConsejoHdcp + ")");
+            Log.Write("Consola " + c.Corto + ": negro de verdad y en silencio " + (int)secs + " s seguidos (lit " +
+                      lit.ToString("0.###", CultureInfo.InvariantCulture) + ", umbral " + cfg.HdcpWarnSecs.ToString("0.#", CultureInfo.InvariantCulture) +
+                      " s; captura " + cfg.CaptureNow + "): puede ser el HDCP (" + c.ConsejoHdcp + ")");
             OnUi(delegate { OsdWarn(c.ConsejoHdcp, "8000"); });
         }
 

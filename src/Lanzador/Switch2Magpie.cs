@@ -895,7 +895,7 @@ namespace ConsoleEnhancer
         // 19-11 (GENERACION): Smooth Motion en el motor para este modo: lo elegido con L3 (smooth = si, dlss = DLSS-G) o el ini
         public bool EngineSmoothFor(bool cap) { string k = cap ? FgPick30 : FgPick60; return k.Length > 0 ? k == "smooth" : cap ? EngineSmooth30 : EngineSmooth60; }
         // (19-11: en el menu de la PS5 a 4K nativo, nunca: el usuario lo quiere "nativamente sin smooth motion ni nada", src\MenuPs5.cs)
-        public int EngineSmoothMode { get { if (FgOff || NvProfiles.EngineSmoothBroken || (HomeNative && Consolas.Actual.MenuPropio)) return 0; if (CapMode) return EngineSmoothFor(true) ? (Pantalla.Hz() >= 100 ? 2 : 1) : 0; return EngineSmoothFor(false) && Pantalla.Hz() >= 100 ? 1 : 0; } }   // (ConsoleEnhancer: en el modo 60 la generacion solo con la pantalla a 100 Hz o mas)
+        public int EngineSmoothMode { get { if (FgOff || Mode120 || NvProfiles.EngineSmoothBroken || (HomeNative && Consolas.Actual.MenuPropio)) return 0; if (CapMode) return EngineSmoothFor(true) ? (Pantalla.Hz() >= 100 ? 2 : 1) : 0; return EngineSmoothFor(false) && Pantalla.Hz() >= 100 ? 1 : 0; } }   // (ConsoleEnhancer: en el modo 60 la generacion solo con la pantalla a 100 Hz o mas; 20-11 HZ120: a 120 sin Smooth Motion)
         // 19-11 (GENERACION): la generacion de ahora solo la hace Magpie (FSR 3 FG, XeSS FG, NVIDIA VFG): con DLSS 5 apagado, mpv + Magpie sin el
         public bool FgMagpieOnly { get { return !FgOff && !HomeNative && (FgTypeNow == "fsr3" || FgTypeNow == "xess" || FgTypeNow == "vfg"); } }
         // La clave del modo del motor con su generacion ("60_sm" con Smooth Motion, "60_dlssg" con DLSS-G; "" sin generacion)
@@ -1025,6 +1025,18 @@ namespace ConsoleEnhancer
 
         // ---- Lo que elige el mando (lo pone la app antes de escribir la config de Magpie) ----
         public bool CapMode = false;      // modo 30 fps (juegos\modo.txt)
+        // 20-11 (HZ120): modo 120 fps para esports (fallo 3). El boton de 30/60 cicla 30 -> 60 -> 120 cuando la captura admite 120. A 120:
+        // captura a 120 real, sin generacion de fotogramas, Reflex en baja latencia, presentacion inmediata y el minimo proceso. La GC573
+        // da 120 EXACTO a 1080p y 1440p (4K y 720p solo 60): por eso solo se ofrece en esas capturas. modo.txt guarda "120"
+        public bool Mode120 = false;
+        public string Framerate120 = "120";        // ini framerate_120 (la GC573 anuncia 120 exacto a 1080p/1440p)
+        public string Permit120 = "auto";          // ini permitir_120: auto (solo si la tele va a >=120 Hz y la captura admite 120) | 1 | 0
+        public string[] Capturas120 = new string[0]; // ini capturas_120 (ConsoleEnhancer: las escribe el plan con los formatos que lista TU capturadora a 120; vacio = sin modo 120. En Prisma, las de la GC573: 1080p y 1440p)
+        public string FramerateNow { get { return Mode120 ? Framerate120 : Framerate; } } // 20-11 (HZ120): la velocidad de captura de ahora
+        public bool Captura120Ok(string size) { if (Capturas120 == null) return false; foreach (string cc in Capturas120) if (cc == size) return true; return false; }
+        // 20-11 (HDCP120): aviso de HDCP (PS5/PS4) solo cuando de verdad no hay imagen un rato largo (ver ConsolasApp.ObservaConsola)
+        public bool HdcpWarn = true;               // ini hdcp_aviso (0 lo apaga)
+        public double HdcpWarnSecs = 20;           // ini hdcp_aviso_s: negro de verdad + silencio seguidos antes de avisar
         public int Passes30 = 1;          // pasadas de DLSSNR (Multi Pass 1-3)
         public int Level30 = 2;           // nivel de DLSS 5 (1-4)
         public bool Dlss5Off = false;     // DLSS 5 apagado (sin DLSSNR en la cadena)
@@ -1136,7 +1148,7 @@ namespace ConsoleEnhancer
             {
                 return VideoSize + (WindowFor(VideoSize) != VideoSize ? " (mpv a " + WindowFor(VideoSize) + ")" : "") +
                        (UpscaleOn ? " -> 4K con " + ScalerName(ScalerNow) : " sin escalar") +
-                       (CapMode ? ", modo 30 fps" : ", modo 60 fps") +
+                       (Mode120 ? ", modo 120 fps (esports)" : CapMode ? ", modo 30 fps" : ", modo 60 fps") +
                        (Dlss5Off ? ", DLSS 5 apagado" : !Integrado.Dlss5Available ? ", DLSS 5 NO DISPONIBLE (falta " + Integrado.Dlss5Dll + ")" : !Dlss5FitsNow ? ", DLSS 5 NO CABE en este modo (quitado)" : ", DLSS 5 (DLSSNR) nivel " + Level30 + ", " + Dlss5PassesNow + " pasada" + (Dlss5PassesNow > 1 ? "s" : "") + (Dlss5PassesNow < Passes30 ? " (pedidas " + Passes30 + ")" : "") +
                         ", entrada " + (Dlss5PctShownNow > 0 ? Dlss5PctShownNow + " %" : "adaptativa") + (EngineDlss5Now ? ", en el motor propio" : LightNow ? ", ligero" : "") +
                         (!EngineDlss5Now && Dlss5EveryNow > 1 ? ", modelo 1 de cada " + Dlss5EveryNow : "") +
@@ -1191,6 +1203,17 @@ namespace ConsoleEnhancer
                         case "device": c.Device = val; break;
                         case "video_size": c.VideoSize = val; break;
                         case "framerate": c.Framerate = val; break;
+                        case "framerate_120": c.Framerate120 = val; break;                                    // 20-11 (HZ120)
+                        case "permitir_120": c.Permit120 = val.Trim().ToLowerInvariant(); break;              // 20-11 (HZ120): auto | 1 | 0
+                        case "capturas_120":                                                                  // 20-11 (HZ120): capturas que la capturadora admite a 120
+                            {
+                                string[] cs = val.Split(new char[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries);
+                                for (int ci = 0; ci < cs.Length; ci++) cs[ci] = cs[ci].Trim();
+                                c.Capturas120 = cs;
+                                break;
+                            }
+                        case "hdcp_aviso": c.HdcpWarn = ParseBool(val); break;                                // 20-11 (HDCP120)
+                        case "hdcp_aviso_s": c.HdcpWarnSecs = Math.Max(3, Math.Min(120, ParseNum(val))); break; // 20-11 (HDCP120)
                         case "pixel_format": c.PixelFormat = val; break;
                         case "pixel_format_4k": c.PixelFormat4k = val; break;
                         case "capture_audio": c.CaptureAudio = ParseBool(val); break;
@@ -1728,8 +1751,9 @@ namespace ConsoleEnhancer
             }
             // 3b) RTX HDR, sobre la imagen ya escalada y antes de la generacion
             if (cfg.RtxHdr && !cfg.RtxHdrBefore) fx.Add(Effect("RTXVideo\\RTXVideo_HDR", false, Pars("contrast", cfg.RtxHdrContrast, "saturation", cfg.RtxHdrSaturation, "middleGray", cfg.RtxHdrGray, "peakNits", cfg.RtxHdrNits, "debanding", 1)));
-            // 4) Generacion de fotogramas, lo ultimo (sobre la imagen final). Smooth Motion: ninguna en Magpie (la hace el driver)
-            if (!cfg.FgOff && cfg.FgTypeNow != "smooth")
+            // 4) Generacion de fotogramas, lo ultimo (sobre la imagen final). Smooth Motion: ninguna en Magpie (la hace el driver).
+            // 20-11 (HZ120): a 120 nunca hay generacion (imagenes reales a 120, baja latencia), tambien por el camino de Magpie
+            if (!cfg.FgOff && !cfg.Mode120 && cfg.FgTypeNow != "smooth")
             {
                 int m = cfg.FgMultNow;
                 switch (cfg.FgTypeNow)
@@ -1993,7 +2017,9 @@ namespace ConsoleEnhancer
                 // (16-11, G1: 1 = siguiendo a la fuente en el 60 sin generacion por DXGI si magpie_sigue_fuente_60, ver Config.Follow60NoFgNow)
                 Set((Dictionary<string, object>)fr, "contentMode", cfg.FollowNow ? 1 : 2, w + ".frameRefresh", changes);
                 // (16-11 13:40, G1: al ritmo de la capturadora, 59,94 / 29,97, si magpie_ritmo_ntsc: ver Config.NtscRate)
-                Set((Dictionary<string, object>)fr, "contentRate", F(cfg.CapMode ? (cfg.NtscRate ? 29.97 : 30) : (cfg.NtscRate ? 59.94 : 60)), w + ".frameRefresh", changes);
+                // 20-11 (HZ120): a 120 el ritmo real es 120 (sin generacion: no pide 240; el 120 esports va mejor por el motor propio, este es
+                // el camino de respaldo de Magpie). Con el aviso de arriba: la generacion esta apagada a 120 (no pide 240)
+                Set((Dictionary<string, object>)fr, "contentRate", F(cfg.Mode120 ? (cfg.NtscRate ? 119.88 : 120) : cfg.CapMode ? (cfg.NtscRate ? 29.97 : 30) : (cfg.NtscRate ? 59.94 : 60)), w + ".frameRefresh", changes);
                 // 0 Front Edge (espera para cuadrar la imagen), 1 Async (sin esa espera: menos latencia), 2 NVIDIA Reflex. 15-11: Reflex no funciona aqui (con la
                 // generacion "Reflex call failed: D3D12 async generation marker" y Magpie pasa solo a Async; sin ella el driver no lo activa, actualOn=false)
                 Set((Dictionary<string, object>)fr, "pacing", cfg.ReflexNow ? 2 : 0, w + ".frameRefresh", changes);
@@ -5516,6 +5542,7 @@ namespace ConsoleEnhancer
         public string Capture = "2560x1440";
         public int Level = 2, Passes = 1;
         public bool Dlss5 = true, Scaler = true, Cap = false, Fg = true;
+        public bool Mode120 = false;  // 20-11 (HZ120): modo 120 fps guardado por juego (columna "modo" = 120; manda sobre Cap)
         // 19-11 (GENERACION): el tipo de generacion elegido con L3 en este juego, en el modo 60 y en el 30 ("" = el del ini). Columna 10
         public string Pick60 = "", Pick30 = "";
         // Sus iconos en el HOME (HomeLabel.Icon): asi se le reconoce, sin depender del OCR. 15-11: puede tener varios (dos perfiles
@@ -5543,7 +5570,7 @@ namespace ConsoleEnhancer
         public string Summary()
         {
             return (Capture == "1280x720" ? "720p" : Capture == "1920x1080" ? "1080p" : Capture == "3840x2160" ? "4K" : "1440p") +
-                   (Cap ? ", modo 30 fps" : "") + ", nivel " + Level + ", " + Passes + " pasada" + (Passes > 1 ? "s" : "") +
+                   (Mode120 ? ", modo 120 fps" : Cap ? ", modo 30 fps" : "") + ", nivel " + Level + ", " + Passes + " pasada" + (Passes > 1 ? "s" : "") +
                    (Dlss5 ? "" : ", DLSS 5 apagado") + (Scaler ? "" : ", escalador alternativo") + (Fg ? "" : ", sin generacion de fotogramas") +
                    (Pick60.Length > 0 ? ", generacion del 60: " + Pick60 : "") + (Pick30.Length > 0 ? ", generacion del 30: " + Pick30 : "");
         }
@@ -5588,6 +5615,7 @@ namespace ConsoleEnhancer
                     p.Dlss5 = f[4].Trim() != "0";
                     p.Scaler = f[5].Trim() != "0";
                     p.Cap = f.Length > 6 && f[6].Trim() == "30";
+                    p.Mode120 = f.Length > 6 && f[6].Trim() == "120"; // 20-11 (HZ120)
                     p.Fg = !(f.Length > 7 && f[7].Trim() == "0");
                     // 15-11: nombre confirmado (columna 9). Los de antes, sin ella, no lo estan: se vuelven a leer en el HOME y se
                     // confirman o se completan ("Juego N", "Royal Editi"...)
@@ -5655,7 +5683,7 @@ namespace ConsoleEnhancer
                 {
                     sb.Append(p.Name.Replace("|", " ")).Append('|').Append(p.Capture).Append('|').Append(p.Level).Append('|')
                       .Append(p.Passes).Append('|').Append(p.Dlss5 ? 1 : 0).Append('|').Append(p.Scaler ? 1 : 0).Append('|')
-                      .Append(p.Cap ? 30 : 60).Append('|').Append(p.Fg ? 1 : 0).Append('|').Append(p.NameSure ? 1 : 0);
+                      .Append(p.Mode120 ? 120 : p.Cap ? 30 : 60).Append('|').Append(p.Fg ? 1 : 0).Append('|').Append(p.NameSure ? 1 : 0);
                     if (p.PickText.Length > 0) sb.Append('|').Append(p.PickText); // (19-11, GENERACION: solo si se ha elegido con L3)
                     sb.Append("\r\n");
                 }
@@ -5912,7 +5940,7 @@ namespace ConsoleEnhancer
             {
                 Load();
                 p.Capture = from.Capture; p.Level = from.Level; p.Passes = from.Passes; p.Dlss5 = from.Dlss5;
-                p.Scaler = from.Scaler; p.Cap = from.Cap; p.Fg = from.Fg; p.Pick60 = from.Pick60; p.Pick30 = from.Pick30;
+                p.Scaler = from.Scaler; p.Cap = from.Cap; p.Mode120 = from.Mode120; p.Fg = from.Fg; p.Pick60 = from.Pick60; p.Pick30 = from.Pick30;
                 if (!list.Contains(p)) list.Add(p);
                 SaveAll();
             }
@@ -7650,7 +7678,7 @@ namespace ConsoleEnhancer
                     else if ((pressed & PadRT) != 0) SetLevel(3);
                     else if ((pressed & PadRB) != 0) SetLevel(4);
                     else if ((pressed & PadView) != 0) CeBotonVista();  // (ConsoleEnhancer: Share / Crear / Vista / - = generacion si/no; src\BotonesCe.cs)
-                    else if ((pressed & PadStart) != 0) CeBotonMenu();  // (ConsoleEnhancer: Options / Menu / + = modo 30 <-> 60)
+                    else if ((pressed & PadStart) != 0) CeBotonMenu();  // (ConsoleEnhancer: Options / Menu / + = modo 30 -> 60 -> 120 -> 30, el 120 solo donde cabe; src\BotonesCe.cs)
                     // (L3: arriba, el selector de generacion; mantenido, el filtro de tramado)
                     else if ((pressed & PadR3) != 0) ToggleScaler();
                 }
@@ -8013,6 +8041,11 @@ namespace ConsoleEnhancer
         // "Zelda · 1440p · 60 → 120 fps · DLSS 5 nivel 4 · 1 pasada": lo puesto, para el aviso en pantalla
         string StatusText()
         {
+            if (cfg.Mode120) // 20-11 (HZ120): esports, imagenes reales a 120, sin generacion, baja latencia
+            {
+                string up120 = cfg.UpscaleOn ? " · " + (Config.EngineActive ? (cfg.ScalerNow == "dlss" ? "DLSS " + Config.EngineModelName(cfg.EnginePresetNow) : "Catmull-Rom") : cfg.ScalerName(cfg.ScalerNow)) : "";
+                return (curGame ?? "Juego") + " · " + SizeName(cfg.VideoSize) + " · 120 fps (esports) · sin generación · Reflex" + (Config.EngineActive ? " · motor propio" : "") + up120;
+            }
             int fps = cfg.CapMode ? 30 * (fgWanted ? cfg.FgMultNow : 1) : 60 * (fgWanted ? cfg.FgMultNow : 1);
             if (Config.EngineActive)
                 return (curGame ?? "Juego") + " · " + SizeName(cfg.VideoSize) + " · " +
@@ -9952,6 +9985,7 @@ namespace ConsoleEnhancer
             p.Dlss5 = dlss5Shown;
             p.Scaler = dlssScalerOn;
             p.Cap = cfg.CapMode;
+            p.Mode120 = cfg.Mode120; // 20-11 (HZ120)
             p.Fg = fgWanted;
             p.Pick60 = cfg.FgPick60; p.Pick30 = cfg.FgPick30; // (19-11, GENERACION)
             return p;
@@ -10200,9 +10234,11 @@ namespace ConsoleEnhancer
                 SaveText(Paths.Dlss5LevelFile, p.Level.ToString(CultureInfo.InvariantCulture));
                 dlss5Passes = p.Passes;
                 SaveText(Paths.Dlss5PassesFile, p.Passes.ToString(CultureInfo.InvariantCulture));
-                cfg.CapMode = p.Cap;
-                SaveText(Paths.ModeFile, p.Cap ? "30" : "60");
-                want30 = p.Cap;
+                bool pm120 = p.Mode120 && Puede120(p.Capture); // 20-11 (HZ120): 120 solo si la captura/consola/tele lo admiten; si no, 60
+                cfg.CapMode = p.Cap && !pm120;
+                cfg.Mode120 = pm120;
+                SaveText(Paths.ModeFile, pm120 ? "120" : cfg.CapMode ? "30" : "60");
+                want30 = cfg.CapMode;
                 slow30 = fast60 = 0;
                 cfg.VideoSize = p.Capture;
                 SaveText(Paths.CaptureFile, p.Capture);
@@ -10248,7 +10284,8 @@ namespace ConsoleEnhancer
                 SaveText(Paths.Dlss5LevelFile, p.Level.ToString(CultureInfo.InvariantCulture));
                 dlss5Passes = p.Passes;
                 SaveText(Paths.Dlss5PassesFile, p.Passes.ToString(CultureInfo.InvariantCulture));
-                if (p.Cap != cfg.CapMode) SetMode(p.Cap); // (con applying no reabre Magpie: lo hace lo de abajo, una sola vez)
+                // 20-11 (HZ120): el modo del perfil (30/60/120, el 120 solo si cabe); con applying SetModeN no reabre Magpie (lo hace lo de abajo)
+                { int pfps = (p.Mode120 && Puede120(p.Capture)) ? 120 : p.Cap ? 30 : 60; if (pfps != (cfg.Mode120 ? 120 : cfg.CapMode ? 30 : 60)) SetModeN(pfps); }
                 if (p.Dlss5 != dlss5Shown) SetDlss5State(p.Dlss5);
                 fgWanted = p.Fg;
                 SaveText(Paths.FgFile, p.Fg ? "1" : "0");
@@ -10637,7 +10674,8 @@ namespace ConsoleEnhancer
                     dlss5Passes = p.Passes;
                     SaveText(Paths.Dlss5PassesFile, p.Passes.ToString(CultureInfo.InvariantCulture));
                 }
-                if (p.Cap != cfg.CapMode) SetMode(p.Cap); // (con applying no reabre Magpie: lo hace ApplyPending, una sola vez)
+                // 20-11 (HZ120): el modo del perfil (30/60/120, el 120 solo si cabe); con applying SetModeN no reabre Magpie (lo hace ApplyPending)
+                { int pfps = (p.Mode120 && Puede120(p.Capture)) ? 120 : p.Cap ? 30 : 60; if (pfps != (cfg.Mode120 ? 120 : cfg.CapMode ? 30 : 60)) SetModeN(pfps); }
                 bool newWindow = Config.WindowFor(p.Capture) != Config.WindowFor(cfg.VideoSize);
                 // Otra ventana (4K): mpv y Magpie se reabren y Magpie ya coge todo; si no, Magpie se reabre al acabar el cambio
                 if (p.Capture != cfg.VideoSize) RequestCapture(p.Capture);
@@ -10689,15 +10727,24 @@ namespace ConsoleEnhancer
             RestartLs("DLSS 5 · " + Pasadas(n), Dlss5PassText());
         }
 
-        // Modo 30 fps (Share / -) o 60 fps (Options / +). El filtro de imagenes de mpv cambia en caliente; la generacion (x2 / x4)
-        // y el modelo del escalado van en la config de Magpie: se reabre con el telon
-        void SetMode(bool cap)
+        // Modo 30 fps (Share / -) o 60 fps (Options / +). Compatibilidad: SetMode(true/false) = 30/60 (lo llaman los perfiles y las ordenes
+        // m30/m60 de la tuberia). El boton del mando ahora cicla con CycleMode (20-11, HZ120)
+        void SetMode(bool cap) { SetModeN(cap ? 30 : 60); }
+
+        // 20-11 (HZ120): el modo de imagenes reales: 30 | 60 | 120. El filtro de imagenes de mpv cambia en caliente; la generacion y el modelo
+        // del escalado van en la config de Magpie (se reabre con el telon). A/desde 120 cambia la velocidad REAL de captura (60000/1001 ->
+        // 120): hay que reabrir la captura (el motor reinicia su fuente; mpv recarga la capturadora). El 30 y el 60 comparten captura (60) y
+        // solo se diferencian por el filtro de repetidas
+        void SetModeN(int fps)
         {
-            if (cap == cfg.CapMode) { Osd((cap ? "Modo 30 fps" : "Modo 60 fps") + " · ya activo"); return; }
+            bool cap = fps == 30, m120 = fps == 120;
+            if (cap == cfg.CapMode && m120 == cfg.Mode120) { Osd(ModoTexto(fps) + " · ya activo"); return; }
             if (passesBusy || relaunchSize != null || !lsReady) { if (!applying) return; }
+            bool fpsChange = m120 != cfg.Mode120;   // la velocidad de captura cambia (a/desde 120)
             cfg.CapMode = cap;
-            SaveText(Paths.ModeFile, cap ? "30" : "60");
-            Log.Write((applying ? "Perfil" : "Mando") + ": modo " + (cap ? "30" : "60") + " fps" + (applying ? "" : ReopenNote));
+            cfg.Mode120 = m120;
+            SaveText(Paths.ModeFile, fps.ToString(CultureInfo.InvariantCulture));
+            Log.Write((applying ? "Perfil" : "Mando") + ": modo " + fps + " fps" + (fpsChange ? " (captura a " + cfg.FramerateNow + ")" : "") + (applying ? "" : ReopenNote));
             lock (cmdQueue)
             {
                 vfDedupe = DedupeOn(cfg, fgWanted);
@@ -10706,10 +10753,73 @@ namespace ConsoleEnhancer
             if (cap) want30 = true;
             else { want30 = false; slow30 = 0; fast60 = 0; }
             SaveCurProfile();
-            if (!applying)
-                RestartLs(cap ? "Modo 30 fps" : "Modo 60 fps",
-                          (fgWanted ? (cap ? "30 → " + 30 * cfg.FgMultNow : "60 → " + 60 * cfg.FgMultNow) + " fps · " : "") +
-                          ScalerText());
+            if (applying) return; // los perfiles reabren la imagen una sola vez (coge FramerateNow en EngineArgs / LavfOptions)
+            // Cambio de velocidad de captura: el motor propio reinicia su fuente con el nuevo fps por la tuberia; con mpv + Magpie se recarga
+            // la capturadora a la nueva velocidad y luego Magpie (cambia la generacion: a 120 sin ella)
+            if (fpsChange && Config.EngineActive && ipcUp)
+            {
+                engineSent = null; // que no se salte por igual al EngineLive de siempre
+                // a 120 nunca Smooth Motion (EngineSmoothMode=0); OJO: el ajuste del driver (NvProfiles, sm/refresco fijo) se fija al lanzar
+                // el motor, no por la tuberia: entrar a 120 desde un 60 con Smooth Motion puede dejar el Smooth Motion del driver puesto hasta
+                // que se reabra el motor (al cargar un perfil se relanza con sm=0). SIN PROBAR con consola
+                string set = EngineSessionSet(cfg, cfg.Mode120 ? false : Config.EngineSmoothRunning > 0);
+                lock (cmdQueue) cmdQueue.Add(JsonCmd("engine", "set " + set));
+                Log.Write("Motor propio: " + set + " (cambio de velocidad de captura a " + cfg.FramerateNow + ")");
+                Osd(ModoTexto(fps) + " · " + ScalerText());
+                return;
+            }
+            if (fpsChange && !Config.EngineActive && ipcUp && cfg.TestSource.Length == 0)
+                lock (cmdQueue)
+                {
+                    cmdQueue.Add(JsonCmd("set", "demuxer-lavf-o", LavfOptions(cfg)));
+                    cmdQueue.Add(JsonCmd("loadfile", SourceUrl(cfg), "replace"));
+                }
+            RestartLs(ModoTexto(fps),
+                      (m120 ? "captura a " + cfg.FramerateNow + " · baja latencia" :
+                       fgWanted ? (cap ? "30 → " + 30 * cfg.FgMultNow : "60 → " + 60 * cfg.FgMultNow) + " fps · " + ScalerText() :
+                       ScalerText()),
+                      fpsChange);
+        }
+
+        string ModoTexto(int fps) { return "Modo " + fps + " fps" + (fps == 120 ? " (esports)" : ""); }
+
+        // 20-11 (HZ120): el boton de modo cicla la escalera 30 <-> 60 <-> 120. dir>0 (Options / +) sube; dir<0 (Share / -) baja. El 120 solo
+        // entra cuando la captura lo admite (Puede120); si no, se queda en 30 <-> 60 y al pedir subir desde el 60 avisa por que no cabe
+        void CycleMode(int dir)
+        {
+            int cur = cfg.Mode120 ? 120 : cfg.CapMode ? 30 : 60;
+            int next;
+            if (dir > 0) next = cur == 30 ? 60 : cur == 60 ? (Puede120() ? 120 : 60) : 120;
+            else next = cur == 120 ? 60 : cur == 60 ? 30 : 30;
+            if (next == cur)
+            {
+                if (dir > 0 && cur == 60 && !Puede120()) Osd(Aviso120NoCabe());
+                else Osd(ModoTexto(cur) + " · ya activo");
+                return;
+            }
+            SetModeN(next);
+        }
+
+        // ¿Se puede ofrecer el modo 120 con esta captura? permitir_120 (auto: solo si la tele va a >=120 Hz y la captura admite 120 en la
+        // capturadora, segun capturas_120: la GC573 solo a 1080p y 1440p), la consola saca 120 y la captura es una de 120
+        bool Puede120() { return Puede120(cfg.VideoSize); }
+        bool Puede120(string size)
+        {
+            string p = cfg.Permit120;
+            if (p == "0" || p == "no" || p == "false" || p == "off") return false;
+            if (!cfg.Captura120Ok(size)) return false;
+            if (p == "1" || p == "si" || p == "yes" || p == "true" || p == "on") return true;
+            return Consolas.Actual.Da120 && Pantalla.Hz() >= 120; // auto
+        }
+
+        string Aviso120NoCabe()
+        {
+            string p = cfg.Permit120;
+            if (p == "0" || p == "no" || p == "false" || p == "off") return "120 fps desactivado (permitir_120=0)";
+            if (!cfg.Captura120Ok(cfg.VideoSize))
+                return "120 fps no disponible a " + SizeName(cfg.VideoSize) + " con esta capturadora: pon la captura a 1080p o 1440p";
+            if (!Consolas.Actual.Da120) return "120 fps: la " + Consolas.Actual.Corto + " no saca 120 Hz";
+            return "120 fps: pon la tele a 120 Hz o mas";
         }
 
         // Reabre Magpie (con lo elegido ahora en su config) con el telon puesto
@@ -11057,7 +11167,7 @@ namespace ConsoleEnhancer
         // (17-11 16:55: smooth = el motor que se despierta se abrio con Smooth Motion: la generacion del 60 la hace el driver, fg=0)
         static string EngineSessionSet(Config cfg, bool smooth)
         {
-            return "capture=" + cfg.CaptureNow + " fps=" + cfg.Framerate + " format=" + EngineFormat(cfg) + (cfg.TestSource.Length > 0 ? " test=barras" : "") + " " + EngineLive(cfg, smooth);
+            return "capture=" + cfg.CaptureNow + " fps=" + cfg.FramerateNow + " format=" + EngineFormat(cfg) + (cfg.TestSource.Length > 0 ? " test=barras" : "") + " " + EngineLive(cfg, smooth);
         }
 
         static string EngineFormat(Config cfg)
@@ -11282,8 +11392,8 @@ namespace ConsoleEnhancer
         // smooth = el motor lleva Smooth Motion del driver: en el modo 60 la generacion la hace el (fg=0 al motor)
         static string EngineLive(Config cfg, bool smooth)
         {
-            bool fg = !cfg.FgOff && !cfg.HomeNative && !smooth && (cfg.CapMode || Pantalla.Hz() >= 100);   // (ConsoleEnhancer: modo 60 con la pantalla a 60 Hz: sin generacion)   // (17:50: tambien en el modo 30)
-            return "fg=" + (fg ? "1" : "0") + " mode=" + (cfg.CapMode && !cfg.HomeNative ? "30" : "60") +
+            bool fg = !cfg.FgOff && !cfg.HomeNative && !smooth && !cfg.Mode120 && (cfg.CapMode || Pantalla.Hz() >= 100);   // (ConsoleEnhancer: modo 60 con la pantalla a 60 Hz: sin generacion)   // (17:50: tambien en el modo 30; 20-11 HZ120: a 120 sin generacion de fotogramas)
+            return "fg=" + (fg ? "1" : "0") + " mode=" + (cfg.Mode120 && !cfg.HomeNative ? "120" : cfg.CapMode && !cfg.HomeNative ? "30" : "60") +
                    " preset=" + cfg.EnginePresetNow + " upscaler=" + Ce.EngineUpscaler(cfg) +
                    " sharp=" + EngineSharpen(cfg).ToString("0.00", CultureInfo.InvariantCulture) +
                    " reflex=" + cfg.EngineReflex.ToString(CultureInfo.InvariantCulture) +
@@ -11336,7 +11446,7 @@ namespace ConsoleEnhancer
             a.Add("device=" + cfg.Device);
             a.AddRange(Ce.EngineArgsExtra(cfg)); // (ConsoleEnhancer: device_path, streamline, adapter_luid, datos)
             a.Add("capture=" + cfg.CaptureNow);
-            a.Add("fps=" + cfg.Framerate);
+            a.Add("fps=" + cfg.FramerateNow);
             a.Add("format=" + EngineFormat(cfg));
             if (cfg.TestSource.Length > 0) a.Add("test=barras");
             a.Add("dedupe=" + (DedupeOn(cfg, !cfg.FgOff) ? "1" : "0"));
@@ -11597,9 +11707,14 @@ namespace ConsoleEnhancer
                 }
                 homeRef = LoadRef();
                 ConsolaAlAbrir(); // (18-11, CONSOLAS: la consola; sin su HOME reconocido, los ajustes guardados de toda la consola)
-                cfg.CapMode = LoadText(Paths.ModeFile) == "30";
+                string modeTxt = LoadText(Paths.ModeFile);
+                cfg.CapMode = modeTxt == "30";
+                cfg.Mode120 = modeTxt == "120"; // 20-11 (HZ120)
+                // 20-11 (HZ120): si se guardo 120 pero esta captura no lo admite (4K/720p, consola sin 120 o tele < 120 Hz), al 60
+                if (cfg.Mode120 && !Puede120(cfg.VideoSize)) { cfg.Mode120 = false; Log.Write("Modo 120 guardado pero no cabe con esta captura/consola/tele: se usa el 60"); }
                 want30 = cfg.CapMode;
                 if (cfg.CapMode) Log.Write("Modo 30 fps (elegido con el mando): imagenes reales a 30");
+                else if (cfg.Mode120) Log.Write("Modo 120 fps (elegido con el mando, esports): captura a 120, sin generacion, baja latencia");
                 Log.Write("Captura " + SizeName(cfg.VideoSize) + ", DLSS 5 nivel " + dlss5Level + " con " + dlss5Passes +
                           " pasada" + (dlss5Passes > 1 ? "s" : ""));
                 // Se abre en el HOME a 4K nativo (lo normal al encender la consola); si ya se estaba jugando, HomeTick
@@ -12389,6 +12504,7 @@ namespace ConsoleEnhancer
                         else if (line.Contains("\"menos\"")) ChangeLevel(-1);
                         else if (line.Contains("\"m30\"")) SetMode(true);
                         else if (line.Contains("\"m60\"")) SetMode(false);
+                        else if (line.Contains("\"m120\"")) { if (Puede120()) SetModeN(120); else Osd(Aviso120NoCabe()); } // 20-11 (HZ120)
                         else if (line.Contains("\"n1\"")) SetLevel(1);
                         else if (line.Contains("\"n2\"")) SetLevel(2);
                         else if (line.Contains("\"n3\"")) SetLevel(3);
@@ -13443,7 +13559,8 @@ namespace ConsoleEnhancer
         // escalan: sin generacion sobra grafica). Con generacion (y en el modo 30) sigue igual
         public static bool DedupeOn(Config cfg, bool fgOn)
         {
-            return !cfg.HomeNative && (cfg.CapMode || (cfg.Dedupe && fgOn));
+            // 20-11 (HZ120): a 120 las imagenes son reales a 120, sin generacion: no hay repetidas que quitar (menos proceso = menos latencia)
+            return !cfg.HomeNative && !cfg.Mode120 && (cfg.CapMode || (cfg.Dedupe && fgOn));
         }
 
         // 16-11 (G1, repetidas_30_sin_perder=1): el del modo 30 de antes perdia imagenes reales si el juego no va a ritmo fijo (cada imagen
@@ -13488,7 +13605,7 @@ namespace ConsoleEnhancer
             string[] wh = cfg.CaptureNow.Split('x');
             long rtbuf = long.Parse(wh[0], CultureInfo.InvariantCulture) *
                          long.Parse(wh[1], CultureInfo.InvariantCulture) * 3 * 3;
-            string lavf = "video_size=" + cfg.CaptureNow + ",framerate=" + cfg.Framerate +
+            string lavf = "video_size=" + cfg.CaptureNow + ",framerate=" + cfg.FramerateNow +
                           (cfg.PixelFormatNow.Length > 0 ? ",pixel_format=" + cfg.PixelFormatNow : "") + // (ConsoleEnhancer: sin formato, el de la capturadora)
                           ",rtbufsize=" + rtbuf + ",fflags=+nobuffer";
             if (cfg.CaptureAudio) lavf += ",audio_buffer_size=30"; // ms; el valor por defecto (~500 ms) retrasa el audio
@@ -13652,6 +13769,8 @@ namespace ConsoleEnhancer
                 }
                 // ConsoleEnhancer: --ui-preview=asistente;<carpeta> (una imagen de cada paso del asistente, sin abrir la capturadora)
                 if (arg.StartsWith("--ui-preview=asistente")) { string[] pv = arg.Substring(13).Split(new char[] { ';' }, 2); Asistente.Preview(pv.Length > 1 ? pv[1] : Path.Combine(Paths.Datos, "asistente")); return 0; }
+                // (20-11, CE-UI) ConsoleEnhancer: --ui-preview=componentes;<carpeta> (la ventana del primer arranque que baja mpv/Magpie, en sus estados, sin red)
+                if (arg.StartsWith("--ui-preview=componentes")) { string[] pv = arg.Substring(13).Split(new char[] { ';' }, 2); return Componentes.Preview(pv.Length > 1 ? pv[1] : Path.Combine(Paths.Datos, "componentes")); }
                 if (arg == "--esperar-salida") Ce.EsperarSalida();
                 // 19-11: el lector del menu de la PS5 con imagenes (src\MenuPs5.cs): --test-ps5=<carpeta>[;<informe>]
                 if (arg.StartsWith("--test-ps5=")) return RelojPs5.Prueba(arg.Substring(11));
