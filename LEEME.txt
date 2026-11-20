@@ -448,3 +448,10 @@ base = .antes-dlss5vec de C:\Switch2Engine, sin conflictos).
     nivel fino otra vez completo solo para DLSS 5.
   - Banco (bin\motor\ConsoleEnhancerEngine.exe, 4K modo 30 + FG + DLSS 5 al 75 %, RTX 4060 Ti): grafica 17,5 -> 18,9 ms, sin fallos.
     EngineAdapta ajusta el % de DLSS 5 si en graficas mas flojas no cabe.
+
+20-11-2026 17:25 (CORTES, para la v1.0.4): de Prisma (motor C:\Switch2Engine, copias .antes-cortes).
+  - EngineDlss5.cs: reset = nrReset || frameReset (antes resetHistory, que Run ya ha puesto a false antes de RenderFrame: DLSS 5 y su
+    antiparpadeo nunca veian los cortes de escena).
+  - fg_menus=1 (Common.cs, Engine.cs, EngineMotion.cs FgUiKey): DLSSGOptions.flags con eEnableFullscreenMenuDetection. En base.ini.
+  - Banco en Prisma (RTX 4060 Ti, prueba banco_oot): 4K modo 30 + FG + DLSS 5 75 %: grafica 19,77 -> 19,77 ms, presentadas 2; 1440p K
+    16,0 ms igual. Sin probar con la consola.

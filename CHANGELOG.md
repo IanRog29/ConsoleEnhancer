@@ -5,6 +5,20 @@ publicada es una etiqueta `vX.Y.Z` de git; GitHub Actions monta su zip y copia a
 
 ## [Sin publicar]
 
+## [1.0.4] - 2026-11-20
+
+### Arreglado
+- **DLSS 5 del motor propio respeta los cortes de escena**: el aviso de corte (cambio de plano, cargas, menús que entran de golpe)
+  llegaba a DLSS SR y a la generación, pero no a DLSS 5 ni a su antiparpadeo, que mezclaban la escena anterior con la nueva durante
+  unas imágenes (estela o fantasma tras cada corte). *DLSS 5 in the built-in engine now resets its history on scene cuts (no more
+  ghosting of the previous shot).*
+
+### Añadido
+- **Generación DLSS con detección de menús** (`fg_menus=1` en `motor_extra`, de serie): sobre un menú a pantalla completa NVIDIA deja
+  de inventar imágenes y las letras no se deforman. Sin coste medible (banco 4K y 1440p, modo 30 + generación + DLSS 5: misma
+  gráfica, 2 imágenes presentadas por cada real). Quitarlo de `motor_extra` vuelve a lo de antes. *DLSS frame generation now uses
+  NVIDIA fullscreen menu detection (fewer warped letters on pause menus).*
+
 ## [1.0.3] - 2026-11-20
 
 ### Arreglado
