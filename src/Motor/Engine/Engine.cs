@@ -61,7 +61,7 @@ namespace ConsoleEnhancer.Motor
         ID3D12Resource rawSmall;    // 16-11 noche (entrada=): la captura reducida
         ID3D12Resource mvecZero;    // 17-11 (fg_vectores=0): vectores a cero para DLSS-G (se crea a cero y nunca se escribe)
         // 17-11 (fg_vectores=0): los vectores que ve la generacion (la etiqueta de la imagen); DLSS SR lleva los del motor (EvaluateDlss)
-        ID3D12Resource FgMvec { get { return fgApplied && s.FgVec == 0 && mvecZero != null ? mvecZero : fgApplied && s.FgVec >= 2 && mvecFg != null && !FgVecFullNow ? mvecFg : mvec; } }   // (20-11 FGFALLOS: fg_vectores_completos)
+        ID3D12Resource FgMvec { get { return fgApplied && s.FgVec == 0 && mvecZero != null ? mvecZero : fgApplied && s.FgVec >= 2 && mvecFg != null && !FgVecFullNow ? mvecFg : fgFillValid && FgFillNow ? mvecFg : mvec; } }   // (20-11 FGFALLOS: fg_vectores_completos) (21-11 FG21: fg_relleno)
         // 17-11 15:20 (fg_profundidad=R): profundidad aproximada solo para DLSS-G (a <= R px de un borde fuerte, delante; lo liso, detras);
         // DLSS SR sigue con la de siempre (a 0) como etiqueta local (EvaluateDlss)
         ID3D12Resource depthFg;

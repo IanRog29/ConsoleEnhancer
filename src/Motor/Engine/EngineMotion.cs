@@ -420,6 +420,7 @@ namespace ConsoleEnhancer.Motor
             if (on) RecordTruth(cur, c);   // 17-11 (REJAS): mvverdad (prueba con test=paralaje)
             Barrier(mvec, D3D12_RESOURCE_STATES.UNORDERED_ACCESS, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE);
             if (!fgVecDone) RecordFgVec(on);   // 17-11 13:40 (REJAS): fg_vectores=2|3 (20-11 DLSS5VEC2: si no se hizo ya con los ligeros)
+            RecordFgFill(cur, on);   // 21-11 (FG21): fg_relleno, lo liso a 0 que se mueve (EngineFgRelleno.cs)
             fgVecDone = false;
             if (on) RecordFgDepth(cur);   // 17-11 15:20: fg_profundidad
             mvecDirty = on;
