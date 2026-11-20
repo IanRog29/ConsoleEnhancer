@@ -410,6 +410,14 @@ namespace ConsoleEnhancer
 
         string MenuTexto { get { return Consolas.Actual.TieneHome ? "HOME" : "Menú"; } }
 
+        // 20-11 (PS5JUEGO): reconocer CADA JUEGO de la consola (PS5, Xbox) por su nombre en el overlay y recordarle su perfil (src\JuegoConsola.cs)
+        readonly ReconocedorJuego recoJuego = new ReconocedorJuego();
+        DateTime ps5NombreAt = DateTime.MinValue; // ultima lectura del nombre del juego (cada ~0,8 s en el menu)
+        string ps5JuegoLog;                       // ultimo juego reconocido que se escribio en el log
+
+        // ¿Reconocer los juegos uno a uno con esta consola? (clave del ini ps5_reconocer_juegos / xbox_reconocer_juegos)
+        bool RecoJuegosActivo(ConsolaPerfil c) { return JuegoConsola.Activo(c, cfg); }
+
         int ps5DiagsSesion;
         // La captura en la que no se leyo la hora (juegos\debug\ps5, las 8 mas nuevas), para ajustar el lector
         static string GuardarDiagPs5(Bitmap full, string ocr)
@@ -481,6 +489,28 @@ namespace ConsoleEnhancer
                 double lit;
                 lastHomeThumb = HomeLabel.Thumb(small, out lit);
                 lastHomeThumbAt = now;
+            }
+            // 20-11 (PS5JUEGO): en el menu / centro de control / conmutador (todos llevan la hora: VistaMenu.Menu) se lee el nombre del juego
+            // en foco y se reconoce el juego (histeresis: se mantiene el ultimo si ahora no se lee). Cada ~0,8 s, solo si la clave del ini lo
+            // enciende; si no se reconoce nada, al salir se usa el perfil unico de la consola ("Consola"), como hasta ahora
+            if (l.Vista == VistaMenu.Menu && RecoJuegosActivo(c) && (now - ps5NombreAt).TotalSeconds >= 0.8)
+            {
+                ps5NombreAt = now;
+                try
+                {
+                    string crudo;
+                    string nombre = JuegoConsola.LeeNombre(full, c, out crudo);
+                    double[] huella = JuegoConsola.Huella(full);
+                    string reco;
+                    lock (homeSync) reco = recoJuego.Observa(nombre, huella, now);
+                    if (!string.IsNullOrEmpty(reco) && reco != ps5JuegoLog)
+                    {
+                        ps5JuegoLog = reco;
+                        Log.Write("Juego de la " + c.Corto + " reconocido: \"" + reco + "\"" +
+                                  (nombre != null ? " (OCR \"" + ShortText(crudo) + "\")" : " (por su huella)"));
+                    }
+                }
+                catch (Exception ex) { Log.Error("Reconociendo el juego de la consola", ex); }
             }
             // Con consola=auto (cada 5 s): su menu visto refuerza la puesta (la PS5; con la Xbox, se mira si es la hora de la PS5 en su sitio);
             // sin el, los menus de las otras consolas (20-11, CONSOLA: PistasMenu, src\DetectorMenu.cs)
@@ -579,13 +609,18 @@ namespace ConsoleEnhancer
         void MenuPs5Salir()
         {
             if (!cfg.HomeNative || homeBusy || passesBusy || relaunchSize != null) return;
-            lock (homeSync) { menuMaq.Hecho(DateTime.Now, false); ps5OutHits = ps5MenuHits = 0; }
-            Log.Write("Fuera del menu de la consola: al juego" + Ps5Tarda());
             ConsolaPerfil c = Consolas.Actual;
+            // 20-11 (PS5JUEGO): el perfil del juego reconocido ("PS5: <juego>" / "Xbox Series: <juego>"); si no se reconocio nada (o la clave
+            // del ini esta apagada), el perfil unico de toda la consola ("Consola"), como hasta ahora
+            string juego;
+            lock (homeSync) { menuMaq.Hecho(DateTime.Now, false); ps5OutHits = ps5MenuHits = 0; juego = RecoJuegosActivo(c) ? recoJuego.Juego : null; }
+            string perfil = string.IsNullOrEmpty(juego) ? c.PerfilConsola : JuegoConsola.NombrePerfil(c, juego);
+            Log.Write("Fuera del menu de la consola: al juego \"" + perfil + "\"" +
+                      (string.IsNullOrEmpty(juego) ? " (perfil unico de la consola)" : " (reconocido)") + Ps5Tarda());
             enterSure = true;
             enterConfirmed = true;
             enterIcon = null;
-            EnterGame(c.PerfilConsola); // (cfg.HomeNative: LeaveHome, que mira MenuPs5SalirConMotor)
+            EnterGame(perfil); // (cfg.HomeNative: LeaveHome, que mira MenuPs5SalirConMotor)
         }
 
         // LeaveHome, antes de StartHomeSwitch: con el menu de la PS5 a 4K y un juego que lleva Smooth Motion, el motor se abre una sola vez

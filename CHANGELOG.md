@@ -5,6 +5,18 @@ publicada es una etiqueta `vX.Y.Z` de git; GitHub Actions monta su zip y copia a
 
 ## [Sin publicar]
 
+## [1.0.1] - 2026-11-20
+
+### Añadido
+- **PS5: perfil por juego.** Cada juego se reconoce por su nombre en el centro de control o el conmutador de juegos (botón PS) y se
+  le guarda su perfil (captura, DLSS 5, escalador, modo 30/60, tipo de generación), como en la Switch 2. *PS5: per-game profiles.*
+- **Xbox Series: perfil por juego (preliminar, sin probar con una Xbox de verdad)**, por la Guía y las fichas de Inicio.
+- Si no se reconoce el juego, el perfil único de la consola, como en la 1.0.0. Claves `ps5_reconocer_juegos=1` y
+  `xbox_reconocer_juegos=1` (0 = un solo perfil). Los perfiles van marcados por consola ("PS5: <juego>"): no se mezclan entre consolas.
+
+### Cambiado
+- El enlace de apoyo (Ko-fi) es https://ko-fi.com/ianrog29 y el repositorio, IanRog29/ConsoleEnhancer.
+
 ## [1.0.0] - 2026-11-20
 
 Primera versión pública. *First public release.*
@@ -66,5 +78,6 @@ support:* https://ko-fi.com/ianrog29
   mpv y Magpie no se reparten (los baja la app). Nada no oficial ("DLSS 5", `dlssg_sm86`).
 - Autor: IanRog29 y colaboradores de ConsoleEnhancer (`LICENSE-EXCEPTION.txt`, *Acerca de*). Donaciones por Ko-fi, voluntarias.
 
-[Sin publicar]: ../../compare/v1.0.0...HEAD
+[Sin publicar]: ../../compare/v1.0.1...HEAD
+[1.0.1]: ../../releases/tag/v1.0.1
 [1.0.0]: ../../releases/tag/v1.0.0

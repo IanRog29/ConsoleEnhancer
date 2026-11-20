@@ -57,8 +57,8 @@ COMPILAR Y EMPAQUETAR (C# 5, nada que instalar)
   Desde el 19-11: mpv, Magpie y Streamline salen de terceros\ (scripts\descargar_dependencias.ps1, versiones fijas de GitHub con
   SHA-256), no de mpv aparte ni de las carpetas de Prisma. Ver README.md.
   BASES PARA LA PROXIMA FUSION (lo de Prisma y del motor que ya esta en ConsoleEnhancer), LAS VIGENTES:
-    Prisma: Switch2Magpie\base_consoleenhancer\base_prisma_20-11_0651 (todo src de Prisma congelado a las 06:51, fusion G: lleva lo de
-            CONSOLA de la F y LATENCIA5). Las de las 06:00 y 06:38 ya no.
+    Prisma: Switch2Magpie\base_consoleenhancer\base_prisma_20-11_1411 (todo src de Prisma congelado a las 14:11, fusion H: PS5JUEGO,
+            con lo de CONSOLA y LATENCIA5). Las de las 06:00, 06:38 y 06:51 ya no.
     Motor:  Switch2Magpie\base_consoleenhancer\base_motor_20-11_0651 (src\Engine, Capture y Native a las 06:51; la base del motor es su
             carpeta Engine). La de las 06:00 ya no.
   Script: Switch2Magpie\base_consoleenhancer\fusionar_e.ps1 (-BasePrisma / -BaseMotor = las vigentes; -OtroPrisma / -OtroMotor = copias
@@ -371,3 +371,21 @@ Switch2Magpie\LEEME.txt (LATENCIA3). Copias: src\Lanzador\Switch2Magpie.cs/ColaS
     por NVIDIA; ningun dato de este PC.
   - Sin probar: con la consola; las imagenes reales por segundo y la latencia del refresco fijo en CE (en Prisma, con PresentMon); una
     pantalla de 144 Hz (auto no lo pone) o a 119,88 Hz con el motor en el 60 + DLSS FG.
+
+20-11-2026 14:11 (agente FUSION, fusion H, para la v1.0.1): PS5JUEGO de Prisma (perfil por juego en la PS5 y, preliminar, en la Xbox)
+  - Base nueva vigente: base_prisma_20-11_1411 (el motor no cambio: base_motor_20-11_0651). fusionar_e.ps1 -SoloLanzador desde
+    base_prisma_20-11_0651: Switch2Magpie.cs, MenuPs5.cs, Consolas.cs y ConsolasApp.cs limpias; JuegoConsola.cs nuevo (renombrado, sin rutas:
+    las huellas van en memoria y los perfiles en juegos\perfiles.txt de la carpeta de datos). Copias *.antes-fusionh.
+  - Lo que trae: con la PS5 cada juego se reconoce por su nombre (OCR) en el centro de control / conmutador de juegos (boton PS; la app
+    ya los toma por menu y va a 4K nativo) y se le guarda su perfil como en la Switch 2, con la clave marcada por consola ("PS5: <juego>",
+    GameProfiles.SameGame / GameNames.SameTitle no mezclan consolas) y una huella de la tarjeta para reconocerlo despues sin leer. Xbox
+    Series igual por la Guia y las fichas de Inicio: SIN PROBAR con una Xbox. Si no reconoce nada, el perfil unico de la consola de antes.
+    Claves en recursos\base.ini: ps5_reconocer_juegos=1, xbox_reconocer_juegos=1 (0 = el perfil unico). Las capturas de juegos\debug de
+    Prisma NO van a ConsoleEnhancer (juegos de otros, con copyright).
+  - README (es / en: el punto "Reconoce cada juego") y CHANGELOG.md (seccion [1.0.1]; el enlace de Ko-fi es ianrog29 y el repositorio
+    IanRog29/ConsoleEnhancer: comprobado que en git no queda el nombre de usuario de antes).
+  - Probado: build.bat, build_motor.bat, DeteccionTest --simula=todo (23 PCs, sin excepciones), --test-consolas (0 fallos),
+    --test-juegos-consola con las 8 capturas de la PS5 de Prisma (solo leidas): 0 nombres leidos en el gameplay (como en Prisma) y los
+    filtros de nombres bien; --asistente-auto --dry-run (ini con ps5_reconocer_juegos=1 y xbox_reconocer_juegos=1). Zip:
+    scripts\empaquetar.ps1 -Zip -Forzar -Version v1.0.1 -> dist\ConsoleEnhancer-v1.0.1.zip.
+  - Sin probar: con la PS5 en vivo (en Prisma solo con mockups del centro de control / conmutador); la Xbox entera (sin consola).

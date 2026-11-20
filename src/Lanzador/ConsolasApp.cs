@@ -71,8 +71,8 @@ namespace ConsoleEnhancer
                 fgWanted = p.Fg;
                 SaveText(Paths.FgFile, p.Fg ? "1" : "0");
             }
-            Log.Write("Consola " + c.Corto + (c.MenuPropio ? " (su menu a 4K nativo por su hora; los juegos sin reconocer uno a uno)" : " (su menu no se reconoce: sin HOME a 4K ni juegos por su icono)") +
-                      ": los ajustes de toda la consola, \"" +
+            Log.Write("Consola " + c.Corto + (c.MenuPropio ? " (su menu a 4K nativo por su hora; cada juego con su perfil por su nombre en el centro de control / conmutador si " + (JuegoConsola.Activo(c, cfg) ? "esta encendido" : "se enciende " + (c.Familia == "xbox" ? "xbox" : "ps5") + "_reconocer_juegos") + ")" : " (su menu no se reconoce: sin HOME a 4K ni juegos por su icono)") +
+                      ": los ajustes de toda la consola de partida, \"" +
                       p.Name + "\"" + (nuevo ? " (nuevo, con los de ahora)" : "") + ": " + p.Summary());
         }
 

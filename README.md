@@ -100,8 +100,10 @@ y contar en qué PC y con qué consola lo usas.
   generación, y sin "DLSS 5" (tal cual, con ~10 ms menos de retraso; `motor_dlss5_home=0`); los cambios menú ↔ juego tardan menos de 1 s.
 - **Reconoce cada juego y le guarda su perfil** (`juegos\perfiles.txt`): en la Switch / Switch 2 lee el nombre del juego en el HOME
   y guarda su icono, así que lo que cambies con el mando (captura, modelo y pasadas de DLSS 5, escalador, modo 30/60 y tipo de
-  generación) se recuerda por juego y se vuelve a poner solo la próxima vez que entras. En consolas cuyo menú no muestra la rejilla de
-  juegos (PlayStation, Xbox) se usa un único perfil para toda la consola, que también se recuerda.
+  generación) se recuerda por juego y se vuelve a poner solo la próxima vez que entras. En la **PS5** lee el nombre del juego en el
+  centro de control o el conmutador de juegos (botón PS) y le guarda su perfil igual; en la **Xbox Series**, en la Guía y las fichas de
+  Inicio (*preliminar: sin probar aún con una Xbox de verdad*). Si no reconoce el juego, usa el perfil único de la consola, como antes
+  (`ps5_reconocer_juegos=1`, `xbox_reconocer_juegos=1`; 0 = un solo perfil para toda la consola).
 - **Mandos**: Xbox / XInput, DualSense / DualShock 4, mandos de Switch y Switch 2, 8BitDo, GameSir y genéricos HID, sin programas
   aparte. La app lee el mando sin quitárselo a la consola y, fuera de la imagen, maneja el PC (modo PC).
 - **Iniciar con Windows** (tarea del usuario, sin permisos de administrador) con la pantalla en negro hasta que hay imagen y,
@@ -296,7 +298,9 @@ app opens by itself; the picture is **upscaled to 4K** (DLSS, FSR, XeSS, RTX Vid
 - **Any console**: Nintendo Switch / Switch 2, PlayStation, Xbox... Console menus are recognised and shown at native 4K.
 - **Recognises each game and keeps its profile**: on Switch / Switch 2 it reads the game name on the HOME screen and stores its icon,
   so whatever you change with the controller (capture, DLSS 5 model and passes, upscaler, 30/60 mode and frame-gen type) is remembered
-  per game and restored next time. On consoles whose menu has no game grid (PlayStation, Xbox) one profile is kept for the whole console.
+  per game and restored next time. On **PS5** it reads the game name in the control center or game switcher (PS button) and keeps a
+  profile per game too; on **Xbox Series**, in the Guide and Home tiles (*preliminary: not yet tested with a real Xbox*). If the game is
+  not recognised, the single console-wide profile is used as before (`ps5_reconocer_juegos` / `xbox_reconocer_juegos`, 0 = one profile).
 - **Made for the living room**: starts with Windows on a black screen until the picture shows; switch modes (30 / 60 fps, frame
   generation on / off, capture resolution) with the controller buttons.
 - **Free, open source (GPL-3.0), no ads, no telemetry.** The interface is in Spanish and English; code comments and logs are in Spanish.

@@ -121,7 +121,7 @@ namespace ConsoleEnhancer
             sb.Append(", capturas ");
             for (int i = 0; i < Capturas.Length; i++) sb.Append(i > 0 ? "/" : "").Append(NombreCaptura(Alto(Capturas[i])));
             sb.Append(TieneHome ? "; HOME reconocido (" + (HomeNativo4K ? "a 4K nativo, " : "") + "juegos por su icono)" :
-                      MenuPropio ? "; menu reconocido por su hora arriba" + (Familia == "xbox" ? " (SIN PROBAR con la consola)" : " a la derecha") + " (a 4K nativo sin Magpie ni Smooth Motion; un perfil para todos sus juegos)" :
+                      MenuPropio ? "; menu reconocido por su hora arriba" + (Familia == "xbox" ? " (SIN PROBAR con la consola)" : " a la derecha") + " (a 4K nativo sin Magpie ni Smooth Motion; cada juego con su perfil por su nombre en el centro de control / conmutador, si " + (Familia == "xbox" ? "xbox" : "ps5") + "_reconocer_juegos)" :
                       "; menu sin reconocer (un perfil para toda la consola)");
             sb.Append("; No Signal jugando: ").Append(ApagadoPorMenu ? "lo del ini" : "como poco " + Fmt(EsperaSinSenalMinS) + " s");
             if (HdcpEnJuegos) sb.Append("; HDCP: hay que quitarlo en la consola");

@@ -229,6 +229,11 @@ namespace ConsoleEnhancer
         // DLSS 5, ni generacion de imagenes, ni el filtro de repetidas ni el suavizado de bordes de mpv). Al entrar en un juego
         // vuelven sus ajustes (juegos\perfiles.txt) y Magpie escala
         public bool HomeNativeEnabled = true;
+        // 20-11 (PS5JUEGO): en las consolas con menu propio (PS5, Xbox Series), reconocer CADA JUEGO por su nombre (centro de control /
+        // conmutador de la PS5, Guia / fichas de la Xbox) y recordarle su perfil, como el HOME de la Switch 2. 0 = un solo perfil para toda
+        // la consola ("Consola", como hasta ahora). La Xbox esta SIN PROBAR con consola real: cae al perfil unico si no reconoce nada
+        public bool Ps5RecognizeGames = true;
+        public bool XboxRecognizeGames = true;
         public bool HomeNative = false;  // ahora se esta en el HOME a 4K nativo
         // Lo que se captura ahora: en el HOME, 4K; en un juego, la captura elegida para el (VideoSize)
         public string CaptureNow { get { return HomeNative ? "3840x2160" : VideoSize; } }
@@ -1363,6 +1368,8 @@ namespace ConsoleEnhancer
                         case "magpie_captura": c.MagpieCaptureMethod = Math.Max(0, ParseInt(val)); break;
                         // ---- mpv, HOME y telon ----
                         case "captura_juego_s": c.GameGrabEvery = Math.Max(0.3, ParseNum(val)); break;
+                        case "ps5_reconocer_juegos": c.Ps5RecognizeGames = ParseBool(val); break;   // 20-11 (PS5JUEGO)
+                        case "xbox_reconocer_juegos": c.XboxRecognizeGames = ParseBool(val); break; // 20-11 (PS5JUEGO; Xbox SIN PROBAR)
                         case "entrada_esperar_usuario": c.EnterWaitUser = ParseBool(val); break;
                         case "entrada_capturas": c.EnterGrabs = Math.Max(1, ParseInt(val)); break;
                         case "entrada_en_uso_capturas": c.EnterInUseGrabs = Math.Max(1, ParseInt(val)); break;
@@ -4810,72 +4817,130 @@ namespace ConsoleEnhancer
             }
         }
 
+        // Con sync: el motor del OCR listo (una vez por sesion). false si este Windows no tiene OCR
+        static bool EnsureEngine()
+        {
+            if (failed) return false;
+            if (engine != null) return true;
+            try
+            {
+                Assembly rt = Assembly.Load("System.Runtime.WindowsRuntime, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089");
+                foreach (MethodInfo m in rt.GetType("System.WindowsRuntimeSystemExtensions").GetMethods())
+                    if (m.Name == "AsTask" && m.IsGenericMethod && m.GetParameters().Length == 1 &&
+                        m.GetParameters()[0].ParameterType.Name == "IAsyncOperation`1") { asTask = m; break; }
+                engine = WinRt("Windows.Media.Ocr.OcrEngine").GetMethod("TryCreateFromUserProfileLanguages").Invoke(null, null);
+                if (engine == null || asTask == null) throw new InvalidOperationException("sin OCR en este Windows");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                failed = true;
+                Log.Error("OCR de Windows no disponible (no se pueden recordar los ajustes por juego)", ex);
+                return false;
+            }
+        }
+
+        // Con sync: el OcrResult de Windows de la imagen (null si falla). k = cuanto se amplio (las coordenadas van en esa escala)
+        static object RecognizeToResult(Bitmap bmp, out int k)
+        {
+            k = 1;
+            if (!EnsureEngine()) return null;
+            // (15-11: un fichero por proceso: --test-home con la app abierta escribia en el mismo)
+            string tmp = Path.Combine(Path.GetTempPath(), "switch2_ocr_" + Process.GetCurrentProcess().Id + ".png");
+            try
+            {
+                // Letras de mas de ~30 pixeles: el OCR lee mejor. Y con el contraste estirado
+                k = bmp.Height < 40 ? Math.Max(2, 60 / Math.Max(1, bmp.Height)) : 1;
+                using (Bitmap big = new Bitmap(bmp.Width * k, bmp.Height * k, System.Drawing.Imaging.PixelFormat.Format32bppRgb))
+                {
+                    using (Graphics g = Graphics.FromImage(big))
+                    {
+                        g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                        g.DrawImage(bmp, 0, 0, big.Width, big.Height);
+                    }
+                    Stretch(big);
+                    big.Save(tmp, System.Drawing.Imaging.ImageFormat.Png);
+                }
+                Type fileT = WinRt("Windows.Storage.StorageFile"), streamT = WinRt("Windows.Storage.Streams.IRandomAccessStream");
+                Type decT = WinRt("Windows.Graphics.Imaging.BitmapDecoder"), sbT = WinRt("Windows.Graphics.Imaging.SoftwareBitmap");
+                Type resT = WinRt("Windows.Media.Ocr.OcrResult"), modeT = WinRt("Windows.Storage.FileAccessMode");
+                object file = Await(fileT.GetMethod("GetFileFromPathAsync").Invoke(null, new object[] { tmp }), fileT);
+                object stream = Await(fileT.GetMethod("OpenAsync", new Type[] { modeT }).Invoke(file, new object[] { Enum.ToObject(modeT, 0) }), streamT);
+                try
+                {
+                    object dec = Await(decT.GetMethod("CreateAsync", new Type[] { streamT }).Invoke(null, new object[] { stream }), decT);
+                    object sb = Await(decT.GetMethod("GetSoftwareBitmapAsync", Type.EmptyTypes).Invoke(dec, null), sbT);
+                    object res = Await(engine.GetType().GetMethod("RecognizeAsync").Invoke(engine, new object[] { sb }), resT);
+                    readFails = 0;
+                    return res;
+                }
+                finally
+                {
+                    ((IDisposable)stream).Dispose();
+                    try { File.Delete(tmp); } catch { } // (uno por proceso: que no se queden en %TEMP%)
+                }
+            }
+            catch (Exception ex)
+            {
+                // 15-11: un fallo con una imagen (el .png ocupado, un tiempo de espera) ya no apaga el OCR para toda la sesion
+                // (antes: todos los juegos nuevos de esa sesion como "Juego N"). Solo si falla muchas veces seguidas
+                if (++readFails >= 20) { failed = true; Log.Error("OCR de Windows: 20 fallos seguidos, se deja de usar en esta sesion", ex); }
+                else if (readFails == 1) Log.Error("OCR de Windows (una imagen)", ex);
+                return null;
+            }
+        }
+
         // Texto de la imagen (null si el OCR no esta disponible)
         public static string Read(Bitmap bmp)
         {
             lock (sync)
             {
-                if (failed) return null;
-                // (15-11: un fichero por proceso: --test-home con la app abierta escribia en el mismo)
-                string tmp = Path.Combine(Path.GetTempPath(), "switch2_ocr_" + Process.GetCurrentProcess().Id + ".png");
-                if (engine == null)
-                    try
-                    {
-                        Assembly rt = Assembly.Load("System.Runtime.WindowsRuntime, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089");
-                        foreach (MethodInfo m in rt.GetType("System.WindowsRuntimeSystemExtensions").GetMethods())
-                            if (m.Name == "AsTask" && m.IsGenericMethod && m.GetParameters().Length == 1 &&
-                                m.GetParameters()[0].ParameterType.Name == "IAsyncOperation`1") { asTask = m; break; }
-                        engine = WinRt("Windows.Media.Ocr.OcrEngine").GetMethod("TryCreateFromUserProfileLanguages").Invoke(null, null);
-                        if (engine == null || asTask == null) throw new InvalidOperationException("sin OCR en este Windows");
-                    }
-                    catch (Exception ex)
-                    {
-                        failed = true;
-                        Log.Error("OCR de Windows no disponible (no se pueden recordar los ajustes por juego)", ex);
-                        return null;
-                    }
+                int k;
+                object res = RecognizeToResult(bmp, out k);
+                if (res == null) return null;
+                try { return (string)WinRt("Windows.Media.Ocr.OcrResult").GetProperty("Text").GetValue(res, null); }
+                catch { return null; }
+            }
+        }
+
+        // 20-11 (PS5JUEGO): cada linea del OCR con su alto en pixeles de bmp (para quedarse con el texto grande del overlay de la consola:
+        // el nombre del juego en el centro de control / conmutador de la PS5 o en la Guia / fichas de la Xbox). Lista vacia si el OCR falla
+        public sealed class Linea { public string Texto; public double Alto, X, Y; }
+        public static List<Linea> ReadLines(Bitmap bmp)
+        {
+            List<Linea> r = new List<Linea>();
+            lock (sync)
+            {
+                int k;
+                object res = RecognizeToResult(bmp, out k);
+                if (res == null) return r;
                 try
                 {
-                    // Letras de mas de ~30 pixeles: el OCR lee mejor. Y con el contraste estirado
-                    int k = bmp.Height < 40 ? Math.Max(2, 60 / Math.Max(1, bmp.Height)) : 1;
-                    using (Bitmap big = new Bitmap(bmp.Width * k, bmp.Height * k, System.Drawing.Imaging.PixelFormat.Format32bppRgb))
+                    object lines = WinRt("Windows.Media.Ocr.OcrResult").GetProperty("Lines").GetValue(res, null);
+                    if (lines == null) return r;
+                    Type lineT = WinRt("Windows.Media.Ocr.OcrLine");
+                    double inv = 1.0 / Math.Max(1, k);
+                    foreach (object line in (System.Collections.IEnumerable)lines)
                     {
-                        using (Graphics g = Graphics.FromImage(big))
-                        {
-                            g.InterpolationMode = InterpolationMode.HighQualityBicubic;
-                            g.DrawImage(bmp, 0, 0, big.Width, big.Height);
-                        }
-                        Stretch(big);
-                        big.Save(tmp, System.Drawing.Imaging.ImageFormat.Png);
-                    }
-                    Type fileT = WinRt("Windows.Storage.StorageFile"), streamT = WinRt("Windows.Storage.Streams.IRandomAccessStream");
-                    Type decT = WinRt("Windows.Graphics.Imaging.BitmapDecoder"), sbT = WinRt("Windows.Graphics.Imaging.SoftwareBitmap");
-                    Type resT = WinRt("Windows.Media.Ocr.OcrResult"), modeT = WinRt("Windows.Storage.FileAccessMode");
-                    object file = Await(fileT.GetMethod("GetFileFromPathAsync").Invoke(null, new object[] { tmp }), fileT);
-                    object stream = Await(fileT.GetMethod("OpenAsync", new Type[] { modeT }).Invoke(file, new object[] { Enum.ToObject(modeT, 0) }), streamT);
-                    try
-                    {
-                        object dec = Await(decT.GetMethod("CreateAsync", new Type[] { streamT }).Invoke(null, new object[] { stream }), decT);
-                        object sb = Await(decT.GetMethod("GetSoftwareBitmapAsync", Type.EmptyTypes).Invoke(dec, null), sbT);
-                        object res = Await(engine.GetType().GetMethod("RecognizeAsync").Invoke(engine, new object[] { sb }), resT);
-                        string txt = (string)resT.GetProperty("Text").GetValue(res, null);
-                        readFails = 0;
-                        return txt;
-                    }
-                    finally
-                    {
-                        ((IDisposable)stream).Dispose();
-                        try { File.Delete(tmp); } catch { } // (uno por proceso: que no se queden en %TEMP%)
+                        string t = (string)lineT.GetProperty("Text").GetValue(line, null);
+                        object words = lineT.GetProperty("Words").GetValue(line, null);
+                        double h = 0, minx = 1e9, miny = 1e9;
+                        if (words != null)
+                            foreach (object w in (System.Collections.IEnumerable)words)
+                            {
+                                object rect = w.GetType().GetProperty("BoundingRect").GetValue(w, null);
+                                double hh = Convert.ToDouble(rect.GetType().GetProperty("Height").GetValue(rect, null));
+                                double xx = Convert.ToDouble(rect.GetType().GetProperty("X").GetValue(rect, null));
+                                double yy = Convert.ToDouble(rect.GetType().GetProperty("Y").GetValue(rect, null));
+                                if (hh > h) h = hh;
+                                if (xx < minx) minx = xx;
+                                if (yy < miny) miny = yy;
+                            }
+                        if (!string.IsNullOrEmpty(t)) r.Add(new Linea { Texto = t, Alto = h * inv, X = (minx >= 1e9 ? 0 : minx) * inv, Y = (miny >= 1e9 ? 0 : miny) * inv });
                     }
                 }
-                catch (Exception ex)
-                {
-                    // 15-11: un fallo con una imagen (el .png ocupado, un tiempo de espera) ya no apaga el OCR para toda la sesion
-                    // (antes: todos los juegos nuevos de esa sesion como "Juego N"). Solo si falla muchas veces seguidas
-                    if (++readFails >= 20) { failed = true; Log.Error("OCR de Windows: 20 fallos seguidos, se deja de usar en esta sesion", ex); }
-                    else if (readFails == 1) Log.Error("OCR de Windows (una imagen)", ex);
-                    return null;
-                }
+                catch (Exception ex) { Log.Error("OCR de Windows (lineas)", ex); }
+                return r;
             }
         }
     }
@@ -5095,6 +5160,7 @@ namespace ConsoleEnhancer
         // otro cortado por la etiqueta (no seguro) y largo
         public static bool SameTitle(string a, bool aSure, string b, bool bSure)
         {
+            if (JuegoConsola.TagConsola(a) != JuegoConsola.TagConsola(b)) return false; // 20-11 (PS5JUEGO): no juntar juegos de consolas distintas
             string x = Key(a), y = Key(b);
             if (x.Length == 0 || y.Length == 0) return false;
             if (x == y) return true;
@@ -5642,6 +5708,10 @@ namespace ConsoleEnhancer
         // lee ventanas distintas del mismo nombre)
         public static bool SameGame(string a, string b)
         {
+            // 20-11 (PS5JUEGO): los juegos de las consolas con menu propio se guardan como "PS5: <juego>" / "Xbox Series: <juego>". Dos
+            // nombres con distinta etiqueta de consola (o uno con y otro sin) NUNCA son el mismo juego, aunque el resto se solape ("PS5:
+            // Rocket League" no es el "Rocket League" de la Switch 2). Asi no se mezclan juegos de consolas distintas
+            if (JuegoConsola.TagConsola(a) != JuegoConsola.TagConsola(b)) return false;
             string x = HomeLabel.Norm(a), y = HomeLabel.Norm(b);
             if (x.Length == 0 || y.Length == 0) return false;
             if (x == y) return true;
@@ -13585,6 +13655,10 @@ namespace ConsoleEnhancer
                 if (arg == "--esperar-salida") Ce.EsperarSalida();
                 // 19-11: el lector del menu de la PS5 con imagenes (src\MenuPs5.cs): --test-ps5=<carpeta>[;<informe>]
                 if (arg.StartsWith("--test-ps5=")) return RelojPs5.Prueba(arg.Substring(11));
+
+                // 20-11 (PS5JUEGO): leer el nombre del juego en el overlay (centro de control / conmutador de la PS5, Guia / fichas de la
+                // Xbox): --test-juegos-consola=<carpeta>[;<informe>] (xbox_* usa la Xbox, el resto la PS5)
+                if (arg.StartsWith("--test-juegos-consola=")) return JuegoConsola.Prueba(arg.Substring(22));
                 // 19-11 (DETECCION): el menu de la consola con imagenes y escenas, antes y ahora (src\PruebaDeteccion.cs):
                 // --test-deteccion=<carpeta>[;<informe>] (juegos\test_deteccion) o --test-deteccion=listar;<carpeta>;<informe.tsv>
                 if (arg.StartsWith("--test-deteccion=")) return PruebaDeteccion.Run(arg.Substring(17));
