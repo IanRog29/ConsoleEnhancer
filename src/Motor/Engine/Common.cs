@@ -183,6 +183,10 @@ namespace ConsoleEnhancer.Motor
         public string TestB = "";                   // test_b=<png>: la fuente de prueba alterna con esta imagen (pares reales de la capturadora)
         public int FgVec = 1;                       // 17-11: fg_vectores=0: DLSS-G con los vectores a cero (su propio flujo optico, como el DLSS FG de Magpie); DLSS SR sigue con los del motor. 13:40 (REJAS): 2 = suavizados (fg_vectores_radio), 3 = uno global (EngineRejas.cs RecordFgVec)
         public long MvLightPx = 0;                  // 17-11 17:35 mv_ligero=N: con N puntos de entrada o mas, vectores sin mvpx/mvflat/mvconsenso/mvapertura
+        // 20-11 16:05 (DLSS5VEC): con DLSS 5 en el modo 30 los vectores completos aunque la entrada pase de mv_ligero (4K, 1440p): DLSS 5 y su
+        // antiparpadeo siguen la historia con ellos y, ligeros, lo liso y con luz se quedaba a 0 al mover la camara (parpadeo; Magpie le
+        // daba el flujo optico de NVIDIA). mv_ligero_dlss5=1 = como antes (ligeros tambien con DLSS 5)
+        public bool MvLightDlss5 = false;
         public bool MvSubEq = false;                // 17-11 15:50 mvsub=1: fraccion de pixel con dos rectas (SAD en V) en vez de parabola
         public bool MvLongRel = false;              // 17-11 15:40 mvlargo_rel=1: mvlargo castiga la distancia al vector de la imagen anterior (no a 0)
         public int ReflexLimitUs = 0;               // 17-11 15:15 reflex_limite=us: limite de Reflex (0 = el suyo)
@@ -383,6 +387,7 @@ namespace ConsoleEnhancer.Motor
                 case "mvlargo_rel": MvLongRel = B(val); break;
                 case "mvsub": MvSubEq = B(val); break;
                 case "mv_ligero": MvLightPx = Math.Max(0, (long)D(val)); break;
+                case "mv_ligero_dlss5": MvLightDlss5 = B(val); break;
                 case "fg_profundidad_borde": FgDepthEdge = D(val); break;
                 case "fg_profundidad_cerca": FgDepthNear = D(val); break;
                 case "fg_profundidad_lejos": FgDepthFar = D(val); break;

@@ -108,7 +108,15 @@ namespace ConsoleEnhancer.Motor
         bool MvPxNow { get { return s.MvPx && !MvLightNow && !(s.MvPxAuto && fgApplied && s.Mode == 60 && (long)inW * inH >= 2560L * 1440 * 9 / 10); } }
         // 17-11 17:35 (mv_ligero=N puntos): con la entrada de N puntos o mas (1440p entera) sin mvpx, mvflat, mvconsenso ni mvapertura (~0,8 ms):
         // asi cabe DLSS 4.5 con la captura de 1440p sin reducir (el usuario: "si pongo captura 1440p quiero que capture a 1440p")
-        bool MvLightNow { get { return s.MvLightPx > 0 && (long)inW * inH >= s.MvLightPx; } }
+        // 20-11 16:05 (DLSS5VEC): con DLSS 5 en el modo 30, completos (mv_ligero_dlss5=0, de serie): hay ~17 ms libres de los 33
+        bool MvLightNow { get { return MvLightSize && (mvForceLight || !MvFullForDlss5); } }
+        bool MvLightSize { get { return s.MvLightPx > 0 && (long)inW * inH >= s.MvLightPx; } }
+        bool MvFullForDlss5 { get { return s.Nr && s.Mode == 30 && !s.MvLightDlss5; } }
+        // 20-11 16:15 (DLSS5VEC2): con DLSS 5 + DLSS-G a la vez la generacion con los completos daba errores (por separado bien): la generacion
+        // sigue con los ligeros de siempre (primera pasada del nivel fino sin mvflat, sin consenso, expandidos sin mvpx -> mvecFg) y luego se
+        // rehace el nivel fino completo solo para DLSS 5 (mvec). mvForceLight = en la primera pasada
+        bool mvForceLight;
+        bool fgVecDone;             // RecordFgVec ya hecho en esta imagen (con los ligeros)
 
         void CreateMotionResources(int w, int h)
         {
@@ -127,6 +135,8 @@ namespace ConsoleEnhancer.Motor
                 if (mvPrev[k] != null) Com.Release(ref mvPrev[k]);
                 mvPrev[k] = Tex(DXGI_FORMAT.R16G16_FLOAT, bx[k], by[k], false, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, "bloques anteriores " + k);
             }
+            if (mvLight0 != null) Com.Release(ref mvLight0);
+            mvLight0 = Tex(DXGI_FORMAT.R16G16_FLOAT, bx[0], by[0], false, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, "bloques ligeros (generacion)");
             // 16-11 (calidad): lo de las mascaras (pequeño: se crea siempre, para poder encenderlo en marcha)
             if (blockInfo != null) Com.Release(ref blockInfo);
             if (blockMask != null) Com.Release(ref blockMask);
@@ -209,6 +219,39 @@ namespace ConsoleEnhancer.Motor
             Log.Write("Calidad: shaders de mascaras y vectores por punto (" + Clock.SinceMs(t).ToString("0") + " ms)");
         }
 
+        ID3D12Resource mvLight0;    // 20-11 (DLSS5VEC3): el nivel fino de la pasada ligera (pista temporal de la generacion)
+
+        // Copia entre texturas que estan en NON_PIXEL_SHADER_RESOURCE (y ahi se quedan)
+        void CopyTex(ID3D12Resource dst, ID3D12Resource src)
+        {
+            Barrier(src, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.COPY_SOURCE);
+            Barrier(dst, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.COPY_DEST);
+            list.CopyResource(dst, src);
+            Barrier(dst, D3D12_RESOURCE_STATES.COPY_DEST, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE);
+            Barrier(src, D3D12_RESOURCE_STATES.COPY_SOURCE, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE);
+        }
+
+        // Busqueda por bloques de un nivel (de lo grueso a lo fino: el nivel k lee el k + 1). inf = el nivel fino escribe blockInfo
+        void SearchLevel(int cur, int k, bool inf, uint* c)
+        {
+            Barrier(mvLevel[k], D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.UNORDERED_ACCESS);
+            if (inf) Barrier(blockInfo, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.UNORDERED_ACCESS);
+            c[0] = (uint)lw[k]; c[1] = (uint)lh[k]; c[2] = (uint)bx[k]; c[3] = (uint)by[k];
+            c[4] = k == Levels - 1 ? 12u : k == Levels - 2 ? 2u : 1u;   // +-12 / +-2 / +-1 / +-1
+            c[5] = k < Levels - 1 ? 1u : 0u;
+            c[6] = k < Levels - 1 ? (uint)bx[k + 1] : 1u; c[7] = k < Levels - 1 ? (uint)by[k + 1] : 1u;
+            c[8] = k == 0 ? 1u : 0u; c[9] = (k == 0 ? 0u : 1u) | (s.MvTemporal && mvPrevValid ? 2u : 0u) | (s.MvLongRel && mvPrevValid ? 4u : 0u) | (s.MvSubEq ? 8u : 0u);   // (17-11 15:40: mvlargo_rel; 15:50: mvsub)   // nivel 0: solo el del nivel grueso y el 0 (17-11, REJAS: + el de la imagen anterior con mvtemporal)
+            c[10] = (k == 0 && s.MvFlat && !MvLightNow ? 1u : 0u) | ((uint)Math.Round(s.MvLong * 1e6) << 1);   // 17-11 (rejas): mvlargo en los bits altos              // 16-11: bloques lisos del nivel fino con ventana de 16x16
+            c[11] = inf ? 1u : 0u;                              // 16-11: informacion por bloque (u1)
+            // 16-11 (d): en el nivel fino, preferencia por 0 frente al ruido (mvsesgo relativa, mvruido en niveles por punto)
+            c[12] = F(k == 0 ? (float)s.MvZeroBias : 0.03f); c[13] = F(0.004f); c[14] = F(k == 0 ? (float)(s.MvNoise / 255.0) : 0f);
+            c[15] = F(k == 0 ? (float)s.MvExact : 0f);   // 16-11 (mvexacto): sin medio pixel si el entero ya casa
+            BindCompute(psoSearch, TSearch + cur * Levels + k, c, 16);
+            list.Dispatch(Groups(bx[k], 8), Groups(by[k], 8), 1);
+            Barrier(mvLevel[k], D3D12_RESOURCE_STATES.UNORDERED_ACCESS, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE);
+            if (inf) Barrier(blockInfo, D3D12_RESOURCE_STATES.UNORDERED_ACCESS, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE);
+        }
+
         // Despues de pasar la captura a RGBA (inColor en NON_PIXEL_SHADER_RESOURCE). newFrame = false: imagen repetida, vectores a 0
         void RecordMotion(bool newFrame)
         {
@@ -236,39 +279,36 @@ namespace ConsoleEnhancer.Motor
                 }
                 if (motionValid && !frameReset)
                 {
-                    for (int k = Levels - 1; k >= 0; k--)
+                    // 20-11 16:15 (DLSS5VEC2): DLSS 5 + DLSS-G con la entrada de mv_ligero o mas: primero los ligeros para la generacion
+                    bool dual = MvLightSize && MvFullForDlss5 && fgApplied && s.FgVec >= 2 && mvecFg != null && !s.MvFixed;
+                    mvForceLight = dual;
+                    for (int k = Levels - 1; k >= 0; k--) SearchLevel(cur, k, info && k == 0, c);
+                    if (dual)
                     {
-                        bool inf = info && k == 0;
-                        Barrier(mvLevel[k], D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.UNORDERED_ACCESS);
-                        if (inf) Barrier(blockInfo, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.UNORDERED_ACCESS);
-                        c[0] = (uint)lw[k]; c[1] = (uint)lh[k]; c[2] = (uint)bx[k]; c[3] = (uint)by[k];
-                        c[4] = k == Levels - 1 ? 12u : k == Levels - 2 ? 2u : 1u;   // +-12 / +-2 / +-1 / +-1
-                        c[5] = k < Levels - 1 ? 1u : 0u;
-                        c[6] = k < Levels - 1 ? (uint)bx[k + 1] : 1u; c[7] = k < Levels - 1 ? (uint)by[k + 1] : 1u;
-                        c[8] = k == 0 ? 1u : 0u; c[9] = (k == 0 ? 0u : 1u) | (s.MvTemporal && mvPrevValid ? 2u : 0u) | (s.MvLongRel && mvPrevValid ? 4u : 0u) | (s.MvSubEq ? 8u : 0u);   // (17-11 15:40: mvlargo_rel; 15:50: mvsub)   // nivel 0: solo el del nivel grueso y el 0 (17-11, REJAS: + el de la imagen anterior con mvtemporal)
-                        c[10] = (k == 0 && s.MvFlat && !MvLightNow ? 1u : 0u) | ((uint)Math.Round(s.MvLong * 1e6) << 1);   // 17-11 (rejas): mvlargo en los bits altos              // 16-11: bloques lisos del nivel fino con ventana de 16x16
-                        c[11] = inf ? 1u : 0u;                              // 16-11: informacion por bloque (u1)
-                        // 16-11 (d): en el nivel fino, preferencia por 0 frente al ruido (mvsesgo relativa, mvruido en niveles por punto)
-                        c[12] = F(k == 0 ? (float)s.MvZeroBias : 0.03f); c[13] = F(0.004f); c[14] = F(k == 0 ? (float)(s.MvNoise / 255.0) : 0f);
-                        c[15] = F(k == 0 ? (float)s.MvExact : 0f);   // 16-11 (mvexacto): sin medio pixel si el entero ya casa
-                        BindCompute(psoSearch, TSearch + cur * Levels + k, c, 16);
-                        list.Dispatch(Groups(bx[k], 8), Groups(by[k], 8), 1);
-                        Barrier(mvLevel[k], D3D12_RESOURCE_STATES.UNORDERED_ACCESS, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE);
-                        if (inf) Barrier(blockInfo, D3D12_RESOURCE_STATES.UNORDERED_ACCESS, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE);
+                        // Los ligeros de siempre, expandidos sin mvpx, y de ellos los vectores de la generacion (mvecFg)
+                        Barrier(mvec, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.UNORDERED_ACCESS);
+                        for (int i = 0; i < 16; i++) c[i] = 0;
+                        c[0] = (uint)inW; c[1] = (uint)inH; c[2] = (uint)bx[0]; c[3] = (uint)by[0]; c[4] = 0u;
+                        c[8] = F((float)s.MvSmooth);
+                        BindCompute(psoExpand, TExpand, c, 12);
+                        list.Dispatch(Groups(inW, 16), Groups(inH, 8), 1);
+                        Barrier(mvec, D3D12_RESOURCE_STATES.UNORDERED_ACCESS, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE);
+                        RecordFgVec(true);
+                        fgVecDone = true;
+                        // 16:25 (DLSS5VEC3): el nivel fino ligero se guarda para la pista temporal (mvtemporal) de la imagen siguiente:
+                        // asi la generacion recibe exactamente lo de siempre (antes la pista salia del completo de DLSS 5)
+                        if (s.MvTemporal && mvLight0 != null) CopyTex(mvLight0, mvLevel[0]);
+                        // Y el nivel fino otra vez, completo, para DLSS 5
+                        mvForceLight = false;
+                        SearchLevel(cur, 0, info, c);
                     }
+                    mvForceLight = false;
                     RecordConsensus(cur, c);   // 17-11 (REJAS): mvconsenso
-                    // 17-11 (REJAS, mvtemporal): el campo de cada nivel para la imagen siguiente
+                    // 17-11 (REJAS, mvtemporal): el campo de cada nivel para la imagen siguiente (20-11 DLSS5VEC3: con la doble pasada, el
+                    // nivel fino ligero)
                     if (s.MvTemporal)
-                    {
                         for (int k = 0; k < Levels; k++)
-                        {
-                            Barrier(mvLevel[k], D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.COPY_SOURCE);
-                            Barrier(mvPrev[k], D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.COPY_DEST);
-                            list.CopyResource(mvPrev[k], mvLevel[k]);
-                            Barrier(mvPrev[k], D3D12_RESOURCE_STATES.COPY_DEST, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE);
-                            Barrier(mvLevel[k], D3D12_RESOURCE_STATES.COPY_SOURCE, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE);
-                        }
-                    }
+                            CopyTex(mvPrev[k], k == 0 && dual && mvLight0 != null ? mvLight0 : mvLevel[k]);
                     mvPrevValid = s.MvTemporal;
                 }
                 else { on = false; mvPrevValid = false; }
@@ -327,7 +367,8 @@ namespace ConsoleEnhancer.Motor
             if (on && !s.MvFixed) RecordEnsancha(cur, c);   // 17-11 13:20 (REJAS): mvensancha
             if (on) RecordTruth(cur, c);   // 17-11 (REJAS): mvverdad (prueba con test=paralaje)
             Barrier(mvec, D3D12_RESOURCE_STATES.UNORDERED_ACCESS, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE);
-            RecordFgVec(on);   // 17-11 13:40 (REJAS): fg_vectores=2|3
+            if (!fgVecDone) RecordFgVec(on);   // 17-11 13:40 (REJAS): fg_vectores=2|3 (20-11 DLSS5VEC2: si no se hizo ya con los ligeros)
+            fgVecDone = false;
             if (on) RecordFgDepth(cur);   // 17-11 15:20: fg_profundidad
             mvecDirty = on;
             srVecValid = false;

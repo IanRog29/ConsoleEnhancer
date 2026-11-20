@@ -439,3 +439,12 @@ Switch2Magpie\LEEME.txt (LATENCIA3). Copias: src\Lanzador\Switch2Magpie.cs/ColaS
     home_4k_nativo=1); --ui-preview=componentes (12 imagenes, es / en, los 6 estados). Zip: empaquetar.ps1 -Zip -Forzar -Version v1.0.2.
   - Sin probar: el modo 120 entero (sin consola ni GPU: ni el motor a 120, ni el cambio de fps de la fuente, ni Magpie a 120); capturas_120
     escrito desde los formatos de una capturadora de verdad (el asistente abriendola); el aviso de HDCP con una consola.
+
+20-11-2026 16:15 (fusion J, para la v1.0.3): DLSS5VEC de Prisma (motor: src\Motor\Engine\EngineMotion.cs, Common.cs; git merge-file con
+base = .antes-dlss5vec de C:\Switch2Engine, sin conflictos).
+  - Con DLSS 5 en el modo 30 y la entrada >= mv_ligero (1440p, 4K): vectores completos para DLSS 5 (antes ligeros: parpadeo al mover la
+    camara en lo liso y con luz). mv_ligero_dlss5=1 = como antes.
+  - Con DLSS 5 + DLSS-G: la generacion con los ligeros de siempre (primera pasada del nivel fino, su propia pista temporal mvLight0) y el
+    nivel fino otra vez completo solo para DLSS 5.
+  - Banco (bin\motor\ConsoleEnhancerEngine.exe, 4K modo 30 + FG + DLSS 5 al 75 %, RTX 4060 Ti): grafica 17,5 -> 18,9 ms, sin fallos.
+    EngineAdapta ajusta el % de DLSS 5 si en graficas mas flojas no cabe.
