@@ -1,0 +1,16 @@
+name: Idea / Feature request
+description: Algo que te gustaría que hiciera / Something you would like it to do
+labels: [idea]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: La idea / The idea
+      description: Qué te gustaría y para qué (consola, capturadora, gráfica...) / What you would like and why
+    validations:
+      required: true
+  - type: textarea
+    id: alternativas
+    attributes:
+      label: Alternativas / Alternatives
+      description: Cómo lo haces ahora, otras formas de hacerlo / How you do it today, other options

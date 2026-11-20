@@ -1,0 +1,53 @@
+name: Fallo / Bug
+description: Algo no funciona como debería / Something does not work as expected
+labels: [fallo]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Gracias por avisar. Antes: prueba con la **última release** y vuelve a pasar el asistente (bandeja > Asistente de configuración).
+        Thanks! Please try the **latest release** and run the wizard again first. Spanish or English are both fine.
+  - type: input
+    id: version
+    attributes:
+      label: Versión / Version
+      description: La del zip (ConsoleEnhancer-vX.Y.Z) o "compilado desde el código" / From the zip name, or "built from source"
+      placeholder: v1.0.0
+    validations:
+      required: true
+  - type: textarea
+    id: equipo
+    attributes:
+      label: Equipo / Hardware
+      description: Gráfica y driver, pantalla (resolución y Hz), capturadora, consola, Windows / GPU and driver, display (resolution, Hz), capture device, console, Windows
+      placeholder: |
+        Gráfica: NVIDIA GeForce RTX ... (driver ...)
+        Pantalla: tele 4K a 120 Hz por HDMI
+        Capturadora: ...
+        Consola: ...
+        Windows 11 24H2
+    validations:
+      required: true
+  - type: textarea
+    id: que
+    attributes:
+      label: Qué pasa / What happens
+      description: Qué esperabas, qué pasó y cómo repetirlo / Expected vs. actual behaviour and steps to reproduce
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: Log
+      description: |
+        Arrastra aquí `consoleenhancer.log` y `engine.log` (en `datos\logs\` junto al exe o en `%LOCALAPPDATA%\ConsoleEnhancer\logs`).
+        **Revísalos antes**: pueden llevar nombres de tus carpetas o de tus juegos. / Drag the logs here, after checking them for private data.
+  - type: checkboxes
+    id: legal
+    attributes:
+      label: Comprobado / Checked
+      options:
+        - label: No uso extras no oficiales ("DLSS 5", dlssg_sm86), o lo digo arriba / I do not use unofficial extras, or I say so above
+          required: false
+        - label: El log no lleva nada que no quiera publicar / The log contains nothing I do not want to publish
+          required: true

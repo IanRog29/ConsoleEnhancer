@@ -1,0 +1,123 @@
+# Compila ConsoleEnhancer en Windows con el csc de .NET Framework 4.8 que trae el sistema (sin Visual Studio), pasa la prueba de
+# deteccion con los PCs simulados y comprueba que en el repositorio no hay binarios, nada no redistribuible ni datos personales.
+# Con una etiqueta v* (git tag v1.0.0 && git push origin v1.0.0) ademas monta el zip con scripts\empaquetar.ps1 (baja NVIDIA
+# Streamline de su release oficial, con su SHA-256) y crea la Release de GitHub con el zip y su .sha256.
+name: compilar
+
+on:
+  push:
+    branches: ['**']
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compilar:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Comprobar el repositorio (binarios, no redistribuible, datos personales)
+        shell: pwsh
+        run: |
+          $todos = @(git ls-files)
+          # (git ls-files --eol: "i/-text" = contenido binario en el indice)
+          $bin = @(git ls-files --eol | Where-Object { $_ -match '^i/-text' } | ForEach-Object { ($_ -split "`t", 2)[1] })
+          $permitidos = @('recursos/prisma.ico', 'recursos/prisma_512.png')
+          $bin = $bin | Where-Object { $permitidos -notcontains $_ }
+          if ($bin) { 'Binarios en el repositorio (solo se permiten los iconos propios):'; $bin; exit 1 }
+          $malos = $todos | Where-Object { $_ -match '(?i)(nvngx_|dlssg_sm86|DLSSNR-DLL|NGX_OTA|PrismaNr|\.(exe|dll|pdb|obj|lib|zip|7z|log)$|\.antes-|(^|/)(terceros|datos|juegos|logs|extras|bin|dist|obj)/|consoleenhancer\.ini$|switch2\.ini$|privado\.txt$)' }
+          if ($malos) { 'Ficheros que no deben ir al repositorio:'; $malos; exit 1 }
+          $personal = git grep -n -I -E '[A-Za-z]:\\Users\\|[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+\.[A-Za-z]{2,}' -- . ':!LICENSE'
+          if ($personal) { 'Posibles datos personales (rutas de usuario o correos):'; $personal; exit 1 }
+          Get-Content scripts/componentes.json -Raw | ConvertFrom-Json | Out-Null
+          'Repositorio limpio'
+
+      - name: Lanzador (build.bat)
+        shell: cmd
+        run: call .\build.bat
+
+      - name: Motor (build_motor.bat)
+        shell: cmd
+        run: call .\build_motor.bat
+
+      - name: Prueba de deteccion (tests\build_deteccion.bat)
+        shell: cmd
+        run: call .\tests\build_deteccion.bat
+
+      - name: DeteccionTest con los PCs simulados
+        shell: pwsh
+        run: |
+          & tests\bin\DeteccionTest.exe --simula=todo --sin-d3d12 --salida=deteccion.txt
+          if ($LASTEXITCODE -ne 0) { Get-Content deteccion.txt -Tail 40; exit 1 }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ConsoleEnhancer-bin
+          path: |
+            bin/ConsoleEnhancer.exe
+            bin/motor/ConsoleEnhancerEngine.exe
+            deteccion.txt
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: compilar
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache de NVIDIA Streamline (terceros\_descargas)
+        uses: actions/cache@v4
+        with:
+          path: terceros/_descargas
+          key: terceros-${{ hashFiles('scripts/componentes.json') }}
+
+      - name: NVIDIA Streamline (de su release oficial, con su SHA-256)
+        shell: pwsh
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts\descargar_dependencias.ps1 -Solo streamline
+
+      - name: Compilar
+        shell: cmd
+        run: |
+          call .\build.bat || exit /b 1
+          call .\build_motor.bat || exit /b 1
+
+      - name: Montar el zip (scripts\empaquetar.ps1)
+        shell: pwsh
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts\empaquetar.ps1 -Zip -Version "${{ github.ref_name }}" -Web "${{ github.server_url }}/${{ github.repository }}"
+
+      - name: Notas de la version (CHANGELOG.md)
+        shell: pwsh
+        run: |
+          $tag = '${{ github.ref_name }}'
+          $v = $tag.TrimStart('v')
+          $lineas = Get-Content CHANGELOG.md -Encoding UTF8
+          $notas = New-Object System.Collections.Generic.List[string]
+          $dentro = $false
+          foreach ($l in $lineas) {
+            if ($l -match '^## ' -or $l -match '^\[[^\]]+\]: ') { if ($dentro) { break }; if ($l -match ('^## \[?v?' + [regex]::Escape($v) + '\]?')) { $dentro = $true; continue } }
+            if ($dentro) { $notas.Add($l) }
+          }
+          if ($notas.Count -eq 0) { $notas.Add("ConsoleEnhancer $tag") }
+          $notas.Add('')
+          $notas.Add('**Descarga / Download:** `ConsoleEnhancer-' + $tag + '.zip` (abajo / below). Descomprime y abre `ConsoleEnhancer.exe`: la primera vez baja mpv y Magpie de sus paginas oficiales y luego sale el asistente. / Unzip and open `ConsoleEnhancer.exe`: on first start it downloads mpv and Magpie from their official pages, then the wizard runs.')
+          $notas.Add('')
+          $notas.Add('SHA-256: `' + ((Get-Content "dist/ConsoleEnhancer-$tag.zip.sha256" -Raw).Split(' ')[0]) + '`')
+          $notas.Add('')
+          $notas.Add('Licencia GPL-3.0 (+ LICENSE-EXCEPTION.txt). Incluye NVIDIA Streamline / DLSS / Reflex sin cambios (licencias\). No incluye "DLSS 5" ni nada no oficial.')
+          Set-Content -LiteralPath notas.md -Value $notas -Encoding UTF8
+
+      - name: Crear la Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = '${{ github.ref_name }}'
+          $extra = @()
+          if ($tag -match '-(alpha|beta|rc|pre)') { $extra += '--prerelease' }
+          gh release create $tag "dist/ConsoleEnhancer-$tag.zip" "dist/ConsoleEnhancer-$tag.zip.sha256" --title "ConsoleEnhancer $tag" --notes-file notas.md @extra

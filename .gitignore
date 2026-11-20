@@ -1,0 +1,71 @@
+# ConsoleEnhancer - lo que NO va al repositorio
+
+# Compilado y paquetes (build.bat, build_motor.bat, scripts\empaquetar.ps1)
+bin/
+dist/
+obj/
+tests/bin/
+*.obj
+*.ilk
+*.exp
+*.lib
+*.zip
+*.7z
+
+# Programas de terceros (los baja scripts\descargar_dependencias.ps1 a terceros\): mpv, Magpie, NVIDIA Streamline / DLSS / Reflex,
+# NVIDIA VFX. Nunca binarios en el repositorio
+terceros/
+mpv/
+magpie/
+streamline/
+*.exe
+*.dll
+*.pdb
+
+# NO REDISTRIBUIBLES, nunca, en ninguna carpeta: "DLSS 5" (DLL de NVIDIA modificada, sin firma) y el runtime dlssg_sm86 (autofirmado)
+nvngx_dlssnr.dll
+**/runtimes/dlssg_sm86/
+dlssg_sm86/
+DLSSNR-DLL-Options.zip
+NGX_OTA_Switch.bat
+extras/
+
+# PrismaNr ("DLSS 5" dentro del motor, C++): solo para uso propio, NO se publica. Necesita las cabeceras propietarias del SDK
+# de DLSS de NVIDIA (no se pueden repartir) y carga la DLL no oficial de un modo que la licencia de los SDK de NVIDIA RTX no
+# permite. El motor funciona igual sin PrismaNr.dll (src/Motor/Engine/EngineDlss5.cs solo la usa si esta)
+src/PrismaNr/
+build_prismanr.bat
+PrismaNr*.dll
+PrismaNrTest*.exe
+
+# Las descargas de mpv y Magpie que hace la app la primera vez (src\Lanzador\Componentes.cs) y los ficheros a medias
+descargas/
+*.parcial
+# Patrones de datos personales que busca scripts\empaquetar.ps1 (rutas de tu PC...): cada uno el suyo, nunca en el repositorio
+scripts/privado.txt
+
+# Copias de seguridad de fusiones y cambios (Switch2Magpie.cs.antes-fusion1, ...)
+*.antes-*
+*.anterior
+*.orig
+*.rej
+
+# Logs y datos de usuario (la app los escribe en datos\ o en %LOCALAPPDATA%\ConsoleEnhancer)
+*.log
+*.log.old
+datos/
+juegos/
+logs/
+consoleenhancer.ini
+switch2.ini
+hardware.txt
+portable.txt
+*.flag
+
+# Editores y sistema
+.vs/
+.vscode/
+*.suo
+*.user
+Thumbs.db
+desktop.ini

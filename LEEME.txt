@@ -1,0 +1,373 @@
+ConsoleEnhancer - la app universal: cualquier consola, capturadora y grafica (18-11-2026, agente UNIVERSAL)
+=========================================================================================================
+
+QUE ES
+Lo mismo que Prisma (Switch2Magpie + el motor Switch2Engine + Magpie + mpv), pero para cualquier PC: al abrirla por primera vez
+detecta la grafica, la pantalla, la capturadora y los mandos, pregunta lo que no puede saber sola (asistente) y elige la cadena de
+imagen de ese PC. Es una COPIA aparte: Switch2Magpie y Switch2Engine no se tocan. Si Prisma esta abierto, ConsoleEnhancer no
+arranca (los dos usan la capturadora).
+
+PAQUETE PARA REPARTIR (20-11, agente GITHUB: lo que se sube a GitHub Releases; ver README.md y THIRD-PARTY.md)
+  dist\ConsoleEnhancer\               carpeta portable (descomprimir donde sea y abrir ConsoleEnhancer.exe): 32 ficheros, 69 MB
+  dist\ConsoleEnhancer-<version>.zip   lo mismo comprimido, 35 MB, y su .sha256 (scripts\empaquetar.ps1 -Zip -Version vX.Y.Z)
+  Dentro: ConsoleEnhancer.exe (+ ConsoleEnhancer.exe.config, 20-11 FUSION: un fallo en un hilo no cierra la app), motor\
+  (ConsoleEnhancerEngine.exe + las DLL de NVIDIA Streamline / DLSS / Reflex, firmadas), scripts\
+  (lua, glsl, componentes.json), recursos\base.ini, idiomas\en.txt, mpv\portable_config\mpv.conf, licencias\, extras\LEEME.txt,
+  portable.txt, LEEME.txt.
+  NO lleva mpv ni Magpie: la app los baja la primera vez que se abre de sus releases oficiales (SHA-256 de scripts\componentes.json;
+  sin internet, con los zip en <app>\descargas\; src\Lanzador\Componentes.cs). Asi ConsoleEnhancer no reparte binarios GPL de otros
+  (ni el codigo fuente de FFmpeg que eso pediria) ni los de Magpie Experimental con DLL de NVIDIA / AMD / Intel. Tampoco lleva
+  nvngx_dlssnr.dll ("DLSS 5", DLL de NVIDIA modificada y sin firma), runtimes\dlssg_sm86 (autofirmado), PrismaNr.dll, ningun ini ni
+  datos de juegos de nadie. Requisitos: Windows 10 2004+, .NET Framework 4.8, Direct3D 12.
+
+PUBLICAR (20-11, agente PUBLICAR: https://github.com/ianu29/ConsoleEnhancer, autor ianu29)
+  - Bandeja: "Componentes: comprobar / volver a descargar" (estado de mpv y Magpie; --componentes-reparar los baja otra vez),
+    "Anadir DLSS 5 (tu propio archivo)..." / "Quitar DLSS 5" y "Apoyar el proyecto (Ko-fi)" (src\Lanzador\Extras.cs).
+  - DLSS 5: el usuario elige SU nvngx_dlssnr.dll (y en RTX 30 su carpeta dlssg_sm86); se comprueba la cabecera PE (x64, DLL) y el
+    nombre, aviso de no oficial, copia a <app>\extras\ (Ce.PrepararExtras la pasa a magpie\), y encender (juegos\dlss5_activo.txt);
+    motor_dlss5=1 solo si hay motor\PrismaNr.dll. Sin enlaces ni nombres de webs de descarga en ningun sitio.
+  - Asistente, ultimo paso: estado de los componentes, boton "Anadir / Quitar DLSS 5" (GeForce RTX) y un enlace discreto a Ko-fi.
+  - Ko-fi: .github\FUNDING.yml (boton Sponsor), README (es / en), Acerca de, LEEME.txt del zip. Voluntario: la app es gratis y completa.
+
+COMO SE USA
+  - Primera vez (sin ini) o con el hardware cambiado: asistente (idioma; lo detectado; capturadora con sus formatos y "Probar imagen";
+    sonido con "Probar sonido"; consola: auto o la que sea; pantalla; resumen del plan). Escribe el ini = recursos\base.ini (ajustes
+    generales probados en Prisma) + el bloque del plan al final (la ultima linea de cada clave manda). Otra vez: menu de la bandeja.
+  - Datos: <app>\datos\ (con portable.txt) o %LOCALAPPDATA%\ConsoleEnhancer: consoleenhancer.ini, hardware.txt (huella, deteccion y
+    plan), juegos\, logs\consoleenhancer.log y engine.log.
+  - Mando, botones, telon, DLSS 5 (solo si el usuario pone la DLL en extras\: aviso de no oficial), modo 30/60, HOME de la Switch 2:
+    como en Prisma (con Mandos.cs, Consolas.cs consola=auto, Pasadas.cs, ColaSm.cs... de los demas agentes).
+  - Pruebas sin consola: --asistente-auto (plan sin preguntar), --dry-run, --datos=<carpeta>, --simula=<caso> (plan de otro PC, con
+    --asistente-auto), --ui-preview=asistente;<carpeta> (imagenes del asistente sin abrir nada).
+
+CADENA SEGUN LA GRAFICA (src\Deteccion\Plan.cs)
+  RTX 50: DLSS SR + Reflex + DLSS-G (x2; x3/x4 con pantallas de 180/240 Hz). RTX 40: DLSS SR + Reflex + Smooth Motion x2 (DLSS-G a
+  119,88 Hz). RTX 20/30: DLSS SR + Reflex, sin DLSS-G (FSR 3 FG por Magpie opcional). GTX/AMD/Intel: motor sin Streamline con FSR 1
+  (EASU + RCAS) propio; AMD: AFMF del driver (se explica) o FSR 3 FG por Magpie; Intel Arc: XeSS FG por Magpie. Con la pantalla a
+  60 Hz no hay generacion en el modo 60. Poca VRAM: sin motor en espera, menos pasadas de DLSS 5, captura a 1080p si no cabe.
+
+COMPILAR Y EMPAQUETAR (C# 5, nada que instalar)
+  build.bat -> bin\ConsoleEnhancer.exe (src\Lanzador + src\Deteccion)   build_motor.bat -> bin\motor\ConsoleEnhancerEngine.exe (src\Motor)
+  tests\build_deteccion.bat -> tests\bin\DeteccionTest.exe (deteccion, plan y 19 PCs simulados)
+  powershell -ExecutionPolicy Bypass -File scripts\empaquetar.ps1 [-Zip] [-Version vX.Y.Z] [-Web <url>] [-Destino <carpeta>] [-Forzar]
+  Todo junto: preparar.bat (y "preparar.bat paquete").
+  Codigo de Prisma traido con git merge-file a tres bandas (actual de ConsoleEnhancer, instantanea base de Prisma, Prisma nuevo; bases
+  base, base2, base3 en una carpeta de trabajo local): 3 fusiones limpias, la ultima con todo lo que dejaron MANDOS, INTEGRADO,
+  PASADAS, NATIVO, CONSOLAS y LATENCIA el 18-11.
+  Desde el 19-11: mpv, Magpie y Streamline salen de terceros\ (scripts\descargar_dependencias.ps1, versiones fijas de GitHub con
+  SHA-256), no de mpv aparte ni de las carpetas de Prisma. Ver README.md.
+  BASES PARA LA PROXIMA FUSION (lo de Prisma y del motor que ya esta en ConsoleEnhancer), LAS VIGENTES:
+    Prisma: Switch2Magpie\base_consoleenhancer\base_prisma_20-11_0651 (todo src de Prisma congelado a las 06:51, fusion G: lleva lo de
+            CONSOLA de la F y LATENCIA5). Las de las 06:00 y 06:38 ya no.
+    Motor:  Switch2Magpie\base_consoleenhancer\base_motor_20-11_0651 (src\Engine, Capture y Native a las 06:51; la base del motor es su
+            carpeta Engine). La de las 06:00 ya no.
+  Script: Switch2Magpie\base_consoleenhancer\fusionar_e.ps1 (-BasePrisma / -BaseMotor = las vigentes; -OtroPrisma / -OtroMotor = copias
+  congeladas de ese momento, no las carpetas vivas, que otros agentes siguen cambiando).
+
+NOMBRES (para convivir con Prisma)
+  ConsoleEnhancer.exe / ConsoleEnhancerEngine.exe, mutex Local\ConsoleEnhancer_*, tuberias ce-mpv-<pid>-N, ce-audio-*, consoleenhancer-engine,
+  scripts ce_power.lua / ce_diag.lua, grupo y perfil de Magpie "ConsoleEnhancer". El protocolo app <-> motor/lua (switch2-osd, switch2-standby...)
+  sigue igual a proposito. Perfiles de NVIDIA: se busca el perfil que ya tiene cada exe y se ajusta ese (en este PC Magpie.exe y mpv.exe
+  estan en "Switch 2 - Magpie.exe" / "Switch 2 - mpv.exe" de Prisma: mismos ajustes, sin duplicar ni mover); si el exe no esta en
+  ninguno, se crea "ConsoleEnhancer - <exe>" (el del motor: "ConsoleEnhancer - ConsoleEnhancerEngine.exe").
+
+CLAVES NUEVAS DEL INI (src\Lanzador\ConsoleEnhancerApp.cs)
+  device_path, audio_dispositivo, audio_pines (1 = pines del filtro de video, como la GC573), gpu_fabricante (nvidia|amd|intel|otro: sin
+  NVIDIA no se usa NVAPI), motor_streamline (auto|0), motor_adaptador (LUID), generacion_disponible, idioma (auto|es|en).
+  Motor: streamline=, upscaler=auto|dlss|fsr1|catrom, enfoque=, adapter_luid=, device_path=, datos=, cola_max= (src\Motor\Engine\EngineUniversal.cs).
+
+PROBADO (este PC: RTX 4060, GC573 sin consola, tele 4K a 60 y a 120 Hz)
+  - Deteccion: GPU, pantalla (120,000 Hz, HDR, VRR 40-120), GC573 (80 formatos al abrirla, audio por 2 pines), 19 PCs simulados sin fallos.
+  - Asistente con un ini vacio, pulsado por UI Automation (con el turno de GPU): ini con 2560x1440 NV12 60000/1001, audio por pines,
+    motor propio, DLSS M/K/L/L, Smooth Motion. Vista previa en espanol e ingles.
+  - Sesion con la fuente de prueba desde el paquete: motor nuevo con DLSS K + Reflex; tele a 120 Hz: Smooth Motion x2, 119,88 imagenes/s
+    sin tirones; tele a 60 Hz: sin generacion, 59,94/s (19 desfases en 20 s). Avisos repetidos de Streamline limitados en el log.
+  - Motor sin Streamline (lo que haria un PC sin NVIDIA): FSR 1 a 4K 5,8-6,0 ms de GPU, 59,94 reales, ni sl.* ni nvapi cargadas;
+    la GC573 por device_path en ~0,2 s.
+  - Lanzador simulado en AMD / Intel Arc / RTX 3060 / sin NVIDIA (dry-run): cadena de Magpie FSR 1 + FSR 3 FG (flujo de AMD), XeSS FG,
+    DLSS + FSR 3 FG opcional; sin NVAPI.
+
+SIN PROBAR / SIN HACER
+  - Un PC de verdad con AMD, Intel o sin NVIDIA; una capturadora USB (UVC); la consola encendida; HDR; VRR como camino de serie.
+  - El asistente con el mando (va con teclado y raton); escuchar de verdad la prueba de sonido.
+  - Banco corto de calibracion (se usan estimaciones a partir de la 4060), firma aprendida de "sin señal", captura MJPEG en el motor,
+    instalador, el perfil --nvidia del motor (no se ha puesto en este PC).
+  - Ingles parcial: el asistente entero; avisos, telon y bandeja con idiomas\en.txt (80 frases); el log sigue en espanol.
+
+19-11-2026 (agente CE): GITHUB, MPV PROPIO, INICIAR CON WINDOWS Y APAGAR EL PC
+  - Listo para GitHub: git init (rama main, todo anadido, SIN commit: este PC no tiene user.name/user.email de git), .gitignore (bin\,
+    dist\, terceros\, exe/dll/zip, *.antes-*, logs, datos, ini, y SIEMPRE nvngx_dlssnr.dll y runtimes\dlssg_sm86), .gitattributes (los
+    ficheros tal cual, sin tocar fines de linea: las fusiones a tres bandas no ven cambios falsos), README.md (es + resumen en), LICENSE
+    (GPL-3.0, el texto oficial), THIRD-PARTY.md, .github\workflows\compilar.yml (compila con el csc de Windows y pasa DeteccionTest).
+  - Dependencias: scripts\descargar_dependencias.ps1 baja a terceros\ mpv v0.42.0 (build oficial mingw "full", con dshow), Magpie
+    Experimental v0.6.12 (sin nvngx_dlssnr.dll ni runtimes\dlssg_sm86) y Streamline 2.14.16 (solo bin\x64 y licencias), de sus releases
+    de GitHub con SHA-256 fijo. build.bat copia a bin\ recursos, idiomas y scripts y enlaza bin\mpv y bin\magpie a terceros\ (uniones);
+    build_motor.bat coge Streamline de terceros\streamline (o STREAMLINE_DIR). empaquetar.ps1 usa terceros\ (y lo baja si falta).
+    Ya nada depende de mpv aparte, Switch2Magpie\magpie ni Switch2Engine. Las DLL de Streamline son las mismas (mismo hash) que las de
+    Switch2Engine\deps; el Magpie es la release limpia (la carpeta de Prisma tiene restos de versiones viejas: Magpie.RtxVideo.dll,
+    nvngx_dlssg.dll, npp*.dll; no van).
+  - mpv: lo de Prisma es mpv.exe + scripts\ce_power.lua, ce_diag.lua, s2_aa.glsl, s2_aa_fuerte.glsl (iguales a los de Prisma salvo los
+    nombres) y la linea de comandos; Prisma no usa mpv.conf. Nuevo: mpv\portable_config\mpv.conf (recursos\mpv.conf, load-scripts=no):
+    el mpv.conf, los scripts y el input.conf del usuario en %APPDATA%\mpv ya no le afectan. mpv 0.42.0 acepta toda la linea de la app
+    (probado con --vo=null y la fuente lavfi: carga los dos lua, el shader y el filtro de repetidas, igual que el mpv instalado aparte).
+  - Iniciar con Windows (src\Lanzador\InicioWindows.cs): iniciar_con_windows=1 -> tarea "ConsoleEnhancer - inicio" del usuario (sin
+    admin; si el Programador de tareas no deja, clave Run de HKCU) -> ConsoleEnhancer.exe --inicio: telon negro al instante, abre la app
+    y lo quita al ver su pantalla de carga o cualquier ventana suya (el asistente), si se cierra o a los 30 s (log logs\inicio.log).
+    La app ajusta la tarea al arrancar segun el ini (con 0 solo quita la suya). Menu de la bandeja, ultimo paso del asistente y
+    --iniciar-con-windows=1|0.
+  - Apagar el PC al apagar la consola: apagar_pc=1 (como Prisma, solo con el cierre por consola apagada) y, nuevo, apagar_pc_aviso_s=15:
+    pantalla con la cuenta atras que cancela cualquier boton del mando (PadHub), tecla, clic o movimiento del raton (0 = sin aviso). Con
+    el aviso: un apagado por error de la deteccion (HDCP, reposo raro) no tira el PC con cosas abiertas. Menu de la bandeja (pide
+    confirmacion) y asistente. Pruebas: --prueba-apagado=<s>[;fuera] (SIMULADO en el log), --ui-preview=apagado;<carpeta>.
+  - Mejoras: extras\runtimes\dlssg_sm86 (o extras\dlssg_sm86) se copia a magpie\runtimes\ al arrancar y se quita si se quita de extras\
+    (estaba en SIN HACER); DeteccionTest sin rutas de este PC (--magpie=<carpeta>, CE_TURNO); build*.bat sin rutas fijas; empaquetar
+    comprueba tambien los textos del paquete (usuario y nombre del PC); descripcion del exe "ConsoleEnhancer" (decia Prisma).
+  - Probado: build.bat, build_motor.bat, build_deteccion.bat (DeteccionTest --simula=todo: 19 PCs sin excepciones), --ui-preview del
+    asistente y del aviso (es/en), --asistente-auto --dry-run (desde bin\ y desde el paquete), la tarea creada SIN admin y quitada
+    (--iniciar-con-windows=1/0; no queda ninguna), --inicio --inicio-prueba (telon fuera de la pantalla: 24 ms hasta el negro), la cuenta
+    atras hasta el final (SIMULADO) y cancelada, empaquetar.ps1 -Forzar -Zip (269 ficheros, 532 MB; zip 301 MB; nada prohibido ni datos
+    de este PC).
+  - Sin probar: un arranque de Windows de verdad con la tarea; el apagado real; la clave Run de respaldo; mpv 0.42.0 con la GPU (el
+    shader y gpu-next: Prisma estaba abierto); el aviso con un mando de verdad.
+
+19-11-2026 noche (agente CE, FUSION C): Prisma de hoy traido a ConsoleEnhancer
+  - OJO con la base: la buena NO era la instantanea de Prisma de hoy (scratchpad\base\src, 19-11 15:36), sino la que se fusiono por
+    ultima vez en ConsoleEnhancer: universal\base3\Switch2Magpie\src (18-11 13:21). Con la de hoy se habrian perdido MenuPs5.cs, la
+    PS5, mando_winmm=0 (el cuelgue de dinput), QuitarGanchos, las tablas de la 4060 Ti, "sin nombre"... (Prisma del 18-11 tarde y 19-11
+    manana). Comprobado: CE estaba a 6-12 lineas de base3 en todos los ficheros (solo renombres) y a 22-249 de la de hoy.
+  - Como: git merge-file <CE> <base3 renombrada> <Prisma renombrado> (los renombres de CE aplicados a la base y a Prisma antes:
+    namespace, ConsoleEnhancerEngine.exe, mutex, tuberias ce-*, ce_power.lua, Paths.Datos para juegos\, mpv aparte...). Limpias:
+    CargaConsola, Consolas, ConsolasApp, Mandos, PrismaUi; Switch2Magpie.cs con 10 conflictos resueltos a mano (lo de los dos).
+    Nuevos: MenuPs5.cs, DetectorMenu.cs, PruebaDeteccion.cs, Generacion.cs, Escritorio.cs. Script y base para la proxima vez:
+    scratchpad\CE\fusionar_c.ps1 y scratchpad\CE\base_prisma_19-11_1829 (Prisma de las 18:29 = lo que ya esta en CE).
+  - Lo propio de ConsoleEnhancer en esto:
+    * ESCRITORIO: escritorio_negro=0 de serie; se ofrece en el asistente y en la bandeja junto a "Iniciar con Windows" (se aplica al
+      momento: Escritorio.Cambiar). Sin inicio\fondo_antes.txt: el normal es el escritorio de la primera vez que se pone negro. Si se
+      cancela el aviso de apagar el PC, vuelve el normal (Escritorio.Cancelado). La imagen de serie de Windows por %WINDIR%.
+    * GENERACION: generacion_lista_60/30 salen del plan de la grafica (Plan.ListasGeneracion: RTX 40 smooth,dlss / smooth,dlss,fsr3,
+      xess; RTX 50 dlss,smooth...; RTX 20/30, GTX y AMD fsr3,xess; Intel Arc xess,fsr3; sin 100 Hz o mas, nada en el modo 60). El
+      selector ademas quita smooth/dlss sin NVIDIA y todo con generacion_disponible=0. Las tablas por tipo de Prisma (de una 4060 Ti y
+      SIN MEDIR) van en recursos\base.ini como punto de partida, marcadas asi.
+    * DLSS5 2 pasadas (dlss5_fuerza_pasadas, _contener, _color, _enfoque) y FLUIDEZ (mpv_gpu_prioridad, magpie_cola_cpu, apagados; la
+      linea "Ritmo de Magpie" en el log) en recursos\base.ini. scripts\ritmo_*.ps1 NO van: tienen rutas de este PC y usan Prisma.
+    * PixelFormat4k de serie "" (en Prisma yuyv422: es de la GC573). PrismaUi.ShownName = "ConsoleEnhancer" (Prisma ya no enseña nombre).
+      El modo 60 con generacion sigue pidiendo la pantalla a 100 Hz o mas (EngineSmoothMode). ApagarPc es el de InicioWindows.cs.
+    * juegos\test_deteccion (capturas de la tele del usuario) no va ni al repositorio ni al paquete; --test-deteccion si.
+  - Probado: los 3 build (sin errores), DeteccionTest --simula=todo (19 PCs, sin excepciones, con la lista del selector de cada uno),
+    --test-deteccion con las 92 capturas de Prisma (0 fallos, mismo informe que Prisma), --test-consolas, --asistente-auto --dry-run
+    (este PC y AMD simulada), --ui-preview del asistente (las 3 casillas), empaquetar -Forzar -Zip (269 ficheros, 532 MB, zip 301 MB,
+    nada prohibido ni datos de este PC) y --dry-run desde el paquete.
+  - Sin probar: todo lo de Prisma de hoy con la consola (ni en Prisma se probo todo), el escritorio negro de verdad (no se toco el de
+    este PC: Prisma lo maneja), el selector con un mando, la PS5/Xbox desde ConsoleEnhancer.
+
+19-11-2026 20:30 (agente CE, FUSION D): Prisma de las ~20:20 (GENERACION medido, GTA, FLUIDEZ)
+  - fusionar_c.ps1 (ahora en Switch2Magpie\base_consoleenhancer, toma la base mas nueva de esa carpeta o -Base): base
+    base_prisma_19-11_1829 -> Prisma actual: Generacion.cs y Switch2Magpie.cs limpias, sin conflictos. Base nueva guardada:
+    Switch2Magpie\base_consoleenhancer\base_prisma_19-11_2030.
+  - GENERACION (medido en Prisma, RTX 4060 Ti, tele a 120 Hz): XeSS FG no se ofrece con ventana de 1080p (no arranca); XeSS 30 1440p
+    70/45/35 medido; FSR 3 FG 29,35-29,59 reales (no llega); DLSS FG en el 60 no llega a ritmo; motor 60_dlssg = M. En ConsoleEnhancer,
+    Plan.ListasGeneracion: RTX 40 -> 60: smooth (dlss solo si es el de serie, tele a 119,88); 30: smooth,dlss,xess (sin fsr3). RTX 50
+    igual sin fsr3 en el 30 pero con dlss en el 60 (su DLSS-G de serie; sin medir). RTX 20/30, GTX, AMD, Intel: FSR 3 / XeSS se quedan
+    (es lo unico que hay; en la Ti FSR 3 no llego a 29,9). base.ini: quitada la marca SIN MEDIR de lo medido (1440p); 4K sigue SIN MEDIR;
+    fuera tabla_dlss5_30_xess_1080 y motor_modelo_60_dlssg_1080; motor_modelo_60_dlssg=M.
+  - GTA (Prisma, GTA-1440-1080): modo 30 con generacion y DLSS 5 a 1440p/1080p/720p con DLSS SR K en vez de L (sin flujo optico L pone la
+    piel de cera y borra textura): tabla_modelo_30_fg_1440/_1080/_720=12,11,11,11 en base.ini (antes 12,12,5,5) y en el codigo (ModelTable).
+  - FLUIDEZ: nada de serie (mpv_gpu_prioridad y magpie_cola_cpu empeoran: tirones o +100 ms de latencia; siguen solo para pruebas).
+  - Probado: los 3 build, DeteccionTest --simula=todo (19 PCs, listas como arriba), --asistente-auto --dry-run (este PC: generacion_lista_60=
+    smooth, _30=smooth,dlss,xess, como Prisma), empaquetar -Forzar -Zip (269 ficheros, 532 MB; nada prohibido ni datos de este PC),
+    --dry-run desde el paquete sin errores.
+
+19-11-2026 noche (LATENCIA3, desde Prisma): latencia ultra baja del driver para Magpie.exe con el NvAPI privado (antes -160 siempre), clave
+nvidia_latencia_ultra (de serie 0: medida peor con Smooth Motion y DLSS FG); magpie_sm_vaciar_auto (de serie 0, sin probar en vivo):
+vuelve a vaciar la cola de Smooth Motion del modo 30 contando presentadas (log de Magpie) frente a los Hz de la tele. Detalle y numeros en
+Switch2Magpie\LEEME.txt (LATENCIA3). Copias: src\Lanzador\Switch2Magpie.cs/ColaSm.cs.antes-latencia3, bin\ConsoleEnhancer.exe.antes-latencia3.
+  22:50 (LATENCIA3, 2o intento): magpie_sm_vaciar_auto rehecho y magpie_sm_vaciar_partido/_objetivo/_umbral/_log nuevos (de serie todo como
+  antes: ninguna variante baja 30 ms sin subir tirones). Detalle en Switch2Magpie\LEEME.txt.
+  23:30 (LATENCIA3, 3er intento): src\Lanzador\ColaReal.cs nuevo (magpie_sm_vaciar_real, de serie 0: vaciar la cola de Smooth Motion con la
+  cola real medida con PresentMon 2.x, que no se reparte: se busca en tools\, scripts\ o la carpeta de RTSS; presentmon_exe). Copia
+  bin\ConsoleEnhancer.exe.antes-latencia3c. Numeros en Switch2Magpie\LEEME.txt.
+
+20-11-2026 (agente CE-FUNCIONES): ESCALAS QUE SE ADAPTAN, RTX HDR, VRR Y LOS BOTONES EN CUALQUIER MANDO
+  El usuario: "el console enhancer se adapta a los jugadores: no hagas las escalas como conmigo", "añade rtx hdr (si se tiene nvidia), vrr
+  etc." y "el boton de 60 y 30 que sean los dos el boton options y el otro boton el de frame generation, adaptado a los mandos en general".
+  - ESCALAS (src\Lanzador\Escalas.cs, src\Motor\Engine\EngineAdapta.cs): las tablas medidas en la 4060 Ti del usuario (tabla_dlss5_*,
+    tabla_modelo_*, motor_dlss5_entrada_30/_30_4k, motor_modelo_60_dlssg) ya NO estan en recursos\base.ini: el asistente las escribe para
+    la grafica de cada uno (referencia = lo medido en la Ti, indice 1,2 a 4K, escalada por el indice de Gpu.cs y la salida; 40 % del
+    tiempo fijo y 60 % DLSS 5 ~ % de entrada al cuadrado; 10 % de margen). En marcha:
+      * motor propio (adapta=1): cada segundo el p95 de grafica contra el tope del modo (el de AutoPresetTick; con Smooth Motion 12,5 / 27
+        ms) y las imagenes perdidas. No cabe 2 s: DLSS 5 -10 puntos (min 25) y luego una pasada menos; el modelo lo sigue bajando
+        AutoPresetTick (L>M>K>E). Sobra (p95 < 70 % del tope) 20 s: DLSS 5 +5 (hasta 100) o el modelo un paso hacia adapta_techo, solo si lo
+        previsto (p95 x coste del siguiente / coste de ahora) queda < 85 % del tope; 8 s sin juzgar tras cada cambio; una subida que no
+        cabe en 40 s queda como techo de esa clave. Clave = grafica + driver | modo | generacion | Smooth Motion | captura | entrada |
+        salida | DLSS 5 y pasadas; se guarda en datos\escalas_motor.txt y la siguiente vez se empieza por lo que cupo.
+      * mpv + Magpie (con DLSS 5 por Magpie): si Magpie recibe 1 (modo 30) / 2 (modo 60) imagenes reales menos de las que da mpv 3
+        muestras seguidas (15 s), la escala de ese modo baja 10 para la proxima apertura (aviso en pantalla); 10 min seguidos sin perder
+        nada, +5. datos\escalas_magpie.txt, aplicado al arrancar.
+    Claves: escalas_adaptables=1, escalas_modelo_max (el plan: L con transformer, E sin el). Motor: adapta, adapta_clave, adapta_fichero,
+    adapta_techo (Settings partial + ApplyCe). Bandeja > Imagen: "Escalas que se adaptan solas", "Olvidar las escalas aprendidas".
+  - RTX HDR (src\Lanzador\ImagenCe.cs; plan en src\Deteccion\HdrVrr.cs): rtx_hdr=1 (de serie 0) con NVIDIA RTX, driver 551.52+, Windows
+    11 22H2+ y pantalla HDR. El de juegos del driver, por perfil de NVIDIA de ConsoleEnhancerEngine.exe, Magpie.exe y mpv.exe, puesto al
+    abrir y quitado al salir (y al abrir si se corto: datos\imagen_restaurar.txt). Ids comprobados (Profile Inspector + NvTrueHDR):
+    0x00DD48FB activar, 0x00DD48FC pico, 0x00DD48FD gris medio, 0x00DD48FE contraste, 0x00DD48FF saturacion (100 = neutro),
+    0x00980896 Game Filters, 0x1077A11A Allow, 0x00432F84 Driver Flags (MEDIDO: Allow y Driver Flags piden administrador, NVAPI -137:
+    se ponen una vez con un aviso de UAC al guardar el asistente con RTX HDR, o al abrir si faltan, y se quedan; lo demas se pone al
+    abrir y al salir vuelve a lo que habia: valor de antes o quitado). rtx_hdr_calidad=alta (0x02, el driver solo sin la NVIDIA App;
+    pico ~1000 nits) | media (0x0A) | sin_debanding (0x06) | app (0: el overlay de la NVIDIA App aplica pico / gris / contraste /
+    saturacion). rtx_hdr_nits=auto: el pico de la pantalla (DXGI, 400-2000); gris medio = blanco SDR de Windows x 0,5^2,2 (o 50).
+    Con el, el HDR de Windows se enciende mientras la app esta abierta (hdr_windows=auto|0|1; DisplayConfig, 24H2: SET_HDR_STATE y
+    activeColorMode) y mpv sale en SDR de 8 bits (para que el driver lo convierta). A los 20-60 s el log dice si cada exe cargo
+    nvAIHDR*.dll (enganchado o no: solo engancha con la ventana opaca a pantalla entera). rtx_hdr_metodo=magpie = el efecto de Magpie
+    de Prisma. Auto HDR de Windows: NO (valores sin documentar y solo para juegos de su lista). d3d11vpp nvidia-true-hdr de mpv: NO (mpv
+    cambia su --vf en caliente con el filtro de repetidas y lo quitaria; ademas pide RTX Video HDR encendido en la NVIDIA App).
+  - VRR: vrr=auto|0|1. auto = pantalla VRR + tearing de DXGI + (NVIDIA) G-SYNC visto funcionando en esa pantalla (los bits de
+    NvAPI_Disp_GetVRRInfo cambian con lo que haya abierto: se recuerda en datos\vrr_visto.txt) y no apagado en el perfil global
+    (0x1094F1F7); AMD / Intel: apagado (no se sabe si FreeSync esta encendido). Encendido: motor vrr=1 (lo hace el motor de Prisma,
+    agente LATENCIA; el motor de CE de hoy lo apunta y sigue), magpie_vrr_60_fg y _30_fg, y en NVIDIA G-SYNC tambien en ventana para
+    los tres exe (0x1194F158 = 2, 0x1094F1F7 = 2 en su perfil, quitado al salir). Apagado: los magpie_vrr* a 0 (base.ini traia
+    magpie_vrr_60_fg=1 para todos).
+  - MANDOS (src\Lanzador\BotonesCe.cs): mando_botones=ce (de serie): Options / Menu (≡) / + / Start = modo 30 <-> 60 (alterna);
+    Share / Crear / Vista / - / Select = generacion si/no (tambien Captura, panel tactil y el boton del GameSir, como antes). Antes:
+    Vista = 30, Menu = 60 (mando_botones=prisma). Nombres segun el mando conectado y el idioma: ayuda del log al conectar un mando
+    (PadNames.HelpLine), paso "Mando" del asistente y los avisos que decian "boton de captura". La entrada sigue siendo compartida con
+    la consola (sin exclusividad): la pulsacion llega tambien a la consola.
+  - Asistente: 9 pasos (Imagen: RTX HDR / VRR / latencia; Mando: tipo y botones). Bandeja: Imagen > RTX HDR, VRR (auto / si / no),
+    botones, escalas (RTX HDR, VRR y escalas reabren la app: los perfiles y el motor se leen al arrancar los procesos).
+  - Enganches en ficheros de Prisma (una linea cada uno, para la fusion): Switch2Magpie.cs (GamepadLoop: Vista/Menu -> CeBotonVista /
+    CeBotonMenu; CheckLsPacing -> CeEscalasMagpie; Main -> CeImagen.AlAbrir / AlAbrir(cfg, false) en --dry-run / AlCerrar), Mandos.cs
+    (HelpLine), Motor\Engine\Common.cs (partial class Settings, default -> ApplyCe), Motor\Engine\Engine.cs (SecondTick -> AdaptaTick;
+    ApplyPending -> AdaptaTrasAjustes).
+  - --salir (nuevo, para pruebas): la app abierta se cierra como con Salir de la bandeja (y devuelve HDR / perfiles).
+  - Probado: build.bat, build_motor.bat, build_deteccion.bat; DeteccionTest --simula=todo (23 PCs, 4 nuevos: tele-hdr-gsync,
+    monitor-hdr400, amd-hdr-freesync, rtx2060-driver-viejo-hdr); --asistente-auto --dry-run (ini con las escalas de la Ti estimadas, el
+    bloque de imagen y los argumentos del motor en el log); --ui-preview del asistente (es / en, 9 pasos); la ayuda de botones de cada
+    tipo de mando. Con el turno de la grafica (05:37-05:43): el motor con test=barras y adapta=1 subio DLSS E > K > M > L (p95 4,3-6,3 ms de
+    15,5) y la segunda vez empezo en L (escalas_motor.txt); la app con fuente de prueba, rtx_hdr=1 (calidad app) y vrr=1: HDR de Windows
+    encendido (SET_HDR_STATE, 0,25 s), RTX HDR y G-SYNC en ventana en los 3 perfiles, VRR visto (bits 0x12), el motor (Smooth Motion)
+    subio M > L, y con --salir todo devuelto (HDR apagado; un VRR_MODE=1 puesto antes en el perfil del motor volvio a 1). RTX HDR NO se
+    vio enganchado en el motor por el overlay de la NVIDIA App (nvAIHDR*.dll no cargada; si nvppex.dll). SIN PROBAR: RTX HDR con
+    Driver Flags (pide UAC: nadie para aceptarlo), si engancha en Magpie / mpv, como se ve; VRR con el motor nuevo; un mando de verdad
+    con los botones nuevos; las escalas de Magpie aprendiendo con DLSS 5; bajar el % de DLSS 5 en el motor (sin la DLL aqui); una grafica
+    que no sea la del usuario.
+
+20-11-2026 06:00 (agente FUSION E): CIERRES y LATENCIA4 de Prisma y de su motor, adaptados a ConsoleEnhancer
+  El usuario: "Añade todo al consolenhancer. Ten en cuenta que el console enhancer lo que tiene es que se adapta a los jugadores asique no
+  hagas las escalas como haces conmigo en mi app propia" y que quede "lista para subir a github ... facilita todo lo maximo a los que se lo
+  descarguen y mira que sea todo licito".
+  - Desde copias CONGELADAS a las 06:00 (otros agentes seguian cambiando Prisma y el motor): Switch2Magpie\base_consoleenhancer\
+    base_prisma_20-11_0600 y base_motor_20-11_0600 = las BASES NUEVAS para la proxima fusion (ver COMPILAR Y EMPAQUETAR). Script
+    base_consoleenhancer\fusionar_e.ps1 (base explicita, lanzador y motor; el de antes, fusionar_c.ps1, cogia la base mas nueva y Prisma vivo).
+    Bases de esta: base_prisma_20-11_0350 (Prisma) y base_motor_20-11_0410 (motor). Ya cambiados en Prisma despues de las 06:00 y NO
+    traidos (para la proxima fusion, pequeña): Consolas.cs, ConsolasApp.cs, DetectorMenu.cs, MenuPs5.cs, PruebaDeteccion.cs.
+  - Resultado: lanzador Switch2Magpie.cs 3 conflictos (el comentario de R2/R1 de DLSS 5: el de CE; el final de Main: apagaPc de CIERRES con
+    CeImagen.AlCerrar y el aviso con cuenta atras de CE), Cierres.cs nuevo. Motor: EngineDlss5, EngineLatencia, EngineMpv, EngineStandby,
+    EngineTirones, PowerWatch y Program limpias; Common.cs 3 conflictos (Settings partial de los dos; default -> ApplyCierres || ApplyCe;
+    Describe con "auto" de CE y ", VRR"), Engine.cs 1 (queueMax de CE y VrrSwapFlags de Prisma), EngineCuelgue.cs nuevo. Capture y Native
+    del motor sin cambios desde el 16-11 (nada que traer). Niveles R2/R1 de DLSS 5 (dlss5_nivel3/4): ya estaban, salio limpio.
+  - CIERRES (la imagen parada no es la consola apagada): src\Lanzador\Cierres.cs y los enganches "CIERRES" de Switch2Magpie.cs; motor:
+    EngineCuelgue.cs (vigilante en su hilo: switch2-gpu colgada / ok / perdida / salida, propiedad switch2-captura-ms; sale con 3 si la
+    grafica se pierde y con 5 si sigue parada cuelgue_salir_s), PowerWatch cuenta las imagenes que LLEGAN, DLSS 5 espera a la grafica
+    (WaitIdle) antes de soltar las DLSSNR y reutiliza las del mismo tamaño, las suelta en espera, engine_<pid>.log si engine.log esta
+    abierto por otro motor. recursos\ConsoleEnhancer.exe.config (legacyUnhandledExceptionPolicy, el Switch2Magpie.exe.config de Prisma):
+    build.bat lo copia a bin\ y scripts\empaquetar.ps1 lo pone junto al exe (lista blanca; su comprobacion de datos del PC mira tambien los
+    .config). Claves en recursos\base.ini: apagado_confirmar=1, cuelgue_relanzar_ms=8000, apagar_pc_confirmar=1; del motor (de serie, por
+    motor_extra si hace falta): dlss5_guardian=1, cuelgue_ms=700, cuelgue_salir_s=15 y las de prueba prueba_cuelgue_ms / _s / _modo=pintado|
+    todo|perdida y prueba_apagado_s / _modo=corta|nosignal (con power_test=1). Adaptado: los mensajes dicen "ver datos\logs\engine.log" (no la
+    carpeta del motor de Prisma); "La imagen se ha parado" del telon en idiomas\en.txt. ApagarPc sigue siendo el de CE (con la cuenta atras).
+  - LATENCIA4: motor vrr=0|1, vrr_fg_vsync=-1|0|1, copia_hilos (pruebas), el estado de VRR por NVAPI en el log y "Ritmo: ... sin latido" con
+    VRR; lanzador motor_dlss5_home=0 (el menu / HOME a 4K nativo sin DLSS 5: ~10 ms menos de la llegada a verse) y motor_vrr_fg_vsync=-1,
+    los dos en base.ini.
+  - VRR, uno solo: manda vrr=auto|0|1 de CE. CeImagen.AlAbrir (ImagenCe.cs) pone Config.EngineVrr (= motor_vrr de Prisma; el del ini no
+    cuenta y el log lo dice) y la linea del motor de Prisma (EngineArgs) pone vrr=1 y, si motor_vrr_fg_vsync >= 0, vrr_fg_vsync= UNA vez
+    (CeImagen.ArgsMotor ya no pone vrr=1). Al motor solo si la pantalla dice tener VRR (EDID / driver) y DXGI deja presentar sin sincronizar:
+    con vrr=1 el motor presenta con ALLOW_TEARING y sin NVIDIA no puede leer el estado de VRR; en una pantalla sin VRR saldrian cortes (Magpie
+    no tiene ese riesgo: su VRR va con la sincronizacion forzada). El motor sin NVIDIA no carga NVAPI para eso (VrrDisplayState). Fuera el
+    "vrr" provisional de EngineAdapta.ApplyCe (ahora lo hace el motor de verdad).
+  - DLSS 5 en el motor con DOS controladores (el guardian de CIERRES, EngineDlss5.cs, y las escalas que se adaptan, EngineAdapta.cs), sin
+    pelearse (detalle: DISENO.md §9): un solo tope (AdTope); el guardian es el freno de emergencia (p95 > 1,6 x tope 2 s o > 1,15 x tope
+    5 s: una pasada menos o el % a 75 / 50 de golpe) y adapta el ajuste fino (> tope 2 s: -10 puntos hasta 25 y luego una pasada; sobra 20 s:
+    +5); muy por encima del tope y con el guardian aun pudiendo bajar, adapta no baja (AdGuardianDelante); con adapta=1 lo que baja el
+    guardian pasa al estado de adapta (AdaptaFreno: s.NrPasses / s.NrPct, la fila de escalas_motor.txt con el % que no cupo como techo
+    no_pct y 8 s sin juzgar), no a los topes de la sesion del guardian (que adapta no veia: sus subidas no hacian nada y las apuntaba como
+    aprendidas). Sin adapta (escalas_adaptables=0), el guardian como en Prisma.
+  - Escalas: nada de tabla_* ni motor_dlss5_entrada_* de Prisma en base.ini (siguen las del asistente para cada grafica, Escalas.cs).
+  - Limpieza: dos comentarios de Switch2Magpie.cs con la carpeta de la primera app del autor, fuera.
+  - Probado: build.bat, build_motor.bat, tests\build_deteccion.bat; DeteccionTest --simula=todo (23 PCs, sin excepciones); --asistente-auto
+    --dry-run (ini con apagado_confirmar, cuelgue_relanzar_ms, apagar_pc_confirmar, motor_dlss5_home, motor_vrr_fg_vsync); --dry-run con vrr=1
+    y motor_vrr=1 y la tele apagada (sin VRR): "motor_vrr=1 del ini no cuenta" y "motor vrr=0 (la pantalla no dice tener VRR ...)"; desde el
+    paquete con la tele a 120 Hz: "VRR encendido (auto: G-SYNC activo ahora en esta pantalla): motor vrr=1". Con el turno de la grafica
+    (06:13-06:21), un ini de prueba con apagar_pc=0 y test_source=barras:
+      * la app con el pintado parado 4 s (prueba_cuelgue_ms=4000): "Motor: grafica colgada (704 ms)", "No llegan imagenes ... NO es la
+        consola apagada", "La imagen vuelve tras 4141 ms parada: no era la consola apagada (la app sigue)";
+      * la fuente cortada 20 s despues (prueba_apagado_modo=corta): "la consola se ha apagado", la app se cierra a los ~2 s del corte;
+      * la pantalla No Signal (prueba_apagado_modo=nosignal): se cierra a los 550 ms de confirmarla, "Consola apagada confirmada (...;
+        apagar_pc=0: el PC sigue)". En ninguna "apagando el PC";
+      * el motor solo con vrr=1: "VRR (vrr=1): cadena con ALLOW_TEARING, sin generacion Present(0, ALLOW_TEARING)", 59,94 reales (el estado
+        de NVAPI salio vacio: la tele estaba apagada);
+      * el motor con DLSS 5 (la DLL de este PC por dlss5_dir, solo para la prueba; no va en el repositorio ni en el paquete), 2 pasadas al
+        100 % en el 60, adapta=1: el guardian bajo 2 -> 1 pasada y 100 -> 75 -> 50 %, cada vez con "Adapta: freno del guardian ... queda como
+        lo aprendido" y sin que adapta bajara a la vez; la segunda vez empezo por lo aprendido (E, 1 pasada, 50 %) y adapta subio 50 -> 55 ->
+        60 % cada ~27 s sin llegar al techo (no_pct=75). OJO: la tele estaba dormida hasta las 06:17:59 (presentaba 6-13 imagenes/s con la
+        sincronizacion; luego 59,94 y 6,25 ms de grafica): los ms de grafica de ese rato no valen como banco, solo para ver la logica.
+      * VRR de punta a punta (06:35, la tele ya a 120 Hz, vrr=1 en el ini): la app "VRR encendido (vrr=1): motor vrr=1", G-SYNC en ventana en
+        los 3 perfiles; la linea del motor con vrr=1 UNA vez (sin vrr_fg_vsync: de serie -1); el motor "VRR (vrr=1): cadena con ALLOW_TEARING,
+        sin generacion Present(0, ALLOW_TEARING); tele: VRR activo" y "Ritmo: tele a 120.000 Hz con VRR activo ... sin latido (vrr=1)"; al
+        salir "perfiles de NVIDIA como estaban (6 ajustes)".
+  - Paquete: scripts\empaquetar.ps1 -Zip -Forzar -Version v1.0.0 -> dist\ConsoleEnhancer (32 ficheros, 69 MB) y
+    dist\ConsoleEnhancer-v1.0.0.zip (35 MB) con ConsoleEnhancer.exe.config; sin mpv, Magpie, nvngx_dlssnr.dll, dlssg_sm86 ni PrismaNr; solo
+    DLL firmadas por NVIDIA; ningun dato de este PC. --asistente-auto --dry-run desde una copia del paquete sin errores.
+  - Sin probar: con la consola; la grafica perdida de verdad (codigo 3) en CE; vrr=1 con la generacion (vrr_fg_vsync auto) y el 60 + FG;
+    el freno del guardian con una sobrecarga de verdad y la tele despierta; una grafica que no sea NVIDIA con vrr=1.
+
+20-11-2026 06:38 (agente FUSION, fusion pequeña F): CONSOLA de Prisma (con la PS5 puesta, consola=auto pasaba a la Xbox por ver una hora)
+  - Desde base_prisma_20-11_0600 a base_prisma_20-11_0638 (la nueva base vigente, ver arriba), fusionar_e.ps1 -SoloLanzador: Consolas.cs,
+    ConsolasApp.cs, DetectorMenu.cs, MenuPs5.cs y PruebaDeteccion.cs, las 5 limpias (sin rutas ni datos del PC). Copias *.antes-fusionf.
+  - Lo que trae (docs\CONSOLAS.md seccion 10 de Prisma; resumen en DISENO.md §5): pruebas PROPIAS de cada consola (el HOME de la Switch 2
+    con su referencia, la hora de la PS5 en su sitio exacto, la marca escrita, pantallas que solo tiene una) y de APOYO (la hora en la franja
+    de arriba, "PlayStation" / "Xbox" / "Game Pass" / "Nintendo" sueltas, un juego a 40), que suman pero solas nunca cambian la consola;
+    cambiar pide 2 propias con 5 s entre la primera y la ultima (de una probada, Switch 2 / PS5, a una SIN PROBAR, 3 en 20 s); ante la duda
+    gana la puesta (su menu visto la refuerza); con una PlayStation puesta la hora de arriba no es pista de la Xbox; juegos\consola.txt solo
+    con la consola confirmada; el lector de la PS5 lee la hora con el avatar delante. Apagado prudente (Consolas.ApagadoPrudente): con
+    consola=auto y una consola SIN PROBAR u "otra" elegida sola, sin cierre por negro y silencio y "No Signal" jugando con 10 s de espera;
+    al cambiar de consola en marcha, su espera de "No Signal" y su negro con silencio van al motor ya abierto.
+  - Las 7 imagenes nuevas de juegos\test_deteccion de Prisma (ps5dudoso_*, ps5inicio_*) NO van a ConsoleEnhancer (capturas de juegos con
+    copyright; juegos\ no va al repositorio ni al paquete).
+  - Probado: build.bat; DeteccionTest --simula=todo (23 PCs, sin excepciones); --test-consolas: 0 fallos (con los casos "20-11: ..."); y
+    --test-deteccion con la carpeta de capturas de Prisma (solo leida): 0 fallos, 99 imagenes, secciones 1-4. Sin probar con la PS5 en vivo.
+    Sin empaquetar otra vez (falta la ultima fusion de LATENCIA).
+
+20-11-2026 06:51 (agente FUSION, fusion G, la ultima de hoy): LATENCIA5 de Prisma (refresco fijo del motor en el 60 + DLSS FG) y zip final
+  - Congelado otra vez a las 06:51: base_prisma_20-11_0651 y base_motor_20-11_0651 = las bases VIGENTES (ver COMPILAR Y EMPAQUETAR).
+    fusionar_e.ps1 desde base_prisma_20-11_0638 / base_motor_20-11_0600\Engine: Switch2Magpie.cs limpia, EngineTirones.cs limpia, Common.cs
+    1 conflicto (la clave refresco_fijo de Prisma con el default -> ApplyCierres || ApplyCe de CE). Copias *.antes-fusiong.
+  - Lo de Prisma: en el modo 60 con DLSS FG el motor se abre con el refresco fijo (0x10A879CF y 0x10A879AC = 4 solo en el perfil de NVIDIA
+    del exe del motor; el driver lo mira al abrir el proceso: CheckEngineFixed reabre el motor al entrar o salir de ese modo, el motor en
+    espera con otro refresco se descarta) y se quita al salir (SmoothOffAtExit). Con G-SYNC Reflex limita la salida a ~116/s a 120 Hz:
+    medido en Prisma 59,9 reales/s y 25 ms en vez de 57,8 y 32,6, sin cortes. El motor recibe refresco_fijo=1 (solo para el registro:
+    "Ritmo: refresco fijo para el motor ...").
+  - Adaptado a CE (se adapta a cada PC): motor_60fg_refresco_fijo=auto|0|1, de serie auto (recursos\base.ini). auto = NVIDIA, VRR en uso con
+    el motor (Config.EngineVrr, lo que decide vrr=), el tope de Reflex con G-SYNC (~hz - hz^2/3600) por debajo de 2 x las imagenes/s de la
+    captura y la pantalla mas rapida que esa salida (a 119,88 Hz no: la cola se llena, medido en Prisma) -> 120 Hz si; 144 Hz o mas,
+    119,88 Hz, sin VRR, AMD / Intel, no (Config.CeRefrescoFijoAhora, ImagenCe.cs; el log dice la decision cuando cambia). Enganches de una
+    linea en Switch2Magpie.cs: EngineFixedWanted (CeRefrescoFijoAhora), FixedRw (sin NVIDIA no llama a NVAPI; perfil nuevo "ConsoleEnhancer -
+    ConsoleEnhancerEngine.exe"), SetEngineFixed (CeImagen.MarcaRefrescoFijo). Devolucion: cada vez que se pone o se quita, la linea fijo_exe=
+    en datos\imagen_restaurar.txt; si la app se cae, CeImagen.Restaurar lo quita al volver a abrirla (fuera del candado de la marca: no se
+    cruzan candados con NvProfiles). No choca con lo de CE en el mismo perfil: G-SYNC en ventana (0x1194F158 / 0x1094F1F7) y RTX HDR van por
+    NvDrsCe, que solo escribe y devuelve sus ids, y el refresco fijo solo pone y borra los suyos.
+  - Probado: build.bat, build_motor.bat, DeteccionTest --simula=todo (23 PCs, sin excepciones), --test-consolas (0 fallos), --asistente-auto
+    --dry-run (ini con motor_60fg_refresco_fijo=auto). Con el turno de la grafica (06:56-06:59), ini de prueba con apagar_pc=0, la fuente de
+    prueba, vrr=1 y el 60 con DLSS FG (generacion_tipo_60=dlss, motor_generacion_60=dlss), tele a 120 Hz:
+      * antes el perfil "ConsoleEnhancer - ConsoleEnhancerEngine.exe" sin ningun ajuste (scripts\nvdrs.exe de Prisma, solo leyendo);
+      * jugando: "Refresco fijo del motor en el 60 con DLSS FG (motor_60fg_refresco_fijo=auto): si (VRR del motor, pantalla 120 Hz: tope de
+        Reflex con G-SYNC ~116 frente a 2 x 59.94)", "refresco fijo ... puesto", el motor con refresco_fijo=1 y "Ritmo: refresco fijo para el
+        motor"; en el perfil 0x10A879CF = 4 y 0x10A879AC = 4 JUNTO a 0x1194F158 = 2 y 0x1094F1F7 = 2 (el G-SYNC en ventana de CE); 3 imagenes
+        perdidas en 20 s con la generacion;
+      * al salir: "refresco fijo ... quitado", "perfiles de NVIDIA como estaban (6 ajustes)" y el perfil otra vez sin nada;
+      * caida simulada (la app, el motor y mpv matados con el refresco fijo puesto: la marca tenia fijo_exe= y los drs= del G-SYNC en ventana):
+        al volver a abrir (con motor_60fg_refresco_fijo=0) "devuelto de una sesion anterior que no se cerro bien: perfiles de NVIDIA como
+        estaban (6 ajustes)" y "refresco fijo del perfil de ConsoleEnhancerEngine.exe quitado"; el perfil sin nada; el plan de energia
+        devuelto a Equilibrado al salir.
+  - Zip final: scripts\empaquetar.ps1 -Zip -Forzar -Version v1.0.0 -> dist\ConsoleEnhancer (32 ficheros, 69 MB) y
+    dist\ConsoleEnhancer-v1.0.0.zip (35 MB, su .sha256 al lado): sin mpv, Magpie, nvngx_dlssnr.dll, dlssg_sm86 ni PrismaNr; solo DLL firmadas
+    por NVIDIA; ningun dato de este PC.
+  - Sin probar: con la consola; las imagenes reales por segundo y la latencia del refresco fijo en CE (en Prisma, con PresentMon); una
+    pantalla de 144 Hz (auto no lo pone) o a 119,88 Hz con el motor en el 60 + DLSS FG.

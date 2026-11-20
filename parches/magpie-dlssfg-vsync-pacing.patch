@@ -1,0 +1,37 @@
+diff --git a/src/Magpie.Core/Renderer.cpp b/src/Magpie.Core/Renderer.cpp
+index 98a669c..809d42e 100644
+--- a/src/Magpie.Core/Renderer.cpp
++++ b/src/Magpie.Core/Renderer.cpp
+@@ -1870,7 +1870,22 @@ DLSSFGFrameRenderResult Renderer::RenderDLSSFGFrame(
+ 	const std::chrono::nanoseconds presentInterval(
+ 		_sharedPresentIntervalNs[sharedTextureSlot].load(std::memory_order_acquire));
+ 	const auto targetTime = _presentationClock.Due(pacingStart, presentInterval);
+-	if (presentInterval.count() > 0 && pacingStart < targetTime) {
++	// Prisma (20-11-2026): MAGPIE_DLSSFG_VSYNC_PACING=1 = on a fixed-refresh DXGI
++	// path (frame-latency waitable object, no VRR) let the swap chain's V-Sync
++	// pace DLSSFG output instead of the CPU deadline grid. The CPU grid runs at
++	// the capture rate (e.g. 59.94) and beats against the display (60.000 slots
++	// at 120 Hz with half-rate sync), adding ~13 ms of wait and a slipped slot
++	// every few seconds. Maximum frame latency is already 1 with DLSSFG, so the
++	// queue cannot grow.
++	static const bool vsyncPacingRequested = [] {
++		wchar_t value[8]{};
++		const bool on = GetEnvironmentVariableW(L"MAGPIE_DLSSFG_VSYNC_PACING", value, 8) > 0 && value[0] == L'1';
++		if (on) Logger::Get().Info("DLSSFG V-Sync pacing requested (MAGPIE_DLSSFG_VSYNC_PACING=1)");
++		return on;
++	}();
++	const bool vsyncPacing = vsyncPacingRequested &&
++		_presenter->UsesFrameLatencyWaitableObject() && !_presenter->IsVRREligible();
++	if (!vsyncPacing && presentInterval.count() > 0 && pacingStart < targetTime) {
+ 		// The scheduler will wake on either input or the next short deadline. Do
+ 		// not sleep in a FIFO job and make already queued input wait behind it.
+ 		retry = true;
+@@ -1899,7 +1914,7 @@ DLSSFGFrameRenderResult Renderer::RenderDLSSFGFrame(
+ 		return DLSSFGFrameRenderResult::Retry;
+ 	}
+ 	const auto presentEnd = std::chrono::steady_clock::now();
+-	_presentationClock.Presented(presentEnd, targetTime, presentInterval);
++	_presentationClock.Presented(presentEnd, vsyncPacing ? presentEnd : targetTime, presentInterval);
+ 	consumePendingFrame();
+ 	if (_sharedTextureAvailableEvents[sharedTextureSlot]) {
+ 		SetEvent(_sharedTextureAvailableEvents[sharedTextureSlot].get());

@@ -1,0 +1,130 @@
+# Textos de pantalla en ingles: "espanol<TAB>english". Frase entera primero; si no, trozos (los mas largos antes). Ver src\Lanzador\ConsoleEnhancerApp.cs (Idioma)
+Escalar ahora (atajo de Magpie)	Scale now (Magpie hotkey)
+Abrir config	Open settings
+Asistente de configuración	Setup wizard
+Salir	Exit
+Detección de apagado: activada	Power-off detection: on
+Detección de apagado: desactivada	Power-off detection: off
+Generación de fotogramas activada	Frame generation on
+Generación de fotogramas desactivada	Frame generation off
+Solo las imágenes reales de la consola	Only the real console frames
+ · imágenes intercaladas entre las reales	 · frames inserted between the real ones
+HOME · la generación se activa dentro de cada juego	HOME · frame generation is turned on inside each game
+HOME en 4K nativo · la generación se activa dentro de cada juego	HOME at native 4K · frame generation is turned on inside each game
+HOME · los ajustes se cambian dentro de cada juego	HOME · settings are changed inside each game
+HOME en 4K nativo · los ajustes se cambian dentro de cada juego	HOME at native 4K · settings are changed inside each game
+HOME · el filtro de tramado se cambia dentro de cada juego	HOME · the dither filter is changed inside each game
+Filtro de tramado · el de antes	Dither filter · the old one
+Filtro de tramado · nuevo (niebla y zonas oscuras)	Dither filter · new (fog and dark areas)
+Filtro de tramado · nuevo, solo con DLSS 5 apagado	Dither filter · new, only with DLSS 5 off
+Filtro de tramado nuevo desactivado en el ini	New dither filter disabled in the ini
+Captura 4K · no hay escalado que cambiar	4K capture · no scaling to change
+Captura 4K nativo · la consola da como mucho 1080p	Native 4K capture · the console outputs 1080p at most
+DLSS 5 · recuperando la imagen	DLSS 5 · recovering the picture
+DLSS 5 activado	DLSS 5 on
+DLSS 5 desactivado	DLSS 5 off
+DLSS 5 no disponible	DLSS 5 not available
+DLSS 5 no cabe en este modo (se quita)	DLSS 5 does not fit in this mode (removed)
+Enciende la consola · Pulsa Esc para cancelar	Turn on the console · Press Esc to cancel
+Enciende la consola	Turn on the console
+La tarjeta gráfica se ha reiniciado	The graphics card was reset
+Recuperando la imagen…	Recovering the picture…
+Volviendo a abrir el escalado…	Reopening the scaler…
+Un momento…	One moment…
+Aplicando sus ajustes…	Applying its settings…
+Ajustes del juego	Game settings
+Ajustando la ventana	Adjusting the window
+Cargando	Loading
+Modo 30 fps	30 fps mode
+Modo 60 fps	60 fps mode
+Magpie no está escalando · mira el log	Magpie is not scaling · check the log
+ Hz · la generación necesita 120 Hz (Configuración > Pantalla)	 Hz · frame generation needs 120 Hz (Settings > Display)
+La tele está a 	The TV is at 
+ · se aplicará al activarlo	 · will apply when turned on
+ · ya activa	 · already on
+ · ya activo	 · already on
+ (desactivado)	 (off)
+Sin señal de la consola	No signal from the console
+sin generación	no frame generation
+Generación	Frame generation
+generación	frame generation
+pasadas	passes
+pasada	pass
+Nivel 	Level 
+nivel 	level 
+Escalador	Scaler
+Escalado	Scaling
+escalado	scaling
+Captura	Capture
+no caben	do not fit
+no cabe	does not fit
+adaptativo	adaptive
+activado	on
+desactivado	off
+activada	on
+desactivada	off
+4K nativo	native 4K
+motor propio	own engine
+Juego	Game
+consola	console
+Consola	Console
+ligero	light
+sin antiparpadeo	no anti-flicker
+antiparpadeo suave	soft anti-flicker
+sin enfoque	no sharpening
+sin máscara	no mask
+sin suavizado	no smoothing
+Bicubico	Bicubic
+sin escalado	no scaling
+imágenes	frames
+Apagando el PC	Shutting down the PC
+Cancelar	Cancel
+# 19-11 (src\Lanzador\InicioWindows.cs): iniciar con Windows y apagar el PC al apagar la consola
+Iniciar con Windows	Start with Windows
+Apagar el PC al apagar la consola	Shut down the PC when the console is turned off
+Apagado del PC cancelado	PC shutdown cancelled
+La consola se ha apagado	The console has been turned off
+El PC sigue encendido. Puedes volver a abrir ConsoleEnhancer cuando quieras.	The PC stays on. You can open ConsoleEnhancer again whenever you like.
+El PC se apagará en unos segundos	The PC will shut down in a few seconds
+prueba: no se apaga	test: nothing is shut down
+Pulsa cualquier botón del mando o una tecla, o mueve el ratón, para cancelar	Press any controller button or key, or move the mouse, to cancel
+No se pudo cambiar el inicio con Windows:	Could not change the start with Windows:
+Al apagar la consola, ConsoleEnhancer se cerrará y apagará el PC.	When the console is turned off, ConsoleEnhancer will close and shut down the PC.
+Antes sale un aviso de {0} s: cualquier botón del mando, tecla o el ratón lo cancela.	First a {0} s notice is shown: any controller button, key or the mouse cancels it.
+Sin aviso (apagar_pc_aviso_s=0): se apaga en cuanto se cierra.	No notice (apagar_pc_aviso_s=0): it shuts down as soon as the app closes.
+Cerrar la app a mano (Salir, Alt+F4) no apaga el PC. Guarda lo que tengas abierto en el PC: el apagado cierra los programas.	Closing the app yourself (Exit, Alt+F4) does not shut down the PC. Save your work on the PC: shutting down closes all programs.
+¿Activarlo?	Turn it on?
+# 19-11 (de Prisma: selector de generacion con L3 / Ctrl+G, menu de la PS5 y otras consolas, escritorio negro)
+Escritorio negro con la app abierta	Black desktop while the app is open
+Generación de fotogramas desactivada	Frame generation off
+Generación · 	Frame generation · 
+Sin generación	No frame generation
+ (puesta)	 (current)
+Menú en 4K nativo · la generación se elige dentro de cada juego	Menu at native 4K · frame generation is chosen inside each game
+Menú · la generación se elige dentro de cada juego	Menu · frame generation is chosen inside each game
+HOME en 4K nativo · la generación se elige dentro de cada juego	HOME at native 4K · frame generation is chosen inside each game
+HOME · la generación se elige dentro de cada juego	HOME · frame generation is chosen inside each game
+ · la generación se elige dentro de cada juego	 · frame generation is chosen inside each game
+ · la generación se activa dentro de cada juego	 · frame generation is turned on inside each game
+ · los ajustes se cambian dentro de cada juego	 · settings are changed inside each game
+ · el filtro de tramado se cambia dentro de cada juego	 · the dither filter is changed inside each game
+ en 4K nativo	 at native 4K
+Menú	Menu
+# 20-11 (CE-FUNCIONES): bandeja > Imagen, escalas, botones
+Imagen (HDR, VRR, botones, escalas)	Picture (HDR, VRR, buttons, scales)
+RTX HDR (reabre la app)	RTX HDR (reopens the app)
+Automático (reabre la app)	Automatic (reopens the app)
+Encendido (reabre la app)	On (reopens the app)
+Apagado (reabre la app)	Off (reopens the app)
+Botones: Menú = modo 30/60, Vista = generación	Buttons: Menu = 30/60 mode, View = frame generation
+Escalas que se adaptan solas (reabre la app)	Self-adjusting scales (reopens the app)
+Olvidar las escalas aprendidas (reabre la app)	Forget the learned scales (reopens the app)
+encendido ahora	on now
+apagado ahora	off now
+no llega aquí · la próxima vez al	does not keep up here · next time at
+pasadas no llega aquí · la próxima vez con menos	passes do not keep up here · next time with fewer
+DLSS 5 al 	DLSS 5 at 
+DLSS 5 con 	DLSS 5 with 
+botón de captura	capture button
+solo caben sin generación	only fit without frame generation
+La imagen se ha parado	The picture has stopped

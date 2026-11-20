@@ -1,0 +1,5 @@
+# Los ficheros se guardan tal cual (sin convertir fin de linea): los .bat van con CRLF y las fusiones a tres bandas con git merge-file
+# no ven cambios de fin de linea
+* -text
+*.ico binary
+*.png binary

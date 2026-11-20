@@ -1,0 +1,41 @@
+ConsoleEnhancer - Additional permission under GNU GPL version 3 section 7
+=========================================================================
+
+Copyright (C) 2026 ianu29 and ConsoleEnhancer contributors
+(Copyright (C) 2026 ianu29 y colaboradores de ConsoleEnhancer)
+https://github.com/ianu29/ConsoleEnhancer
+
+ConsoleEnhancer is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License
+version 3 as published by the Free Software Foundation (see LICENSE). It is distributed WITHOUT ANY WARRANTY; without even the
+implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
+Additional permission under GNU GPL version 3 section 7
+
+If you modify this Program, or any covered work, by linking or combining it with any of the following libraries (or with their
+official updates released by their vendors), containing parts covered by the terms of their own licenses, the licensors of this
+Program grant you additional permission to convey the resulting work:
+
+  - NVIDIA Streamline, NVIDIA DLSS (Super Resolution, Frame Generation, Ray Reconstruction), NVIDIA NGX, NVIDIA Reflex and
+    NVIDIA NVAPI runtime libraries, as distributed by NVIDIA Corporation;
+  - AMD FidelityFX runtime libraries, as distributed by Advanced Micro Devices, Inc.;
+  - Intel XeSS runtime libraries, as distributed by Intel Corporation;
+  - Microsoft Direct3D, DXGI, D3DCompiler and Windows runtime libraries, as distributed by Microsoft Corporation.
+
+Corresponding Source for a non-source form of such a combination shall not include the source code for the parts of those
+libraries used as well as that of the covered work. This permission does not cover modified or repackaged versions of those
+libraries made by anyone other than their vendor (for example the community-modified nvngx_dlssnr.dll, which ConsoleEnhancer
+never distributes).
+
+This additional permission is granted only by the copyright holders of ConsoleEnhancer's own code. Code that ConsoleEnhancer takes
+from other GPL-3.0 projects keeps the plain terms its authors chose (see THIRD-PARTY.md). You may remove this additional permission
+from your copy of ConsoleEnhancer, or from modified versions of it, as section 7 of the GPL allows.
+
+
+Resumen en espanol (el texto que vale es el ingles de arriba)
+------------------------------------------------------------
+ConsoleEnhancer es software libre bajo la GNU GPL version 3 (LICENSE), SIN NINGUNA GARANTIA. Ademas, sus autores dan un permiso
+adicional (seccion 7 de la GPL): se puede repartir ConsoleEnhancer junto con las librerias oficiales de NVIDIA (Streamline, DLSS,
+NGX, Reflex, NVAPI), AMD FidelityFX, Intel XeSS y Microsoft Direct3D, que tienen sus propias licencias y no pasan a ser GPL; el codigo
+fuente que pide la GPL no incluye el de esas librerias. El permiso no vale para versiones modificadas de esas librerias por terceros
+(como la nvngx_dlssnr.dll comunitaria, que ConsoleEnhancer no reparte nunca). Solo lo dan los autores del codigo propio de
+ConsoleEnhancer; lo que viene de otros proyectos GPL-3.0 sigue con sus condiciones (THIRD-PARTY.md).

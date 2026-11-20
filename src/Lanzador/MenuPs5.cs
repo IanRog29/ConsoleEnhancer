@@ -1,0 +1,611 @@
+// MenuPs5.cs - El menu de la PS5 a 4K nativo, como el HOME de la Switch 2 (19-11, el usuario: "he puesto ahora mi ps5 en la capturadora,
+// en el menu haz que vaya nativamente sin smooth motion ni nada ... copia lo de switch 2 pero con ps5").
+//
+// Como se reconoce: la PS5 pone su hora arriba a la derecha (pantalla de inicio, centro de control encima de un juego, sus paneles de
+// Descargas, Notificaciones...), en blanco sobre la parte de arriba oscurecida y sin nada a su derecha. Visto el 19-11 con la PS5 de
+// verdad (copias de la tele 02:42-02:49: "2:42"... "2:49", a 3515-3665 x 85-150 de 3840x2160). Un juego no saca la hora del PC en ese
+// sitio: la que lee el OCR tiene que ser la del PC (+-1 min, 12 o 24 h). Sin la hora pero con el menu a la vista antes, el texto de la
+// pantalla (OCR) dice si sigue siendo la consola (Ajustes, la biblioteca, la tienda...).
+//  - Menu visto en 2 capturas seguidas: a 4K nativo a 60 fps, sin Magpie, sin generacion y SIN Smooth Motion (Config.EngineSmoothMode da
+//    0: si el motor lo llevaba se vuelve a abrir una sola vez, ya con lo del menu)
+//  - 3 capturas seguidas sin el menu (un juego, negro de cargar): al juego, con los ajustes de toda la consola ("Consola" en
+//    juegos\perfiles.txt, lo cambiado con el mando se recuerda ahi); si el juego lleva Smooth Motion, el motor se abre una vez con el
+//  - El menu de apagado de la PS5 (centro de control > apagado: "Entrar en modo de reposo", "Apagar la PS5"...), leido en el menu: si
+//    sale "No Signal", reposo o apagado, se cierra la app enseguida (PowerMenuSeen). Si no se vio, "No Signal" como jugando: la espera de
+//    la PS5 (EsperaSinSenalMinS, 8 s; al arrancar un juego con HDR o 120 Hz cambia de modo de video unos segundos) y se cierra
+// Con consola=auto y otra consola puesta, la hora del menu de la PS5 es una pista a su favor (Consolas.VistoMenuPs5). C# 5
+using System;
+using System.Collections.Generic;
+using System.Drawing;
+using System.Drawing.Drawing2D;
+using System.Drawing.Imaging;
+using System.Globalization;
+using System.IO;
+using System.Runtime.InteropServices;
+using System.Text;
+using System.Text.RegularExpressions;
+
+namespace ConsoleEnhancer
+{
+    // La hora del menu de la PS5, arriba a la derecha
+    static class RelojPs5
+    {
+        // Donde va (fracciones de la imagen): la hora acaba en x 0,955 (alineada a la derecha) y ocupa y 0,040-0,070
+        const double X0 = 0.865, X1 = 0.962, Y0 = 0.022, Y1 = 0.092;
+        // A su derecha no hay nada (la Switch tiene ahi la bateria): x 0,965-0,995
+        const double D0 = 0.966, D1 = 0.995;
+
+        public static Rectangle Zona(int w, int h)
+        {
+            return Rectangle.FromLTRB((int)(w * X0), (int)(h * Y0), (int)Math.Ceiling(w * X1), (int)Math.Ceiling(h * Y1));
+        }
+
+        // Sin OCR: ¿puede haber ahi una hora clara sobre oscuro? (casi todas las capturas jugando se quedan aqui: 0,1 ms). Relativo al
+        // contraste, no a un blanco fijo: sin tocar el mando la PS5 atenua la pantalla (19-11 03:00:23, antes de entrar en reposo por
+        // inactividad: la captura del motor, en grises de la Y, fondo 17 y cifras 40; normal, fondo 5 y cifras 205)
+        public static bool PuedeSer(Bitmap full, out string porque)
+        {
+            porque = null;
+            int w = full.Width, h = full.Height;
+            Rectangle z = Zona(w, h);
+            Rectangle d = Rectangle.FromLTRB((int)(w * D0), z.Top, (int)(w * D1), z.Bottom);
+            int[] hz = Histo(full, z), hd = Histo(full, d);
+            int nz = Total(hz), nd = Total(hd);
+            if (nz == 0 || nd == 0) { porque = "sin imagen"; return false; }
+            int fondo = Pct(hz, 0.5), arriba = Pct(hz, 0.995), fondoD = Pct(hd, 0.5), arribaD = Pct(hd, 0.995);
+            int salto = arriba - fondo;
+            if (fondo > 80) { porque = "fondo claro (" + fondo + ")"; return false; }
+            if (salto < 14) { porque = "sin texto (fondo " + fondo + ", lo mas claro " + arriba + ")"; return false; }
+            // Lo que es texto: por encima de la mitad del salto. Una hora ocupa ~1-25 % de la zona
+            int corte = fondo + salto / 2, texto = 0;
+            for (int v = corte; v < 256; v++) texto += hz[v];
+            double share = (double)texto / nz;
+            if (share < 0.006 || share > 0.30) { porque = "texto " + PctTxt(share); return false; }
+            // A la derecha, nada: fondo como el de la hora y sin nada que pase de un cuarto del salto
+            if (Math.Abs(fondoD - fondo) > 10 || arribaD - fondoD > Math.Max(6, salto / 4))
+            { porque = "algo a la derecha de la hora (" + fondoD + "-" + arribaD + ")"; return false; }
+            return true;
+        }
+
+        static string PctTxt(double v) { return (v * 100).ToString("0.#", CultureInfo.InvariantCulture) + " %"; }
+
+        static int Total(int[] hi) { int n = 0; foreach (int c in hi) n += c; return n; }
+
+        static int Pct(int[] hi, double p)
+        {
+            int n = Total(hi), want = (int)Math.Ceiling(n * p), acc = 0;
+            for (int v = 0; v < 256; v++) { acc += hi[v]; if (acc >= want) return v; }
+            return 255;
+        }
+
+        static int[] Histo(Bitmap b, Rectangle r)
+        {
+            r = Rectangle.Intersect(r, new Rectangle(0, 0, b.Width, b.Height));
+            int[] c = new int[256];
+            if (r.Width <= 0 || r.Height <= 0) return c;
+            BitmapData d = b.LockBits(r, ImageLockMode.ReadOnly, PixelFormat.Format32bppRgb);
+            try
+            {
+                byte[] row = new byte[r.Width * 4];
+                for (int y = 0; y < r.Height; y++)
+                {
+                    Marshal.Copy(new IntPtr(d.Scan0.ToInt64() + (long)y * d.Stride), row, 0, row.Length);
+                    for (int x = 0; x < r.Width; x++)
+                    {
+                        int o = x * 4;
+                        c[(row[o] * 29 + row[o + 1] * 150 + row[o + 2] * 77) >> 8]++;
+                    }
+                }
+            }
+            finally { b.UnlockBits(d); }
+            return c;
+        }
+
+        // El OCR de la zona: primero tal cual, agrandada (cifras de ~40 px; en la captura ligera de 1280x720 tienen ~20); si eso no es una
+        // hora, binarizada (LeerBinaria). Con la pantalla normal basta la primera; atenuada y con la captura del motor, la segunda
+        public static string Leer(Bitmap full)
+        {
+            Rectangle z = Rectangle.Intersect(Zona(full.Width, full.Height), new Rectangle(0, 0, full.Width, full.Height));
+            if (z.Width < 8 || z.Height < 8) return null;
+            const int Alto = 110;
+            int w = Math.Max(1, (int)Math.Round((double)z.Width * Alto / z.Height));
+            string t;
+            using (Bitmap s = new Bitmap(w, Alto, PixelFormat.Format32bppRgb))
+            {
+                using (Graphics g = Graphics.FromImage(s))
+                using (ImageAttributes ia = new ImageAttributes())
+                {
+                    g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                    g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+                    ia.SetWrapMode(WrapMode.TileFlipXY);
+                    g.DrawImage(full, new Rectangle(0, 0, w, Alto), z.X, z.Y, z.Width, z.Height, GraphicsUnit.Pixel, ia);
+                }
+                t = Ocr.Read(s);
+            }
+            int hh, mm;
+            string hora;
+            if (Hora(t, out hh, out mm, out hora)) return t;
+            string t2 = LeerBinaria(full, z);
+            return Hora(t2, out hh, out mm, out hora) ? t2 : (string.IsNullOrEmpty(t) ? t2 : t);
+        }
+
+        static string LeerBinaria(Bitmap full, Rectangle z)
+        {
+            // 19-11 03:00: la captura ligera del motor (1 de cada 3 pixeles del 4K, en grises) deja la hora con trazos de 1 pixel y, con la
+            // pantalla atenuada, fondo 17 y cifras 40 sobre una trama: el OCR no leia nada. Antes del OCR: texto = lo que pasa del 40 % del
+            // salto entre el fondo y lo mas claro, engordado 1 pixel si la zona es pequeña, en negro sobre blanco y agrandado
+            int zw = z.Width, zh = z.Height;
+            int[] l = new int[zw * zh];
+            int[] hi = new int[256];
+            BitmapData d = full.LockBits(z, ImageLockMode.ReadOnly, PixelFormat.Format32bppRgb);
+            try
+            {
+                byte[] row = new byte[zw * 4];
+                for (int y = 0; y < zh; y++)
+                {
+                    Marshal.Copy(new IntPtr(d.Scan0.ToInt64() + (long)y * d.Stride), row, 0, row.Length);
+                    for (int x = 0; x < zw; x++)
+                    {
+                        int o = x * 4, v = (row[o] * 29 + row[o + 1] * 150 + row[o + 2] * 77) >> 8;
+                        l[y * zw + x] = v;
+                        hi[v]++;
+                    }
+                }
+            }
+            finally { full.UnlockBits(d); }
+            int fondo = Pct(hi, 0.5), arriba = Pct(hi, 0.995);
+            if (arriba - fondo < 8) return "";
+            int corte = fondo + Math.Max(4, (arriba - fondo) * 2 / 5);
+            bool[] m = new bool[zw * zh];
+            for (int i = 0; i < m.Length; i++) m[i] = l[i] >= corte;
+            if (zh < 60) // (la ligera de 1280x720: ~50 px de alto, cifras de ~20 con trazos de 1-2)
+            {
+                bool[] g2 = new bool[m.Length];
+                for (int y = 0; y < zh; y++)
+                    for (int x = 0; x < zw; x++)
+                        g2[y * zw + x] = m[y * zw + x] || (x + 1 < zw && m[y * zw + x + 1]) || (y + 1 < zh && m[(y + 1) * zw + x]) ||
+                                         (x + 1 < zw && y + 1 < zh && m[(y + 1) * zw + x + 1]);
+                m = g2;
+            }
+            int k = Math.Max(1, (int)Math.Round(120.0 / zh));
+            using (Bitmap s0 = new Bitmap(zw, zh, PixelFormat.Format32bppRgb))
+            {
+                BitmapData sd = s0.LockBits(new Rectangle(0, 0, zw, zh), ImageLockMode.WriteOnly, PixelFormat.Format32bppRgb);
+                try
+                {
+                    byte[] row = new byte[zw * 4];
+                    for (int y = 0; y < zh; y++)
+                    {
+                        for (int x = 0; x < zw; x++)
+                        {
+                            byte v = m[y * zw + x] ? (byte)0 : (byte)255;
+                            row[x * 4] = row[x * 4 + 1] = row[x * 4 + 2] = v;
+                            row[x * 4 + 3] = 255;
+                        }
+                        Marshal.Copy(row, 0, new IntPtr(sd.Scan0.ToInt64() + (long)y * sd.Stride), row.Length);
+                    }
+                }
+                finally { s0.UnlockBits(sd); }
+                using (Bitmap s = new Bitmap(zw * k, zh * k, PixelFormat.Format32bppRgb))
+                {
+                    using (Graphics g = Graphics.FromImage(s))
+                    using (ImageAttributes ia = new ImageAttributes())
+                    {
+                        g.InterpolationMode = InterpolationMode.HighQualityBilinear;
+                        g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+                        ia.SetWrapMode(WrapMode.TileFlipXY);
+                        g.DrawImage(s0, new Rectangle(0, 0, s.Width, s.Height), 0, 0, zw, zh, GraphicsUnit.Pixel, ia);
+                    }
+                    return Ocr.Read(s);
+                }
+            }
+        }
+
+        static readonly Regex HoraRx = new Regex(@"^(\d{1,2})[:.](\d{2})(am|pm)?$", RegexOptions.CultureInvariant);
+
+        // ¿Lo leido es la hora del PC (ahora +-1 min; 24 h o 12 h, con o sin a. m. / p. m.)? hora = lo leido, limpio
+        public static bool EsHora(string ocr, DateTime now, out string hora)
+        {
+            int hh, mm;
+            if (!Hora(ocr, out hh, out mm, out hora)) return false;
+            for (int d = -1; d <= 1; d++)
+            {
+                DateTime t = now.AddMinutes(d);
+                if (t.Minute != mm) continue;
+                int h12 = t.Hour % 12 == 0 ? 12 : t.Hour % 12;
+                if (hh == t.Hour || hh == h12 || (hh == 0 && t.Hour == 0)) return true;
+            }
+            return false;
+        }
+
+        // 19-11 (DETECCION): ¿la hora del PC justo de este minuto? (con ella basta una captura para entrar en el menu: DetectorMenu)
+        public static bool EsHoraExacta(string ocr, DateTime now)
+        {
+            int hh, mm;
+            string hora;
+            if (!Hora(ocr, out hh, out mm, out hora) || mm != now.Minute) return false;
+            int h12 = now.Hour % 12 == 0 ? 12 : now.Hour % 12;
+            return hh == now.Hour || hh == h12;
+        }
+
+        // ¿Lo leido es una hora (cualquiera)? Con lo que el OCR confunde con cifras. 20-11 (CONSOLA): en la pantalla de inicio de la PS5 el
+        // avatar (y los iconos de ajustes y buscar) van pegados a la izquierda de la hora, dentro de la zona: el OCR los lee como una letra
+        // ("O 14:42", "3C) 2:42") y no casaba (se tomaba por un juego y, con consola=auto, la hora la encontraba el lector de la Xbox). Si
+        // lo de delante es corto (un icono, no texto), vale la ultima palabra
+        static bool Hora(string ocr, out int hh, out int mm, out string hora)
+        {
+            if (HoraSola(ocr, out hh, out mm, out hora)) return true;
+            string s = (ocr ?? "").Trim();
+            int sp = s.LastIndexOfAny(new char[] { ' ', '\t', '\r', '\n' });
+            if (sp <= 0 || s.Substring(0, sp).Trim().Length > 4) return false;
+            return HoraSola(s.Substring(sp + 1), out hh, out mm, out hora);
+        }
+
+        static bool HoraSola(string ocr, out int hh, out int mm, out string hora)
+        {
+            hora = null; hh = mm = -1;
+            if (string.IsNullOrEmpty(ocr)) return false;
+            string s = ocr.ToLowerInvariant().Replace(" ", "").Replace("\r", "").Replace("\n", "").Replace("\t", "");
+            s = s.Replace("a.m.", "am").Replace("p.m.", "pm").Replace("a.m", "am").Replace("p.m", "pm");
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < s.Length; i++)
+            {
+                char c = s[i];
+                bool sufijo = (c == 'a' || c == 'p') && i + 1 < s.Length && s[i + 1] == 'm' && i + 2 == s.Length;
+                if (sufijo) { sb.Append(s, i, 2); break; }
+                // (lo que el OCR confunde con cifras en una hora)
+                switch (c)
+                {
+                    case 'o': c = '0'; break;
+                    case 'i': case 'l': case '|': case '!': c = '1'; break;
+                    case 'z': c = '2'; break;
+                    case 's': c = '5'; break;
+                    case 'b': c = '8'; break;
+                    case ';': case ',': c = ':'; break;
+                }
+                sb.Append(c);
+            }
+            s = sb.ToString();
+            Match m = HoraRx.Match(s);
+            if (!m.Success) return false;
+            hh = int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture);
+            mm = int.Parse(m.Groups[2].Value, CultureInfo.InvariantCulture);
+            if (hh > 23 || mm > 59) return false;
+            hora = m.Groups[1].Value + ":" + m.Groups[2].Value + (m.Groups[3].Success ? " " + m.Groups[3].Value : "");
+            return true;
+        }
+
+        // Pantallas de la PS5 sin la hora (OCR de la imagen entera, en minusculas): frases que solo salen en ellas
+        static readonly string[] Sistema = {
+            "pantalla y vídeo", "pantalla y video", "usuarios y cuentas", "familia y controles parentales", "ahorro de energía",
+            "biblioteca de juegos", "tu colección", "playstation store", "playstation plus", "game base", "lista de amigos",
+            "descargas/copias", "centro de control", "datos guardados y ajustes de juegos", "juegos/aplicaciones guardados",
+            "almacenamiento de la consola", "software del sistema", "accesibilidad", "entrar en modo de reposo", "apagar la ps5",
+            "reiniciar la ps5", "elige un usuario", "pulsa el botón ps", "pulsa el boton ps", "screen and video", "users and accounts",
+            "game library", "your collection", "control center", "enter rest mode", "turn off ps5", "restart ps5" };
+
+        public static bool EsPantallaSistema(string ocr, out string frase)
+        {
+            frase = null;
+            if (string.IsNullOrEmpty(ocr)) return false;
+            string n = Regex.Replace(ocr.ToLowerInvariant().Replace('\r', ' ').Replace('\n', ' '), " +", " ");
+            foreach (string t in Sistema) if (n.Contains(t)) { frase = t; return true; }
+            return false;
+        }
+
+        // El menu de apagado de la PS5 (centro de control > apagado), por su texto
+        public static bool EsMenuApagado(string ocr, ConsolaPerfil c)
+        {
+            if (string.IsNullOrEmpty(ocr) || c.TextosApagado == null) return false;
+            string n = Regex.Replace(ocr.ToLowerInvariant().Replace('\r', ' ').Replace('\n', ' '), " +", " ");
+            foreach (string t in c.TextosApagado) if (n.Contains(t)) return true;
+            return false;
+        }
+
+        // ---- Prueba sin consola: --test-ps5=<carpeta de imagenes>;<informe> ----
+        // Cada imagen como la captura ligera de la app (1280x720, 1 de cada 3 pixeles a 4K) y entera; la hora "del PC" sale del nombre
+        // (fNNNN_HHmmss.jpg, el de grabar la tele) o de la fecha del archivo
+        public static int Prueba(string arg)
+        {
+            string[] p = arg.Split(';');
+            string dir = p[0], rep = p.Length > 1 ? p[1] : Path.Combine(dir, "prueba_ps5.txt");
+            StringBuilder sb = new StringBuilder();
+            int menus = 0, total = 0;
+            List<string> files = new List<string>();
+            foreach (string ext in new[] { "*.jpg", "*.png" }) files.AddRange(Directory.GetFiles(dir, ext));
+            files.Sort(StringComparer.OrdinalIgnoreCase);
+            foreach (string f in files)
+            {
+                DateTime now = File.GetLastWriteTime(f);
+                string bn = Path.GetFileNameWithoutExtension(f);
+                Match mt = Regex.Match(bn, @"_(\d{2})(\d{2})(\d{2})$");
+                if (!mt.Success) mt = Regex.Match(bn, @"^\d{8}-(\d{2})(\d{2})(\d{2})"); // (juegos\diag_home: 20261116-110025-928_...)
+                if (mt.Success)
+                    now = now.Date.AddHours(int.Parse(mt.Groups[1].Value)).AddMinutes(int.Parse(mt.Groups[2].Value)).AddSeconds(int.Parse(mt.Groups[3].Value));
+                using (Bitmap src = new Bitmap(f))
+                using (Bitmap full = new Bitmap(src.Width, src.Height, PixelFormat.Format32bppRgb))
+                {
+                    using (Graphics g = Graphics.FromImage(full)) g.DrawImage(src, 0, 0, src.Width, src.Height);
+                    using (Bitmap light = Ligera(full))
+                    {
+                        string r1 = Una(light, now), r2 = Una(full, now), r3;
+                        using (Bitmap gris = Gris(light)) r3 = Una(gris, now); // (la del motor: la Y, en grises)
+                        bool menu = r1.StartsWith("MENU") && r3.StartsWith("MENU");
+                        if (menu) menus++;
+                        total++;
+                        sb.Append(Path.GetFileName(f)).Append('\t').Append(now.ToString("HH:mm:ss")).Append("\tligera ").Append(r1).Append("\tgris ").Append(r3).Append("\tentera ").Append(r2).Append("\r\n");
+                    }
+                }
+            }
+            sb.Insert(0, "Menu de la PS5 (la hora arriba a la derecha): " + menus + " de " + total + " imagenes\r\n");
+            File.WriteAllText(rep, sb.ToString(), new UTF8Encoding(false));
+            return 0;
+        }
+
+        static string Una(Bitmap b, DateTime now)
+        {
+            string porque;
+            if (!PuedeSer(b, out porque)) return "no (" + porque + ")";
+            string txt = Leer(b), hora;
+            bool ok = EsHora(txt, now, out hora);
+            // (sin la hora de ahora: ¿seria una hora a otra? asi se ve el riesgo con imagenes de otro dia)
+            bool otra = false;
+            if (!ok) for (int m = 0; m < 24 * 60 && !otra; m++) { string h2; otra = EsHora(txt, now.Date.AddMinutes(m), out h2); }
+            return (ok ? "MENU " : otra ? "no, pero es una hora " : "no ") + "(OCR \"" + (txt ?? "").Replace("\r", " ").Replace("\n", " ") + "\")";
+        }
+
+        // Como la del motor con la captura en yuy2: la Y en grises, en rango limitado (16-235)
+        static Bitmap Gris(Bitmap src)
+        {
+            int w = src.Width, h = src.Height;
+            Bitmap b = new Bitmap(w, h, PixelFormat.Format32bppRgb);
+            BitmapData s = src.LockBits(new Rectangle(0, 0, w, h), ImageLockMode.ReadOnly, PixelFormat.Format32bppRgb);
+            BitmapData d = b.LockBits(new Rectangle(0, 0, w, h), ImageLockMode.WriteOnly, PixelFormat.Format32bppRgb);
+            try
+            {
+                byte[] row = new byte[w * 4];
+                for (int y = 0; y < h; y++)
+                {
+                    Marshal.Copy(new IntPtr(s.Scan0.ToInt64() + (long)y * s.Stride), row, 0, row.Length);
+                    for (int x = 0; x < w; x++)
+                    {
+                        int o = x * 4, v = 16 + ((row[o] * 29 + row[o + 1] * 150 + row[o + 2] * 77) >> 8) * 219 / 255;
+                        row[o] = row[o + 1] = row[o + 2] = (byte)v;
+                    }
+                    Marshal.Copy(row, 0, new IntPtr(d.Scan0.ToInt64() + (long)y * d.Stride), row.Length);
+                }
+            }
+            finally { src.UnlockBits(s); b.UnlockBits(d); }
+            return b;
+        }
+
+        // Como la captura ligera del script de mpv: 1 de cada N pixeles hasta ~1280 de ancho
+        static Bitmap Ligera(Bitmap full)
+        {
+            int k = Math.Max(1, full.Width / 1280);
+            int w = full.Width / k, h = full.Height / k;
+            Bitmap b = new Bitmap(w, h, PixelFormat.Format32bppRgb);
+            using (Graphics g = Graphics.FromImage(b))
+            {
+                g.InterpolationMode = InterpolationMode.NearestNeighbor;
+                g.PixelOffsetMode = PixelOffsetMode.Half;
+                g.DrawImage(full, new Rectangle(0, 0, w, h), 0, 0, full.Width, full.Height, GraphicsUnit.Pixel);
+            }
+            return b;
+        }
+    }
+
+    partial class TrayApp
+    {
+        int ps5MenuHits;                         // capturas seguidas con el menu de la consola (jugando; GrabTick: confirmar enseguida)
+        int ps5OutHits;                          // en el menu: capturas seguidas sin el (juego)
+        DateTime ps5TextoAt = DateTime.MinValue; // la ultima lectura de la pantalla entera en el menu (apagado, pantallas sin hora)
+        readonly PistasMenu pistasMenu = new PistasMenu(); // consola=auto: las pistas de cada captura (20-11, CONSOLA; antes ps5PistaAt)
+        DateTime ps5FalloLog = DateTime.MinValue;
+        string ps5Hora;                          // la ultima hora leida (log)
+        // 19-11 (DETECCION, src\DetectorMenu.cs): la decision menu <-> juego, con histeresis (con homeSync)
+        readonly MaquinaMenu menuMaq = new MaquinaMenu();
+        VistaMenu ps5UltimaVista = VistaMenu.Juego;
+        DateTime ps5DecididoAt = DateTime.MinValue; // cuando se decidio el cambio (log: cuanto tarda en aplicarse)
+
+        string MenuTexto { get { return Consolas.Actual.TieneHome ? "HOME" : "Menú"; } }
+
+        int ps5DiagsSesion;
+        // La captura en la que no se leyo la hora (juegos\debug\ps5, las 8 mas nuevas), para ajustar el lector
+        static string GuardarDiagPs5(Bitmap full, string ocr)
+        {
+            try
+            {
+                string dir = Path.Combine(Paths.Datos, @"juegos\debug\ps5");
+                Directory.CreateDirectory(dir);
+                string f = Path.Combine(dir, DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture) + "_" + full.Width + "x" + full.Height + ".png");
+                full.Save(f, ImageFormat.Png);
+                FileInfo[] all = new DirectoryInfo(dir).GetFiles("*.png");
+                Array.Sort(all, delegate (FileInfo a, FileInfo b) { return b.LastWriteTimeUtc.CompareTo(a.LastWriteTimeUtc); });
+                for (int i = 8; i < all.Length; i++) { try { all[i].Delete(); } catch { } }
+                return f;
+            }
+            catch (Exception ex) { Log.Error("Menu de la PS5: guardando la captura", ex); return null; }
+        }
+
+        // AnalyzeGrab, con una consola con menu propio (la PS5; la Xbox SIN PROBAR): ¿es su menu? Clasifica la captura (DetectorMenu) y
+        // decide con histeresis (MaquinaMenu); MenuPs5Tick hace el cambio (AnalyzeGrab lo llama enseguida, sin esperar al HomeTick)
+        void MenuPs5Captura(Bitmap full, Bitmap small, bool noSignal)
+        {
+            DateTime now = DateTime.Now;
+            bool inMenu = InHome;
+            ConsolaPerfil c = Consolas.Actual;
+            if (noSignal)
+            {
+                LecturaMenu ns = new LecturaMenu();
+                ns.Vista = VistaMenu.SinSenal;
+                lock (homeSync) { menuMaq.Observa(ns, now, inMenu); ps5MenuHits = menuMaq.Hits; ps5OutHits = menuMaq.Outs; }
+                return;
+            }
+            // En el menu: la pantalla entera cada segundo aunque se vea la hora (el menu de apagado); sin la hora, siempre
+            bool leer = inMenu && (now - ps5TextoAt).TotalSeconds >= 1.0;
+            LecturaMenu l = DetectorMenu.Clasifica(full, now, c, inMenu, leer);
+            if (l.Pantalla != null)
+            {
+                ps5TextoAt = now;
+                Consolas.VistoTexto(l.Pantalla);
+                if (RelojPs5.EsMenuApagado(l.Pantalla, c))
+                    lock (homeSync) PowerMenuSeen(now, "el menu de apagado de la consola (\"" + ShortText(l.Pantalla) + "\")");
+            }
+            // Tras el menu de apagado (o el aviso de reposo), el negro es la consola apagandose: ni menu ni juego (no se abre Magpie para nada)
+            if (l.Vista == VistaMenu.Plana && powerMenuAt != DateTime.MinValue && (now - powerMenuAt).TotalSeconds < PowerMenuSecs)
+            {
+                l.Vista = VistaMenu.Oscura;
+                l.Porque += "; tras el menu de apagado";
+            }
+            // (en el menu sin la hora a la vista: las 3 primeras veces de la sesion, al log con la captura, para ajustar el lector)
+            if (l.Vista != VistaMenu.Menu && inMenu && ps5DiagsSesion < 3 && l.Vista != VistaMenu.Plana)
+            {
+                ps5DiagsSesion++;
+                string diag = GuardarDiagPs5(full, null);
+                Log.Write("Menu de la consola: sin la hora arriba (" + (l.Porque ?? "?") + ", " + l.Vista + (l.Frase != null ? ": \"" + l.Frase + "\"" : "") +
+                          ", captura de " + full.Width + "x" + full.Height + ", " + l.Ms.ToString("0", CultureInfo.InvariantCulture) + " ms)" + (diag != null ? " -> " + diag : ""));
+            }
+            else if (l.Vista != VistaMenu.Menu && l.ParecioHora && l.Ocr != null && (now - ps5FalloLog).TotalSeconds >= 60)
+            {
+                ps5FalloLog = now;
+                string diag = GuardarDiagPs5(full, l.Ocr);
+                Log.Write("Menu de la consola: arriba parece texto, pero no es la hora del PC (OCR \"" + ShortText(l.Ocr) + "\", " +
+                          now.ToString("HH:mm", CultureInfo.InvariantCulture) + ", captura de " + full.Width + "x" + full.Height + ")" +
+                          (diag != null ? " -> " + diag : ""));
+            }
+            // Jugando, el menu visto: su miniatura (la imagen de mpv, sin Magpie) para comprobar la copia de la pantalla del telon congelado
+            // (PutFrozenCurtain: sin ella pedia la imagen a mpv, 230-380 ms; con ella, la copia de la pantalla, ~125 ms)
+            if (l.Vista == VistaMenu.Menu && !inMenu)
+            {
+                double lit;
+                lastHomeThumb = HomeLabel.Thumb(small, out lit);
+                lastHomeThumbAt = now;
+            }
+            // Con consola=auto (cada 5 s): su menu visto refuerza la puesta (la PS5; con la Xbox, se mira si es la hora de la PS5 en su sitio);
+            // sin el, los menus de las otras consolas (20-11, CONSOLA: PistasMenu, src\DetectorMenu.cs)
+            if (!Consolas.Fija) MenuPs5Pista(full, false, l);
+            lock (homeSync)
+            {
+                VistaMenu antes = ps5UltimaVista;
+                ps5UltimaVista = l.Vista;
+                int d0 = menuMaq.Decision;
+                int d = menuMaq.Observa(l, now, inMenu);
+                if (l.Hora != null) ps5Hora = l.Hora;
+                if (l.Vista == VistaMenu.Menu || l.Vista == VistaMenu.MenuTexto) homeSeen = now;
+                if (!inMenu && l.Vista == VistaMenu.Menu && menuMaq.Hits == 1 && d == 0)
+                    Log.Write("Menu de la consola visto (la hora \"" + l.Hora + "\" arriba, la del PC, a un minuto): se confirma con otra captura");
+                if (inMenu && l.Vista == VistaMenu.MenuTexto && antes != VistaMenu.MenuTexto && l.Frase != null)
+                    Log.Write("Menu de la consola: sin la hora, pero es una pantalla de la consola (\"" + l.Frase + "\"): se sigue a 4K nativo");
+                if (inMenu && l.Vista == VistaMenu.Plana && antes != VistaMenu.Plana)
+                    Log.Write("Menu de la consola: imagen en negro (" + l.Porque + "): ni menu ni juego; tras el menu, si sigue " +
+                              menuMaq.NegroSalirS.ToString("0.#", CultureInfo.InvariantCulture) + " s, se arranca un juego");
+                if (d != 0 && d0 == 0)
+                {
+                    ps5DecididoAt = now;
+                    Log.Write((d > 0 ? "Menu de la consola: decidido (" : "Fuera del menu de la consola: decidido (") + menuMaq.Porque + "; " +
+                              (long)(now - menuMaq.PrimeraAt).TotalMilliseconds + " ms desde la primera captura, esta leida en " +
+                              l.Ms.ToString("0", CultureInfo.InvariantCulture) + " ms)");
+                }
+                ps5MenuHits = menuMaq.Hits;
+                ps5OutHits = menuMaq.Outs;
+            }
+        }
+
+        // AnalyzeGrab, con otra consola puesta y consola=auto: ¿es el menu de la PS5 o de la Xbox? (cada 5 s; no en el HOME de la Switch 2:
+        // tambien tiene la hora arriba, con la bateria a la derecha). La PS5: su sitio exacto, prueba propia (Consolas.VistoMenuPs5); la
+        // Xbox: la hora del PC en la franja de arriba, fuera del sitio de la de la PS5 y de la del HOME de Nintendo (DetectorMenu.PistaReloj),
+        // solo de apoyo (Consolas.VistoMenuXbox). 20-11 (CONSOLA): todo en PistasMenu (src\DetectorMenu.cs), tambien con su menu visto
+        void MenuPs5Pista(Bitmap full, bool switchHome) { MenuPs5Pista(full, switchHome, null); }
+
+        void MenuPs5Pista(Bitmap full, bool switchHome, LecturaMenu l)
+        {
+            if (switchHome || Consolas.Fija) return;
+            try { pistasMenu.Observa(full, DateTime.Now, Consolas.Actual, l, false); }
+            catch (Exception ex) { Log.Error("Consola: pistas del menu", ex); }
+        }
+
+        // HomeTick con una consola con menu propio (cada 0,5 s y tras cada captura): hace lo que decidio MenuPs5Captura
+        void MenuPs5Tick(DateTime now)
+        {
+            bool enter = false, leave = false;
+            lock (homeSync)
+            {
+                int d = menuMaq.Decision;
+                if (homeBusy || passesBusy || relaunchSize != null || relaunchEngine || relevo != null) { }
+                else if (!InHome && cfg.HomeNativeEnabled && d > 0) enter = true;
+                else if (InHome && d < 0) leave = true;
+                else if (d != 0 && (d > 0) == InHome) menuMaq.Decision = 0; // (ya estaba: nada)
+            }
+            if (enter) MenuPs5Entrar();
+            else if (leave) MenuPs5Salir();
+            ApplyPending();
+        }
+
+        string Ps5Tarda()
+        {
+            DateTime a = ps5DecididoAt;
+            return a == DateTime.MinValue ? "" : " (" + (long)(DateTime.Now - a).TotalMilliseconds + " ms tras decidirlo)";
+        }
+
+        // Jugando, el menu de la PS5: a 4K nativo, sin Magpie, sin generacion ni Smooth Motion
+        void MenuPs5Entrar()
+        {
+            if (!cfg.HomeNativeEnabled || cfg.HomeNative || homeBusy || passesBusy || relaunchSize != null) return;
+            DateTime now = DateTime.Now;
+            lock (homeSync)
+            {
+                homeSeen = homeArrivedAt = now;
+                noLabel = 0; homeGame = null; labelNoName = false; homeInUse = false; homeDock = true;
+                ps5OutHits = ps5MenuHits = 0;
+                menuMaq.Hecho(now, true);
+            }
+            pendingPassesRestart = false;
+            bool sm = Config.EngineActive && Config.EngineSmoothRunning > 0;
+            Log.Write("Menu de la consola (la hora \"" + ps5Hora + "\" arriba): a 4K nativo a 60 fps, sin Magpie ni generacion" +
+                      (sm ? "; el motor lleva Smooth Motion: se vuelve a abrir sin el (el driver solo lo mira al abrirlo)" : ", sin Smooth Motion") +
+                      (curGame != null ? " (\"" + curGame + "\" sigue con sus ajustes guardados)" : "") + Ps5Tarda());
+            if (sm && cfg.EngineNow)
+            {
+                // Una sola vez: el motor nuevo se abre ya con la captura de 4K y sin Smooth Motion (Config.EngineSmoothMode = 0 en el menu)
+                lock (lsModeSync) cfg.HomeNative = true;
+                ReabrirMotorSmooth(0, "Menú", "4K nativo");
+                return;
+            }
+            StartHomeSwitch(true, MenuTexto, "4K nativo");
+        }
+
+        // Del menu de la PS5 al juego: los ajustes de toda la consola (su perfil, "Consola")
+        void MenuPs5Salir()
+        {
+            if (!cfg.HomeNative || homeBusy || passesBusy || relaunchSize != null) return;
+            lock (homeSync) { menuMaq.Hecho(DateTime.Now, false); ps5OutHits = ps5MenuHits = 0; }
+            Log.Write("Fuera del menu de la consola: al juego" + Ps5Tarda());
+            ConsolaPerfil c = Consolas.Actual;
+            enterSure = true;
+            enterConfirmed = true;
+            enterIcon = null;
+            EnterGame(c.PerfilConsola); // (cfg.HomeNative: LeaveHome, que mira MenuPs5SalirConMotor)
+        }
+
+        // LeaveHome, antes de StartHomeSwitch: con el menu de la PS5 a 4K y un juego que lleva Smooth Motion, el motor se abre una sola vez
+        // con todo lo del juego (si no, cambiaria sin el y se volveria a abrir enseguida para ponerlo: dos cortes). true = hecho
+        bool MenuPs5SalirConMotor(string title, string subtitle)
+        {
+            if (!Consolas.Actual.MenuPropio || !Config.EngineActive) return false;
+            bool wasHome = cfg.HomeNative;
+            PrepareCfg();
+            lock (lsModeSync) cfg.HomeNative = false;
+            bool engine = cfg.EngineNow;
+            int want = cfg.EngineSmoothMode;
+            if (!engine || want == Config.EngineSmoothRunning || Config.EngineSmoothRunning < 0)
+            {
+                lock (lsModeSync) cfg.HomeNative = wasHome; // (StartHomeSwitch lo cambia como siempre)
+                return false;
+            }
+            Log.Write("Al juego: lleva Smooth Motion (" + (want == 2 ? "sincronizacion cada 2 refrescos" : "modo 60") + ") y el motor del menu no: se abre una vez con todo");
+            ReabrirMotorSmooth(want, title, subtitle);
+            return true;
+        }
+    }
+}
