@@ -5,6 +5,18 @@ publicada es una etiqueta `vX.Y.Z` de git; GitHub Actions monta su zip y copia a
 
 ## [Sin publicar]
 
+## [1.0.3] - 2026-11-20
+
+### Arreglado
+- **DLSS 5 en el motor propio ya no parpadea al mover la cámara** en zonas lisas o con mucha luz (cielo, paredes claras). Con la captura
+  a 1440p o 4K el motor calculaba los vectores de movimiento en su modo ligero y lo liso se quedaba quieto en los paneos: DLSS 5 cogía la
+  imagen anterior del sitio equivocado. Ahora, con DLSS 5 en el modo 30, los vectores van completos (+~0,7 ms de gráfica a 4K). Medido con
+  la prueba de paralaje: temblor 1,55 → 0,42, casi igual que sin DLSS 5. `mv_ligero_dlss5=1` vuelve a lo de antes. *DLSS 5 in the
+  built-in engine no longer flickers on camera pans over flat or bright areas.*
+- **DLSS 5 + generación DLSS a la vez sin errores en la imagen**: la generación sigue con los vectores de siempre (los que le van bien
+  sola) y solo DLSS 5 recibe los completos (una segunda pasada del nivel fino; ~1 ms de gráfica en total a 4K). *DLSS 5 together with
+  DLSS frame generation no longer causes image errors.*
+
 ## [1.0.2] - 2026-11-20
 
 ### Añadido
