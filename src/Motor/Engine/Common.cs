@@ -91,6 +91,7 @@ namespace ConsoleEnhancer.Motor
         public float NrAntiFlickerMs = 80f;         // dlss5_antiparpadeo_ms: tiempo de la historia (exp(-t / esto))
         public int NrPct = 100;                     // dlss5_entrada: % de la entrada del motor con que trabaja DLSS 5 (25-100; el resto se suma ampliado)
         public float NrStrength = 1f;               // dlss5_fuerza: la "fuerza total" del nivel (residualMultiplier de Magpie): entrada + (DLSS 5 - entrada) x fuerza
+        public bool NrBlendDirect = true;           // 20-11 (LATENCIA7) dlss5_mezcla_directa=0: la mezcla a una textura aparte y su copia a inColor (como antes)
         public int NrStyle = 2, NrPreset = 2;
         public bool NrMask = true, NrUi = true;
         public string NrDir = "";   // ConsoleEnhancer: la carpeta magpie de la app (el lanzador la pasa con dlss5_dir)
@@ -112,6 +113,10 @@ namespace ConsoleEnhancer.Motor
         public string TestHolds = "";               // 16-11 (tirones): test_cadencia=30|caida|par|mezcla|alterno|20|45|60|<lista "2,2,3,1">: cadencia del juego de prueba
         public int TestGrabMs = 0;                  // 16-11 (tirones): test_grab_ms=1200: una captura "light" cada tanto, como el lanzador jugando (sin lanzador)
         public bool AsyncCopy = true;               // 16-11 (1440p): copia_asincrona=0: la descompresion lee la memoria de subida por PCIe (como antes)
+        public int CopyBands = 4;                   // 20-11 (LATENCIA7) copia_bandas=N: copia y subida de la captura por N bandas desde su hilo (EngineCopia.cs); 0 = como antes
+        public bool TestYuy2 = false;               // 20-11 (LATENCIA7) test_yuy2=1 (solo pruebas): la fuente de prueba en YUY2, como la PS5 a 4K
+        public bool DupThreads = true;              // 20-11 (LATENCIA7) repetidas_hilos=0: la comparacion de repetidas con un hilo (como antes; EngineCopia.cs)
+        public bool BandsGpu = true;                // 20-11 (LATENCIA7) bandas_grafica=1 (con copia_bandas): descompresion y bordes banda a banda segun suben (EngineCopia.cs)
         public string TestDump = "";                // 16-11 (prueba): test_volcado=<fichero>: la imagen descomprimida numero 120 a un fichero
         public bool KeepAwake = true;               // 16-11 (E): pantalla_despierta=0: Windows puede apagar la pantalla por inactividad jugando
         public int PowerExit = 42;                  // codigo de salida al apagarse la consola (el de mpv + script)
@@ -164,6 +169,13 @@ namespace ConsoleEnhancer.Motor
         public double MvCons = 0; public double MvConsTol = 1.0;   // 17-11 (REJAS): mvconsenso=N (niveles; vecinos de 5x5), mvconsenso_tol (px)
         public bool MvCapas = false; public double MvCapasTie = 1.5;   // mvcapas=1, mvcapas_empate=N (niveles)
         public bool CutMeans = false;              // corte_medias=1: el corte de escena con medias por casilla (no puntos sueltos)
+        // 20-11 (GIRO, CutGrid.cs / EngineGiro.cs): corte_giro=1 un giro rapido de la camara no es corte (se busca el desplazamiento que
+        // explica el cambio; con medias como corte_medias=1); corte_giro_umbral (niveles, con el desplazamiento). mvglobal=1 ese giro como
+        // candidato en el nivel grueso de los vectores (+-mvglobal_radio px a 1/8) y sin el castigo de mvlargo
+        public bool CutTurn = true; public double CutTurnThr = 20;
+        public bool MvGlobal = true; public int MvGlobalRadius = 4; public double MvGlobalMin = 64;   // mvglobal_min: solo con giros de N px de la entrada o mas
+        public int CutTest = 0;                    // corte_prueba=N (prueba): un corte de escena cada N imagenes (0 = no)
+        public bool MvLongCoarse = true;           // mvlargo_grueso=1: mvlargo no castiga lo que sigue al vector del nivel grueso (EngineGiro.cs)
         public int MvApert = 0;                    // mvapertura=R: cada componente, media pesada por su fiabilidad en los bloques de su capa a <= R
         public bool MvApertOutl = false;           // mvapertura_fuera=1: los bloques con 5 px de error en la componente que no se ve, a la media de su capa
         public bool MvConsStill = false;           // mvconsenso_quieto=1: el consenso no toca los bloques con vector 0
@@ -187,6 +199,24 @@ namespace ConsoleEnhancer.Motor
         // antiparpadeo siguen la historia con ellos y, ligeros, lo liso y con luz se quedaba a 0 al mover la camara (parpadeo; Magpie le
         // daba el flujo optico de NVIDIA). mv_ligero_dlss5=1 = como antes (ligeros tambien con DLSS 5)
         public bool MvLightDlss5 = false;
+        // 20-11 noche (coordinador, visto por LATENCIA7): a 4K nativo SIN generacion no se calculaban vectores (nadie mas los usa) y DLSS 5 y
+        // su antiparpadeo iban con vectores a 0 (mov_ms=0): el parpadeo de DLSS5VEC en el modo 30 sin FG. mv_nativo_dlss5=1 (de serie): con
+        // DLSS 5 en el modo 30 se calculan tambien a entrada = salida (~+4 ms a 4K, de 31 de tope); 0 = como antes
+        public bool MvNativeNr = true;
+        // 20-11 (SR45): mv_completo_sr=lista de modos (30 30fg 60 60fg 120, "todos"; 0 = ninguno, como antes) en los que DLSS SR al reescalar
+        // con la entrada de mv_ligero o mas (1440p) recibe los vectores completos (EngineMotion.cs MvFullForSr; la generacion sigue con los
+        // ligeros). mv_completo_sr_guarda=0: sin volver solo a los ligeros cuando la grafica no cabe en el tope del modo.
+        // mv_completo_sr_px=modelos (L de serie; "todos"; 0 = ninguno) que llevan mvpx en esos completos (con K/M mvpx da mas rastro)
+        public int MvFullSr = 1 | 2 | 4 | 8;
+        public bool MvSrGuard = true;
+        public string MvSrPx = "L";
+        static int MvModes(string v)
+        {
+            int m = 0;
+            foreach (string t in v.ToLowerInvariant().Split(new char[] { ',', ' ', ';', '|' }, StringSplitOptions.RemoveEmptyEntries))
+                m |= t == "30" ? 1 : t == "30fg" ? 2 : t == "60" ? 4 : t == "60fg" ? 8 : t == "120" ? 16 : t == "todos" ? 31 : 0;
+            return m;
+        }
         public bool MvSubEq = false;                // 17-11 15:50 mvsub=1: fraccion de pixel con dos rectas (SAD en V) en vez de parabola
         public bool MvLongRel = false;              // 17-11 15:40 mvlargo_rel=1: mvlargo castiga la distancia al vector de la imagen anterior (no a 0)
         public int ReflexLimitUs = 0;               // 17-11 15:15 reflex_limite=us: limite de Reflex (0 = el suyo)
@@ -195,6 +225,7 @@ namespace ConsoleEnhancer.Motor
         public bool FgVecSmooth = false;            // 17-11 15:10 fg_vectores_suave=1: fg_vectores=2 con interpolacion bilineal entre bloques (sin escalones de 8 px)
         public double FgVecGate = 0;                // 17-11 15:10 fg_vectores_puerta=px: fg_vectores=2, las muestras pesan menos cuanto mas se separan del vector del punto (0 = sin puerta)
         public int FgVecRad = 4;                    // 17-11 13:40 (REJAS) fg_vectores_radio=R: fg_vectores=2, (2R+1)^2 muestras cada 8 px
+        public int FgVecFull = 0;                   // 20-11 (FGFALLOS) fg_vectores_completos=1: DLSS-G con los vectores completos por punto del motor donde DLSS 5 ya los hace (modo 30, entrada >= mv_ligero); 2: tambien donde haya mvpx (EngineMotion.cs FgVecFullNow)
         public int FgUi = 0;                        // fgui=1: la generacion no deforma lo quieto con borde (UIAlpha); 2 UIColorAndAlpha; 3 NoWarpMask
         public bool FgMenus = false;                // fg_menus=1: DLSS-G with eEnableFullscreenMenuDetection (no generated frames over a fullscreen menu)
         public bool FgUiRecomp = false;             // fgui_recomp=1: recomposicion de la interfaz de DLSS-G
@@ -288,6 +319,7 @@ namespace ConsoleEnhancer.Motor
                 case "dlss5_mascara": NrMask = B(val); break;
                 case "dlss5_interfaz": NrUi = B(val); break;
                 case "dlss5_dir": NrDir = val.Trim(); break;
+                case "dlss5_mezcla_directa": NrBlendDirect = B(val); break;   // 20-11 (LATENCIA7, EngineDlss5.cs)
                 case "reflex": Reflex = I(val); break;
                 case "mode": Mode = I(val); break;
                 case "dedupe": Dedupe = val.Trim().ToLowerInvariant() == "auto" ? -1 : (B(val) ? 1 : 0); break;
@@ -306,6 +338,10 @@ namespace ConsoleEnhancer.Motor
                 case "test_cadencia": TestHolds = val.Trim().ToLowerInvariant(); break;
                 case "test_grab_ms": TestGrabMs = I(val); break;
                 case "copia_asincrona": AsyncCopy = B(val); break;
+                case "copia_bandas": CopyBands = Math.Max(0, Math.Min(16, I(val))); break;   // 20-11 (LATENCIA7, EngineCopia.cs)
+                case "test_yuy2": TestYuy2 = B(val); break;   // 20-11 (LATENCIA7, TestSource.cs)
+                case "repetidas_hilos": DupThreads = B(val); break;   // 20-11 (LATENCIA7, EngineCopia.cs)
+                case "bandas_grafica": BandsGpu = B(val); break;   // 20-11 (LATENCIA7, EngineCopia.cs)
                 case "test_volcado": TestDump = val.Trim(); break;
                 case "pantalla_despierta": KeepAwake = B(val); break;
                 case "vsync": Vsync = B(val); break;
@@ -352,6 +388,14 @@ namespace ConsoleEnhancer.Motor
                 case "mvcapas": MvCapas = B(val); break;
                 case "mvcapas_empate": MvCapasTie = D(val); break;
                 case "corte_medias": CutMeans = B(val); break;
+                case "corte_giro": CutTurn = B(val); break;                     // 20-11 (GIRO)
+                case "corte_giro_umbral": CutTurnThr = Math.Max(0, D(val)); break;
+                case "mvglobal": MvGlobal = B(val); break;
+                case "mvglobal_radio": MvGlobalRadius = Math.Max(0, Math.Min(12, I(val))); break;
+                case "mvglobal_min": MvGlobalMin = Math.Max(0, D(val)); break;
+                case "corte_prueba": CutTest = Math.Max(0, I(val)); break;
+                case "mvlargo_grueso": MvLongCoarse = B(val); break;
+                case "test_giro": { string[] pg = val.Split(','); TestSource.GiroScrollX = I(pg[0]); TestSource.GiroScrollY = pg.Length > 1 ? I(pg[1]) : 0; break; }
                 case "mvapertura": MvApert = Math.Max(0, I(val)); break;
                 case "mvapertura_fuera": MvApertOutl = B(val); break;
                 case "mvconsenso_quieto": MvConsStill = B(val); break;
@@ -388,7 +432,11 @@ namespace ConsoleEnhancer.Motor
                 case "mvlargo_rel": MvLongRel = B(val); break;
                 case "mvsub": MvSubEq = B(val); break;
                 case "mv_ligero": MvLightPx = Math.Max(0, (long)D(val)); break;
+                case "mv_completo_sr": MvFullSr = MvModes(val); break;   // 20-11 (SR45)
+                case "mv_completo_sr_guarda": MvSrGuard = B(val); break;
+                case "mv_completo_sr_px": MvSrPx = val.Trim().ToUpperInvariant(); break;
                 case "mv_ligero_dlss5": MvLightDlss5 = B(val); break;
+                case "mv_nativo_dlss5": MvNativeNr = B(val); break;   // 20-11 noche (coordinador)
                 case "fg_profundidad_borde": FgDepthEdge = D(val); break;
                 case "fg_profundidad_cerca": FgDepthNear = D(val); break;
                 case "fg_profundidad_lejos": FgDepthFar = D(val); break;
@@ -396,6 +444,7 @@ namespace ConsoleEnhancer.Motor
                 case "fgui": FgUi = I(val); break;
                 case "fgui_recomp": FgUiRecomp = B(val); break;
                 case "fg_menus": FgMenus = B(val); break;
+                case "fg_vectores_completos": FgVecFull = Math.Max(0, Math.Min(2, I(val))); break;   // 20-11 (FGFALLOS)
                 case "fgui_quieto": FgUiFrames = I(val); break;
                 case "fgui_mov": FgUiMov = D(val); break;
                 case "fgui_borde": FgUiEdge = D(val); break;
@@ -457,12 +506,17 @@ namespace ConsoleEnhancer.Motor
             if (FgDepth > 0) r += " fg_profundidad=" + FgDepth;
             if (FgUi > 0) r += " fgui=" + FgUi + (FgUiRecomp ? "+recomp" : "");
             if (FgMenus) r += " fg_menus";
+            if (FgVecFull > 0) r += " fg_vectores_completos=" + FgVecFull;   // 20-11 (FGFALLOS)
             if (MvTemporal) r += " mvtemporal";   // 17-11 (REJAS)
             if (MvCons > 0) r += string.Format(CultureInfo.InvariantCulture, " mvconsenso={0:0.0}", MvCons) + (MvConsAxis ? " mvconsenso_eje" : "");
             if (MvCapas) r += " mvcapas";
             if (MvEns > 0) r += " mvensancha=" + MvEns;
             if (MvApert > 0) r += " mvapertura=" + MvApert + (MvApertAmb > 0 ? string.Format(CultureInfo.InvariantCulture, " mvapertura_ambigua={0:0.00}", MvApertAmb) : "");
             if (CutMeans) r += " corte_medias";
+            if (CutTurn) r += string.Format(CultureInfo.InvariantCulture, " corte_giro={0:0}", CutTurnThr);   // 20-11 (GIRO)
+            if (MvGlobal) r += " mvglobal=" + MvGlobalRadius;
+            if (CutTest > 0) r += " corte_prueba=" + CutTest;
+            if (MvLongCoarse && MvLong > 0) r += " mvlargo_grueso";
             if (MvLong > 0) r += string.Format(CultureInfo.InvariantCulture, " mvlargo={0:0.000}", MvLong);
             if (MvSmooth > 0) r += string.Format(CultureInfo.InvariantCulture, " mvsuave={0:0.0}", MvSmooth);
             if (MvTruth > 0) r += " mvverdad=" + MvTruth;

@@ -52,7 +52,7 @@ float B(uint w, uint i) { return ((w >> (8 * i)) & 0xFF) / 255.0; }
 [numthreads(16, 8, 1)]
 void main(uint3 id : SV_DispatchThreadID)
 {
-    uint x0 = id.x * 4, y = id.y;
+    uint x0 = id.x * 4, y = id.y + Pad0;   // (20-11 LATENCIA7: Pad0 = primera fila, por bandas; H = la ultima + 1)
     if (x0 >= W || y >= H) return;
     uint row = y * Pitch;
     if (Fmt == 0)
@@ -473,9 +473,10 @@ float4 Run(int2 q)
 [numthreads(16, 8, 1)]
 void main(uint3 id : SV_DispatchThreadID)
 {
-    if (id.x >= W || id.y >= H) return;
+    uint2 p = uint2(id.x, id.y + Pad1.y);   // (20-11 LATENCIA7: Pad1.y = primera fila, Pad1.z = la ultima + 1; 0 = la imagen entera)
+    if (p.x >= W || p.y >= H || (Pad1.z > 0 && p.y >= Pad1.z)) return;
     pt = 1.0 / float2(W, H);
-    Out[id.xy] = On ? Run(int2(id.xy)) : float4(T(int2(id.xy)), 1);
+    Out[p] = On ? Run(int2(p)) : float4(T(int2(p)), 1);
 }";
 
         // ---- Movimiento (vectores para DLSS SR y la generacion): piramide de luma y busqueda por bloques de 8x8 ----
@@ -509,7 +510,8 @@ void main(uint3 id : SV_DispatchThreadID)
         // grueso y sus vecinos) y +-1 alrededor del mejor, comparando una ventana de 16x16 alrededor del bloque (antes: siempre 0).
         // Info = 1 (nivel fino, con las mascaras): u1 = por bloque (lo que queda tras mover por punto, textura, sin mover por punto, liso)
         public const string Search = @"
-cbuffer C : register(b0) { uint LW, LH, BX, BY; uint Radius, HasCoarse, CBX, CBY; uint Sub, Neighbors, FlatMode, Info; float ZeroBias, Flat, Noise, Exact; }
+cbuffer C : register(b0) { uint LW, LH; float GX, GY; uint Radius, HasCoarse, CBX, CBY; uint Sub, Neighbors, FlatMode, Info; float ZeroBias, Flat, Noise, Exact; }
+// 20-11 (GIRO): GX, GY = el giro de la camara en px de este nivel (Neighbors & 16; antes ahi iban BX, BY, que salen de LW, LH)
 Texture2D<float> Cur : register(t0);
 Texture2D<float> Prev : register(t1);
 Texture2D<float2> Coarse : register(t2);
@@ -548,6 +550,7 @@ float SadWide(int2 b, int2 d)
 [numthreads(8, 8, 1)]
 void main(uint3 id : SV_DispatchThreadID)
 {
+    uint BX = (LW + 7) / 8, BY = (LH + 7) / 8;   // (20-11 GIRO: como bx/by de EngineMotion.cs)
     if (id.x >= BX || id.y >= BY) return;
     int2 b = int2(id.xy) * 8;
     int2 mx = int2(LW - 1, LH - 1);
@@ -559,7 +562,7 @@ void main(uint3 id : SV_DispatchThreadID)
     [unroll] for (int i = 0; i < 64; i++) var += abs(c[i] - mean);
     var /= 64;
 
-    int2 cand[7];
+    int2 cand[8];
     int nc = 1;
     cand[0] = int2(0, 0);
     if (HasCoarse)
@@ -581,11 +584,19 @@ void main(uint3 id : SV_DispatchThreadID)
     // dos sitios que casan igual (el barrote de al lado) gana el que sigue el movimiento de antes, y el vector no salta de una imagen a otra
     int kt = 99;   // el candidato temporal: con +-2 como mucho (con el radio del nivel grueso, +-12, costaba +0,55 ms)
     if (Neighbors & 2) { kt = nc; cand[nc++] = int2(round(PrevMv.Load(int3(id.xy, 0)))); }
+    // 20-11 (GIRO, mvglobal=1, Neighbors & 32): el giro de la camara (CutGrid.cs) como candidato, +-(Radius >> 8) alrededor: con +-12
+    // alrededor de 0 el nivel grueso no llegaba a mas de 96 px de la entrada (un giro rapido a 4K: 150-400 px por imagen real)
+    int kg = 99;
+    if (Neighbors & 32) { kg = nc; cand[nc++] = int2(round(float2(GX, GY))); }
     // Zona lisa: no hay nada que buscar; el vector del nivel grueso (o 0)
     // (en el nivel fino, 0: el texto y la interfaz quietos no heredan el movimiento de alrededor)
     if (var < Flat)
     {
         float2 r0 = (HasCoarse && !Sub) ? float2(cand[1]) : float2(0, 0);
+        // 20-11 (GIRO): con la camara girando (Neighbors & 16), lo liso sigue al giro (en el nivel grueso el giro; en el fino, sin mvflat,
+        // el del nivel grueso): a 4K y con el desenfoque de movimiento del juego casi la mitad de los bloques de 8x8 son lisos y se
+        // quedaban a 0 en pleno giro (DLSS-G con fg_vectores=2 los mezcla con los de al lado: vectores cortos, la intermedia a medias)
+        if ((Neighbors & 16) && !(Sub && (FlatMode & 1))) r0 = HasCoarse ? float2(cand[1]) : float2(round(float2(GX, GY)));
         float res0 = 0, z0 = 0;
         if (Sub && (FlatMode & 1))
         {
@@ -621,23 +632,29 @@ void main(uint3 id : SV_DispatchThreadID)
     float2 pred = (Neighbors & 4) ? PrevMv.Load(int3(id.xy, 0)) : float2(0, 0);
     float best = 1e9;
     int2 bd = int2(0, 0);
-    int r = (int)Radius;
+    int r = (int)(Radius & 255);
+    bool giro = (Neighbors & 16) != 0;   // 20-11 (GIRO): mvlargo tampoco castiga lo que sigue al giro de la camara
     for (int k = 0; k < nc; k++)
     {
         int2 c0 = cand[k];
-        int rk = k == kt ? min(r, 2) : r;
+        int rk = k == kt ? min(r, 2) : k == kg ? (int)(Radius >> 8) : r;
         for (int dy = -rk; dy <= rk; dy++)
             for (int dx = -rk; dx <= rk; dx++)
             {
                 int2 d = c0 + int2(dx, dy);
-                float s = SadAt(b, d) + Pen * length(float2(d) - pred);
+                float dl = length(float2(d) - pred);
+                if (Neighbors & 64) dl = min(dl, length(float2(d - cand[1])));   // 20-11 (GIRO, mvlargo_grueso=1): ni lo que sigue al nivel grueso
+                if (giro) dl = min(dl, length(float2(d) - float2(GX, GY)));
+                float s = SadAt(b, d) + Pen * dl;
                 if (s < best) { best = s; bd = d; }
             }
     }
     float s0 = SadAt(b, int2(0, 0));
     float2 res = float2(bd);
     // (16-11: Noise = margen frente al ruido de la captura por punto, mvruido; 0 = como antes)
-    bool zero = s0 <= best * (1.0 + ZeroBias) + 0.02 + 64.0 * Noise;
+    // (20-11 GIRO: con la camara girando, sin la preferencia por 0 frente al ruido: en un giro rapido de algo poco texturado el 0 ganaba
+    // por el margen del ruido; lo quieto de verdad, como la interfaz, sigue ganando con 0 por si solo)
+    bool zero = (Neighbors & 16) ? s0 <= best + 0.02 : s0 <= best * (1.0 + ZeroBias) + 0.02 + 64.0 * Noise;
     if (Info) Inf[id.xy] = float4((zero ? s0 : best) / 64.0, var, s0 / 64.0, 0);
     if (zero) res = float2(0, 0);
     else if (Sub)

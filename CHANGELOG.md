@@ -5,6 +5,34 @@ publicada es una etiqueta `vX.Y.Z` de git; GitHub Actions monta su zip y copia a
 
 ## [Sin publicar]
 
+## [1.0.5] - 2026-11-20
+
+### Arreglado
+- **Giros rápidos de cámara con generación DLSS**: al girar deprisa parecía ir a 30 fps en vez de 30 + generación. Los vectores de
+  movimiento propios no llegaban a más de ~96 px por imagen (un giro rápido a 4K mueve 150-400 px) y el giro se tomaba a veces por un
+  corte de escena, tras el cual la generación no inventa la imagen intermedia. Ahora el motor estima el giro de la cámara y lo usa
+  como candidato en la búsqueda (paneo de 240 px a 4K: 91,8 % de vectores bien, antes 0 %), y un giro ya no es un corte (cortes de
+  verdad, menús y cargas se siguen viendo). *Fast camera turns no longer drop to 30 fps with DLSS frame generation: camera-pan
+  estimation for the motion vectors and no more false scene cuts while turning.*
+- **DLSS 4.5 (modelos L/M) al reescalar**: con captura de 1440p DLSS SR recibía los vectores "ligeros" y dejaba rastro y temblor
+  al mover la cámara. Ahora recibe los completos en todos los modos (temblor de bordes 2,52 → 0,97 con L), con una guarda que vuelve a
+  los ligeros si no caben antes de bajar el modelo. *DLSS 4.5 super resolution gets full motion vectors at 1440p (less trailing
+  and shimmer in motion).*
+- **DLSS 5 a 4K nativo sin generación**: no se calculaban vectores (nadie más los usaba) y DLSS 5 y su antiparpadeo iban con
+  vectores a cero en movimiento. Ahora se calculan en el modo 30 (`mv_nativo_dlss5=1`).
+
+### Mejorado
+- **Menos fallos en las imágenes que inventa la generación DLSS con DLSS 5** (`fg_vectores_completos=1` en `motor_extra`, de serie
+  en base.ini): la generación recibe los vectores completos por punto. Medido contra la interpolación ideal: -35 % de error
+  (interfaz arrastrada -73 %, bordes dobles -53 %) y ~1 ms menos de gráfica. *Fewer frame-generation artifacts with DLSS 5.*
+- **Latencia**: la captura se copia y sube a la gráfica por bandas, solapadas con la descompresión (`copia_bandas=4`,
+  `bandas_grafica=1`), y la mezcla de DLSS 5 escribe directamente en su destino. 4K + generación + DLSS 5: ~2 ms menos de la
+  llegada a verse la imagen (PresentMon), misma imagen byte a byte; 1440p -0,7 a -1 ms. *About 2 ms lower latency at 4K.*
+
+### Nota
+- La detección de menús de la generación (`fg_menus=1`, 1.0.4) solo actúa si el motor pasa la etiqueta de interfaz (`fgui=2`); con
+  la configuración de serie no cambia nada (tampoco estorba).
+
 ## [1.0.4] - 2026-11-20
 
 ### Arreglado

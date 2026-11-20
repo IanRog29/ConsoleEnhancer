@@ -455,3 +455,11 @@ base = .antes-dlss5vec de C:\Switch2Engine, sin conflictos).
   - fg_menus=1 (Common.cs, Engine.cs, EngineMotion.cs FgUiKey): DLSSGOptions.flags con eEnableFullscreenMenuDetection. En base.ini.
   - Banco en Prisma (RTX 4060 Ti, prueba banco_oot): 4K modo 30 + FG + DLSS 5 75 %: grafica 19,77 -> 19,77 ms, presentadas 2; 1440p K
     16,0 ms igual. Sin probar con la consola.
+
+20-11-2026 22:45 (NOCHE, para la v1.0.5): de Prisma, 4 agentes (GIRO, FGFALLOS, LATENCIA7, SR45) fusionados en C:\Switch2Engine\ag_FUSION;
+fusionar_e.ps1 -SoloMotor con base C:\Switch2Magpie\base_consoleenhancer\base_motor_20-11_2010\Engine (1 conflicto en EngineMotion.cs
+RecordMotion, resuelto: lo de CE con scalerNow + mv_nativo_dlss5). Nuevos: CutGrid.cs, EngineGiro.cs. base.ini: + fg_vectores_completos=1.
+  - Giros (corte_giro, mvglobal, mvlargo_grueso), vectores completos para DLSS SR (mv_completo_sr, _guarda, _px), copia por bandas
+    (copia_bandas, bandas_grafica, dlss5_mezcla_directa, repetidas_hilos), mv_nativo_dlss5: todo de serie en el motor.
+  - Detalle y medidas: C:\Switch2Engine\LEEME.txt (seccion del 20-11 noche). Lanzador sin cambios. Sin probar con la consola.
+  - Proxima fusion: base = base_motor_20-11_2245 (el motor de Prisma desplegado a las 22:42) y base_prisma_20-11_2010.

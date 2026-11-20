@@ -105,18 +105,68 @@ namespace ConsoleEnhancer.Motor
         // 16-11 (E, tirones a 1440p): mvpx solo por debajo de 1440p cuando hay generacion en el modo 60 (mvpx_auto=1, de serie). Medido a
         // 1440p con K: los vectores 2,37 ms con mvpx y 1,26 sin (+1,1 ms, no los 0,45 de arriba), y con la generacion de NVIDIA no cabia
         // (54 imagenes reales, 13 % dobles en la tele). mvpx_auto=0: mvpx como diga mvpx= siempre
-        bool MvPxNow { get { return s.MvPx && !MvLightNow && !(s.MvPxAuto && fgApplied && s.Mode == 60 && (long)inW * inH >= 2560L * 1440 * 9 / 10); } }
+        bool MvPxNow { get { return s.MvPx && !MvLightNow && !(s.MvPxAuto && fgApplied && s.Mode == 60 && (long)inW * inH >= 2560L * 1440 * 9 / 10) && !MvSrNoPx; } }   // (20-11 SR45: MvSrNoPx)
         // 17-11 17:35 (mv_ligero=N puntos): con la entrada de N puntos o mas (1440p entera) sin mvpx, mvflat, mvconsenso ni mvapertura (~0,8 ms):
         // asi cabe DLSS 4.5 con la captura de 1440p sin reducir (el usuario: "si pongo captura 1440p quiero que capture a 1440p")
         // 20-11 16:05 (DLSS5VEC): con DLSS 5 en el modo 30, completos (mv_ligero_dlss5=0, de serie): hay ~17 ms libres de los 33
-        bool MvLightNow { get { return MvLightSize && (mvForceLight || !MvFullForDlss5); } }
+        bool MvLightNow { get { return MvLightSize && (mvForceLight || !MvFullWanted); } }
         bool MvLightSize { get { return s.MvLightPx > 0 && (long)inW * inH >= s.MvLightPx; } }
         bool MvFullForDlss5 { get { return s.Nr && s.Mode == 30 && !s.MvLightDlss5; } }
+        // 20-11 (SR45): DLSS SR al reescalar (DLSS 4.5 L/M de 1440p a 4K) tambien con los completos en los modos de mv_completo_sr: con los
+        // ligeros el borde de lo que se mueve temblaba al mover la camara (paralaje 1440p -> 4K, temblor ligeros / completos: L 2,52 / 0,97,
+        // M 2,46 / 1,03, K 3,27 / 0,88; 1080p, que siempre los tuvo, L 0,92). La generacion sigue con los ligeros de siempre (la doble pasada
+        // de DLSS5VEC2/3 con fg_vectores=2; con fg_vectores=1 lee mvec y se quedan ligeros, como antes). Si no caben (AutoPresetTick ->
+        // MvSrFallback), vuelven a ser ligeros para ese modo y modelo
+        bool MvFullWanted { get { return MvFullForDlss5 || MvFullForSr; } }
+        bool MvFullForSr { get { return (s.MvFullSr & MvSrModeBit) != 0 && s.Upscaler == "dlss" && dlssOk && !dlssBroken && (inW != outW || inH != outH) && !(fgApplied && s.FgVec == 1) && !mvSrLight.Contains(MvSrKey); } }
+        int MvSrModeBit { get { return s.Is120 ? 16 : (s.Mode == 30 ? 1 : 4) << (fgApplied ? 1 : 0); } }   // (Common.cs MvModes: 30 30fg 60 60fg 120)
+        string MvSrKey { get { return CapKey + "|" + s.Preset; } }
+        readonly System.Collections.Generic.HashSet<string> mvSrLight = new System.Collections.Generic.HashSet<string>();
+        int mvSrSaid = -1;          // lo ultimo dicho al registro (0 nada, 1 ligeros, 2 completos)
+        double qMovLast;            // vectores y mascaras, ms de GPU (media del ultimo segundo)
+
+        // 20-11 (SR45): AutoPresetTick, antes de bajar el modelo. Con los completos solo por DLSS SR (no por DLSS 5): si quitarlos basta (lo que
+        // pasa del tope <= lo que ahorran, ~45 % de los vectores: 1440p 2,00 -> 1,16 ms) o con la generacion se pierden imagenes, vuelven los
+        // ligeros para este modo y modelo; si no basta baja el modelo como siempre (y el siguiente prueba con los completos)
+        bool MvSrFallback(double p95, double limit, bool lostFrames)
+        {
+            if (!s.MvSrGuard || !MvLightSize || !MvFullForSr || MvFullForDlss5) return false;
+            if (!lostFrames && p95 - limit > 0.45 * qMovLast + 0.1) return false;
+            mvSrLight.Add(MvSrKey);
+            Log.Write(string.Format(CultureInfo.InvariantCulture, "Vectores de DLSS SR: los completos no caben aqui (grafica p95 {0:0.0} ms, tope {1:0.0}, vectores {2:0.00} ms{3}): ligeros con {4} en este modo",
+                p95, limit, qMovLast, lostFrames ? "; con la generacion se pierden imagenes" : "", s.Preset));
+            return true;
+        }
+
+        // 20-11 (SR45): al registro, cuando cambian, los vectores que recibe DLSS SR con la entrada de mv_ligero o mas
+        void MvSrSay()
+        {
+            int st = s.Upscaler != "dlss" || inW <= 0 ? 0 : (inW == outW && inH == outH) ? 3 : !MvLightSize ? 0 : MvFullWanted ? 2 : 1;
+            if (st == mvSrSaid) return;
+            mvSrSaid = st;
+            // (con la entrada igual a la salida, 4K a 4K, DLSS SR no se usa: el "dlss L" de "Ajustes:" es solo lo pedido)
+            if (st == 3) Log.Write("DLSS SR: entrada = salida (" + inW + "x" + inH + "): no se usa (el modelo " + s.Preset + " de Ajustes no se aplica; solo DLSS 5 y la generacion)");
+            else if (st > 0) Log.Write("Vectores de DLSS SR (" + inW + "x" + inH + ", modo " + s.Mode + (fgApplied ? " + generacion" : "") + ", " + s.Preset + "): " +
+                (st == 2 ? "completos" + (MvFullForDlss5 ? " (DLSS 5)" : " (mv_completo_sr)") + (MvSrNoPx ? " sin mvpx" : "") + (fgApplied && s.FgVec >= 2 ? "; la generacion, los ligeros" : "") : "ligeros"));
+        }
+
+        // 20-11 (SR45): mv_completo_sr_px=L (de serie): en los completos solo por DLSS SR, mvpx solo con esos modelos. Paralaje 1440p, con /
+        // sin mvpx (temblor, total, detras = rastro): L 0,97 0,70 0,94 / 1,15 0,72 0,91 (mvpx mejor); K 0,88 0,99 1,61 / 0,98 0,92 1,26 y
+        // M 1,03 0,72 1,27 / 1,20 0,68 1,01 (con mvpx el cielo que destapa la reja se oscurece: mas rastro). Sin mvpx ~0,3 ms menos
+        bool MvSrNoPx { get { return MvLightSize && !MvFullForDlss5 && MvFullForSr && s.MvSrPx != "TODOS" && s.MvSrPx.IndexOf(s.Preset, StringComparison.Ordinal) < 0; } }
         // 20-11 16:15 (DLSS5VEC2): con DLSS 5 + DLSS-G a la vez la generacion con los completos daba errores (por separado bien): la generacion
         // sigue con los ligeros de siempre (primera pasada del nivel fino sin mvflat, sin consenso, expandidos sin mvpx -> mvecFg) y luego se
         // rehace el nivel fino completo solo para DLSS 5 (mvec). mvForceLight = en la primera pasada
         bool mvForceLight;
         bool fgVecDone;             // RecordFgVec ya hecho en esta imagen (con los ligeros)
+        // 20-11 (FGFALLOS) fg_vectores_completos=1: en ese mismo caso (DLSS 5, modo 30, entrada >= mv_ligero) DLSS-G recibe los vectores por
+        // punto COMPLETOS del motor (mvec, los de DLSS 5) en vez de los ligeros suavizados, y sin la doble pasada; =2: tambien donde el motor
+        // ya los hace completos (mvpx: 1080p, 1440p reducida). Medido (ag_FGFALLOS\tools\fgmide: paralaje con interfaz quieta, la inventada
+        // contra la interpolacion ideal de las dos reales vistas, en los mismos instantes): DLSS-G casi no usa unos vectores suaves (ligeros
+        // suavizados = a cero = uno global) y si los del punto: 4K + DLSS 5 -35 % (interfaz -73 %, borde -53 %, dentro de la reja peor
+        // 0,42 -> 0,90), 1440p + DLSS 5 -28 %, 1080p -24 %, con ruido -22 %; con los LIGEROS por punto, peor (+25 %): por eso solo con los
+        // completos. Necesita fg_profundidad (sin ella solo -8 %). GPU -1,2 ms a 4K (sin la doble pasada)
+        bool FgVecFullNow { get { return fgApplied && ((s.FgVecFull >= 1 && MvLightSize && MvFullForDlss5) || (s.FgVecFull >= 2 && MvPxNow)); } }
 
         void CreateMotionResources(int w, int h)
         {
@@ -246,6 +296,7 @@ namespace ConsoleEnhancer.Motor
             // 16-11 (d): en el nivel fino, preferencia por 0 frente al ruido (mvsesgo relativa, mvruido en niveles por punto)
             c[12] = F(k == 0 ? (float)s.MvZeroBias : 0.03f); c[13] = F(0.004f); c[14] = F(k == 0 ? (float)(s.MvNoise / 255.0) : 0f);
             c[15] = F(k == 0 ? (float)s.MvExact : 0f);   // 16-11 (mvexacto): sin medio pixel si el entero ya casa
+            GiroSearch(k, c);   // 20-11 (GIRO, mvglobal=1): el giro de la camara como candidato del nivel grueso (EngineGiro.cs)
             BindCompute(psoSearch, TSearch + cur * Levels + k, c, 16);
             list.Dispatch(Groups(bx[k], 8), Groups(by[k], 8), 1);
             Barrier(mvLevel[k], D3D12_RESOURCE_STATES.UNORDERED_ACCESS, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE);
@@ -259,11 +310,12 @@ namespace ConsoleEnhancer.Motor
             QFrameBegin();
             // Solo si alguien los usa: DLSS (captura mas pequeña que la salida) o la generacion. En el HOME a 4K nativo, nada
             // (18-11, MOTOR-CE: con fsr1 / catrom sin generacion no los usa nadie: tampoco)
-            bool on = s.Motion && newFrame && ((inW != outW || inH != outH) && scalerNow == "dlss" || fgApplied);
+            bool on = s.Motion && newFrame && ((inW != outW || inH != outH) && scalerNow == "dlss" || fgApplied || (s.MvNativeNr && s.Nr && s.Mode == 30));   // (1.0.5: mv_nativo_dlss5, DLSS 5 a 4K nativo sin FG)
             bool quality = on && QualityMotion;
             if (quality) EnsureQualityPsos();
             bool info = quality;    // el nivel fino escribe blockInfo (para las mascaras y la interfaz)
             int cur = motionSet;
+            if (newFrame) MvSrSay();   // 20-11 (SR45)
             if (on)
             {
                 QStamp(0);
@@ -280,7 +332,7 @@ namespace ConsoleEnhancer.Motor
                 if (motionValid && !frameReset)
                 {
                     // 20-11 16:15 (DLSS5VEC2): DLSS 5 + DLSS-G con la entrada de mv_ligero o mas: primero los ligeros para la generacion
-                    bool dual = MvLightSize && MvFullForDlss5 && fgApplied && s.FgVec >= 2 && mvecFg != null && !s.MvFixed;
+                    bool dual = MvLightSize && MvFullWanted && fgApplied && s.FgVec >= 2 && mvecFg != null && !s.MvFixed && !FgVecFullNow;   // (20-11 SR45: o DLSS SR; FGFALLOS: con fg_vectores_completos sin la doble pasada)
                     mvForceLight = dual;
                     for (int k = Levels - 1; k >= 0; k--) SearchLevel(cur, k, info && k == 0, c);
                     if (dual)
@@ -522,6 +574,7 @@ namespace ConsoleEnhancer.Motor
                 if ((s.ShowStats || s.BenchSecs > 0) && (qMovSecN > 0 || qUiSecN > 0))
                     Log.Write(string.Format(CultureInfo.InvariantCulture, "Calidad GPU: vectores y mascaras {0:0.000} ms ({1}), interfaz 4K {2:0.000} ms ({3}) | {4}",
                         qMovSecN > 0 ? qMovSec / qMovSecN : 0, qMovSecN, qUiSecN > 0 ? qUiSec / qUiSecN : 0, qUiSecN, QualityDescribe()));
+                if (qMovSecN > 0) qMovLast = qMovSec / qMovSecN;   // 20-11 (SR45): MvSrFallback
                 qMovSec = qUiSec = 0; qMovSecN = qUiSecN = 0;
                 qLogAt = Clock.Now;
             }
