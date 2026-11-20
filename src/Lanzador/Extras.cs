@@ -21,7 +21,7 @@ namespace ConsoleEnhancer
 {
     static class Apoyo
     {
-        public const string KoFi = "https://ko-fi.com/ianu29";
+        public const string KoFi = "https://ko-fi.com/ianrog29";
         public const string Repo = "https://github.com/ianu29/ConsoleEnhancer";
         public const string Releases = "https://github.com/ianu29/ConsoleEnhancer/releases";
 

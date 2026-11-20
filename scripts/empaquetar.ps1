@@ -178,14 +178,14 @@ Texto "$Destino\LEEME.txt" @(
     'Requisitos: Windows 10 2004 o posterior (64 bits), .NET Framework 4.8, grafica con Direct3D 12, una capturadora.',
     "Ayuda, problemas y codigo fuente: $webTxt",
     'Licencias: licencias\LEEME.txt. Extras no oficiales: extras\LEEME.txt. Sin garantia (GPL-3.0).',
-    'ConsoleEnhancer es gratis y completo. Si te es util y quieres apoyarlo (opcional): https://ko-fi.com/ianu29',
+    'ConsoleEnhancer es gratis y completo. Si te es util y quieres apoyarlo (opcional): https://ko-fi.com/ianrog29',
     '',
     'GETTING STARTED: open ConsoleEnhancer.exe. The first time it downloads mpv and Magpie (free programs the app uses) from their official',
     'pages (about 670 MB, once; offline: put their zips in a descargas\ folder next to the exe). Then a wizard detects your capture device,',
     'GPU and display, tests picture and sound and picks the best chain for your PC. Run it again from the tray menu, where you can also make',
     'it start with Windows and shut down the PC when the console is turned off. Unzip it into one of your own folders, not Program Files.',
     "Help, issues and source code: $webTxt. Licenses: licencias\LEEME.txt. No warranty (GPL-3.0).",
-    'ConsoleEnhancer is free and complete. If you find it useful and want to support it (optional): https://ko-fi.com/ianu29')
+    'ConsoleEnhancer is free and complete. If you find it useful and want to support it (optional): https://ko-fi.com/ianrog29')
 
 # ---- comprobaciones ----
 $noVan = @('nvngx_dlssnr.dll', 'DLSSNR-DLL-Options.zip', 'NGX_OTA_Switch.bat', 'switch2.ini', 'consoleenhancer.ini', 'hardware.txt', 'mpv.exe', 'Magpie.exe', 'PrismaNr.dll', 'PrismaNrTest.exe')
