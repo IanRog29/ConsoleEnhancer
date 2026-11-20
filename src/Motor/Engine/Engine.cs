@@ -805,7 +805,7 @@ namespace ConsoleEnhancer.Motor
                 SlDLSSGOptions g = SlDLSSGOptions.Create();
                 g.mode = fg ? SlDLSSGMode.eOn : SlDLSSGMode.eOff;
                 g.numFramesToGenerate = 1;
-                g.flags = SlDLSSGFlags.eRetainResourcesWhenOff;
+                g.flags = SlDLSSGFlags.eRetainResourcesWhenOff | (s.FgMenus ? SlDLSSGFlags.eEnableFullscreenMenuDetection : 0);   // (1.0.4: fg_menus)
                 g.numBackBuffers = BackBuffers;
                 g.mvecDepthWidth = (uint)inW; g.mvecDepthHeight = (uint)inH;
                 g.colorWidth = (uint)outW; g.colorHeight = (uint)outH;

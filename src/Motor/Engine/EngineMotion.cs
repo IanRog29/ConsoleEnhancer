@@ -437,7 +437,7 @@ namespace ConsoleEnhancer.Motor
 
         // Formato de la interfaz para DLSSGOptions.uiBufferFormat (0 = sin interfaz)
         uint UiBufferFormat() { return s.FgUi == 2 ? (uint)ColorFmt : s.FgUi > 0 ? (uint)DXGI_FORMAT.R8_UNORM : 0u; }
-        int FgUiKey() { return s.FgUi * 10 + (s.FgUiRecomp ? 1 : 0); }
+        int FgUiKey() { return s.FgUi * 10 + (s.FgUiRecomp ? 1 : 0) + (s.FgMenus ? 100 : 0); }
 
         void UiOutViews()
         {

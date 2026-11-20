@@ -196,6 +196,7 @@ namespace ConsoleEnhancer.Motor
         public double FgVecGate = 0;                // 17-11 15:10 fg_vectores_puerta=px: fg_vectores=2, las muestras pesan menos cuanto mas se separan del vector del punto (0 = sin puerta)
         public int FgVecRad = 4;                    // 17-11 13:40 (REJAS) fg_vectores_radio=R: fg_vectores=2, (2R+1)^2 muestras cada 8 px
         public int FgUi = 0;                        // fgui=1: la generacion no deforma lo quieto con borde (UIAlpha); 2 UIColorAndAlpha; 3 NoWarpMask
+        public bool FgMenus = false;                // fg_menus=1: DLSS-G with eEnableFullscreenMenuDetection (no generated frames over a fullscreen menu)
         public bool FgUiRecomp = false;             // fgui_recomp=1: recomposicion de la interfaz de DLSS-G
         public int FgUiFrames = 4;                  // fgui_quieto: imagenes quieto
         public double FgUiMov = 0.3, FgUiEdge = 0.08;   // fgui_mov: fraccion de la escena que se mueve; fgui_borde: contraste del borde
@@ -394,6 +395,7 @@ namespace ConsoleEnhancer.Motor
                 case "fg_vectores_puerta": FgVecGate = Math.Max(0, D(val)); break;
                 case "fgui": FgUi = I(val); break;
                 case "fgui_recomp": FgUiRecomp = B(val); break;
+                case "fg_menus": FgMenus = B(val); break;
                 case "fgui_quieto": FgUiFrames = I(val); break;
                 case "fgui_mov": FgUiMov = D(val); break;
                 case "fgui_borde": FgUiEdge = D(val); break;
@@ -454,6 +456,7 @@ namespace ConsoleEnhancer.Motor
             if (FgVec != 1) r += " fg_vectores=" + FgVec;
             if (FgDepth > 0) r += " fg_profundidad=" + FgDepth;
             if (FgUi > 0) r += " fgui=" + FgUi + (FgUiRecomp ? "+recomp" : "");
+            if (FgMenus) r += " fg_menus";
             if (MvTemporal) r += " mvtemporal";   // 17-11 (REJAS)
             if (MvCons > 0) r += string.Format(CultureInfo.InvariantCulture, " mvconsenso={0:0.0}", MvCons) + (MvConsAxis ? " mvconsenso_eje" : "");
             if (MvCapas) r += " mvcapas";

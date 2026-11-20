@@ -352,7 +352,7 @@ void main(uint3 id : SV_DispatchThreadID) {
                 Barrier(nrDepth, D3D12_RESOURCE_STATES.UNORDERED_ACCESS, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE);
             }
             ID3D12Resource srcIn = reduced ? nrIn : inColor, mvIn = reduced ? nrMv : mvec, dpIn = reduced ? nrDepth : depth;
-            bool reset = nrReset || resetHistory;
+            bool reset = nrReset || frameReset;   // (1.0.4) resetHistory is already false here (Run copies it to frameReset before RenderFrame): DLSS 5 never saw scene cuts
             // Las pasadas: cada una sobre la salida de la anterior, con su fuerza
             for (int i = 0; i < nrPasses; i++)
             {
