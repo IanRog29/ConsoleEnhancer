@@ -8,6 +8,13 @@ publicada es una etiqueta `vX.Y.Z` de git; GitHub Actions monta su zip y copia a
 ## [1.0.6] - 2026-11-21
 
 ### Arreglado
+- **Fallos visuales de la generación DLSS desde la 1.0.5** (a 4K y a 1440p): con los vectores completos por punto, las zonas lisas
+  (cielo, asfalto, paredes, sombras) llevaban vector 0 aunque se movieran (en un paneo de GTA, el 22 % de los bloques) y la generación
+  las dejaba quietas, rompiendo los bordes de lo que se movía junto a ellas. Ahora, solo para la generación, lo liso a 0 sigue a lo que
+  tiene alrededor si casa igual de bien con la imagen anterior (la interfaz quieta se queda en 0): vectores bien 77,5 % → 98,7 % en
+  ese paneo, y la imagen inventada un 18 % mejor medida en la tele (33 % en lo rápido) sin empeorar la interfaz. `fg_relleno=0` lo
+  quita. *DLSS frame generation glitches since 1.0.5: flat areas got zero motion vectors; they now follow their surroundings, for
+  frame generation only.*
 - **Sonido doble (eco) con la AVerMedia GC573 y otras capturadoras**: el sonido de la consola se oía dos veces cuando otro camino lo
   reproducía a la vez que la app. Ahora, mientras suena por la app: se quita *Escuchar este dispositivo* de Windows en la entrada de la
   capturadora (se devuelve al salir, también tras un cierre de golpe), se cierra el audio de una sesión anterior que siguiera sonando
