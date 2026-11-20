@@ -378,7 +378,31 @@ namespace ConsoleEnhancer.Motor
         {
             lock (latOnFrameLock)
                 return string.Format(CultureInfo.InvariantCulture, "\tantes_copia={0:0.00}/{1:0.00}\tcopia={2:0.00}/{3:0.00}\tcopia_hilos={4}",
-                    LAvg(latBPre), LPct(latBPre, 0.95), LAvg(latBCopy), LPct(latBCopy, 0.95), CopyThreadsSet > 0 ? CopyThreadsSet : CopyThreads);
+                    LAvg(latBPre), LPct(latBPre, 0.95), LAvg(latBCopy), LPct(latBCopy, 0.95), CopyThreadsSet > 0 ? CopyThreadsSet : CopyThreads) +
+                    "\tcopia_bandas=" + capBandsUsed +   // 20-11 (LATENCIA7, EngineCopia.cs)
+                    string.Format(CultureInfo.InvariantCulture, "\tllegada_fin_grafica={0:0.00}/{1:0.00}", LAvg(latBGpuEnd), LPct(latBGpuEnd, 0.95));
+        }
+
+        // 20-11 (LATENCIA7): de la llegada de cada imagen real a que la grafica acaba su lista (la marca de tiempo del final pasada a la hora
+        // de la CPU con GetClockCalibration): lo que mide la tanda sin la tele (sin la generacion de NVIDIA, que va despues, ni la pantalla).
+        // Solo en el banco. Run: LatGpuEnd con la marca de la vez anterior de la lista fi (ya acabada), latFiArrival al enviarla
+        readonly long[] latFiArrival = new long[FramesInFlight];
+        readonly List<double> latBGpuEnd = new List<double>();
+        long latCalAt; ulong latCalGpu, latCalCpu;
+        void LatGpuEnd(int fi, ulong tEnd)
+        {
+            long a = latFiArrival[fi];
+            latFiArrival[fi] = 0;
+            if (a == 0 || tEnd == 0 || !stats.Recording || tsFreq <= 0) return;
+            if (latCalAt == 0 || Clock.SinceMs(latCalAt) > 1000)
+            {
+                ulong g, c;
+                if (queue.GetClockCalibration(out g, out c) >= 0) { latCalGpu = g; latCalCpu = c; latCalAt = Clock.Now; }
+            }
+            if (latCalAt == 0) return;
+            double end = latCalCpu + ((double)tEnd - latCalGpu) * System.Diagnostics.Stopwatch.Frequency / tsFreq;
+            double ms = (end - a) * Clock.TickMs;
+            if (ms > 0 && ms < 500) latBGpuEnd.Add(ms);
         }
     }
 }

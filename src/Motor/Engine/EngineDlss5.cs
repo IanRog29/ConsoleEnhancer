@@ -57,6 +57,30 @@ void main(uint3 id : SV_DispatchThreadID)
     float3 d = B.SampleLevel(Lin, uv, 0).rgb - Cin.SampleLevel(Lin, uv, 0).rgb;
     Out[id.xy] = float4(saturate(a + d * K), 1);
 }";
+        // 20-11 (LATENCIA7, dlss5_mezcla_directa=1): la misma mezcla escrita en inColor (UAV, cada hilo lee y escribe su punto): sin la
+        // textura nrBlend ni su copia a inColor (a 4K, 33 MB leidos y escritos de mas por imagen). P0 = 1 con la entrada reducida (Cin =
+        // nrIn); 0 al 100 % (Cin era inColor en el mismo punto: = a)
+        const string NrBlendDirectShader = @"
+cbuffer C : register(b0) { uint W, H, P0, P1; float K, Q0, Q1, Q2; uint4 Pad1; uint4 Pad2; }
+Texture2D<float4> B : register(t1);
+Texture2D<float4> Cin : register(t2);
+RWTexture2D<unorm float4> Io : register(u0);
+SamplerState Lin : register(s0);
+[numthreads(16, 8, 1)]
+void main(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= W || id.y >= H) return;
+    float2 uv = (id.xy + 0.5) / float2(W, H);
+    float3 a = Io[id.xy].rgb;
+    float3 c = a;
+    if (P0 != 0) c = Cin.SampleLevel(Lin, uv, 0).rgb;
+    float3 d = B.SampleLevel(Lin, uv, 0).rgb - c;
+    Io[id.xy] = float4(saturate(a + d * K), 1);
+}";
+        ID3D12PipelineState psoNrBlendD;   // 20-11 (LATENCIA7)
+        bool nrDirect;                     // 20-11 (LATENCIA7): como se creo (mezcla directa en inColor)
+        bool nrDirectBroken;               // 20-11 (LATENCIA7): su shader no se pudo crear (se sigue con la de antes)
+        bool DirectBlendNow() { return s.NrBlendDirect && !nrDirectBroken; }
         const string NrPrepShader = @"
 cbuffer C : register(b0) { uint W, H, SW, SH; float S, Q0, Q1, Q2; uint4 Pad1; uint4 Pad2; }
 Texture2D<float2> Mv : register(t0);
@@ -271,7 +295,7 @@ void main(uint3 id : SV_DispatchThreadID) {
             int passes = Math.Max(1, Math.Min(3, s.NrPasses)), af = Math.Max(0, Math.Min(3, s.NrAntiFlicker));
             Dlss5Caps(ref passes, ref pct);   // 20-11 (CIERRES): lo que el guardian ha bajado aqui
             int w = pct >= 100 ? inW : Math.Max(64, (inW * pct / 100) & ~1), h = pct >= 100 ? inH : Math.Max(64, (inH * pct / 100) & ~1);
-            if (nrW != w || nrH != h || nrSrcW != inW || nrSrcH != inH || nrPasses != passes || nrAf != af || nrOuts[0] == null || !ReferenceEquals(nrInColor, inColor))
+            if (nrW != w || nrH != h || nrSrcW != inW || nrSrcH != inH || nrPasses != passes || nrAf != af || nrOuts[0] == null || !ReferenceEquals(nrInColor, inColor) || nrDirect != DirectBlendNow())   // (20-11 LATENCIA7: + dlss5_mezcla_directa)
             {
                 // Crear (o recrear) todo a este tamaño: esta imagen va sin DLSS 5 (la creacion va en esta lista, la evaluacion en la siguiente)
                 // 20-11 (CIERRES): antes de soltar nada, la grafica tiene que haber acabado las imagenes anteriores (FramesInFlight), que usan
@@ -289,7 +313,13 @@ void main(uint3 id : SV_DispatchThreadID) {
                 bool small = w != inW || h != inH;
                 for (int i = 0; i < passes; i++)
                     nrOuts[i] = Tex(ColorFmt, w, h, true, D3D12_RESOURCE_STATES.UNORDERED_ACCESS, "DLSS 5 (salida de la pasada " + (i + 1) + ")");
-                nrBlend = Tex(ColorFmt, inW, inH, true, D3D12_RESOURCE_STATES.UNORDERED_ACCESS, "DLSS 5 (con la fuerza)");
+                bool direct = DirectBlendNow();   // 20-11 (LATENCIA7): sin nrBlend (la mezcla va a inColor)
+                if (direct && psoNrBlendD == null)
+                {
+                    try { psoNrBlendD = Pso(CompileCs("nrblenddirect", NrBlendDirectShader)); }
+                    catch (Exception ex) { nrDirectBroken = true; direct = false; Log.Write("DLSS 5: mezcla directa no disponible (" + ex.Message + "): con la copia de antes"); }
+                }
+                if (!direct) nrBlend = Tex(ColorFmt, inW, inH, true, D3D12_RESOURCE_STATES.UNORDERED_ACCESS, "DLSS 5 (con la fuerza)");
                 if (small)
                 {
                     nrIn = Tex(ColorFmt, w, h, true, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, "DLSS 5 (entrada reducida)");
@@ -318,8 +348,10 @@ void main(uint3 id : SV_DispatchThreadID) {
                     if (psoNrAf == null) psoNrAf = Pso(CompileCs("nrantiparpadeo", NrAntiFlickerShader));
                     afPing = 0; afLastTick = 0;
                 }
-                SrvTex(TNr, 0, inColor, ColorFmt); SrvTex(TNr, 1, af > 0 ? afOut : rawC, ColorFmt); SrvTex(TNr, 2, src, ColorFmt); UavTex(TNr, U0, nrBlend, ColorFmt);
+                if (direct) { SrvTex(TNr, 0, rawC, ColorFmt); SrvTex(TNr, 1, af > 0 ? afOut : rawC, ColorFmt); SrvTex(TNr, 2, small ? src : rawC, ColorFmt); UavTex(TNr, U0, inColor, ColorFmt); }   // (20-11 LATENCIA7: inColor solo como UAV)
+                else { SrvTex(TNr, 0, inColor, ColorFmt); SrvTex(TNr, 1, af > 0 ? afOut : rawC, ColorFmt); SrvTex(TNr, 2, src, ColorFmt); UavTex(TNr, U0, nrBlend, ColorFmt); }
                 if (psoNrBlend == null) psoNrBlend = Pso(CompileCs("nrblend2", NrBlendShader));
+                nrDirect = direct;
                 for (int i = keep; i < passes; i++)
                     if (PrismaNr.PNR_CreateN(i, cl, (uint)w, (uint)h, s.NrPreset) == 0) { nrW = 0; NrFail("PNR_Create " + w + "x" + h + " (pasada " + (i + 1) + "): " + PrismaNr.LastError()); return; }
                 nrW = w; nrH = h; nrSrcW = inW; nrSrcH = inH; nrPasses = passes; nrAf = af; nrReset = true; nrInColor = inColor;
@@ -403,6 +435,18 @@ void main(uint3 id : SV_DispatchThreadID) {
                 Barrier(afOut, D3D12_RESOURCE_STATES.UNORDERED_ACCESS, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE);
             }
             // El resultado vuelve a inColor (lo que leen DLSS SR / el escalado / CAS / la generacion), con la fuerza y ampliado si hace falta
+            if (nrDirect)
+            {
+                // 20-11 (LATENCIA7, dlss5_mezcla_directa=1): directamente en inColor, sin nrBlend ni la copia
+                c[0] = (uint)inW; c[1] = (uint)inH; c[2] = reduced ? 1u : 0u; c[3] = 0; c[4] = F(s.NrStrength); c[5] = 0; c[6] = 0; c[7] = 0;
+                Barrier(inColor, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.UNORDERED_ACCESS);
+                BindCompute(psoNrBlendD, TNr, c, 8);
+                list.Dispatch(Groups(inW, 16), Groups(inH, 8), 1);
+                Barrier(inColor, D3D12_RESOURCE_STATES.UNORDERED_ACCESS, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE);
+                if (nrAf > 0) Barrier(afOut, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.UNORDERED_ACCESS);
+                Barrier(raw, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.UNORDERED_ACCESS);
+                return;
+            }
             c[0] = (uint)inW; c[1] = (uint)inH; c[2] = 0; c[3] = 0; c[4] = F(s.NrStrength); c[5] = 0; c[6] = 0; c[7] = 0;
             BindCompute(psoNrBlend, TNr, c, 8);
             list.Dispatch(Groups(inW, 16), Groups(inH, 8), 1);

@@ -222,10 +222,63 @@ namespace ConsoleEnhancer.Motor
             }
         }
 
+        // 20-11 (FGFALLOS) test_hud=1 con test=paralaje: interfaz QUIETA encima (texto blanco con borde oscuro, un panel oscuro
+        // semitransparente con marco blanco y una cruz), para medir si la generacion (DLSS-G) la arrastra con el fondo que se mueve.
+        // Geometria a 4K; a otra captura se muestrea en el centro de cada punto. La usa tambien la herramienta de medida (fgmide)
+        public static bool Hud;
+        public static void HudAt(int X, int Y, out double a, out double v)
+        {
+            a = 0; v = 0;
+            // tres lineas de "letras" (cajas de 18x34 cada 26 px, con huecos de palabra) con borde oscuro de 3 px
+            if (X >= 1317 && X < 1843 && Y >= 797 && Y < 947)
+            {
+                int line = (Y - 797) / 50, yl = (Y - 797) % 50;
+                if (yl < 40)
+                {
+                    int g = (X - 1317) / 26, xl = (X - 1317) % 26;
+                    bool gap = (g * 7 + line * 3) % 9 == 4 || g >= 20 - line * 3;
+                    if (!gap && xl < 24)
+                    {
+                        bool core = xl >= 3 && xl < 21 && yl >= 3 && yl < 37;
+                        a = 1; v = core ? 235 : 18;
+                        return;
+                    }
+                }
+            }
+            // panel (minimapa): marco blanco de 4 px y dentro negro al 55 %, con una flecha blanca quieta
+            if (X >= 2150 && X < 2500 && Y >= 1050 && Y < 1350)
+            {
+                if (X < 2154 || X >= 2496 || Y < 1054 || Y >= 1346) { a = 1; v = 240; return; }
+                int dx = X - 2325, dy = Y - 1200;
+                if (dy >= -24 && dy <= 24 && Math.Abs(dx) <= (dy + 24) / 2) { a = 1; v = 230; return; }
+                a = 0.55; v = 8; return;
+            }
+            // cruz del centro (2 px)
+            if ((Math.Abs(X - 1920) <= 1 && Math.Abs(Y - 1080) <= 22 && Math.Abs(Y - 1080) >= 6) || (Math.Abs(Y - 1080) <= 1 && Math.Abs(X - 1920) <= 22 && Math.Abs(X - 1920) >= 6)) { a = 1; v = 225; return; }
+        }
+
+        unsafe void DrawHud(byte* dst, int w, int h, int pitch)
+        {
+            double k = (double)W4 / w, kh = (double)H4 / h;
+            int x0 = (int)(1300 / k), x1 = Math.Min(w, (int)(2520 / k) + 2), y0 = (int)(780 / kh), y1 = Math.Min(h, (int)(1360 / kh) + 2);
+            for (int y = y0; y < y1; y++)
+            {
+                byte* row = dst + (long)y * pitch;
+                int Y = (int)((y + 0.5) * kh);
+                for (int x = x0; x < x1; x++)
+                {
+                    double a, v; HudAt((int)((x + 0.5) * k), Y, out a, out v);
+                    if (a <= 0) continue;
+                    for (int c = 0; c < 3; c++) row[x * 3 + c] = Clamp8(row[x * 3 + c] * (1 - a) + v * a);
+                }
+            }
+        }
+
         // La imagen n (capturada) en BGR24 de w x h con 'pitch' bytes por fila: 4K reducida por area + ruido de +-noise niveles
         public unsafe void Compose(long n, byte* dst, int w, int h, int pitch, int noise)
         {
             ComposeLayers(n, dst, w, h, pitch, noise);
+            if (Hud) DrawHud(dst, w, h, pitch);   // 20-11 (FGFALLOS)
             DrawCode(n, dst, w, h, pitch);
         }
 
@@ -286,6 +339,47 @@ namespace ConsoleEnhancer.Motor
                                 row[x * 3] = (byte)(vb < 0 ? 0 : vb > 255 ? 255 : vb);
                                 row[x * 3 + 1] = (byte)(vg < 0 ? 0 : vg > 255 ? 255 : vg);
                                 row[x * 3 + 2] = (byte)(vr < 0 ? 0 : vr > 255 ? 255 : vr);
+                            }
+                        }
+                });
+                return;
+            }
+            if (w == W4 && h == H4)
+            {
+                // 20-11 (FGFALLOS): a 4K, cada punto es el suyo (sin reducir): 43 -> pocos ms por imagen (el modo 30 a 4K no llegaba a 30)
+                Parallel.For(0, nb * 2, delegate (int part)
+                {
+                    int rp2 = (h + nb * 2 - 1) / (nb * 2);
+                    fixed (byte* bgp = Bg, fsp = FgShade, fap = FgAlpha)
+                        for (int y = part * rp2; y < Math.Min(h, (part + 1) * rp2); y++)
+                        {
+                            byte* row = (byte*)dp + (long)y * pitch;
+                            int bj = Math.Max(0, Math.Min(bgH - 1, y + by - bgY0)), fj = Math.Max(0, Math.Min(fgH - 1, y + fy - fgY0));
+                            byte* pb = bgp + ((long)bj * bgW + bx - bgX0) * 3;
+                            byte* ps = fsp + (long)fj * fgW + fx - fgX0, pa = fap + (long)fj * fgW + fx - fgX0;
+                            if (noise == 0)
+                            {
+                                for (int X = 0; X < W4; X++)
+                                {
+                                    int a = pa[X], X3 = X * 3;
+                                    if (a == 0) { row[X3] = pb[X3]; row[X3 + 1] = pb[X3 + 1]; row[X3 + 2] = pb[X3 + 2]; continue; }
+                                    int ia = 255 - a, s = ps[X];
+                                    row[X3] = (byte)((pb[X3] * ia + (s + 7) * a + 127) / 255);
+                                    row[X3 + 1] = (byte)((pb[X3 + 1] * ia + (s + 3) * a + 127) / 255);
+                                    row[X3 + 2] = (byte)((pb[X3 + 2] * ia + s * a + 127) / 255);
+                                }
+                                continue;
+                            }
+                            uint rng = (uint)(n * 7919 + y * 104729 + 12345) | 1u;
+                            int span = 2 * noise + 1;
+                            for (int X = 0; X < W4; X++)
+                            {
+                                int a = pa[X], ia = 255 - a, s = ps[X], X3 = X * 3;
+                                int vb = (pb[X3] * ia + (s + 7) * a + 127) / 255, vg = (pb[X3 + 1] * ia + (s + 3) * a + 127) / 255, vr = (pb[X3 + 2] * ia + s * a + 127) / 255;
+                                rng ^= rng << 13; rng ^= rng >> 17; rng ^= rng << 5; vb += (int)(rng % (uint)span) - noise;
+                                rng ^= rng << 13; rng ^= rng >> 17; rng ^= rng << 5; vg += (int)(rng % (uint)span) - noise;
+                                rng ^= rng << 13; rng ^= rng >> 17; rng ^= rng << 5; vr += (int)(rng % (uint)span) - noise;
+                                row[X3] = (byte)(vb < 0 ? 0 : vb > 255 ? 255 : vb); row[X3 + 1] = (byte)(vg < 0 ? 0 : vg > 255 ? 255 : vg); row[X3 + 2] = (byte)(vr < 0 ? 0 : vr > 255 ? 255 : vr);
                             }
                         }
                 });

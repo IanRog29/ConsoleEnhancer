@@ -27,6 +27,7 @@ namespace ConsoleEnhancer.Motor
         readonly int w, h, num, den, gameFps;
         readonly string image;
         public bool Scroll = true;
+        public static int GiroScrollX, GiroScrollY;   // 20-11 (GIRO) test_giro=px,py: paneo de px por imagen (prueba de giros rapidos; 0 = el de siempre)
         public bool Hud = false;
         public string Overlay = "";   // test_capa=<png con alfa>: encima de la imagen, quieta (un HUD sobre el fondo que se mueve)
         public int Noise = 0;          // 16-11 noche: test_ruido=N, +-N niveles nuevos en cada imagen (el ruido de la capturadora)
@@ -129,6 +130,7 @@ namespace ConsoleEnhancer.Motor
                 finally { b.UnlockBits(d); }
             }
             frame = Marshal.AllocHGlobal(pitch * h);
+            if (Yuy2) BuildYuy2();   // 20-11 (LATENCIA7): test_yuy2
             LoadOverlay();
             if (ImageB.Length > 0 && System.IO.File.Exists(ImageB))
             {
@@ -167,6 +169,45 @@ namespace ConsoleEnhancer.Motor
             thread.Start();
         }
 
+        // 20-11 (LATENCIA7) test_yuy2=1 (solo pruebas): la imagen de prueba en YUY2 (BT.709 de rango limitado, lo que lee la descompresion),
+        // como la PS5 a 4K por la GC573 (16,6 MB por imagen en vez de los 24,9 de BGR24): para medir la copia y la subida de verdad
+        public bool Yuy2;
+        byte[] srcY;
+        void BuildYuy2()
+        {
+            int pY = w * 2;
+            srcY = new byte[(long)pY * h];
+            byte[] s0 = src, d0 = srcY;
+            int sp = pitch;
+            System.Threading.Tasks.Parallel.For(0, h, delegate (int y)
+            {
+                for (int x = 0; x + 1 < w; x += 2)
+                {
+                    int o = y * sp + x * 3, d = y * pY + x * 2;
+                    float b0 = s0[o] / 255f, g0 = s0[o + 1] / 255f, r0 = s0[o + 2] / 255f, b1 = s0[o + 3] / 255f, g1 = s0[o + 4] / 255f, r1 = s0[o + 5] / 255f;
+                    float y0 = 0.2126f * r0 + 0.7152f * g0 + 0.0722f * b0, y1 = 0.2126f * r1 + 0.7152f * g1 + 0.0722f * b1;
+                    float ym = (y0 + y1) * 0.5f, u = ((b0 + b1) * 0.5f - ym) / 1.8556f, v = ((r0 + r1) * 0.5f - ym) / 1.5748f;
+                    d0[d] = (byte)(16 + y0 * 219 + 0.5f); d0[d + 1] = (byte)Math.Max(16, Math.Min(240, 128 + u * 224 + 0.5f));
+                    d0[d + 2] = (byte)(16 + y1 * 219 + 0.5f); d0[d + 3] = (byte)Math.Max(16, Math.Min(240, 128 + v * 224 + 0.5f));
+                }
+            });
+        }
+        unsafe void ComposeYuy2(int dx, int dy)
+        {
+            int pY = w * 2;
+            fixed (byte* s = srcY)
+            {
+                byte* dst = (byte*)frame;
+                for (int y = 0; y < h; y++)
+                {
+                    byte* srow = s + (long)((y + dy) % h) * pY, drow = dst + (long)y * pY;
+                    int first = (w - dx) * 2;
+                    Buffer.MemoryCopy(srow + dx * 2, drow, first, first);
+                    Buffer.MemoryCopy(srow, drow + first, dx * 2, dx * 2);
+                }
+            }
+        }
+
         public double ComposeMsMax;   // 17-11 (REJAS): lo que mas ha tardado en componer una imagen del paralaje
         // 17-11 (REJAS) test_paso=1: cada imagen se entrega cuando el motor ha cogido la anterior (sin perder ninguna aunque el motor vaya
         // lento: con la tele apagada Present tarda 80 ms); test_desde=N: la primera imagen es la N (el paralaje, sin esperar a llegar)
@@ -185,7 +226,9 @@ namespace ConsoleEnhancer.Motor
                 return;
             }
             // Desplazamiento como el banco de mpv (scroll h=0.003, v=0.0015 por imagen), con vuelta al borde
-            int dx = Scroll ? (int)((n * (long)(w * 0.003)) % w) : 0, dy = Scroll ? (int)((n * (long)Math.Max(1, h * 0.0015)) % h) : 0;
+            long stx = GiroScrollX > 0 ? GiroScrollX : (long)(w * 0.003), sty = GiroScrollX > 0 ? GiroScrollY : (long)Math.Max(1, h * 0.0015);   // 20-11 (GIRO): test_giro=px,py
+            int dx = Scroll ? (int)((n * stx) % w) : 0, dy = Scroll ? (int)((n * sty) % h) : 0;
+            if (srcY != null) { ComposeYuy2(dx & ~1, dy); return; }   // 20-11 (LATENCIA7): test_yuy2
             byte[] img = srcB != null && (n & 1) != 0 ? srcB : src;   // 16-11: con test_b, A y B alternas
             fixed (byte* s = img)
             {
@@ -264,7 +307,7 @@ namespace ConsoleEnhancer.Motor
                     }
                     FrameHandler f = Frame;
                     long at = Clock.Now;
-                    if (f != null) f(frame, pitch, w, h, Shaders.FmtBgr24, at, seq);
+                    if (f != null) f(frame, srcY != null ? w * 2 : pitch, w, h, srcY != null ? Shaders.FmtYuy2 : Shaders.FmtBgr24, at, seq);   // (20-11 LATENCIA7: test_yuy2)
                     ProbeLog(seq, gameFrame, at);
                     if (Lockstep) Consumed.WaitOne(2000);   // 17-11 (REJAS): test_paso=1, hasta que el motor la coge
                     seq++;

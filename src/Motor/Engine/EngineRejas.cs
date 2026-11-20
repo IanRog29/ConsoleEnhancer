@@ -189,7 +189,7 @@ namespace ConsoleEnhancer.Motor
         // imagen (la moda de los vectores de bloque en casillas de 1 px, afinada con la media de los que caen en +-0,75; en la grafica)
         void RecordFgVec(bool on)
         {
-            if (!(fgApplied && s.FgVec >= 2) || mvecFg == null || gvec == null) return;
+            if (!(fgApplied && s.FgVec >= 2) || mvecFg == null || gvec == null || FgVecFullNow) return;   // (20-11 FGFALLOS: fg_vectores_completos, DLSS-G con mvec)
             EnsureRejasPsos();
             uint* c = stackalloc uint[16];
             if (on && s.FgVec == 3)

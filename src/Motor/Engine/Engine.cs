@@ -61,7 +61,7 @@ namespace ConsoleEnhancer.Motor
         ID3D12Resource rawSmall;    // 16-11 noche (entrada=): la captura reducida
         ID3D12Resource mvecZero;    // 17-11 (fg_vectores=0): vectores a cero para DLSS-G (se crea a cero y nunca se escribe)
         // 17-11 (fg_vectores=0): los vectores que ve la generacion (la etiqueta de la imagen); DLSS SR lleva los del motor (EvaluateDlss)
-        ID3D12Resource FgMvec { get { return fgApplied && s.FgVec == 0 && mvecZero != null ? mvecZero : fgApplied && s.FgVec >= 2 && mvecFg != null ? mvecFg : mvec; } }
+        ID3D12Resource FgMvec { get { return fgApplied && s.FgVec == 0 && mvecZero != null ? mvecZero : fgApplied && s.FgVec >= 2 && mvecFg != null && !FgVecFullNow ? mvecFg : mvec; } }   // (20-11 FGFALLOS: fg_vectores_completos)
         // 17-11 15:20 (fg_profundidad=R): profundidad aproximada solo para DLSS-G (a <= R px de un borde fuerte, delante; lo liso, detras);
         // DLSS SR sigue con la de siempre (a 0) como etiqueta local (EvaluateDlss)
         ID3D12Resource depthFg;
@@ -397,6 +397,7 @@ namespace ConsoleEnhancer.Motor
                     if (!writing) break;
                     Thread.Sleep(1);
                 }
+                CapIdle();   // 20-11 (LATENCIA7): y sin bandas copiandose ni subiendo (EngineCopia.cs)
                 lock (slotLock)
                 {
                     long size = ((long)bytes + 65535) & ~65535L;
@@ -484,7 +485,9 @@ namespace ConsoleEnhancer.Motor
                     ts.Lockstep = s.TestLockstep; ts.SeqStart = s.TestFrom;
                     ts.ZoomTexture = Path.IsPathRooted(s.TestTexture) ? s.TestTexture : Path.Combine(Program.Dir, s.TestTexture); ts.ZoomKind = s.TestZoomKind;   // (18-11: relativa al exe)
                     ts.Probe = s.Probe; ts.ProbeBand = s.ProbeBand;   // 18-11 (LATENCIA): sonda=
+                    ts.Yuy2 = s.TestYuy2;   // 20-11 (LATENCIA7): test_yuy2=1 (la prueba en YUY2, como la PS5 a 4K)
                     Parallax.Fine = s.TestFine;
+                    Parallax.Hud = s.TestHud && s.Test == "paralaje";   // 20-11 (FGFALLOS): interfaz quieta encima del paralaje
                     src = ts;
                 }
                 else
@@ -508,6 +511,7 @@ namespace ConsoleEnhancer.Motor
             bool same = dupSig != null && dupSigLen == need;
             if (dupSig == null || dupSig.Length < need) { dupSig = new byte[need]; same = false; }
             dupSigLen = need;
+            if (s.DupThreads && need >= (1 << 20)) return IsDuplicateParallel(p, pitch, rowBytes, rows, same);   // 20-11 (LATENCIA7): repetidas_hilos (EngineCopia.cs)
             fixed (byte* sig = dupSig)
             {
                 byte* d = sig;
@@ -575,12 +579,14 @@ namespace ConsoleEnhancer.Motor
                 slotState[slot] = Writing;
             }
             long tCopy = Clock.Now;   // 20-11 (LATENCIA4): lo de antes de la copia y la copia, para la linea del banco
+            if (CopyBands(slot, src, pitch, dstPitch, rowBytes, rows, w, h, fmt, seq, arrival, cut, tCopy)) return;   // 20-11 (LATENCIA7): copia_bandas (EngineCopia.cs)
             CopyRows(src, pitch, (byte*)uploadPtr[slot], dstPitch, rowBytes, rows);
             if (stats.Recording) LatOnFrame(Clock.Ms(arrival, tCopy), Clock.SinceMs(tCopy));
             lock (slotLock)
             {
                 slotSeq[slot] = seq; slotArrival[slot] = arrival; slotFmt[slot] = fmt;
                 slotW[slot] = w; slotH[slot] = h; slotPitch[slot] = dstPitch; slotUv[slot] = dstPitch * h; slotCut[slot] = cut;
+                GiroSlot(slot);   // 20-11 (GIRO): el giro de la camara va con su ranura (EngineGiro.cs)
                 slotState[slot] = Ready;
             }
             frameEvent.Set();
@@ -594,6 +600,7 @@ namespace ConsoleEnhancer.Motor
         bool cutValid;
         bool SceneCut(byte* src, int pitch, int w, int h, int fmt)
         {
+            bool gc; if (GiroCut(src, pitch, w, h, fmt, out gc)) return gc;   // 20-11 (GIRO): corte_giro=1 / mvglobal / corte_prueba (EngineGiro.cs)
             if (fmt == Shaders.FmtNv12) return false;
             int bpp = fmt == Shaders.FmtBgr24 ? 3 : fmt == Shaders.FmtYuy2 ? 2 : 4;
             double diff = 0;
@@ -891,7 +898,8 @@ namespace ConsoleEnhancer.Motor
             }
 
             // 1. Captura -> RGBA
-            if (slot >= 0)
+            if (slot >= 0 && BandsGpu(slot, fi, c)) { }   // 20-11 (LATENCIA7, bandas_grafica): descompresion y bordes banda a banda (EngineCopia.cs)
+            else if (slot >= 0)
             {
                 Barrier(rawColor, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.UNORDERED_ACCESS);
                 c[0] = (uint)slotW[slot]; c[1] = (uint)slotH[slot]; c[2] = (uint)slotPitch[slot]; c[3] = (uint)slotFmt[slot];
@@ -915,13 +923,15 @@ namespace ConsoleEnhancer.Motor
                 Barrier(inColor, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.UNORDERED_ACCESS);
                 c[0] = (uint)inW; c[1] = (uint)inH; c[2] = s.Dedither ? 1u : 0u; c[3] = s.Aa ? 1u : 0u;
                 c[4] = (uint)Math.Max(0, Math.Min(80, (int)Math.Round(s.FlatDenoise * 10)));   // 16-11 noche: liso (Pad1.x)
-                BindCompute(psoAa, TAa, c, 5);
+                c[5] = 0; c[6] = 0;   // 20-11 (LATENCIA7): primera y ultima fila (Pad1.yz; 0 = la imagen entera)
+                BindCompute(psoAa, TAa, c, 7);
                 list.Dispatch(Groups(inW, 16), Groups(inH, 8), 1);
                 Barrier(inColor, D3D12_RESOURCE_STATES.UNORDERED_ACCESS, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE);
                 PassMark(2);
             }
             // 1b. Vectores de movimiento (para DLSS SR y la generacion)
             if (slot >= 0) curSeq = slotSeq[slot];   // 17-11 (REJAS)
+            GiroTake(slot);   // 20-11 (GIRO): el giro de la camara para la busqueda de vectores (EngineGiro.cs)
             RecordMotion(slot >= 0);
             RecordDlss5(slot >= 0);   // 20-11 (DLSS 5 EN EL MOTOR, EngineDlss5.cs): DLSSNR sobre inColor antes de DLSS SR
             PassMark(3);
@@ -1119,6 +1129,7 @@ namespace ConsoleEnhancer.Motor
                 // Tiempo de GPU de la vez anterior que se uso esta ranura
                 ulong* ts = (ulong*)tsPtr + fi * 2;
                 double gpuMs = allocFence[fi] != 0 && ts[1] > ts[0] ? (ts[1] - ts[0]) * 1000.0 / tsFreq : 0;
+                if (allocFence[fi] != 0) { if (gpuMs > 0) gpuMs += BandsBusyMs(fi); LatGpuEnd(fi, ts[1]); }   // 20-11 (LATENCIA7): + las bandas de antes (bandas_grafica); llegada -> fin de la grafica (banco)
 
                 long arrival = slot >= 0 ? slotArrival[slot] : Clock.Now;
                 if (pclOk && token != IntPtr.Zero) Sl.PCLSetMarker(SlPCLMarker.eSimulationStart, token);
@@ -1131,6 +1142,7 @@ namespace ConsoleEnhancer.Motor
                 resetHistory = false;
                 if (pclOk && token != IntPtr.Zero) { Sl.PCLSetMarker(SlPCLMarker.eSimulationEnd, token); Sl.PCLSetMarker(SlPCLMarker.eRenderSubmitStart, token); }
                 RenderFrame(slot, token, fi);
+                latFiArrival[fi] = slot >= 0 ? arrival : 0;   // 20-11 (LATENCIA7)
                 fenceValue++;
                 queue.Signal(fence, fenceValue);
                 allocFence[fi] = fenceValue;
@@ -1273,6 +1285,7 @@ namespace ConsoleEnhancer.Motor
             if (stats.LastGpuP95 > limit || lost >= lostMax) overSecs++; else overSecs = 0;
             if (overSecs < 2) return;
             overSecs = 0;
+            if (MvSrFallback(stats.LastGpuP95, limit, lost >= lostMax)) return;   // 20-11 (SR45): primero los vectores completos de DLSS SR (EngineMotion.cs)
             string next = s.Preset == "L" ? "M" : s.Preset == "M" ? "K" : s.Preset == "K" || s.Preset == "J" ? "E" : null;
             if (next == null) return;
             Log.Write(string.Format(CultureInfo.InvariantCulture, "DLSS {0} no cabe aqui (grafica p95 {1:0.0} ms, tope {2:0.0}{3}): se usa {4}", s.Preset, stats.LastGpuP95, limit,
