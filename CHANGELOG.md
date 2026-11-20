@@ -5,6 +5,17 @@ publicada es una etiqueta `vX.Y.Z` de git; GitHub Actions monta su zip y copia a
 
 ## [Sin publicar]
 
+## [1.0.6] - 2026-11-21
+
+### Arreglado
+- **Sonido doble (eco) con la AVerMedia GC573 y otras capturadoras**: el sonido de la consola se oía dos veces cuando otro camino lo
+  reproducía a la vez que la app. Ahora, mientras suena por la app: se quita *Escuchar este dispositivo* de Windows en la entrada de la
+  capturadora (se devuelve al salir, también tras un cierre de golpe), se cierra el audio de una sesión anterior que siguiera sonando
+  (y el nuevo se cierra con la app aunque esta muera) y se avisa en pantalla si RECentral, OBS, Streamlabs o XSplit también suenan.
+  `sonido_doble=0` lo deja como antes. *Double audio (echo) with the GC573 and other capture cards: Windows "Listen to this device"
+  is turned off on the capture input while the app plays it (restored on exit), leftover audio players are closed and other capture
+  apps playing sound are reported.*
+
 ## [1.0.5] - 2026-11-20
 
 ### Arreglado
