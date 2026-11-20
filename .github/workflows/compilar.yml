@@ -32,9 +32,13 @@ jobs:
           $malos = $todos | Where-Object { $_ -match '(?i)(nvngx_|dlssg_sm86|DLSSNR-DLL|NGX_OTA|PrismaNr|\.(exe|dll|pdb|obj|lib|zip|7z|log)$|\.antes-|(^|/)(terceros|datos|juegos|logs|extras|bin|dist|obj)/|consoleenhancer\.ini$|switch2\.ini$|privado\.txt$)' }
           if ($malos) { 'Ficheros que no deben ir al repositorio:'; $malos; exit 1 }
           $personal = git grep -n -I -E '[A-Za-z]:\\Users\\|[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+\.[A-Za-z]{2,}' -- . ':!LICENSE'
+          # git grep devuelve 1 cuando NO encuentra nada (lo normal aqui): no debe contar como fallo del paso
+          $LASTEXITCODE = 0
           if ($personal) { 'Posibles datos personales (rutas de usuario o correos):'; $personal; exit 1 }
           Get-Content scripts/componentes.json -Raw | ConvertFrom-Json | Out-Null
           'Repositorio limpio'
+          # pwsh en Actions sale con el ultimo $LASTEXITCODE: forzar 0 si todas las comprobaciones pasaron
+          exit 0
 
       - name: Lanzador (build.bat)
         shell: cmd
