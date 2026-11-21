@@ -8313,7 +8313,15 @@ namespace ConsoleEnhancer
         DateTime homeSeen = DateTime.MinValue, lastGrab = DateTime.MinValue, slowSince = DateTime.MinValue;
         int noLabel;                    // capturas seguidas sin nombre y sin el HOME
         volatile bool grabBusy;
-        volatile bool applying;         // poniendo los ajustes de un juego (no se guardan como eleccion)
+        // poniendo los ajustes de un juego (no se guardan como eleccion). 21-11 (1.2.1): un contador y no un bool: EnterGame / LeaveHomeGrace y
+        // el "Aplicar" del menu de ajustes (otro hilo) a la vez se quitaban el "applying" uno a otro y lo que quedaba del segundo se hacia
+        // como si fuera del mando (RequestCapture / SetModeN podian no hacer nada con el perfil ya guardado)
+        int applyingN;
+        bool applying
+        {
+            get { return Thread.VolatileRead(ref applyingN) > 0; }
+            set { if (value) Interlocked.Increment(ref applyingN); else if (Interlocked.Decrement(ref applyingN) < 0) Interlocked.Exchange(ref applyingN, 0); }
+        }
         volatile bool pendingPassesRestart;
         readonly object homeSync = new object();
         static readonly string GrabPath = Path.Combine(Path.GetTempPath(), "switch2_grab.raw");
