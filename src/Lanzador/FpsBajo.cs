@@ -9,11 +9,17 @@
 // los fps objetivo que se cambien cosas"): tambien con mpv + Magpie (DLSS 5 por Magpie: 70 de 120 reales medidos en su log). Lo mide
 // CheckLsPacing con las imagenes reales que recibe Magpie (captureFps de su log) frente a las que da mpv: 2 resumenes seguidos (~10 s)
 // por debajo del 90 % con mpv dando el modo entero = culpa del PC. Y un paso mas: el escalador a FSR 1 antes de bajar el modo.
+// 21-11 (1.2.1, el usuario: "si no se llega, cambiara la escala del dlss 5 o cambiara algun otro ajuste y con ello avisara"): con DLSS 5
+// por Magpie y la escala automatica (dlss5_escala_auto=1) lo vigila src\Lanzador\EscalaAuto.cs, que baja antes, en caliente, el % de
+// DLSS 5, las pasadas, el modelo de DLSS SR y el tipo de generacion; esta escalera queda para lo que viene despues (DLSS 5 fuera, FSR 1,
+// 120 -> 60, captura, 60 -> 30) y para el motor propio. FpsMagpieVigila sigue con DLSS 5 apagado por Magpie (XeSS / FSR 3 FG). Avisos
+// con Tx.T (antes solo en espanol). A 120, las imagenes que da mpv tambien por su recuento de 20 s (FuenteFps).
 // C# 5.
 using System;
 using System.Globalization;
 using System.Text.RegularExpressions;
 using System.Threading;
+using ConsoleEnhancer.Deteccion;
 
 namespace ConsoleEnhancer
 {
@@ -57,9 +63,11 @@ namespace ConsoleEnhancer
         void FpsMagpieVigila(double captured)
         {
             int modo = cfg.Mode120 ? 120 : cfg.CapMode ? 30 : 60;
+            // (1.2.1: las que da mpv tambien por su recuento de 20 s: a 120 el del script de 0,5 s se queda corto y esto no juzgaba nunca)
+            double fuente = FuenteFps();
             bool juzgar = captured > 0 && !Config.EngineActive && !cfg.HomeNative && !InHome && !homeBusy && !passesBusy && relaunchSize == null &&
-                          !relaunchEngine && !userExit && MagpieLive.RunningFor() > 20 && vfFps >= modo * 0.92 && (DateTime.Now - fpsMagpieLast).TotalSeconds >= 30;
-            double esperado = cfg.CapMode ? Math.Min(29.97, vfFps) : Math.Min(modo, vfFps);
+                          !relaunchEngine && !userExit && MagpieLive.RunningFor() > 20 && fuente >= modo * 0.92 && (DateTime.Now - fpsMagpieLast).TotalSeconds >= 30;
+            double esperado = cfg.CapMode ? Math.Min(29.97, fuente) : Math.Min(modo, fuente);
             bool bajo = juzgar && captured < esperado * 0.9;
             fpsMagpieWins = bajo ? fpsMagpieWins + 1 : 0;
             if (fpsMagpieWins < 2) return;
@@ -73,20 +81,23 @@ namespace ConsoleEnhancer
             PrepareCfg();
             int modo = cfg.Mode120 ? 120 : cfg.CapMode ? 30 : 60;
             int salida = cfg.Mode120 || cfg.FgOff ? modo : modo * cfg.FgMultNow;
-            string falta = "No se llega a " + salida + " fps (" + Math.Round(real * (cfg.Mode120 || cfg.FgOff ? 1 : cfg.FgMultNow)) + ")";
-            string hecho = null;
+            string vista = Math.Round(real * (cfg.Mode120 || cfg.FgOff ? 1 : cfg.FgMultNow)).ToString(CultureInfo.InvariantCulture);
+            // (1.2.1: el aviso en el idioma elegido; antes solo en espanol)
+            string falta = Tx.T("No se llega a " + salida + " fps (" + vista + ")", salida + " fps not reached (" + vista + ")");
+            string hecho = null, hechoEn = null;
             string cap = cfg.VideoSize;
             string menos = cap == "2560x1440" ? "1920x1080" : cap == "1920x1080" ? "1280x720" : null;
             if (dlss5Shown && !cfg.Dlss5Off && cfg.Dlss5FitsNow && cfg.Dlss5PassesNow > 1)
             {
-                SetPasses(cfg.Dlss5PassesNow - 1);
-                hecho = "DLSS 5 con " + Pasadas(cfg.Dlss5PassesNow - 1);
+                int n = cfg.Dlss5PassesNow - 1;
+                SetPasses(n);
+                hecho = "DLSS 5 con " + Pasadas(n); hechoEn = "DLSS 5 with " + n + (n > 1 ? " passes" : " pass");
             }
             else if (dlss5Shown && !cfg.Dlss5Off && cfg.Dlss5FitsNow)
             {
                 PasadasOnToggle(false);
                 SetDlss5State(false);
-                hecho = "DLSS 5 apagado";
+                hecho = "DLSS 5 apagado"; hechoEn = "DLSS 5 off";
                 // (1.2.01: antes solo cambiaba el estado y la imagen seguia igual hasta otro cambio: como el boton, se reabre)
                 SaveCurProfile();
                 RestartLs("DLSS 5 desactivado", "Escalado " + ScalerText(), false, true);
@@ -94,29 +105,29 @@ namespace ConsoleEnhancer
             else if (cfg.UpscaleOn && cfg.ScalerNow != "fsr" && cfg.ScalerNow != "ninguno")
             {
                 SetScalerChoice(true, "fsr");
-                hecho = "escalador FSR 1";
+                hecho = "escalador FSR 1"; hechoEn = "FSR 1 upscaler";
                 SaveCurProfile();
                 RestartLs("Escalador · " + ScalerText(), "Un momento…");
             }
             else if (modo == 120)
             {
                 SetModeN(60);
-                hecho = "modo 60 fps";
+                hecho = "modo 60 fps"; hechoEn = "60 fps mode";
             }
             else if (menos != null && !CapturaSinSentido(menos))
             {
                 RequestCapture(menos);
-                hecho = "captura a " + SizeName(menos);
+                hecho = "captura a " + SizeName(menos); hechoEn = "capture at " + SizeName(menos);
             }
             else if (modo == 60 && !cfg.FgOff)
             {
                 SetModeN(30);
-                hecho = "modo 30 fps con generación (30 → " + (30 * cfg.FgMultNow) + ")";
+                hecho = "modo 30 fps con generación (30 → " + (30 * cfg.FgMultNow) + ")"; hechoEn = "30 fps mode with frame generation (30 -> " + (30 * cfg.FgMultNow) + ")";
             }
             Log.Write("Fps: " + quien + " no llega al modo " + modo + " (" + real.ToString("0.0", CultureInfo.InvariantCulture) + " de " +
                       obj.ToString("0.00", CultureInfo.InvariantCulture) + " imagenes reales/s, grafica p95 " + gpu.ToString("0.0", CultureInfo.InvariantCulture) +
                       " ms): " + (hecho != null ? "se pasa a " + hecho + " (guardado en el perfil del juego)" : "ya no queda nada que bajar, solo el aviso"));
-            string texto = hecho != null ? falta + " · cambiado a " + hecho : falta + " · ya está todo al mínimo";
+            string texto = hecho != null ? falta + Tx.T(" · cambiado a " + hecho, ": changed to " + hechoEn) : falta + Tx.T(" · ya está todo al mínimo", ": everything is already at the minimum");
             OnUi(delegate { OsdWarn(texto, "7000"); });
         }
     }
