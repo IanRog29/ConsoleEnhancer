@@ -27,6 +27,8 @@ copy /y idiomas\*.txt bin\idiomas\ >nul
 copy /y scripts\*.lua bin\scripts\ >nul
 copy /y scripts\*.glsl bin\scripts\ >nul
 copy /y scripts\componentes.json bin\scripts\ >nul
+copy /y scripts\inicio_y_apagado.ps1 bin\scripts\ >nul
+copy /y "recursos\Inicio y apagado.bat" bin\ >nul
 if not exist bin\mpv if exist terceros\mpv\mpv.exe mklink /J bin\mpv terceros\mpv >nul
 if not exist bin\magpie if exist terceros\magpie\Magpie.exe mklink /J bin\magpie terceros\magpie >nul
 if not exist bin\mpv\mpv.exe echo Aviso: sin mpv en bin\ (powershell -ExecutionPolicy Bypass -File scripts\descargar_dependencias.ps1)

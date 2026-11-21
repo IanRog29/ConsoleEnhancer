@@ -5,6 +5,20 @@ publicada es una etiqueta `vX.Y.Z` de git; GitHub Actions monta su zip y copia a
 
 ## [Sin publicar]
 
+## [1.0.13] - 2026-11-21
+
+### Arreglado
+- **"Apagar el PC al apagar la consola" no apagaba el PC**: el aviso de 15 s salía, pero se cancelaba solo a los 2 s sin tocar
+  nada. Lo cancelaba cualquier entrada que Windows apunta como del usuario, también la que inyectan otros programas (Joyxoff,
+  mapeadores del mando, Steam Input). Ahora solo lo cancela un botón del mando, una tecla o un clic de verdad, o mover el ratón de
+  verdad (más de 40 px); el log apunta cuántas entradas inyectadas no se contaron.
+  *Shutting down the PC with the console: the warning was cancelled by injected input from other programs.*
+
+### Añadido
+- **`Inicio y apagado.bat`** junto a `ConsoleEnhancer.exe`: cambia sin abrir la app el inicio con Windows, apagar el PC al apagar la
+  consola, los segundos del aviso y el escritorio negro, y prueba el aviso de apagado sin apagar nada.
+  *`Inicio y apagado.bat`: change start with Windows / PC shutdown settings without opening the app.*
+
 ## [1.0.12] - 2026-11-21
 
 ### Arreglado

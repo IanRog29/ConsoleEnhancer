@@ -564,8 +564,7 @@ namespace ConsoleEnhancer
             Text = PrismaUi.AppName;
             DoubleBuffered = true;
             try { Icon = PrismaUi.FormIcon; } catch { }
-            KeyDown += delegate { Cancelar("tecla"); };
-            MouseDown += delegate { Cancelar("clic"); };
+            // 1.0.13: sin KeyDown/MouseDown del formulario (tambien saltan con lo inyectado): lo miran los ganchos de abajo
             timer.Interval = 50;
             timer.Tick += delegate { Paso(); };
         }
@@ -574,6 +573,7 @@ namespace ConsoleEnhancer
         {
             base.OnShown(e);
             ultimaEntrada = UltimaEntrada();
+            PonerGanchos();
             try { PadHub.Shared.Start(); PadSnapshot s; PadHub.Shared.Poll(out s); botonesAntes = s.Buttons; mandos = true; }
             catch (Exception ex) { Log.Error("Aviso de apagado: mandos", ex); }
             reloj.Start();
@@ -589,9 +589,13 @@ namespace ConsoleEnhancer
                 return;
             }
             double t = reloj.Elapsed.TotalSeconds;
-            uint e = UltimaEntrada();
-            if (t < 0.6) ultimaEntrada = e;
-            else if (e != ultimaEntrada) { Cancelar("teclado o raton"); return; }
+            if (!ganchos)
+            {
+                // (sin ganchos: como antes, GetLastInputInfo, que tambien cuenta lo inyectado)
+                uint e = UltimaEntrada();
+                if (t < 0.6) ultimaEntrada = e;
+                else if (e != ultimaEntrada) { Cancelar("teclado o raton"); return; }
+            }
             if (mandos)
             {
                 try
@@ -614,6 +618,87 @@ namespace ConsoleEnhancer
             }
             Invalidate();
         }
+
+        // 21-11 (1.0.13): con GetLastInputInfo el aviso se cancelaba solo a los 2 s sin tocar nada: cuenta tambien la entrada inyectada
+        // (Joyxoff, mapeadores del mando, Steam Input, la propia app). Ahora ganchos de bajo nivel: solo una tecla o un clic de verdad
+        // (sin LLKHF_INJECTED / LLMHF_INJECTED) o mover el raton de verdad mas de MoverPx desde donde estaba
+        const int MoverPx = 40;
+        delegate IntPtr HookProc(int code, IntPtr wParam, IntPtr lParam);
+        HookProc kbdProc, mouseProc;
+        IntPtr hKbd, hMouse;
+        bool ganchos;
+        bool hayRaton;
+        Point ratonInicio;
+        int inyectadas;
+
+        void PonerGanchos()
+        {
+            try
+            {
+                kbdProc = TeclaLL;
+                mouseProc = RatonLL;
+                IntPtr mod = GetModuleHandle(null);
+                hKbd = SetWindowsHookEx(13, kbdProc, mod, 0);   // WH_KEYBOARD_LL
+                hMouse = SetWindowsHookEx(14, mouseProc, mod, 0); // WH_MOUSE_LL
+                ganchos = hKbd != IntPtr.Zero && hMouse != IntPtr.Zero;
+                if (!ganchos) { QuitarGanchos(); Log.Write("Aviso de apagado: sin ganchos de teclado/raton (se mira GetLastInputInfo)"); }
+            }
+            catch (Exception ex) { ganchos = false; Log.Error("Aviso de apagado: ganchos", ex); }
+        }
+
+        void QuitarGanchos()
+        {
+            if (hKbd != IntPtr.Zero) { UnhookWindowsHookEx(hKbd); hKbd = IntPtr.Zero; }
+            if (hMouse != IntPtr.Zero) { UnhookWindowsHookEx(hMouse); hMouse = IntPtr.Zero; }
+        }
+
+        protected override void OnFormClosed(FormClosedEventArgs e)
+        {
+            QuitarGanchos();
+            if (inyectadas > 0) Log.Write("Aviso de apagado: " + inyectadas + " entradas inyectadas (de otro programa) no cuentan para cancelar");
+            base.OnFormClosed(e);
+        }
+
+        bool Cuenta { get { return !cancelado && !apagar && reloj.Elapsed.TotalSeconds >= 0.6; } }
+
+        IntPtr TeclaLL(int code, IntPtr wParam, IntPtr lParam)
+        {
+            if (code >= 0)
+            {
+                int msg = (int)wParam;
+                if (msg == 0x100 || msg == 0x104) // WM_KEYDOWN, WM_SYSKEYDOWN
+                {
+                    int flags = Marshal.ReadInt32(lParam, 8);
+                    if ((flags & 0x10) != 0) inyectadas++;             // LLKHF_INJECTED
+                    else if (Cuenta) Cancelar("tecla");
+                }
+            }
+            return CallNextHookEx(IntPtr.Zero, code, wParam, lParam);
+        }
+
+        IntPtr RatonLL(int code, IntPtr wParam, IntPtr lParam)
+        {
+            if (code >= 0)
+            {
+                int msg = (int)wParam;
+                int x = Marshal.ReadInt32(lParam, 0), y = Marshal.ReadInt32(lParam, 4);
+                int flags = Marshal.ReadInt32(lParam, 12);
+                bool iny = (flags & 0x01) != 0;                          // LLMHF_INJECTED
+                if (iny) { if (msg != 0x200) inyectadas++; }
+                else if (msg == 0x200)                                   // WM_MOUSEMOVE
+                {
+                    if (!hayRaton || !Cuenta) { ratonInicio = new Point(x, y); hayRaton = true; }
+                    else if (Math.Abs(x - ratonInicio.X) + Math.Abs(y - ratonInicio.Y) > MoverPx) Cancelar("raton movido");
+                }
+                else if (msg == 0x201 || msg == 0x204 || msg == 0x207 || msg == 0x20B || msg == 0x20A) { if (Cuenta) Cancelar("clic"); }
+            }
+            return CallNextHookEx(IntPtr.Zero, code, wParam, lParam);
+        }
+
+        [DllImport("user32.dll", SetLastError = true)] static extern IntPtr SetWindowsHookEx(int id, HookProc fn, IntPtr mod, uint thread);
+        [DllImport("user32.dll")] static extern bool UnhookWindowsHookEx(IntPtr h);
+        [DllImport("user32.dll")] static extern IntPtr CallNextHookEx(IntPtr h, int code, IntPtr wParam, IntPtr lParam);
+        [DllImport("kernel32.dll")] static extern IntPtr GetModuleHandle(string name);
 
         void Cancelar(string como)
         {
