@@ -273,7 +273,10 @@ namespace ConsoleEnhancer
             Log.Write("Consola apagada: el PC en espera (apagar_pc_modo=espera): pantalla apagada; la consola, un mando o una tecla lo encienden");
             CeCubierta.Poner("espera", true);
             CeBarra.Ocultar("espera");
-            try { using (Process me = Process.GetCurrentProcess()) me.PriorityClass = ProcessPriorityClass.Idle; } catch { }
+            // (1.2.1: por debajo de lo normal, no "inactiva": con algo de Windows ocupando la CPU (un analisis de Defender, una
+            // actualizacion), una prioridad "inactiva" solo corre cuando nadie mas quiere la CPU: el gancho del teclado puede tardar mas de
+            // lo que Windows le deja (y lo quita) y la sonda ve tarde la consola. Gastan lo mismo: casi nada)
+            try { using (Process me = Process.GetCurrentProcess()) me.PriorityClass = ProcessPriorityClass.BelowNormal; } catch { }
             EcoQos(IntPtr.Zero);
             SetThreadExecutionState(EsContinuous | EsSystemRequired);
             string porque = null;
@@ -303,11 +306,12 @@ namespace ConsoleEnhancer
             // pone su telon antes de que esta se cierre
             Stopwatch reloj = Stopwatch.StartNew();
             Pantalla(true);
-            Economizador(false, "fin de la espera");
+            Economizador(false, "fin de la espera", false);
             long plan = reloj.ElapsedMilliseconds;
             SoltarMutex();
             EventWaitHandle telon = null;
             try { telon = new EventWaitHandle(false, EventResetMode.ManualReset, EventoTelon); telon.Reset(); } catch { telon = null; }
+            CeCubierta.Pausa(true); // (ya no se vuelve a poner encima: el telon de --inicio y la pantalla de carga de la app, delante)
             try
             {
                 ProcessStartInfo psi = new ProcessStartInfo(Exe, CeInicio.ArgumentosInicio() + " --tras-suspension --desde-espera" + (prueba ? " --prueba-app=6" : ""));
@@ -317,6 +321,7 @@ namespace ConsoleEnhancer
                 Log.Write("Espera: despierto por " + porque + ": abriendo la app" + (prueba ? " (PRUEBA: la app de mentira)" : "") + " (plan de antes en " + plan + " ms)");
             }
             catch (Exception ex) { Log.Error("Espera: no se pudo abrir la app", ex); }
+            BorrarPlanPropio();   // (ya no esta activo: mientras arranca la app)
             EsperarSonda(sonda);
             bool visto = telon != null && telon.WaitOne(5000);
             if (telon != null) telon.Dispose();
@@ -376,7 +381,7 @@ namespace ConsoleEnhancer
                 timer.Interval = 1000; // (1 vez por segundo: menos despertares de la CPU)
                 timer.Tick += delegate { Paso(); };
                 reapagar.Interval = 2000;
-                reapagar.Tick += delegate { reapagar.Stop(); if (Porque == null && UltimaEntrada() == entradaPantalla) ApagarPantalla(); };
+                reapagar.Tick += delegate { reapagar.Stop(); if (Porque == null && UltimaEntrada() == entradaPantalla) { solaAntes = DateTime.UtcNow; ApagarPantalla(); } };
             }
 
             protected override bool ShowWithoutActivation { get { return true; } }
@@ -400,13 +405,24 @@ namespace ConsoleEnhancer
             void AlApagarWindows(object s, Microsoft.Win32.SessionEndingEventArgs e) { Fin("windows"); }
 
             // (1.2.1) La pantalla encendida sin entrada del usuario desde que se apago (otro programa pide pantalla): otra vez apagada a los
-            // 2 s. Con el raton movido, lo de siempre (a los 30 s sin tocar nada, Paso)
+            // 2 s. Con el raton movido, lo de siempre (a los 30 s sin tocar nada, Paso). Si vuelve a encenderse enseguida una y otra vez (un
+            // programa que pide pantalla sin parar, p. ej. un video o el motor de la app en otra prueba: SetThreadExecutionState con
+            // ES_DISPLAY_REQUIRED la enciende ~1 s despues de cada apagado), se espera cada vez mas (2, 10, 30 s, 2 y 5 min): mejor la
+            // cubierta negra encendida que la tele encendiendose y apagandose cada 3 s
+            DateTime solaAntes = DateTime.MinValue;
+            int seguidasSola;
             void PantallaCambia(int v)
             {
                 if (Porque != null || v != 1) return;
                 if (UltimaEntrada() != entradaPantalla) return;
-                if (++sola <= 5) Log.Write("Espera: la pantalla se ha encendido sin que nadie toque nada (otro programa o Windows): otra vez apagada en 2 s");
+                seguidasSola = (DateTime.UtcNow - solaAntes).TotalSeconds < 15 ? seguidasSola + 1 : 0;
+                int[] pasos = { 2, 10, 30, 120, 300 };
+                int s = pasos[Math.Min(seguidasSola, pasos.Length - 1)];
+                sola++;
+                if (sola <= 5 || sola % 20 == 0)
+                    Log.Write("Espera: la pantalla se ha encendido sin que nadie toque nada (otro programa pide pantalla o Windows; " + sola + "a vez): otra vez apagada en " + s + " s");
                 reapagar.Stop();
+                reapagar.Interval = s * 1000;
                 reapagar.Start();
             }
 
@@ -421,7 +437,7 @@ namespace ConsoleEnhancer
                     // arrancara asi 4 veces seguidas, otras 4 como antes
                     bool ligera = (sondaFallos / 4) % 2 == 0;
                     string args = "--no-config \"" + fuente + "\"" + (captura ? " --demuxer-lavf-o=" + lavf : "") +
-                                  " --no-audio --vo=null --untimed --cache=no --hwdec=no --priority=idle --idle=no --input-default-bindings=no" +
+                                  " --no-audio --vo=null --untimed --cache=no --hwdec=no --priority=belownormal --idle=no --input-default-bindings=no" +
                                   (ligera ? " --input-terminal=no --terminal=no --osc=no --ytdl=no --load-stats-overlay=no --load-console=no --load-auto-profiles=no" +
                                             " --load-select=no --load-commands=no --load-positioning=no" : "") +
                                   " --script=\"" + lua + "\" --msg-level=all=warn,ce_standby=info";
@@ -429,9 +445,14 @@ namespace ConsoleEnhancer
                     psi.UseShellExecute = false;
                     psi.CreateNoWindow = true;
                     sonda = Process.Start(psi);
-                    try { sonda.PriorityClass = ProcessPriorityClass.Idle; } catch { }
+                    try { sonda.PriorityClass = ProcessPriorityClass.BelowNormal; } catch { }
                     EcoQos(sonda.Handle);
                     EngineJob.Hold(sonda, true); // (si este proceso muere, Windows cierra la sonda: la capturadora no se queda cogida)
+                    // 1.2.1: al cerrarse la sonda (la consola vista), enseguida y no en el siguiente segundo de Paso (~0,5 s de media antes);
+                    // Windows avisa (una espera en su hilo de esperas, sin sondear)
+                    Process s = sonda;
+                    s.EnableRaisingEvents = true;
+                    s.Exited += delegate { try { BeginInvoke((MethodInvoker)delegate { if (sonda == s && Porque == null) Paso(); }); } catch { } };
                 }
                 catch (Exception ex) { Log.Error("Espera: la sonda", ex); sonda = null; }
             }
@@ -548,7 +569,10 @@ namespace ConsoleEnhancer
 
         public static void PlanDeAntes(string cuando) { Economizador(false, cuando); }
 
-        static void Economizador(bool poner, string cuando)
+        static void Economizador(bool poner, string cuando) { Economizador(poner, cuando, true); }
+
+        // borrar = false: el plan de la espera se borra despues (al despertar, ya abierta la app: borrarlo tarda ~0,2-0,3 s)
+        static void Economizador(bool poner, string cuando, bool borrar)
         {
             try
             {
@@ -579,7 +603,7 @@ namespace ConsoleEnhancer
                         if (r == 0) { File.Delete(PlanFile); Log.Write("Espera: plan de energia de antes otra vez (" + cuando + "; " + sw.ElapsedMilliseconds + " ms)"); }
                         else Log.Write("Espera: no se pudo volver al plan de energia de antes (" + r + ")");
                     }
-                    BorrarPlanPropio();
+                    if (borrar) BorrarPlanPropio();
                 }
             }
             catch (Exception ex) { Log.Error("Espera: plan de energia", ex); }
@@ -680,7 +704,11 @@ namespace ConsoleEnhancer
         // (cubierta y barra ANTES de quitarla, como PowerOffNow), el cierre de la app (0,7 s), la espera en su proceso con una sonda que ve
         // "No Signal" s segundos (de serie 20) y luego imagen, y al despertar --inicio con su telon y una app de mentira (--prueba-app):
         // la pantalla de carga de verdad y otra "imagen" que devuelve la barra, como la app al ver la consola. No abre la capturadora
-        public static int PruebaCadena(int s)
+        public static int PruebaCadena(int s) { return PruebaCadena(s, false); }
+
+        // aviso = (--prueba-cadena-aviso=<s>) en vez de la espera, el aviso de apagado de los modos suspender / apagar encima de la
+        // cubierta (sin apagar nada: "prueba: no se apaga") y, al acabar o cancelarlo, fuera la cubierta y la barra visible
+        public static int PruebaCadena(int s, bool aviso)
         {
             Simulada = Math.Max(3, s);
             Log.Write("PRUEBA de la cadena del apagado: imagen de mentira, consola apagada, espera en su proceso (" + Simulada + " s) y al despertar la app de mentira");
@@ -695,6 +723,16 @@ namespace ConsoleEnhancer
                 Bombear(700);            // (lo que tarda la app en cerrarse: "Cierre por consola apagada: 761 ms")
             }
             Log.Write("===== Fin ConsoleEnhancer (PRUEBA) =====");
+            if (aviso)
+            {
+                string porque;
+                CeCubierta.Pausa(true);   // (lo mismo que Program.ApagarPc)
+                bool seguir = AvisoApagado.Mostrar(Simulada, true, false, out porque);
+                CeCubierta.Pausa(false);
+                Log.Write("PRUEBA: aviso de apagado " + (seguir ? "terminado (aqui se suspenderia / apagaria el PC)" : "cancelado (" + porque + ")"));
+                AlCerrarApp(false);
+                return 0;
+            }
             return EntrarAparte() ? 0 : 1;
         }
 

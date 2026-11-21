@@ -473,8 +473,8 @@ namespace ConsoleEnhancer
                 catch (Exception ex) { porque = "error mirando la app: " + ex.Message; }
                 if (porque == null)
                 {
-                    // (1.2.1: 450 ms, no 250: la pantalla de carga entra con un fundido de 0,35 s; a los 250 ms aun se veia lo de detras al 30 %)
-                    if (v == 2) { if (grande == DateTime.MinValue) grande = DateTime.UtcNow; else if ((DateTime.UtcNow - grande).TotalMilliseconds >= 450) porque = "pantalla de carga vista"; }
+                    // (1.2.1: Ventanas ya solo cuenta la pantalla de carga casi opaca; 200 ms asi y fuera el negro)
+                    if (v == 2) { if (grande == DateTime.MinValue) grande = DateTime.UtcNow; else if ((DateTime.UtcNow - grande).TotalMilliseconds >= 200) porque = "pantalla de carga vista"; }
                     else grande = DateTime.MinValue;
                     if (v == 1) { if (otra == DateTime.MinValue) otra = DateTime.UtcNow; else if ((DateTime.UtcNow - otra).TotalMilliseconds >= 400) porque = "ventana de la app (asistente o aviso)"; }
                     else otra = DateTime.MinValue;
@@ -562,7 +562,15 @@ namespace ConsoleEnhancer
                 if (!GetWindowRect(h, out rc)) return true;
                 Rectangle w = Rectangle.FromLTRB(rc.Left, rc.Top, rc.Right, rc.Bottom);
                 Rectangle en = Rectangle.Intersect(w, pant);
-                if ((long)en.Width * en.Height >= area * 8 / 10) { r = 2; return false; }
+                if ((long)en.Width * en.Height >= area * 8 / 10)
+                {
+                    // 21-11 (1.2.1): la pantalla de carga entra con un fundido desde transparente (Opacity 0) y su primer dibujo a 4K tarda:
+                    // "visible" no es "a la vista". Medido en una prueba: el telon quitado con ella aun transparente -> el escritorio y el
+                    // cursor ~0,3 s. Solo cuenta casi opaca (WS_EX_LAYERED con alfa >= 240)
+                    uint key, fl; byte alfa;
+                    if ((GetWindowLong(h, -20) & 0x80000) != 0 && GetLayeredWindowAttributes(h, out key, out alfa, out fl) && (fl & 2) != 0 && alfa < 240) return true;
+                    r = 2; return false;
+                }
                 if (en.Width >= 200 && en.Height >= 120) r = 1;
                 return true;
             }, IntPtr.Zero);
@@ -573,6 +581,8 @@ namespace ConsoleEnhancer
         [StructLayout(LayoutKind.Sequential)] struct RECT { public int Left, Top, Right, Bottom; }
         [DllImport("user32.dll")] static extern bool AllowSetForegroundWindow(int pid);
         [DllImport("user32.dll")] static extern IntPtr SetCursor(IntPtr c);
+        [DllImport("user32.dll")] static extern int GetWindowLong(IntPtr h, int i);
+        [DllImport("user32.dll")] static extern bool GetLayeredWindowAttributes(IntPtr h, out uint key, out byte alpha, out uint flags);
         [DllImport("user32.dll")] static extern bool EnumWindows(EnumWindowsProc cb, IntPtr l);
         [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
         [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr h);
@@ -649,6 +659,15 @@ namespace ConsoleEnhancer
             timer.Start();
             try { Activate(); } catch { }
         }
+
+        // 21-11 (1.2.1): sin cursor encima del aviso (con la consola apagada no se ve nada de Windows; moverlo sigue cancelando: lo ve el
+        // gancho del raton)
+        protected override void WndProc(ref Message m)
+        {
+            if (m.Msg == 0x0020) { SetCursor(IntPtr.Zero); m.Result = (IntPtr)1; return; } // WM_SETCURSOR
+            base.WndProc(ref m);
+        }
+        [DllImport("user32.dll")] static extern IntPtr SetCursor(IntPtr c);
 
         void Paso()
         {

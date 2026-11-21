@@ -7,7 +7,9 @@ local msg = require 'mp.msg'
 local options = require 'mp.options'
 
 -- una_vez=yes: una sola mirada y fuera (codigo 55 = imagen, 0 = "No Signal" o negro): la app la lanza cada pocos segundos
-local o = { cada_s = 1.0, seguidas = 2, codigo = 55, grid_w = 48, grid_h = 27, negro = 12, una_vez = false }
+-- 21-11 (1.2.1): confirmar_s: tras una mirada con imagen, la siguiente a los 0,4 s y no al siguiente segundo (la consola se ve ~0,6 s
+-- antes de media; sigue haciendo falta ver imagen `seguidas` veces seguidas). 0 = como antes
+local o = { cada_s = 1.0, seguidas = 2, codigo = 55, grid_w = 48, grid_h = 27, negro = 12, una_vez = false, confirmar_s = 0.4 }
 options.read_options(o, 'ce_standby')
 
 local function muestras()
@@ -53,8 +55,8 @@ local function que_es(t)
     return "imagen"
 end
 
-local seguidas, ultimo = 0, nil
-mp.add_periodic_timer(o.cada_s, function()
+local seguidas, ultimo, pendiente = 0, nil, false
+local function mirar()
     local t = muestras()
     if not t then return end
     local q = que_es(t)
@@ -64,5 +66,9 @@ mp.add_periodic_timer(o.cada_s, function()
     if seguidas >= o.seguidas then
         msg.info("espera: la consola se ha encendido")
         mp.command("quit " .. o.codigo)
+    elseif q == "imagen" and o.confirmar_s > 0 and o.confirmar_s < o.cada_s and not pendiente then
+        pendiente = true
+        mp.add_timeout(o.confirmar_s, function() pendiente = false; mirar() end)
     end
-end)
+end
+mp.add_periodic_timer(o.cada_s, mirar)

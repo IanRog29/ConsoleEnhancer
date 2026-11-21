@@ -102,6 +102,7 @@ namespace ConsoleEnhancer
             if (arg == "--espera") return CeEspera.Proceso(Environment.GetCommandLineArgs());
             if (arg == "--ce-guarda-barra") return CeBarra.Guardian();
             if (arg == "--prueba-cadena" || arg.StartsWith("--prueba-cadena=")) return CeEspera.PruebaCadena(Segundos(arg, 20));
+            if (arg.StartsWith("--prueba-cadena-aviso=")) return CeEspera.PruebaCadena(Segundos(arg, 8), true);
             if (arg == "--prueba-espera-simulada" || arg.StartsWith("--prueba-espera-simulada=")) return CeEspera.PruebaEsperaSimulada(Segundos(arg, 20));
             if (arg.StartsWith("--prueba-app=")) return CeEspera.PruebaApp(Segundos(arg, 6));
             if (arg == "--prueba-suspender")
@@ -175,6 +176,7 @@ namespace ConsoleEnhancer
             // este proceso suelte el mutex)
             EventWaitHandle telon = null;
             try { telon = new EventWaitHandle(false, EventResetMode.ManualReset, CeEspera.EventoTelon); telon.Reset(); } catch { telon = null; }
+            CeCubierta.Pausa(true); // (el telon y la app, delante de la cubierta)
             try
             {
                 ProcessStartInfo psi = new ProcessStartInfo(Exe, CeInicio.ArgumentosInicio() + " --tras-suspension --desde-espera");
