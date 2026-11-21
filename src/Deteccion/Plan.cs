@@ -92,6 +92,7 @@ namespace ConsoleEnhancer.Deteccion
         public string Gen60 = "ninguna", Gen30 = "ninguna";   // dlssg, smooth, afmf, fsr3fg, xessfg, ninguna
         public int Mult60 = 1, Mult30 = 1;
         public bool GenDeSerie;                // la generacion encendida al empezar (boton de captura: si/no)
+        public bool DlssgSoloMagpie;           // (1.0.10) RTX 30 con dlssg_sm86: DLSS FG solo por Magpie (el motor no la tiene: Streamline pide RTX 40)
         public string GenAlternativa = "";     // la que se puede elegir ademas (p. ej. FSR 3 FG por Magpie)
         // 19-11 (agente CE, el selector de L3 de Prisma): los tipos que se ofrecen en cada modo (ini generacion_lista_60 / _30), los que
         // tiene esta grafica: smooth (Smooth Motion), dlss (DLSS FG de Magpie / DLSS-G del motor), xess, fsr3 (estos dos por Magpie)
@@ -433,6 +434,9 @@ namespace ConsoleEnhancer.Deteccion
                 p.Motivos.Add(Tx.T("RTX 20/30: DLSS SR y Reflex, sin DLSS-G (pide RTX 40)", "RTX 20/30: DLSS SR + Reflex, no DLSS-G"));
                 if (!pref.PreferirLatencia && f.Fsr3Fg.Si) p.GenAlternativa = Tx.T("FSR 3 FG x2 por Magpie (más latencia, apagada de serie)", "FSR 3 FG x2 via Magpie (off by default)");
                 if (f.DlssGComunidad.Si) p.GenAlternativa += (p.GenAlternativa.Length > 0 ? "; " : "") + Tx.T("DLSS-G no oficial (dlssg_sm86) por Magpie", "unofficial DLSS-G (dlssg_sm86)");
+                // 21-11 (1.0.10, Reddit: "no se como encender DLSS FG aunque elegi mi carpeta dlssg_sm86 en el asistente", RTX 30): con el
+                // runtime de la comunidad, DLSS FG por Magpie es elegible (L3 / Ctrl+G / bandeja) y la generacion queda disponible; apagada de serie
+                if (f.DlssGComunidad.Si) p.DlssgSoloMagpie = true;
             }
             else if (f.Afmf.Si)
             {
@@ -468,7 +472,7 @@ namespace ConsoleEnhancer.Deteccion
         {
             GpuFunciones f = g.F;
             bool nv = g.Fab == Fabricante.Nvidia;
-            bool sm = nv && f.SmoothMotion.Si, dg = nv && f.DlssG.Si, xe = f.XessFg.Si, fs = f.Fsr3Fg.Si;
+            bool sm = nv && f.SmoothMotion.Si, dg = nv && (f.DlssG.Si || p.DlssgSoloMagpie), xe = f.XessFg.Si, fs = f.Fsr3Fg.Si;
             bool rtx40 = g.Familia == FamiliaGpu.NvidiaRtx40;
             string serie30 = Tipo(p.Gen30), serie60 = Tipo(p.Gen60);
             List<string> l30 = new List<string>();

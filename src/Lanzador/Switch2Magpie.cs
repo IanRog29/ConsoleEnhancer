@@ -899,7 +899,8 @@ namespace ConsoleEnhancer
         // 19-11 (GENERACION): la generacion de ahora solo la hace Magpie (FSR 3 FG, XeSS FG, NVIDIA VFG): con DLSS 5 apagado, mpv + Magpie sin el
         // 21-11 (1.0.9): FSR 3 FG ya la hace el motor propio (src\Motor\Engine\EngineFgFfx.cs) salvo con DLSS de escalador (con ella el motor
         // va sin Streamline, sin DLSS): entonces sigue Magpie. XeSS FG y la de NVIDIA VFX, Magpie
-        public bool FgMagpieOnly { get { return !FgOff && !HomeNative && ((FgTypeNow == "fsr3" && Ce.EngineUpscaler(this) == "dlss") || FgTypeNow == "xess" || FgTypeNow == "vfg"); } }
+        public bool FgMagpieOnly { get { return !FgOff && !HomeNative && ((FgTypeNow == "fsr3" && Ce.EngineUpscaler(this) == "dlss") || FgTypeNow == "xess" || FgTypeNow == "vfg" ||
+                                                                         (FgTypeNow == "dlss" && Ce.DlssgSoloMagpie)); } }   // (1.0.10: RTX 30 + dlssg_sm86, DLSS FG por Magpie)
         // El motor con FSR 3 FG (fg_tipo=fsr3 al abrirlo: su cadena de presentacion es la de FidelityFX; no se cambia en marcha)
         public bool EngineFfxWanted { get { return !FgOff && !HomeNative && !Mode120 && FgTypeNow == "fsr3" && Ce.EngineUpscaler(this) != "dlss"; } }
         public static volatile int EngineFfxLaunched = -1;
@@ -6592,7 +6593,10 @@ namespace ConsoleEnhancer
             MenuAcercaDe(menu); // (ConsoleEnhancer, GITHUB: licencias y avisos legales, src\Lanzador\Componentes.cs)
             MenuExtras(menu); // (ConsoleEnhancer, PUBLICAR: componentes, anadir / quitar DLSS 5 y apoyar el proyecto, src\Lanzador\Extras.cs)
             menu.Items.Add(new ToolStripSeparator());
-            menu.Items.Add(Idioma.T("Salir"), null, delegate { QuitRequested(); });
+            ToolStripMenuItem salir = new ToolStripMenuItem(Idioma.T("Salir"), null, delegate { QuitRequested(); });
+            salir.ShortcutKeyDisplayString = "Alt+F4";   // (1.0.10: Alt+F4 sobre la imagen cierra la app, KeyHook)
+            menu.Items.Add(salir);
+            MenuJuego(menu); // (ConsoleEnhancer 1.0.10: lo del mando en la bandeja, arriba; src\Lanzador\MenuJuego.cs)
             UpdateDetectItem();
             PrismaUi.StyleMenu(menu); // 15-11 (Prisma): oscuro como los avisos, con el icono y el nombre arriba
 
@@ -8030,6 +8034,8 @@ namespace ConsoleEnhancer
                         ThreadPool.QueueUserWorkItem(delegate { try { GenSelectorPress(); } catch (Exception ex) { Log.Error("Selector de generacion (teclado)", ex); } });
                         return (IntPtr)1;
                     }
+                    // 21-11 (1.0.10, Reddit: sin mando): Ctrl+F / M / 1-4 / R / D / I sobre la imagen = lo de los botones (src\Lanzador\MenuJuego.cs)
+                    if (!up && !injected && TeclaCe((uint)k.Vk)) return (IntPtr)1;
                     if (!injected && k.Vk == 0x5C) // Win derecha
                     {
                         rwinDown = !up;
