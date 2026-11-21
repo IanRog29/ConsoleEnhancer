@@ -460,6 +460,17 @@ namespace ConsoleEnhancer
             return res;
         }
 
+        // Al salir del menu, el icono en foco se parece al guardado de perfilIcono pero se lee OTRO juego (nombres sin relacion): ¿manda el
+        // nombre? Si el icono es aun el del foco de antes (Desfasada: la etiqueta ya cambio y la fila aun se mueve) o la lectura esta
+        // confirmada (etiqueta e icono juntos dos veces: el icono guardado era de un fundido o de otro foco). Con la lectura confirmada, un
+        // perfil provisional ("PS5: Juego 2", con basura) no: ese se renombra con el nombre leido. Una sola lectura sin mas: manda el icono
+        public static bool NombreMandaSobreIcono(string perfilIcono, LecturaFoco foco)
+        {
+            if (string.IsNullOrEmpty(perfilIcono) || foco == null || string.IsNullOrEmpty(foco.Nombre)) return false;
+            if (Relacionado(SinTag(perfilIcono), foco.Nombre)) return false;
+            return foco.Desfasada || (foco.Fiable && !Provisional(perfilIcono));
+        }
+
         // ¿Cambiar el nombre de un perfil de la consola (viejo) por el leido ahora con su mismo icono (nuevo)? Si viejo es provisional
         // ("Juego N", con simbolos), una lectura a medias de nuevo ("PS5: Rocket" -> "Rocket League") o el mismo con erratas del OCR
         // (Parecido) que en esta visita no se ha leido y nuevo si, 2 veces o mas. Nunca a uno mas corto ni a otro juego sin relacion (dos
@@ -1203,6 +1214,20 @@ namespace ConsoleEnhancer
                 bool ok = f != null && f.Nombre == "PLAYÑOOM" && f.Fiable && f.Icono == rl;
                 sb.Append("  al salir (lo mismo y luego su icono de verdad 2 veces): fiable ").Append(f != null && f.Fiable ? "si" : "no").Append(", icono ")
                   .Append(f != null && f.Icono == rl ? "el suyo" : "OTRO").Append(' ').Append(ok ? "OK" : "FALLO").Append("\r\n");
+            }
+            // Cuando manda el nombre sobre un icono guardado de otro juego
+            object[][] manda = {
+                new object[] { "PS5: Grand Theft Auto VI", "PLAYÑOOM", false, true, true }, new object[] { "PS5: Juego 2", "Bloodborne", true, false, false },
+                new object[] { "PS5: Juego 2", "Bloodborne", false, true, true }, new object[] { "PS5: Rocket", "Rocket League", true, false, false },
+                new object[] { "PS5: Bloodborne", "Rocket League", false, false, false }, new object[] { "PS5: Bloodborne", "Rocket League", true, false, true },
+                new object[] { "PS5: Grand Theft Auto VI", "Theft Auto VI", false, true, false } };
+            foreach (object[] q in manda)
+            {
+                LecturaFoco lf = new LecturaFoco();
+                lf.Nombre = (string)q[1]; lf.Fiable = (bool)q[2]; lf.Desfasada = (bool)q[3];
+                bool got = NombreMandaSobreIcono((string)q[0], lf);
+                sb.Append("  icono de \"").Append(q[0]).Append("\", leido \"").Append(q[1]).Append("\"").Append(lf.Fiable ? " confirmado" : "").Append(lf.Desfasada ? " con el icono del foco de antes" : "")
+                  .Append(": manda ").Append(got ? "el nombre" : "el icono").Append(' ').Append(got == (bool)q[4] ? "OK" : "FALLO").Append("\r\n");
             }
             // Cuando se renombra un perfil (el nombre leido con su mismo icono)
             object[][] ren = {

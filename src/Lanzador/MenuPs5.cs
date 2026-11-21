@@ -694,7 +694,7 @@ namespace ConsoleEnhancer
             // 1.2.1: el icono conocido es de OTRO juego que el leido (nombres sin relacion): si el icono es el del foco de antes (la etiqueta
             // nueva con el icono aun del juego anterior, Desfasada) o la lectura esta confirmada (el icono guardado era de un fundido), manda
             // el nombre; si no (una sola lectura, quiza con erratas), el icono como siempre
-            if (p != null && nombre != null && !JuegoConsola.Relacionado(JuegoConsola.SinTag(p), nombre) && (foco.Desfasada || foco.Fiable))
+            if (p != null && JuegoConsola.NombreMandaSobreIcono(p, foco))
             {
                 leido += "; el icono se parece al de \"" + p + "\" (distancia " + dd + ") pero se lee otro juego" +
                          (foco.Desfasada ? " con el icono aun del foco de antes" : "") + ": manda el nombre";
