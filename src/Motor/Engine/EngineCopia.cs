@@ -258,7 +258,8 @@ namespace ConsoleEnhancer.Motor
                     Barrier(rawColor, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.UNORDERED_ACCESS);
                     c[0] = (uint)w; c[1] = (uint)y1; c[2] = (uint)slotPitch[slot]; c[3] = (uint)slotFmt[slot];
                     c[4] = 1; c[5] = 0; c[6] = (uint)slotUv[slot]; c[7] = (uint)y0;   // (H = la ultima fila + 1, Pad0 = la primera)
-                    BindCompute(psoUnpack, TUnpack + slot, c, 8);
+                    c[8] = (uint)s.Chroma; c[9] = c[10] = c[11] = 0;   // 21-11 (croma=)
+                    BindCompute(psoUnpack, TUnpack + slot, c, 12);
                     list.Dispatch(Groups((w + 3) / 4, 16), Groups(y1 - y0, 8), 1);
                     Barrier(rawColor, D3D12_RESOURCE_STATES.UNORDERED_ACCESS, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE);
                     if (b == n - 1) PassMark(1);

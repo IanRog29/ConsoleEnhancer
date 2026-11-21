@@ -228,6 +228,9 @@ namespace ConsoleEnhancer.Motor
         public int FgVecFull = 0;                   // 20-11 (FGFALLOS) fg_vectores_completos=1: DLSS-G con los vectores completos por punto del motor donde DLSS 5 ya los hace (modo 30, entrada >= mv_ligero); 2: tambien donde haya mvpx (EngineMotion.cs FgVecFullNow)
         public bool FgFill = true;                  // 21-11 (FG21) fg_relleno=1: con fg_vectores_completos, lo liso con vector 0 sigue a lo de alrededor (solo DLSS-G; EngineFgRelleno.cs)
         public double FgFillFlat = 3, FgFillTie = 2;   // fg_relleno_liso (desviacion media de la luma del bloque, niveles), fg_relleno_empate (niveles)
+        public int Chroma = 2;                      // 21-11 croma=0 vecino (antes: escalones en los bordes de color con YUY2/NV12), 1 lineal, 2 guiado por la luma (Shaders.cs Unpack)
+        public bool FgGuard = false;                // 21-11 (BORDE) fg_borde=1 (de serie 0: no quitaba todos los halos en GTA; se usa fg_vectores=3): la generacion con 0 en los bordes entre movimientos distintos (los halos; EngineFgBorde.cs)
+        public int FgGuardRad = 6; public double FgGuardDif = 6, FgGuardRel = 0.25;   // fg_borde_radio (bloques de 8), fg_borde_dif (px), fg_borde_rel
         public int FgFillRad = 48;                  // fg_relleno_radio (bloques de 8 px)
         public int FgUi = 0;                        // fgui=1: la generacion no deforma lo quieto con borde (UIAlpha); 2 UIColorAndAlpha; 3 NoWarpMask
         public bool FgMenus = false;                // fg_menus=1: DLSS-G with eEnableFullscreenMenuDetection (no generated frames over a fullscreen menu)
@@ -449,6 +452,11 @@ namespace ConsoleEnhancer.Motor
                 case "fg_menus": FgMenus = B(val); break;
                 case "fg_vectores_completos": FgVecFull = Math.Max(0, Math.Min(2, I(val))); break;   // 20-11 (FGFALLOS)
                 case "fg_relleno": FgFill = B(val); break;   // 21-11 (FG21)
+                case "croma": Chroma = Math.Max(0, Math.Min(2, I(val))); break;   // 21-11 (Shaders.cs Unpack)
+                case "fg_borde": FgGuard = B(val); break;   // 21-11 (BORDE)
+                case "fg_borde_radio": FgGuardRad = Math.Max(1, Math.Min(16, I(val))); break;
+                case "fg_borde_dif": FgGuardDif = Math.Max(0, D(val)); break;
+                case "fg_borde_rel": FgGuardRel = Math.Max(0, D(val)); break;
                 case "fg_relleno_liso": FgFillFlat = Math.Max(0, D(val)); break;
                 case "fg_relleno_empate": FgFillTie = Math.Max(0, D(val)); break;
                 case "fg_relleno_radio": FgFillRad = Math.Max(1, Math.Min(128, I(val))); break;
@@ -513,7 +521,8 @@ namespace ConsoleEnhancer.Motor
             if (FgDepth > 0) r += " fg_profundidad=" + FgDepth;
             if (FgUi > 0) r += " fgui=" + FgUi + (FgUiRecomp ? "+recomp" : "");
             if (FgMenus) r += " fg_menus";
-            if (FgVecFull > 0) r += " fg_vectores_completos=" + FgVecFull + (FgFill ? " fg_relleno" : "");   // 20-11 (FGFALLOS) (21-11 FG21: fg_relleno)
+            if (FgVecFull > 0) r += " fg_vectores_completos=" + FgVecFull + (FgFill ? " fg_relleno" : "");
+            if (FgGuard) r += string.Format(CultureInfo.InvariantCulture, " fg_borde={0}/{1:0.#}/{2:0.##}", FgGuardRad, FgGuardDif, FgGuardRel);   // 21-11 (BORDE)   // 20-11 (FGFALLOS) (21-11 FG21: fg_relleno)
             if (MvTemporal) r += " mvtemporal";   // 17-11 (REJAS)
             if (MvCons > 0) r += string.Format(CultureInfo.InvariantCulture, " mvconsenso={0:0.0}", MvCons) + (MvConsAxis ? " mvconsenso_eje" : "");
             if (MvCapas) r += " mvcapas";

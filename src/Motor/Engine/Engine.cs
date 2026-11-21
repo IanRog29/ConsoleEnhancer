@@ -61,7 +61,8 @@ namespace ConsoleEnhancer.Motor
         ID3D12Resource rawSmall;    // 16-11 noche (entrada=): la captura reducida
         ID3D12Resource mvecZero;    // 17-11 (fg_vectores=0): vectores a cero para DLSS-G (se crea a cero y nunca se escribe)
         // 17-11 (fg_vectores=0): los vectores que ve la generacion (la etiqueta de la imagen); DLSS SR lleva los del motor (EvaluateDlss)
-        ID3D12Resource FgMvec { get { return fgApplied && s.FgVec == 0 && mvecZero != null ? mvecZero : fgApplied && s.FgVec >= 2 && mvecFg != null && !FgVecFullNow ? mvecFg : fgFillValid && FgFillNow ? mvecFg : mvec; } }   // (20-11 FGFALLOS: fg_vectores_completos) (21-11 FG21: fg_relleno)
+        ID3D12Resource FgMvec { get { ID3D12Resource r = FgMvecRaw; return fgGuardValid && r != mvecZero ? mvecGuard : r; } }   // 21-11 (BORDE): fg_borde, EngineFgBorde.cs
+        ID3D12Resource FgMvecRaw { get { return fgApplied && s.FgVec == 0 && mvecZero != null ? mvecZero : fgApplied && s.FgVec >= 2 && mvecFg != null && !FgVecFullNow ? mvecFg : fgFillValid && FgFillNow ? mvecFg : mvec; } }   // (20-11 FGFALLOS: fg_vectores_completos) (21-11 FG21: fg_relleno)
         // 17-11 15:20 (fg_profundidad=R): profundidad aproximada solo para DLSS-G (a <= R px de un borde fuerte, delante; lo liso, detras);
         // DLSS SR sigue con la de siempre (a 0) como etiqueta local (EvaluateDlss)
         ID3D12Resource depthFg;
@@ -428,6 +429,7 @@ namespace ConsoleEnhancer.Motor
                 Bury(rawColor); Bury(inColor); Bury(depth); Bury(mvec); Bury(rawSmall);
                 if (mvecZero != null) { Bury(mvecZero); mvecZero = null; }
                 if (mvecFg != null) { Bury(mvecFg); mvecFg = null; }   // 17-11 13:40 (REJAS)
+                if (mvecGuard != null) { Bury(mvecGuard); mvecGuard = null; }   // 21-11 (BORDE)
                 if (depthFg != null) { Bury(depthFg); depthFg = null; }   // 17-11 15:20 (fg_profundidad)
                 rawColor = inColor = depth = mvec = rawSmall = null;
             }
@@ -438,6 +440,7 @@ namespace ConsoleEnhancer.Motor
             mvec = Tex(DXGI_FORMAT.R16G16_FLOAT, iw, ih, true, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, "movimiento");
             mvecZero = Tex(DXGI_FORMAT.R16G16_FLOAT, iw, ih, false, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, "movimiento a cero (generacion)");
             mvecFg = Tex(DXGI_FORMAT.R16G16_FLOAT, iw, ih, true, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, "movimiento para la generacion");   // 17-11 13:40 (REJAS)
+            mvecGuard = Tex(DXGI_FORMAT.R16G16_FLOAT, iw, ih, true, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, "movimiento para la generacion con bordes");   // 21-11 (BORDE)
             depthFg = Tex(DXGI_FORMAT.R32_FLOAT, iw, ih, true, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, "profundidad para la generacion");   // 17-11 15:20 (fg_profundidad)
             if (gvec == null) gvec = Tex(DXGI_FORMAT.R32G32_FLOAT, 1, 1, true, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, "vector global");
             CreateMotionResources(iw, ih);
@@ -904,7 +907,8 @@ namespace ConsoleEnhancer.Motor
                 Barrier(rawColor, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.UNORDERED_ACCESS);
                 c[0] = (uint)slotW[slot]; c[1] = (uint)slotH[slot]; c[2] = (uint)slotPitch[slot]; c[3] = (uint)slotFmt[slot];
                 c[4] = 1; c[5] = 0; c[6] = (uint)slotUv[slot]; c[7] = 0;
-                BindCompute(psoUnpack, TUnpack + slot, c, 8);
+                c[8] = (uint)s.Chroma; c[9] = c[10] = c[11] = 0;   // 21-11 (croma=)
+                BindCompute(psoUnpack, TUnpack + slot, c, 12);
                 list.Dispatch(Groups((slotW[slot] + 3) / 4, 16), Groups(slotH[slot], 8), 1);
                 Barrier(rawColor, D3D12_RESOURCE_STATES.UNORDERED_ACCESS, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE);
                 PassMark(1);

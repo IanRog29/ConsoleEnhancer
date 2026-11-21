@@ -18,7 +18,7 @@ namespace ConsoleEnhancer.Motor
     unsafe partial class Engine
     {
         // Tablas propias detras de TDown (Engine.cs: TablesCount)
-        const int TRBase = TQBase + TQCount + 1, TRTruth = TRBase /* + juego de luma */, TRCons = TRBase + 2 /* + juego */, TRCapas = TRBase + 4 /* + juego */, TRApert = TRBase + 6, TREdge = TRBase + 7 /* + juego */, TREns = TRBase + 9 /* + juego */, TRFg = TRBase + 11, TRFgD = TRBase + 12, TRCount = 18;   // (21-11 FG21: + TRFillA/B/C, EngineFgRelleno.cs)
+        const int TRBase = TQBase + TQCount + 1, TRTruth = TRBase /* + juego de luma */, TRCons = TRBase + 2 /* + juego */, TRCapas = TRBase + 4 /* + juego */, TRApert = TRBase + 6, TREdge = TRBase + 7 /* + juego */, TREns = TRBase + 9 /* + juego */, TRFg = TRBase + 11, TRFgD = TRBase + 12, TRCount = 23;   // (21-11 FG21: + TRFillA/B/C, EngineFgRelleno.cs)
         ID3D12PipelineState psoMvTruth, psoMvCons, psoMvCapas, psoMvApert, psoEdge, psoEns, psoFgSmooth, psoFgGlobal, psoFgDepth;
         ID3D12Resource edgeMap, mvecW;   // 17-11 13:20 (mvensancha): fuerza del borde por punto (R8) y los vectores ensanchados
         ID3D12Resource mvCons;      // el campo de bloques del nivel fino tras el consenso (se copia encima de mvLevel[0])
@@ -99,6 +99,7 @@ namespace ConsoleEnhancer.Motor
                 UavTex(tk, U0, mvec, DXGI_FORMAT.R16G16_FLOAT);
             }
             FgFillViews();   // 21-11 (FG21): fg_relleno, EngineFgRelleno.cs
+            FgGuardViews();   // 21-11 (BORDE): fg_borde, EngineFgBorde.cs
         }
 
         // RecordMotion, tras la busqueda (mvLevel[0] en NON_PIXEL_SHADER_RESOURCE): mvconsenso=N. Cada bloque elige entre su vector y los
