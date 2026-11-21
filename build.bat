@@ -16,6 +16,9 @@ if not exist bin mkdir bin
   /r:"%FW%\WPF\UIAutomationClient.dll" /r:"%FW%\WPF\UIAutomationTypes.dll" /r:"%FW%\WPF\WindowsBase.dll" ^
   src\Lanzador\*.cs src\Deteccion\*.cs
 if errorlevel 1 (echo *** ERROR de compilacion *** & exit /b 1)
+rem (1.2.0) "Ajustes de ConsoleEnhancer.exe": abre el panel de ajustes (ConsoleEnhancer.exe --ajustes, src\Lanzador\Panel.cs)
+"%CSC%" /nologo /target:winexe /optimize+ /out:"bin\Ajustes de ConsoleEnhancer.exe" /win32icon:recursos\prisma.ico /r:System.dll /r:System.Windows.Forms.dll src\Ajustes\Ajustes.cs
+if errorlevel 1 (echo *** ERROR de compilacion de Ajustes *** & exit /b 1)
 rem ---- lo que la app busca junto al exe ----
 if not exist bin\recursos mkdir bin\recursos
 if not exist bin\idiomas mkdir bin\idiomas
@@ -27,8 +30,6 @@ copy /y idiomas\*.txt bin\idiomas\ >nul
 copy /y scripts\*.lua bin\scripts\ >nul
 copy /y scripts\*.glsl bin\scripts\ >nul
 copy /y scripts\componentes.json bin\scripts\ >nul
-copy /y scripts\inicio_y_apagado.ps1 bin\scripts\ >nul
-copy /y "recursos\Inicio y apagado.bat" bin\ >nul
 if not exist bin\mpv if exist terceros\mpv\mpv.exe mklink /J bin\mpv terceros\mpv >nul
 if not exist bin\magpie if exist terceros\magpie\Magpie.exe mklink /J bin\magpie terceros\magpie >nul
 if not exist bin\mpv\mpv.exe echo Aviso: sin mpv en bin\ (powershell -ExecutionPolicy Bypass -File scripts\descargar_dependencias.ps1)

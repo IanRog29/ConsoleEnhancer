@@ -723,8 +723,23 @@ namespace ConsoleEnhancer
                 // Motion solo con DLSS 5; sin el (DLSS 5 apagado, o mpv + Magpie porque el motor propio no arranca) DLSS FG, como antes. Asi
                 // los avisos tampoco dicen "Smooth Motion" con el motor propio, que va con DLSS-G
                 // (17-11 17:50: quitado: el usuario quiere Smooth Motion en todos los modos; el motor propio tambien lo usa)
-                return t == "smooth" && (NvProfiles.SmoothBroken || Pantalla.Is119) ? "dlss" : t; // (si el driver no deja ponerlo, o con la tele a 119,88 Hz: DLSS FG)
+                if (t == "smooth" && (NvProfiles.SmoothBroken || Pantalla.Is119)) t = "dlss"; // (si el driver no deja ponerlo, o con la tele a 119,88 Hz: DLSS FG)
+                if (t == "dlss" && DlssFgPorMagpieSinRuntime) t = FgSinDlssMagpie();
+                return t;
             }
+        }
+        // (1.1.2) DLSS FG tendria que ir por Magpie (DLSS 5 encendido y no en el motor) y a Magpie le falta runtimes\dlssg_sm86
+        public bool DlssFgPorMagpieSinRuntime
+        {
+            get { return !Integrado.MagpieDlssgOk && ((!Dlss5Off && Integrado.Dlss5Available && !(EngineDlss5 && Engine == "propio")) || Ce.DlssgSoloMagpie); }
+        }
+        // La que va en su lugar: XeSS FG (no a 1080p), Smooth Motion, FSR 3 FG; si no hay ninguna, DLSS FG (y el aviso de Magpie)
+        string FgSinDlssMagpie()
+        {
+            if (File.Exists(Path.Combine(Paths.MagpieDir, "libxess_fg.dll")) && WindowFor(VideoSize) != "1920x1080") return "xess";
+            if (!NvProfiles.SmoothBroken && !Pantalla.Is119) return "smooth";
+            if (File.Exists(Path.Combine(Paths.MagpieDir, "amd_fidelityfx_framegeneration_dx12.dll"))) return "fsr3";
+            return "dlss";
         }
         public bool SmoothNow { get { return !FgOff && FgTypeNow == "smooth"; } }
         // Imagenes por cada real: modo 60 (60 -> 120 en la tele de 120 Hz) y modo 30 (2 = 60, 4 = 120). Con LS el modo 30 iba x2:
@@ -1941,6 +1956,14 @@ namespace ConsoleEnhancer
             // ---- Generales: la copia va sin permisos de administrador (igual que esta app: asi se puede cerrar), sin reiniciarse sola
             // al acabar de escalar (Smooth Motion), sin buscar actualizaciones y sin parar al cambiar de ventana
             Set(root, "alwaysRunAsAdmin", false, "global", changes);
+            // 21-11: el Magpie experimental 0.6.12, con una config sin las marcas de sus valores por defecto de administrador, "migra":
+            // pone alwaysRunAsAdmin=true y se reabre elevado (UAC al pasar a XeSS FG con la config nueva). Con las marcas ya puestas no migra.
+            foreach (string marca in new[] { "adminStartupDefaultsVersion", "adminAutoStartDefaultsVersion" })
+            {
+                object mv; long mn = 0;
+                bool hay = root.TryGetValue(marca, out mv) && mv != null && long.TryParse(Convert.ToString(mv, System.Globalization.CultureInfo.InvariantCulture), out mn);
+                if (!hay || mn < 1) Set(root, marca, 1, "global", changes);
+            }
             Set(root, "smoothMotionCompatibilityMode", false, "global", changes);
             Set(root, "autoCheckForUpdates", false, "global", changes);
             Set(root, "checkForPreviewUpdates", false, "global", changes);
@@ -6958,6 +6981,7 @@ namespace ConsoleEnhancer
         // true = puesto con imagen
         bool PutFrozenCurtain()
         {
+            AjustesQuitarYa("al menu de la consola", true); // (1.1.2: que la copia no lleve el menu de ajustes)
             Stopwatch sw = Stopwatch.StartNew();
             bool exact = true;
             Bitmap img = CaptureScreen();
@@ -10207,6 +10231,7 @@ namespace ConsoleEnhancer
         void EnterHomeNative()
         {
             if (!cfg.HomeNativeEnabled || cfg.HomeNative || homeGrace || homeBusy || passesBusy || relaunchSize != null) return;
+            AjustesQuitarYa("al menu de la consola", false);
             // (revision 10-11: no con la captura de 4K, ventana de 4K: las capturas del HOME cada 0,5 s a 4K atascan mpv con LS encima)
             // 15-11: con DLSS 5 encendido, a 4K nativo al momento (DLSS 5 sobre el HOME: tono, texto e interfaz con errores; en 60 con
             // generacion ademas sin su mascara de interfaz). La espera solo sin DLSS 5
@@ -10435,6 +10460,7 @@ namespace ConsoleEnhancer
         {
             Process p = mpv;
             if (p == null || p.HasExited) return;
+            if (toHome) AjustesQuitarYa("al menu de la consola", false);
             homeBusy = true;
             passesBusy = true;
             padRestart = false;

@@ -29,7 +29,7 @@ Created and maintained by **IanRog29** · [Source and downloads](https://github.
 
 ## Quick start
 
-1. Download the latest **`ConsoleEnhancer-v1.1.1.zip`** (or newer) from
+1. Download the latest **`ConsoleEnhancer-v1.2.0.zip`** (or newer) from
    **[Releases](https://github.com/IanRog29/ConsoleEnhancer/releases)** (not the green "Code" button: that is the source code).
 2. **Unzip** it into one of your own folders: Documents, the Desktop, `D:\Juegos`... (not in *Program Files*).
 3. Open **`ConsoleEnhancer.exe`** and follow the wizard. Done: turn the console on.
@@ -45,8 +45,11 @@ First-run details:
   the console, the display and the plan. At the end you choose whether it starts with Windows and what the PC does when you turn the
   console off (nothing, standby, sleep or shut down; see [Power](#power-what-the-pc-does-when-the-console-turns-off)).
 
-To set it up again: tray icon > **Setup wizard**. To remove it: tray icon > **Uninstall ConsoleEnhancer…** (it puts Windows back as it
-was and deletes only the app's own files; you choose whether to keep your settings and game profiles).
+**Settings and uninstall: open `Ajustes de ConsoleEnhancer.exe`** (next to `ConsoleEnhancer.exe`), with the app open or closed. It has
+everything in one window: open the app or the setup wizard, how the PC is used (like a console / like a normal PC), start with Windows,
+black desktop, what the PC does when the console turns off, DLSS 5 (your own file), download mpv/Magpie again, test the countdown or
+the standby, the logs and **Uninstall** (it puts Windows back as it was and deletes only the app's own files; you choose whether to keep
+your settings and game profiles). The same options are in the tray icon menu.
 
 ## Support the project
 
@@ -160,9 +163,9 @@ with help a lot too.
   Each one explains what it does first; switch whenever you like.
 - **Uninstall** (tray > *Uninstall ConsoleEnhancer…*): removes the start-with-Windows task, brings back the normal desktop and power plan,
   and deletes only the app's own files (anything else in its folder stays). Your settings and game profiles can be kept for a later install.
-- **`Inicio y apagado.bat`** next to `ConsoleEnhancer.exe`: change, without opening the app, start with Windows, what happens to the
-  PC when the console turns off, the countdown seconds and the black desktop, and test the countdown or the standby without shutting
-  anything down.
+- **`Ajustes de ConsoleEnhancer.exe`** next to `ConsoleEnhancer.exe` (replaces `Inicio y apagado.bat`): all of the above plus DLSS 5,
+  components, logs, the countdown and standby tests and uninstall, in one window. If the app is open, it offers to restart it to apply
+  the changes.
 - **Components**: mpv and Magpie are downloaded once from their official pages with their SHA-256 checked (offline, from the zips in
   `descargas\`); tray > *Components: check / download again* repairs them.
 - **Updates keep your data**: the first time a new version opens, it copies the settings, per-game profiles and recognised console from
@@ -176,7 +179,7 @@ with help a lot too.
 
 With `apagar_pc=1` (wizard's last step or tray > *Shut down the PC when the console is turned off*), `apagar_pc_modo` picks what
 happens. Change it in the wizard, in tray > *When the console is turned off, the PC* (with *How does each one work and how much
-power?*) or with `Inicio y apagado.bat` option 6.
+power?*) or in `Ajustes de ConsoleEnhancer.exe`.
 
 | Mode | How it works | Power at the wall |
 |---|---|---|
@@ -188,7 +191,7 @@ power?*) or with `Inicio y apagado.bat` option 6.
   or moving the mouse more than 40 px, cancels it; input injected by other programs (Joyxoff, controller mappers, Steam Input) doesn't.
 - The PC is not shut down if the GPU failed in the last minute (see *Doesn't close by itself if the GPU stalls*).
 - Closing the app yourself (Exit, Alt+F4) never shuts down or sleeps the PC.
-- `Inicio y apagado.bat`: option 5 tests the countdown and option 7 tests the standby (the screen goes off; turn the console or a
+- `Ajustes de ConsoleEnhancer.exe` > *Test the shutdown notice* / *Test standby* (the screen goes off; turn the console or a
   controller on, or press a key).
 
 ## DLSS 5 (optional)
@@ -306,7 +309,7 @@ Closing the app by hand never shuts anything down.
 injected inputs it ignored.
 
 **Turning the console on doesn't wake the PC.** That only works in *Standby* mode: in *Sleep* the capture card has no power (use a
-key or the power button). Test the standby with `Inicio y apagado.bat` option 7.
+key or the power button). Test the standby in `Ajustes de ConsoleEnhancer.exe` > *Test standby*.
 
 ## Legal notices
 
@@ -347,7 +350,7 @@ build.bat                       :: bin\ConsoleEnhancer.exe (src\Lanzador + src\D
 build_motor.bat                 :: bin\motor\ConsoleEnhancerEngine.exe (src\Motor) + DLL de Streamline
 tests\build_deteccion.bat       :: tests\bin\DeteccionTest.exe
 tests\bin\DeteccionTest.exe --simula=todo --sin-d3d12 --salida=deteccion.txt   :: 23 PCs simulados
-powershell -ExecutionPolicy Bypass -File scripts\empaquetar.ps1 -Zip -Version v1.1.1   :: dist\ConsoleEnhancer\ y dist\ConsoleEnhancer-v1.1.1.zip
+powershell -ExecutionPolicy Bypass -File scripts\empaquetar.ps1 -Zip -Version v1.2.0   :: dist\ConsoleEnhancer\ y dist\ConsoleEnhancer-v1.2.0.zip
 ```
 
 - **Dependencies**: the table `scripts\componentes.json` (version, URL, SHA-256 and what is taken from each zip) is used by
@@ -423,7 +426,7 @@ Creado y mantenido por **IanRog29** · [Código y descargas](https://github.com/
 
 ## Inicio rápido
 
-1. Baja el último **`ConsoleEnhancer-v1.1.1.zip`** (o uno más nuevo) de
+1. Baja el último **`ConsoleEnhancer-v1.2.0.zip`** (o uno más nuevo) de
    **[Releases](https://github.com/IanRog29/ConsoleEnhancer/releases)** (no el botón verde "Code": eso es el código fuente).
 2. **Descomprímelo** en una carpeta tuya: Documentos, el Escritorio, `D:\Juegos`... (no en *Archivos de programa*).
 3. Abre **`ConsoleEnhancer.exe`** y sigue el asistente. Ya está: enciende la consola.
@@ -439,8 +442,11 @@ Detalles de la primera vez:
   consola, la pantalla y el plan. Al final eliges si se abre al iniciar Windows y qué hace el PC al apagar la consola (nada, en
   espera, suspender o apagar; ver [Energía](#energía-qué-hace-el-pc-al-apagar-la-consola)).
 
-Para volver a configurarla: icono de la bandeja > **Asistente de configuración**. Para quitarla: icono de la bandeja > **Desinstalar
-ConsoleEnhancer…** (deja Windows como estaba y borra solo los archivos de la app; tú eliges si guardar tus ajustes y perfiles).
+**Ajustes y desinstalar: abre `Ajustes de ConsoleEnhancer.exe`** (junto a `ConsoleEnhancer.exe`), con la app abierta o cerrada. Tiene
+todo en una ventana: abrir la app o el asistente, cómo se usa el PC (como una consola / como un PC normal), abrirse con Windows,
+escritorio negro, qué hace el PC al apagar la consola, DLSS 5 (tu propio archivo), volver a bajar mpv/Magpie, probar el aviso o la
+espera, los registros y **Desinstalar** (deja Windows como estaba y borra solo los archivos de la app; tú eliges si guardar tus ajustes y
+perfiles). Lo mismo está en el menú del icono de la bandeja.
 
 ## Apoya el proyecto
 
@@ -553,8 +559,9 @@ y contar en qué PC y con qué consola lo usas.
   la consola). Cada uno explica antes lo que hace; se cambia cuando quieras.
 - **Desinstalar** (bandeja > *Desinstalar ConsoleEnhancer…*): quita el inicio con Windows, devuelve el escritorio y el plan de energía
   normales y borra solo los archivos de la app (lo demás de su carpeta se queda). Tus ajustes y perfiles se pueden guardar para otra vez.
-- **`Inicio y apagado.bat`** junto a `ConsoleEnhancer.exe`: cambia, sin abrir la app, el inicio con Windows, qué hace el PC al apagar la
-  consola, los segundos del aviso y el escritorio negro, y prueba el aviso o la espera sin apagar nada.
+- **`Ajustes de ConsoleEnhancer.exe`** junto a `ConsoleEnhancer.exe` (sustituye a `Inicio y apagado.bat`): todo lo anterior más DLSS 5,
+  componentes, registros, las pruebas del aviso y de la espera y desinstalar, en una ventana. Si la app está abierta, ofrece reiniciarla
+  para aplicar los cambios.
 - **Componentes**: mpv y Magpie se bajan una vez de sus páginas oficiales comprobando su SHA-256 (sin internet, con los zip en
   `descargas\`); bandeja > *Componentes: comprobar / volver a descargar* los repara.
 - **Al actualizar no pierdes nada**: la primera vez que se abre una versión nueva, copia los ajustes, los perfiles de cada juego y la
@@ -568,8 +575,8 @@ y contar en qué PC y con qué consola lo usas.
 ## Energía: qué hace el PC al apagar la consola
 
 Con `apagar_pc=1` (último paso del asistente o bandeja > *Apagar el PC al apagar la consola*), `apagar_pc_modo` elige qué pasa. Se
-cambia en el asistente, en bandeja > *Al apagar la consola, el PC* (con *¿Cómo funciona cada uno y cuánto gasta?*) o con la opción 6
-de `Inicio y apagado.bat`.
+cambia en el asistente, en bandeja > *Al apagar la consola, el PC* (con *¿Cómo funciona cada uno y cuánto gasta?*) o en
+`Ajustes de ConsoleEnhancer.exe`.
 
 | Modo | Cómo funciona | Consumo en el enchufe |
 |---|---|---|
@@ -582,8 +589,8 @@ de `Inicio y apagado.bat`.
   Steam Input) no cuenta.
 - No apaga el PC si la gráfica falló en el último minuto (ver *No se cierra sola si la gráfica se para*).
 - Cerrar la app a mano (Salir, Alt+F4) nunca apaga ni duerme el PC.
-- `Inicio y apagado.bat`: la opción 5 prueba el aviso y la 7 prueba la espera (se apaga la pantalla; enciende la consola o un mando, o
-  pulsa una tecla).
+- `Ajustes de ConsoleEnhancer.exe` > *Probar el aviso de apagado* / *Probar el modo espera* (se apaga la pantalla; enciende la consola o
+  un mando, o pulsa una tecla).
 
 ## DLSS 5 (opcional)
 
@@ -699,7 +706,7 @@ nunca apaga nada.
 entradas inyectadas no contó.
 
 **Encender la consola no despierta el PC.** Eso solo va en el modo *En espera*: suspendido, la capturadora no tiene corriente (usa una
-tecla o el botón de encendido). Prueba la espera con la opción 7 de `Inicio y apagado.bat`.
+tecla o el botón de encendido). Prueba la espera en `Ajustes de ConsoleEnhancer.exe` > *Probar el modo espera*.
 
 ## Avisos legales
 
@@ -739,7 +746,7 @@ build.bat                       :: bin\ConsoleEnhancer.exe (src\Lanzador + src\D
 build_motor.bat                 :: bin\motor\ConsoleEnhancerEngine.exe (src\Motor) + DLL de Streamline
 tests\build_deteccion.bat       :: tests\bin\DeteccionTest.exe
 tests\bin\DeteccionTest.exe --simula=todo --sin-d3d12 --salida=deteccion.txt   :: 23 PCs simulados
-powershell -ExecutionPolicy Bypass -File scripts\empaquetar.ps1 -Zip -Version v1.1.1   :: dist\ConsoleEnhancer\ y dist\ConsoleEnhancer-v1.1.1.zip
+powershell -ExecutionPolicy Bypass -File scripts\empaquetar.ps1 -Zip -Version v1.2.0   :: dist\ConsoleEnhancer\ y dist\ConsoleEnhancer-v1.2.0.zip
 ```
 
 - **Dependencias**: la tabla `scripts\componentes.json` (versión, URL, SHA-256 y qué se coge de cada zip) la usan

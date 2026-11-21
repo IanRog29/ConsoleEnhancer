@@ -32,6 +32,7 @@ namespace ConsoleEnhancer
     sealed class FilaAjuste
     {
         public string Id, Nombre, Nota = "";
+        public string Ayuda;   // (1.1.2) una segunda linea debajo, a todo lo ancho (la fila ocupa dos)
         public List<string> Vals = new List<string>(), Txts = new List<string>();
         public int Sel, Orig;
         public bool Visible = true, Activa = true, Carrusel;
@@ -319,8 +320,11 @@ namespace ConsoleEnhancer
             try
             {
                 AjustesModelo();
+                ajFirma = AjFirma(ajFilas, curGame);
                 IntPtr img = mpvWindow;
-                ajVentana = new VentanaAjustes(img, ajFilas.Count);
+                int altas = ajFilas.Count;
+                foreach (FilaAjuste f in ajFilas) if (f.Ayuda != null) altas++;
+                ajVentana = new VentanaAjustes(img, altas);
                 ajustesAbierto = true;
                 ajPie = -1; ajFoco = 0;
                 AjustesFocoValido(+1);
@@ -353,6 +357,72 @@ namespace ConsoleEnhancer
             ajVentana.Encima();
             // La imagen se ha ido (consola apagada, cambio de motor...) o el usuario esta en otra ventana: fuera
             if ((!ImagenLista() && !AjPrueba) || userExit) AjustesCerrar("la imagen ya no esta");
+            else if ((InHome || homeBusy) && !AjPrueba) AjustesCerrar("en el menu de la consola");
+            else AjustesRefrescar();
+        }
+
+        // (1.1.2, el usuario: "si se cambian los ajustes que se vean reflejados en la interfaz del boton home"): con el menu abierto, lo
+        // de ahora se vuelve a mirar cada 0,5 s (botones, atajos, bandeja, otro juego, un "Aplicar" que acaba, cambios por fps bajos...):
+        // si algo ha cambiado, las filas muestran lo nuevo; lo que el usuario ya habia cambiado en el menu y no ha aplicado se queda
+        static string AjFirma(List<FilaAjuste> filas, string juego)
+        {
+            System.Text.StringBuilder sb = new System.Text.StringBuilder(juego ?? "");
+            foreach (FilaAjuste f in filas)
+                sb.Append('|').Append(f.Id).Append('=').Append(f.Orig >= 0 && f.Orig < f.Vals.Count ? f.Vals[f.Orig] : "?")
+                  .Append(f.Activa ? "" : "-").Append(':').Append(string.Join(",", f.Vals.ToArray()));
+            return sb.ToString();
+        }
+        string ajFirma;
+
+        void AjustesRefrescar()
+        {
+            if (ajVentana == null || passesBusy || relaunchSize != null || relaunchEngine) return;   // (a medio cambiar: al acabar)
+            List<FilaAjuste> viejas = new List<FilaAjuste>(ajFilas);
+            FilaAjuste foco = AjFilaFoco();
+            string idFoco = foco != null ? foco.Id : null;
+            try { AjustesModelo(); }
+            catch (Exception ex) { Log.Error("Menu de ajustes: refrescar", ex); ajFilas.Clear(); ajFilas.AddRange(viejas); return; }
+            string firma = AjFirma(ajFilas, curGame);
+            if (firma == ajFirma) { ajFilas.Clear(); ajFilas.AddRange(viejas); return; }   // (nada nuevo: sigue todo como estaba)
+            // Lo cambiado en el menu sin aplicar se mantiene (si sigue siendo posible)
+            foreach (FilaAjuste v in viejas)
+            {
+                if (!v.Cambiada) continue;
+                FilaAjuste n = AjFila(v.Id);
+                if (n == null) continue;
+                int i = n.Vals.IndexOf(v.Val);
+                if (i >= 0) n.Sel = i;
+            }
+            AjustesDepende(false);
+            ajFirma = firma;   // (la del modelo recien hecho: si no, se volveria a refrescar cada vez)
+            Log.Write("Menu de ajustes: actualizado con lo de ahora");
+            int altas = ajFilas.Count, altasAntes = viejas.Count;
+            foreach (FilaAjuste f in ajFilas) if (f.Ayuda != null) altas++;
+            foreach (FilaAjuste f in viejas) if (f.Ayuda != null) altasAntes++;
+            if (altas != altasAntes)
+            {
+                // Otro numero de filas: otra ventana del tamaño nuevo, ya opaca
+                try { ajVentana.Dispose(); } catch { }
+                ajVentana = new VentanaAjustes(mpvWindow, altas);
+            }
+            List<FilaAjuste> nav = AjNavegables();
+            if (ajPie < 0) { int k = idFoco == null ? -1 : nav.FindIndex(delegate(FilaAjuste f) { return f.Id == idFoco; }); ajFoco = k >= 0 ? k : 0; }
+            AjustesFocoValido(+1);
+            AjustesPintar(255);
+            ajVentana.Encima();
+        }
+
+        // (1.1.2, el usuario: "he salido al menu home y ha tardado mucho en quitar el menu de configuracion"): el telon congelado del
+        // HOME es una copia de la pantalla, con el menu de ajustes encima si seguia abierto, y se quedaba ~5 s hasta la imagen nueva.
+        // Desde cualquier hilo: lo quita en el de la interfaz; espera = hasta 300 ms a que se haya ido (antes de copiar la pantalla)
+        void AjustesQuitarYa(string porque, bool espera)
+        {
+            if (!ajustesAbierto) return;
+            OnUi(delegate { AjustesCerrar(porque); });
+            if (!espera) return;
+            Stopwatch sw = Stopwatch.StartNew();
+            while (ajustesAbierto && sw.ElapsedMilliseconds < 300) System.Threading.Thread.Sleep(5);
+            System.Threading.Thread.Sleep(20); // (DWM: un refresco para que la ventana deje de verse)
         }
 
         void AjustesCerrar(string porque)
@@ -401,7 +471,17 @@ namespace ConsoleEnhancer
 
             FilaAjuste d5 = new FilaAjuste { Id = "d5", Nombre = "DLSS 5" };
             d5.Poner(SiNo(), SiNoTxt(), dlss5Shown ? "1" : "0", dlss5Shown ? "1" : "0");
+            // (1.1.2) puesta a mano en extras\ con la app abierta: a magpie\ ya (Magpie la carga la proxima vez que se abre)
+            if (!Integrado.Dlss5Available && Extras.HayDlss5) { Ce.PrepararExtras(); Integrado.Dlss5Rever(); }
             d5.Visible = Integrado.Dlss5Available;
+            // (1.1.2, el usuario: "si no he instalado el dlss 5 ponga que no esta instalado y que para instalarlo que meta el archivo en
+            // donde haya que ponerlo"): con NVIDIA y sin la DLL, la fila dice "No instalado" y donde va. La app no dice de donde sacarla
+            FilaAjuste d5no = new FilaAjuste { Id = "d5info", Nombre = "DLSS 5", Activa = false, Nota = Tx.T("No instalado", "Not installed") };
+            d5no.Visible = !Integrado.Dlss5Available && !Ce.NoNvidia;
+            d5no.Ayuda = Tx.T("Para instalarlo, pon tu archivo " + Integrado.Dlss5Dll + " en la carpeta " + Extras.Dir + " y vuelve a abrir este menú " +
+                              "(o en la bandeja: «Añadir DLSS 5 (tu propio archivo)…»)",
+                              "To install it, put your " + Integrado.Dlss5Dll + " file in the folder " + Extras.Dir + " and open this menu again " +
+                              "(or from the tray: “Add DLSS 5 (your own file)…”)");
 
             FilaAjuste niv = new FilaAjuste { Id = "nivel", Nombre = Tx.T("Nivel de DLSS 5", "DLSS 5 level") };
             string nv = Math.Max(1, Math.Min(4, dlss5Level)).ToString();
@@ -429,7 +509,7 @@ namespace ConsoleEnhancer
             esc.Carrusel = ev.Count > 3;
             esc.Visible = ev.Count > 1;
 
-            ajFilas.AddRange(new[] { cap, mo, fg, tipo, d5, niv, pas, esc });
+            ajFilas.AddRange(new[] { cap, mo, fg, tipo, d5, d5no, niv, pas, esc });
             ajFilas.RemoveAll(delegate(FilaAjuste f) { return !f.Visible; });
             AjustesDepende(true);
         }
@@ -693,6 +773,19 @@ namespace ConsoleEnhancer
                 StringFormat der = new StringFormat { Alignment = StringAlignment.Far, LineAlignment = StringAlignment.Center };
                 foreach (FilaAjuste f in ajFilas)
                 {
+                    if (f.Ayuda != null && !f.Activa)
+                    {
+                        // (1.1.2) fila de aviso: nombre y nota arriba, la explicacion debajo en dos lineas como mucho
+                        RectangleF ar = new RectangleF(panel.X + 16 * u, y, panel.Width - 32 * u, rh - 6 * u);
+                        using (SolidBrush b = new SolidBrush(Color.FromArgb(230, txt))) g.DrawString(f.Nombre, fFila, b, new RectangleF(ar.X + 38 * u, ar.Y, 360 * u, ar.Height), izq);
+                        using (SolidBrush b = new SolidBrush(Color.FromArgb(255, 236, 170, 70)))
+                            g.DrawString(f.Nota, fChipSel, b, new RectangleF(xr - colV, ar.Y, colV - 8 * u, ar.Height), der);
+                        RectangleF hr = new RectangleF(ar.X + 38 * u, ar.Bottom - 8 * u, xr - 8 * u - (ar.X + 38 * u), rh);
+                        using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Near, Trimming = StringTrimming.EllipsisPath })
+                        using (SolidBrush b = new SolidBrush(det)) g.DrawString(f.Ayuda, fNota, b, hr, sf);
+                        y += 2 * rh;
+                        continue;
+                    }
                     RectangleF fr = new RectangleF(panel.X + 16 * u, y, panel.Width - 32 * u, rh - 6 * u);
                     bool sel = f == foco;
                     if (sel)

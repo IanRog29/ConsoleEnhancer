@@ -221,7 +221,20 @@ namespace ConsoleEnhancer
             }
         }
         // (20-11, PUBLICAR) el usuario ha puesto o quitado la DLL con el boton (Extras.cs): mirarlo otra vez
-        public static void Dlss5Rever() { dlss5State = 0; }
+        public static void Dlss5Rever() { dlss5State = 0; dlssgState = 0; }
+
+        // (1.1.2) El DLSS FG de Magpie (el de la cadena con DLSS 5) va SIEMPRE por runtimes\dlssg_sm86 de la comunidad, tambien en RTX 40:
+        // sin el, "DLSSFG preparation failed: community package missing ... No native fallback" y Magpie no escala nunca (21-11 15:05: modo
+        // 30 con DLSS 5 y DLSS FG, 4 reaperturas y la imagen parada). Sin el, con DLSS 5 la generacion va por otra (Config.FgTypeNow)
+        static volatile int dlssgState;
+        public static bool MagpieDlssgOk
+        {
+            get
+            {
+                if (dlssgState == 0) dlssgState = File.Exists(Path.Combine(Paths.MagpieDir, @"runtimes\dlssg_sm86\version.dll")) ? 1 : -1;
+                return dlssgState > 0;
+            }
+        }
 
         // ---- La copia de Magpie de la app ----
         // Lo que nunca viene del origen: la config, los logs y la cache de efectos son de la app; Updater.exe no hace falta; los logs de

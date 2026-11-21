@@ -76,10 +76,10 @@ Texto "$Destino\portable.txt" @(
     'ConsoleEnhancer portable: con este fichero los datos (ajustes, log, juegos, calibracion) van en la carpeta datos\ de aqui al lado.',
     'Borralo para guardarlos en %LOCALAPPDATA%\ConsoleEnhancer (p. ej. si la carpeta de la app no se puede escribir).',
     'ConsoleEnhancer portable: with this file the data (settings, log, games, calibration) is kept in the datos\ folder next to it.')
-foreach ($f in @('ce_power.lua', 'ce_diag.lua', 'ce_espera.lua', 's2_aa.glsl', 's2_aa_fuerte.glsl', 'componentes.json', 'inicio_y_apagado.ps1')) { Poner "$Raiz\scripts\$f" "$Destino\scripts\$f" }
+foreach ($f in @('ce_power.lua', 'ce_diag.lua', 'ce_espera.lua', 's2_aa.glsl', 's2_aa_fuerte.glsl', 'componentes.json')) { Poner "$Raiz\scripts\$f" "$Destino\scripts\$f" }
 Poner "$Raiz\recursos\base.ini" "$Destino\recursos\base.ini"
-# (1.0.13) cambiar el inicio con Windows y el apagado del PC sin abrir la app
-Poner "$Raiz\recursos\Inicio y apagado.bat" "$Destino\Inicio y apagado.bat"
+# (1.2.0) el panel de ajustes (sustituye a "Inicio y apagado.bat"): como se usa el PC, apagado, DLSS 5, componentes, desinstalar
+Poner "$Raiz\bin\Ajustes de ConsoleEnhancer.exe" "$Destino\Ajustes de ConsoleEnhancer.exe"
 Get-ChildItem "$Raiz\idiomas" -File -Filter *.txt | ForEach-Object { Poner $_.FullName "$Destino\idiomas\$($_.Name)" }
 # (mpv\ solo con su portable_config\mpv.conf: mpv.exe lo baja la app la primera vez)
 Poner "$Raiz\recursos\mpv.conf" "$Destino\mpv\portable_config\mpv.conf"
@@ -175,7 +175,8 @@ Texto "$Destino\LEEME.txt" @(
     '    (DLSS / FSR 1, generacion de fotogramas segun la grafica). Otra vez: menu de la bandeja > Asistente de configuracion.',
     ' 3. En el ultimo paso (o en el menu de la bandeja): abrirse al iniciar Windows y apagar el PC al apagar la consola (con un aviso de',
     '    15 s que se cancela con el mando, una tecla o el raton).',
-    '    Para cambiarlo luego sin abrir la app: "Inicio y apagado.bat" (aqui al lado).',
+    'AJUSTES Y DESINSTALAR: "Ajustes de ConsoleEnhancer.exe" (aqui al lado): como se usa el PC, abrirse con Windows, que hace el PC',
+    '    al apagar la consola, DLSS 5 (tu propio archivo, en extras\), volver a bajar mpv/Magpie, registros y desinstalar.',
     'Descomprime en una carpeta tuya (Documentos, Escritorio, D:\Juegos...), no en Archivos de programa.',
     'Datos: datos\ (con portable.txt) o %LOCALAPPDATA%\ConsoleEnhancer. Log: datos\logs\consoleenhancer.log y engine.log.',
     'Requisitos: Windows 10 2004 o posterior (64 bits), .NET Framework 4.8, grafica con Direct3D 12, una capturadora.',
@@ -186,7 +187,9 @@ Texto "$Destino\LEEME.txt" @(
     'GETTING STARTED: open ConsoleEnhancer.exe. The first time it downloads mpv and Magpie (free programs the app uses) from their official',
     'pages (about 670 MB, once; offline: put their zips in a descargas\ folder next to the exe). Then a wizard detects your capture device,',
     'GPU and display, tests picture and sound and picks the best chain for your PC. Run it again from the tray menu, where you can also make',
-    'it start with Windows and shut down the PC when the console is turned off (later, without the app: "Inicio y apagado.bat").',
+    'it start with Windows and choose what the PC does when the console is turned off.',
+    'SETTINGS AND UNINSTALL: "Ajustes de ConsoleEnhancer.exe" (next to it): how the PC is used, start with Windows, what the PC does',
+    'when the console is turned off, DLSS 5 (your own file, in extras\), download mpv/Magpie again, logs and uninstall.',
     'Unzip it into one of your own folders, not Program Files.',
     "Help, issues and source code: $webTxt. Licenses: licencias\LEEME.txt. No warranty (GPL-3.0).",
     'ConsoleEnhancer is free and complete. If you find it useful and want to support it (optional): https://ko-fi.com/ianrog29')
@@ -195,7 +198,7 @@ Texto "$Destino\LEEME.txt" @(
 $noVan = @('nvngx_dlssnr.dll', 'DLSSNR-DLL-Options.zip', 'NGX_OTA_Switch.bat', 'switch2.ini', 'consoleenhancer.ini', 'hardware.txt', 'mpv.exe', 'Magpie.exe', 'PrismaNr.dll', 'PrismaNrTest.exe')
 $malos = @(Get-ChildItem -LiteralPath $Destino -Recurse -File -Force | Where-Object { $_.Name -in $noVan -or $_.FullName -like '*dlssg_sm86*' -or $_.FullName -like '*\juegos\*' -or $_.FullName -like '*\datos\*' -or $_.FullName -like "$Destino\magpie\*" -or $_.Extension -in @('.log', '.pdb', '.obj', '.zip') })
 if ($malos.Count -gt 0) { throw ("En el paquete hay lo que no debe: " + (($malos | ForEach-Object { $_.FullName }) -join ', ')) }
-# Solo DLL firmadas por NVIDIA (las nuestras son los dos exe)
+# Solo DLL firmadas por NVIDIA (las nuestras son los exe)
 foreach ($f in Get-ChildItem -LiteralPath $Destino -Recurse -File | Where-Object { $_.Extension -eq '.dll' }) {
     $s = Get-AuthenticodeSignature -LiteralPath $f.FullName
     if ($s.Status -ne 'Valid' -or $s.SignerCertificate.Subject -notmatch 'NVIDIA') { throw "DLL sin la firma valida de NVIDIA: $($f.FullName) ($($s.Status))" }

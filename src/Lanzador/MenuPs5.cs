@@ -867,7 +867,10 @@ namespace ConsoleEnhancer
                 if (l.Hora != null) ps5Hora = l.Hora;
                 if (l.Vista == VistaMenu.Menu || l.Vista == VistaMenu.MenuTexto) homeSeen = now;
                 if (!inMenu && l.Vista == VistaMenu.Menu && menuMaq.Hits == 1 && d == 0)
+                {
                     Log.Write("Menu de la consola visto (la hora \"" + l.Hora + "\" arriba, la del PC, a un minuto): se confirma con otra captura");
+                    AjustesQuitarYa("el menu de la consola a la vista", false);
+                }
                 if (inMenu && l.Vista == VistaMenu.MenuTexto && antes != VistaMenu.MenuTexto && l.Frase != null)
                     Log.Write("Menu de la consola: sin la hora, pero es una pantalla de la consola (\"" + l.Frase + "\"): se sigue a 4K nativo");
                 if (inMenu && l.Vista == VistaMenu.Plana && antes != VistaMenu.Plana)
@@ -941,6 +944,7 @@ namespace ConsoleEnhancer
         void MenuPs5Entrar()
         {
             if (!cfg.HomeNativeEnabled || cfg.HomeNative || homeBusy || passesBusy || relaunchSize != null) return;
+            AjustesQuitarYa("al menu de la consola", false);
             DateTime now = DateTime.Now;
             lock (homeSync)
             {

@@ -134,7 +134,7 @@ namespace ConsoleEnhancer
         {
             bool datosDentro = datos.StartsWith(app.TrimEnd('\\') + "\\", StringComparison.OrdinalIgnoreCase);
             List<string> borrarRutas = new List<string>();
-            foreach (string n in new string[] { "ConsoleEnhancer.exe", "ConsoleEnhancer.exe.config", "Inicio y apagado.bat", "LEEME.txt", "portable.txt",
+            foreach (string n in new string[] { "ConsoleEnhancer.exe", "ConsoleEnhancer.exe.config", "Ajustes de ConsoleEnhancer.exe", "Inicio y apagado.bat", "LEEME.txt", "portable.txt",
                                                  "idiomas", "licencias", "magpie", "motor", "mpv", "recursos", "scripts", "extras" })
                 borrarRutas.Add(Path.Combine(app, n));
             try { foreach (string f in Directory.GetFiles(app, "ConsoleEnhancer.exe.antes-*")) borrarRutas.Add(f); } catch { }

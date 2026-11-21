@@ -5,6 +5,34 @@ publicada es una etiqueta `vX.Y.Z` de git; GitHub Actions monta su zip y copia a
 
 ## [Sin publicar]
 
+## [1.2.0] - 2026-11-21
+
+### Added / Añadido
+- **`Ajustes de ConsoleEnhancer.exe`** next to the app: one window with everything you change outside the picture, with the app open
+  or closed: open the app or the setup wizard, how the PC is used (like a console / like a normal PC), start with Windows, black
+  desktop, what the PC does when the console turns off (with the power explanation), DLSS 5 (status, add/change/remove your own file,
+  open `extras\`), download mpv/Magpie again, test the shutdown notice or standby, open the logs and your settings, and **uninstall**.
+  If the app is open, it offers to restart it to apply the changes. It replaces `Inicio y apagado.bat`.
+  *`Ajustes de ConsoleEnhancer.exe` junto a la app: todo lo que se cambia fuera de la imagen y desinstalar, en una ventana (sustituye a
+  `Inicio y apagado.bat`).*
+- **The settings menu (Guide button) updates itself** while open when something changes elsewhere (controller buttons, keyboard
+  shortcuts, the tray, another game's profile, an Apply that finishes, the low-fps helper). Changes you made in the menu and haven't
+  applied are kept. *El menú de ajustes se actualiza solo con lo de ahora mientras está abierto.*
+- **Settings menu (Guide button): "DLSS 5 · Not installed"** on NVIDIA when `nvngx_dlssnr.dll` is missing, with the folder to put
+  your own file in (`extras\` next to the app) or the tray option to add it. A file dropped there is picked up the next time the menu
+  opens. *Menú de ajustes: "DLSS 5 · No instalado" y la carpeta donde poner tu archivo (`extras\`).*
+
+### Fixed / Arreglado
+- **DLSS FG with DLSS 5 no longer leaves the picture stuck**: with DLSS 5 on, frame generation runs in Magpie, whose DLSS FG needs the
+  community `runtimes\dlssg_sm86` folder (not included). Without it Magpie failed again and again ("Frame generation did not start").
+  Now, in that case, DLSS FG is not offered and the app uses XeSS FG (or Smooth Motion / FSR 3 FG) instead; with DLSS 5 off, the
+  app's own engine keeps DLSS FG. *Con DLSS 5 y sin `dlssg_sm86`, ya no se elige DLSS FG (Magpie no arrancaba): va XeSS FG.*
+- **No more administrator prompt (UAC) from Magpie** when switching to XeSS FG (or anything that opens Magpie) for the first time:
+  with a new config, the bundled Magpie 0.6.12 "migrated" it to *always run as administrator* and restarted elevated. The app now
+  writes the marks that tell Magpie the migration is done. *Ya no pide permisos de administrador al pasar a XeSS FG.*
+- **The settings menu now disappears at once when you go to the console menu** (it stayed ~5 s because the frozen "curtain" picture
+  of the screen was taken with the menu on top). *El menú de ajustes se quita en cuanto se va al menú de la consola.*
+
 ## [1.1.1] - 2026-11-21
 
 ### Added / Añadido
