@@ -344,7 +344,12 @@ namespace ConsoleEnhancer
                 if (CreateProcess(exe, cmd, IntPtr.Zero, IntPtr.Zero, false, sinVentana ? 0x08000000u : 0u, IntPtr.Zero, Path.GetDirectoryName(exe), ref si, out pi)) // CREATE_NO_WINDOW
                 {
                     CloseHandle(pi.hThread);
-                    try { return Process.GetProcessById(pi.dwProcessId); }
+                    try
+                    {
+                        Process r = Process.GetProcessById(pi.dwProcessId);
+                        IntPtr h = r.Handle; // (abierto ya: asi HasExited y ExitCode valen aunque termine enseguida)
+                        return r;
+                    }
                     catch { return null; }
                     finally { CloseHandle(pi.hProcess); }
                 }
