@@ -19,7 +19,7 @@
 //  - La barra de tareas (CeBarra): Shell_TrayWnd y las Shell_SecondaryTrayWnd ocultas (ShowWindow) mientras tanto, solo con apagar_pc=1
 //    (nunca en el modo de PC normal) y espera_ocultar_barra=1 (de serie). Vuelve siempre: al volver la imagen de la consola, al cerrar la
 //    app, al pasar a "como un PC normal", al desinstalar y, si la app muere, la "guarda": un proceso pequeno (--ce-guarda-barra, sin
-//    ventanas ni temporizadores) que espera a que termine el proceso dueno de la marca data\taskbar_hidden.txt y, si nadie la ha cogido
+//    ventanas ni temporizadores) que espera a que termine el proceso dueno de la marca data\.taskbar_hidden.txt y, si nadie la ha cogido
 //    (la espera, el --inicio y la app se la pasan: pid= de la marca), la vuelve a mostrar (y el plan de energia de antes). Ademas, al abrir
 //    la app con la marca de un proceso que ya no esta, se muestra (si no viene de la espera). Ocultar no se guarda en Windows: reiniciado el
 //    Explorador, vuelve. Y el Explorador la vuelve a mostrar el solo cuando se va la ventana a pantalla completa de delante (medido: 0,11 s
@@ -193,6 +193,20 @@ namespace ConsoleEnhancer
                         SetWindowPos(c.Handle, new IntPtr(-1), 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010); // HWND_TOPMOST, SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE
                 }
             CeBarra.Reocultar();
+            // (sin nada delante, o el escritorio o la barra: como al matar la imagen de la consola) la cubierta delante: a pantalla
+            // completa, el Explorador deja la barra detras y Windows pone "no molestar"
+            if (!activar && !pausada && raiz != null)
+            {
+                IntPtr f = GetForegroundWindow();
+                if (f == IntPtr.Zero) activar = true;
+                else
+                {
+                    StringBuilder sb = new StringBuilder(32);
+                    GetClassName(f, sb, 32);
+                    string c = sb.ToString();
+                    activar = c == "Progman" || c == "WorkerW" || c == "Shell_TrayWnd" || c == "Shell_SecondaryTrayWnd";
+                }
+            }
             if (activar && raiz != null && GetForegroundWindow() != raiz.Handle)
             {
                 try { raiz.Activate(); } catch { }
@@ -384,7 +398,8 @@ namespace ConsoleEnhancer
         // espera_ocultar_barra (1 de serie; 0 = la barra no se toca, solo la cubierta negra)
         public static volatile bool Permitido = true;
         static readonly object sync = new object();
-        static string Marca { get { return Path.Combine(Paths.Datos, "taskbar_hidden.txt"); } }
+        // (con punto delante: ni la copia de seguridad de los datos ni una version nueva que herede los datos la cogen)
+        static string Marca { get { return Path.Combine(Paths.Datos, ".taskbar_hidden.txt"); } }
         const string EventoVuelta = "Local\\ConsoleEnhancer_BarraVuelta";
         const string MutexGuarda = "Local\\ConsoleEnhancer_GuardaBarra";
         static int reocultadas;
