@@ -14,7 +14,8 @@ between your console and your TV: plug the console into a capture card, the PC i
 app opens by itself; the picture is **upscaled to 4K** (DLSS, FSR, XeSS, RTX Video), with **frame generation** when your GPU supports it
 (DLSS Frame Generation, Smooth Motion, FSR 3 / XeSS FG), **HDR** and **VRR**, and **as little latency as possible**. Everything is driven
 **with the controller** from the couch, no mouse or keyboard; when you turn the console off, the app closes by itself and, if you want,
-the PC goes into **standby like a console** (turning the console back on wakes it), or sleeps or shuts down.
+the PC goes into a **low-power mode, like a console in rest mode**: it doesn't shut down or sleep, it stays on using as little as
+possible, and turning the console back on brings the picture back by itself.
 
 - **Sets itself up**: a wizard detects the GPU, TV, capture card, sound and controller, tests picture and sound and picks the best chain
   for your PC. Scaling **adapts to your GPU** while you play (and remembers it).
@@ -43,7 +44,7 @@ First-run details:
   tray icon > **Components: check / download again**.
 - The **wizard** asks for the language and shows what was detected, the capture card with **Test picture**, the sound with **Test sound**,
   the console, the display and the plan. At the end you choose whether it starts with Windows and what the PC does when you turn the
-  console off (nothing, standby, sleep or shut down; see [Power](#power-what-the-pc-does-when-the-console-turns-off)).
+  console off (nothing, low-power mode, sleep or shut down; see [Power](#power-what-the-pc-does-when-the-console-turns-off)).
 
 **Settings and uninstall: open `Ajustes de ConsoleEnhancer.exe`** (next to `ConsoleEnhancer.exe`), with the app open or closed. It has
 everything in one window: open the app or the setup wizard, how the PC is used (like a console / like a normal PC), start with Windows,
@@ -156,10 +157,11 @@ with help a lot too.
   closes leftover audio players and warns if another capture app plays it too (see the FAQ).
 - **Start with Windows** (a user task, no administrator rights needed) with a black screen until the picture shows and, optionally, a
   black desktop while the app is open (tray > *Black desktop while the app is open*).
-- **Standby like a console when the console turns off** (or sleep, or shut down), with how each mode works and how much power it uses
-  explained in the wizard's last step and in the tray: see [Power](#power-what-the-pc-does-when-the-console-turns-off).
-- **Console or normal PC** (tray > *How the PC is used*): *Like a console* (opens with Windows, black desktop, standby when the console
-  turns off) or *Like a normal PC* (regular Windows: the app only opens when you open it and the PC stays on when the console turns off).
+- **Low-power mode when the console turns off**: the PC stays on but almost idle (screen off, app closed, Power saver plan) until the
+  console comes back. How it works and how much it uses is explained in the wizard's last step and in the tray: see
+  [Power](#power-what-the-pc-does-when-the-console-turns-off).
+- **Console or normal PC** (tray > *How the PC is used*): *Like a console* (opens with Windows, black desktop, low-power mode when the
+  console turns off) or *Like a normal PC* (regular Windows: the app only opens when you open it and the PC stays on when the console turns off).
   Each one explains what it does first; switch whenever you like.
 - **Uninstall** (tray > *Uninstall ConsoleEnhancer…*): removes the start-with-Windows task, brings back the normal desktop and power plan,
   and deletes only the app's own files (anything else in its folder stays). Your settings and game profiles can be kept for a later install.
@@ -183,16 +185,32 @@ power?*) or in `Ajustes de ConsoleEnhancer.exe`.
 
 | Mode | How it works | Power at the wall |
 |---|---|---|
-| **Standby, like a console** (`espera`, default) | No countdown: the screen goes off, the app closes and Windows switches to its Power saver plan; only a tiny watcher stays (under 1 % CPU), checking the capture card once a second, the controllers and the keyboard. Turning the console on (seen by the capture card), turning a controller on or pressing a key brings the screen back and ConsoleEnhancer opens in 2-3 s. If the console isn't turned on within 90 s, it goes back to standby (`espera_volver_sin_consola_s`; 0 = no). The normal power plan comes back when it wakes. | About 30-60 W depending on the PC (a GPU measured 12.5 W idle in P8) |
-| **Sleep** (`suspender`) | The PC really sleeps (S3) and ConsoleEnhancer opens when it wakes. While asleep the capture card has no power, so turning the console on can't wake it, and many controller receivers can't either (usually only the keyboard or the power button). | 2-5 W |
-| **Shut down** (`apagar`) | The PC turns off completely; turn it on with its button (with *Start with Windows*, the app opens). | 0.5-2 W |
+| **Low-power mode, like a console in rest mode** (`espera`, default) | See below. | About 30-60 W depending on the PC (a GPU measured 12.5 W idle in P8) |
+| **Sleep** (`suspender`) | Windows sleep (S3); ConsoleEnhancer opens when the PC wakes. Asleep, the capture card has no power: turning the console on does **not** wake it, and controllers usually can't either; wake it with the keyboard or the power button. | 2-5 W |
+| **Shut down** (`apagar`) | The PC turns off completely; neither the console nor a controller can turn it on: use its power button (with *Start with Windows*, the app opens). | 0.5-2 W |
+
+### The low-power mode
+
+It is **not** sleep and **not** shutdown: the PC stays on, so nothing has to "turn it on" again. When the console turns off:
+
+1. No countdown: the screen goes off, ConsoleEnhancer closes (mpv, Magpie and the engine with it) and Windows switches to its
+   *Power saver* plan, so the CPU and GPU drop to their lowest clocks (the GPU idles in P8).
+2. Only a tiny watcher stays (under 1 % of the CPU, low priority, EcoQoS): once a second it looks at a small 720p picture from the
+   capture card and also listens for the controllers and the keyboard.
+3. When the console turns back on (the capture card gets a picture), a controller is turned on or a key is pressed, the screen comes
+   back, the normal power plan returns and ConsoleEnhancer opens in 2-3 s.
+4. If it was woken by a controller or a key and the console isn't turned on within 90 s, it goes back to low power
+   (`espera_volver_sin_consola_s`; 0 = stays awake).
+
+It uses more than sleep or shutdown (the PC is still on: about 30-60 W at the wall depending on the PC, roughly 5-6 EUR a month if
+left like that all day), but it's the only mode where turning the console on is enough to get back to playing.
 
 - With sleep and shut down, a countdown shows first (`apagar_pc_aviso_s=15`; 0 = none). Only a real controller button, key or click,
   or moving the mouse more than 40 px, cancels it; input injected by other programs (Joyxoff, controller mappers, Steam Input) doesn't.
 - The PC is not shut down if the GPU failed in the last minute (see *Doesn't close by itself if the GPU stalls*).
 - Closing the app yourself (Exit, Alt+F4) never shuts down or sleeps the PC.
-- `Ajustes de ConsoleEnhancer.exe` > *Test the shutdown notice* / *Test standby* (the screen goes off; turn the console or a
-  controller on, or press a key).
+- `Ajustes de ConsoleEnhancer.exe` > *Test the shutdown notice* / *Test standby* (the low-power mode: the screen goes off; turn the
+  console or a controller on, or press a key).
 
 ## DLSS 5 (optional)
 
@@ -302,14 +320,15 @@ works fully without it; if you already have it, see [DLSS 5 (optional)](#dlss-5-
 their official pages.
 
 **"Shut down the PC when the console is turned off" closed my stuff.** In *Shut down* mode it really shuts down Windows after the
-countdown: save your work, switch to *Standby* (tray > *When the console is turned off, the PC*), or turn it off in the tray menu.
+countdown: save your work, switch to the low-power mode (*Standby*, tray > *When the console is turned off, the PC*), or turn it off in the tray menu.
 Closing the app by hand never shuts anything down.
 
 **The countdown is cancelled by itself.** Since 1.0.13 only real input cancels it; if it still happens, the log notes how many
 injected inputs it ignored.
 
-**Turning the console on doesn't wake the PC.** That only works in *Standby* mode: in *Sleep* the capture card has no power (use a
-key or the power button). Test the standby in `Ajustes de ConsoleEnhancer.exe` > *Test standby*.
+**Turning the console on doesn't bring the PC back.** That only works in the low-power mode (*Standby*), because there the PC never
+turns off. After *Sleep* or *Shut down* the console and the controllers can't turn the PC on: use a key or the power button. Test the
+low-power mode in `Ajustes de ConsoleEnhancer.exe` > *Test standby*.
 
 ## Legal notices
 
@@ -374,7 +393,7 @@ powershell -ExecutionPolicy Bypass -File scripts\empaquetar.ps1 -Zip -Version v1
 | `--ui-preview=asistente;<carpeta>` | Images of the wizard's 9 steps (es / en), without opening anything |
 | `--ui-preview=apagado;<carpeta>` | Images of the shutdown notice |
 | `--prueba-apagado[=<s>[;fuera]]` | The real countdown; when it ends it only writes "SIMULADO" to the log |
-| `--prueba-espera` | Goes into standby now (screen off, the watcher running); the console, a controller or a key wakes it |
+| `--prueba-espera` | Goes into the low-power mode now (screen off, the watcher running); the console, a controller or a key brings it back |
 | `--prueba-suspender` | Sleeps the PC now and opens the app when it wakes |
 | ini: `test_source=barras`, `apagar_pc=0` and in `motor_extra` `power_test=1 prueba_cuelgue_ms=4000` or `prueba_apagado_s=35 prueba_apagado_modo=corta` (or `nosignal`) | The engine, with the test picture, simulates the GPU stalling for 4 s (the app must not close) or the console turning off (it must) |
 | `--iniciar-con-windows=1` / `=0` | Adds or removes start with Windows and exits |
@@ -409,8 +428,9 @@ Read [`CONTRIBUTING.md`](CONTRIBUTING.md) before sending changes (C# 5, no binar
 tu consola y tu tele: conectas la consola a una capturadora, el PC a la tele, y listo. Enciendes la consola y la app se abre sola; la
 imagen llega **reescalada a 4K** (DLSS, FSR, XeSS, RTX Video), con **generación de fotogramas** si tu gráfica puede (DLSS Frame
 Generation, Smooth Motion, FSR 3 / XeSS FG), **HDR** y **VRR**, y con el **menor retraso posible**. Todo se maneja **con el mando** desde el
-sofá, sin ratón ni teclado; y al apagar la consola, la app se cierra sola y, si quieres, el PC queda **en espera como una consola**
-(al volver a encender la consola se despierta), o se suspende o se apaga.
+sofá, sin ratón ni teclado; y al apagar la consola, la app se cierra sola y, si quieres, el PC pasa a un **modo de bajo consumo, como
+una consola en reposo**: no se apaga ni se suspende, sigue encendido gastando lo mínimo, y al volver a encender la consola vuelve la
+imagen sola.
 
 - **Se configura sola**: un asistente detecta la gráfica, la tele, la capturadora, el sonido y el mando, prueba la imagen y el sonido y
   elige la mejor cadena para tu PC. Las escalas **se adaptan a tu gráfica** mientras juegas (y lo recuerda).
@@ -439,8 +459,8 @@ Detalles de la primera vez:
   páginas oficiales: unos 670 MB, una sola vez, comprobando su huella SHA-256. Pulsa **Descargar**. Si algo se estropea más tarde:
   icono de la bandeja > **Componentes: comprobar / volver a descargar**.
 - El **asistente** pregunta el idioma y enseña lo detectado, la capturadora con **Probar imagen**, el sonido con **Probar sonido**, la
-  consola, la pantalla y el plan. Al final eliges si se abre al iniciar Windows y qué hace el PC al apagar la consola (nada, en
-  espera, suspender o apagar; ver [Energía](#energía-qué-hace-el-pc-al-apagar-la-consola)).
+  consola, la pantalla y el plan. Al final eliges si se abre al iniciar Windows y qué hace el PC al apagar la consola (nada, bajo
+  consumo, suspender o apagar; ver [Energía](#energía-qué-hace-el-pc-al-apagar-la-consola)).
 
 **Ajustes y desinstalar: abre `Ajustes de ConsoleEnhancer.exe`** (junto a `ConsoleEnhancer.exe`), con la app abierta o cerrada. Tiene
 todo en una ventana: abrir la app o el asistente, cómo se usa el PC (como una consola / como un PC normal), abrirse con Windows,
@@ -552,10 +572,11 @@ y contar en qué PC y con qué consola lo usas.
   cierra audios que se hayan quedado abiertos y avisa si otro programa de captura también la reproduce (ver las preguntas frecuentes).
 - **Iniciar con Windows** (tarea del usuario, sin permisos de administrador) con la pantalla en negro hasta que hay imagen y,
   opcional, el escritorio en negro mientras la app está abierta (bandeja > *Escritorio negro con la app abierta*).
-- **En espera como una consola al apagar la consola** (o suspender, o apagar), con lo que hace y gasta cada modo explicado en el último
-  paso del asistente y en la bandeja: ver [Energía](#energía-qué-hace-el-pc-al-apagar-la-consola).
-- **Consola o PC normal** (bandeja > *Cómo se usa el PC*): *Como una consola* (se abre con Windows, escritorio negro y modo espera al
-  apagar la consola) o *Como un PC normal* (el Windows de siempre: la app solo se abre cuando la abres y el PC sigue encendido al apagar
+- **Modo de bajo consumo al apagar la consola**: el PC sigue encendido pero casi parado (pantalla apagada, app cerrada, plan
+  Economizador) hasta que vuelve la consola. Cómo funciona y cuánto gasta se explica en el último paso del asistente y en la bandeja:
+  ver [Energía](#energía-qué-hace-el-pc-al-apagar-la-consola).
+- **Consola o PC normal** (bandeja > *Cómo se usa el PC*): *Como una consola* (se abre con Windows, escritorio negro y modo de bajo
+  consumo al apagar la consola) o *Como un PC normal* (el Windows de siempre: la app solo se abre cuando la abres y el PC sigue encendido al apagar
   la consola). Cada uno explica antes lo que hace; se cambia cuando quieras.
 - **Desinstalar** (bandeja > *Desinstalar ConsoleEnhancer…*): quita el inicio con Windows, devuelve el escritorio y el plan de energía
   normales y borra solo los archivos de la app (lo demás de su carpeta se queda). Tus ajustes y perfiles se pueden guardar para otra vez.
@@ -580,17 +601,33 @@ cambia en el asistente, en bandeja > *Al apagar la consola, el PC* (con *¿Cómo
 
 | Modo | Cómo funciona | Consumo en el enchufe |
 |---|---|---|
-| **En espera, como una consola** (`espera`, de serie) | Sin cuenta atrás: la pantalla se apaga, la app se cierra y Windows pasa a su plan Economizador; solo queda un vigilante muy pequeño (menos del 1 % de la CPU) que mira la capturadora una vez por segundo, los mandos y el teclado. Al encender la consola (lo ve la capturadora), encender un mando o pulsar una tecla, vuelve la pantalla y ConsoleEnhancer se abre en 2-3 s. Si no enciendes la consola en 90 s, vuelve a la espera (`espera_volver_sin_consola_s`; 0 = no). Al despertar vuelve el plan de energía normal. | Unos 30-60 W según el PC (una gráfica medida: 12,5 W en reposo, en P8) |
-| **Suspender** (`suspender`) | El PC se duerme de verdad (S3) y al despertar se abre ConsoleEnhancer. Dormido, la capturadora no tiene corriente: encender la consola no lo despierta, y muchos receptores de mandos tampoco pueden (casi siempre solo el teclado o el botón de encendido). | 2-5 W |
-| **Apagar** (`apagar`) | El PC se apaga del todo; se enciende con su botón (con *Iniciar con Windows*, se abre la app). | 0,5-2 W |
+| **Bajo consumo, como una consola en reposo** (`espera`, de serie) | Ver abajo. | Unos 30-60 W según el PC (una gráfica medida: 12,5 W en reposo, en P8) |
+| **Suspender** (`suspender`) | La suspensión de Windows (S3); al despertar el PC se abre ConsoleEnhancer. Suspendido, la capturadora no tiene corriente: encender la consola **no** lo despierta, y los mandos casi nunca pueden; se despierta con el teclado o el botón de encendido. | 2-5 W |
+| **Apagar** (`apagar`) | El PC se apaga del todo; ni la consola ni el mando lo encienden: con su botón (con *Iniciar con Windows*, se abre la app). | 0,5-2 W |
+
+### El modo de bajo consumo
+
+**No** es suspender ni apagar: el PC sigue encendido, así que no hace falta "encenderlo" otra vez. Al apagar la consola:
+
+1. Sin cuenta atrás: la pantalla se apaga, ConsoleEnhancer se cierra (con mpv, Magpie y el motor) y Windows pasa al plan
+   *Economizador*, así que la CPU y la gráfica bajan a lo mínimo (la gráfica queda en reposo, en P8).
+2. Solo queda un vigilante muy pequeño (menos del 1 % de la CPU, prioridad baja, EcoQoS): una vez por segundo mira una imagen pequeña
+   de 720p de la capturadora y además atiende a los mandos y al teclado.
+3. Al volver a encender la consola (la capturadora recibe imagen), encender un mando o pulsar una tecla, vuelve la pantalla, vuelve el
+   plan de energía normal y ConsoleEnhancer se abre en 2-3 s.
+4. Si lo ha traído un mando o una tecla y no enciendes la consola en 90 s, vuelve al bajo consumo (`espera_volver_sin_consola_s`;
+   0 = se queda despierto).
+
+Gasta más que suspender o apagar (el PC sigue encendido: unos 30-60 W en el enchufe según el PC, unos 5-6 EUR al mes si se queda así
+todo el día), pero es el único modo en el que basta con encender la consola para volver a jugar.
 
 - Con suspender y apagar, antes sale una cuenta atrás (`apagar_pc_aviso_s=15`; 0 = sin aviso). Solo la cancela un botón del mando, una
   tecla o un clic de verdad, o mover el ratón de verdad (más de 40 px); lo que inyectan otros programas (Joyxoff, mapeadores del mando,
   Steam Input) no cuenta.
 - No apaga el PC si la gráfica falló en el último minuto (ver *No se cierra sola si la gráfica se para*).
 - Cerrar la app a mano (Salir, Alt+F4) nunca apaga ni duerme el PC.
-- `Ajustes de ConsoleEnhancer.exe` > *Probar el aviso de apagado* / *Probar el modo espera* (se apaga la pantalla; enciende la consola o
-  un mando, o pulsa una tecla).
+- `Ajustes de ConsoleEnhancer.exe` > *Probar el aviso de apagado* / *Probar el modo espera* (el bajo consumo: se apaga la pantalla;
+  enciende la consola o un mando, o pulsa una tecla).
 
 ## DLSS 5 (opcional)
 
@@ -699,14 +736,15 @@ entera sin ella; si ya la tienes, mira [DLSS 5 (opcional)](#dlss-5-opcional).
 bajar de sus páginas oficiales.
 
 **"Apagar el PC al apagar la consola" me ha cerrado cosas.** En el modo *Apagar* apaga Windows de verdad tras la cuenta atrás: guarda
-tu trabajo, pasa a *En espera* (bandeja > *Al apagar la consola, el PC*) o desactívalo en el menú de la bandeja. Cerrar la app a mano
+tu trabajo, pasa al bajo consumo (*En espera*, bandeja > *Al apagar la consola, el PC*) o desactívalo en el menú de la bandeja. Cerrar la app a mano
 nunca apaga nada.
 
 **La cuenta atrás se cancela sola.** Desde la 1.0.13 solo la cancela una pulsación de verdad; si aún pasa, el log apunta cuántas
 entradas inyectadas no contó.
 
-**Encender la consola no despierta el PC.** Eso solo va en el modo *En espera*: suspendido, la capturadora no tiene corriente (usa una
-tecla o el botón de encendido). Prueba la espera en `Ajustes de ConsoleEnhancer.exe` > *Probar el modo espera*.
+**Encender la consola no hace volver el PC.** Eso solo va en el modo de bajo consumo (*En espera*), porque ahí el PC nunca se apaga.
+Tras *Suspender* o *Apagar*, ni la consola ni los mandos pueden encender el PC: usa una tecla o el botón de encendido. Prueba el bajo
+consumo en `Ajustes de ConsoleEnhancer.exe` > *Probar el modo espera*.
 
 ## Avisos legales
 
@@ -769,7 +807,7 @@ powershell -ExecutionPolicy Bypass -File scripts\empaquetar.ps1 -Zip -Version v1
 | `--ui-preview=asistente;<carpeta>` | Imágenes de los 9 pasos del asistente (es / en), sin abrir nada |
 | `--ui-preview=apagado;<carpeta>` | Imágenes del aviso de apagado |
 | `--prueba-apagado[=<s>[;fuera]]` | La cuenta atrás de verdad; al acabar solo apunta "SIMULADO" en el log |
-| `--prueba-espera` | Pasa ya a la espera (pantalla apagada, con el vigilante); la consola, un mando o una tecla la despiertan |
+| `--prueba-espera` | Pasa ya al bajo consumo (pantalla apagada, con el vigilante); la consola, un mando o una tecla lo hacen volver |
 | `--prueba-suspender` | Suspende ya el PC y abre la app al despertar |
 | ini: `test_source=barras`, `apagar_pc=0` y en `motor_extra` `power_test=1 prueba_cuelgue_ms=4000` o `prueba_apagado_s=35 prueba_apagado_modo=corta` (o `nosignal`) | El motor con la imagen de prueba simula la gráfica parada 4 s (la app no debe cerrarse) o la consola apagada (sí) |
 | `--iniciar-con-windows=1` / `=0` | Pone o quita el inicio con Windows y sale |

@@ -32,6 +32,16 @@ publicada es una etiqueta `vX.Y.Z` de git; GitHub Actions monta su zip y copia a
   writes the marks that tell Magpie the migration is done. *Ya no pide permisos de administrador al pasar a XeSS FG.*
 - **The settings menu now disappears at once when you go to the console menu** (it stayed ~5 s because the frozen "curtain" picture
   of the screen was taken with the menu on top). *El menú de ajustes se quita en cuanto se va al menú de la consola.*
+- **The console menu no longer gets DLSS 5 by mistake right after coming back to it**: a second or so without the clock on screen
+  (for example a screen change in the PS5 settings) was enough to "leave" the menu, so Magpie started DLSS 5 and the picture went to
+  30 fps for ~10 s over the menu. After a recent return to the menu, leaving it now also needs 2.5 s without the menu, and the capture
+  that made it leave is saved to `datos\juegos\debug` (the first 3 per session). *El menú de la consola ya no se toma por un juego
+  justo tras volver a él (salía DLSS 5 y se veía a 30 fps unos 10 s).*
+
+### Changed / Cambiado
+- **README: the power section now explains the low-power mode** (the PC stays on and almost idle, which is why turning the console on
+  brings it back) and no longer suggests that the PC shuts down and is turned on with the controller. *README: explicado el modo de
+  bajo consumo; ya no dice que el PC se apaga y se enciende con el mando.*
 
 ## [1.1.1] - 2026-11-21
 

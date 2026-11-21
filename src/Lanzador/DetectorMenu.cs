@@ -606,7 +606,11 @@ namespace ConsoleEnhancer
                     outs++;
                     int need = t < dudosaHasta ? SalirConDudosa : SalirCon;
                     double dura = (t - PrimeraAt).TotalSeconds;
-                    if (outs >= need && dura >= (ultimoFueTexto ? SalirMinS : SalirMinMenuS))
+                    // 1.2.0 (el usuario: "en el menu home de la consola esta el dlss 5 activado y se ve como lento"): 15:45:25, en el menu
+                    // de la PS5 tras volver a el hacia poco, 3 capturas sin la hora en 1,6 s sacaron del menu: Magpie con DLSS 5 y el puente
+                    // a 30 fps ~10 s sobre el menu. Tras una vuelta reciente (salida dudosa), tambien los 2,5 s
+                    double minS = ultimoFueTexto || need > SalirCon ? SalirMinS : SalirMinMenuS;
+                    if (outs >= need && dura >= minS)
                     {
                         Decision = -1;
                         Porque = outs + " capturas seguidas sin la hora ni una pantalla de la consola en " + dura.ToString("0.0", CultureInfo.InvariantCulture) + " s" +

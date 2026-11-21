@@ -709,6 +709,7 @@ namespace ConsoleEnhancer
         bool RecoJuegosActivo(ConsolaPerfil c) { return JuegoConsola.Activo(c, cfg); }
 
         int ps5DiagsSesion;
+        int ps5DiagsSalida;             // 1.2.0: capturas guardadas al salir del menu (como mucho 3 por sesion)
         // La captura en la que no se leyo la hora (juegos\debug\ps5, las 8 mas nuevas), para ajustar el lector
         static string GuardarDiagPs5(Bitmap full, string ocr)
         {
@@ -879,9 +880,12 @@ namespace ConsoleEnhancer
                 if (d != 0 && d0 == 0)
                 {
                     ps5DecididoAt = now;
+                    // 1.2.0: la captura que saca del menu, a juegos\debug (las 3 primeras de la sesion), para ver si era un juego de verdad
+                    string diagSal = null;
+                    if (d < 0 && l.Vista == VistaMenu.Juego && ps5DiagsSalida < 3) { ps5DiagsSalida++; diagSal = GuardarDiagPs5(full, null); }
                     Log.Write((d > 0 ? "Menu de la consola: decidido (" : "Fuera del menu de la consola: decidido (") + menuMaq.Porque + "; " +
                               (long)(now - menuMaq.PrimeraAt).TotalMilliseconds + " ms desde la primera captura, esta leida en " +
-                              l.Ms.ToString("0", CultureInfo.InvariantCulture) + " ms)");
+                              l.Ms.ToString("0", CultureInfo.InvariantCulture) + " ms)" + (diagSal != null ? " -> " + diagSal : ""));
                 }
                 ps5MenuHits = menuMaq.Hits;
                 ps5OutHits = menuMaq.Outs;

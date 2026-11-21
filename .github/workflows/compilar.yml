@@ -124,4 +124,13 @@ jobs:
           $tag = '${{ github.ref_name }}'
           $extra = @()
           if ($tag -match '-(alpha|beta|rc|pre)') { $extra += '--prerelease' }
-          gh release create $tag "dist/ConsoleEnhancer-$tag.zip" "dist/ConsoleEnhancer-$tag.zip.sha256" --title "ConsoleEnhancer $tag" --notes-file notas.md @extra
+          # (la etiqueta movida a otro commit: la Release ya existe -> se le cambian el zip y las notas)
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $tag "dist/ConsoleEnhancer-$tag.zip" "dist/ConsoleEnhancer-$tag.zip.sha256" --clobber
+            if ($LASTEXITCODE -ne 0) { exit 1 }
+            gh release edit $tag --title "ConsoleEnhancer $tag" --notes-file notas.md
+          } else {
+            gh release create $tag "dist/ConsoleEnhancer-$tag.zip" "dist/ConsoleEnhancer-$tag.zip.sha256" --title "ConsoleEnhancer $tag" --notes-file notas.md @extra
+          }
+          exit $LASTEXITCODE
