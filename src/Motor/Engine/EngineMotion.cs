@@ -345,7 +345,7 @@ namespace ConsoleEnhancer.Motor
                         BindCompute(psoExpand, TExpand, c, 12);
                         list.Dispatch(Groups(inW, 16), Groups(inH, 8), 1);
                         Barrier(mvec, D3D12_RESOURCE_STATES.UNORDERED_ACCESS, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE);
-                        RecordFgVec(true);
+                        RecordFgVec(true, cur);   // (21-11 1.2.1: con el juego de luma, EngineFgGlobal.cs)
                         fgVecDone = true;
                         // 16:25 (DLSS5VEC3): el nivel fino ligero se guarda para la pista temporal (mvtemporal) de la imagen siguiente:
                         // asi la generacion recibe exactamente lo de siempre (antes la pista salia del completo de DLSS 5)
@@ -419,7 +419,7 @@ namespace ConsoleEnhancer.Motor
             if (on && !s.MvFixed) RecordEnsancha(cur, c);   // 17-11 13:20 (REJAS): mvensancha
             if (on) RecordTruth(cur, c);   // 17-11 (REJAS): mvverdad (prueba con test=paralaje)
             Barrier(mvec, D3D12_RESOURCE_STATES.UNORDERED_ACCESS, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE);
-            if (!fgVecDone) RecordFgVec(on);   // 17-11 13:40 (REJAS): fg_vectores=2|3 (20-11 DLSS5VEC2: si no se hizo ya con los ligeros)
+            if (!fgVecDone) RecordFgVec(on, cur);   // 17-11 13:40 (REJAS): fg_vectores=2|3 (20-11 DLSS5VEC2: si no se hizo ya con los ligeros)
             RecordFgFill(cur, on);   // 21-11 (FG21): fg_relleno, lo liso a 0 que se mueve (EngineFgRelleno.cs)
             RecordFgGuard(on);   // 21-11 (BORDE): fg_borde, a 0 en los bordes de movimiento (EngineFgBorde.cs)
             fgVecDone = false;
