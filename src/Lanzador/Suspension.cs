@@ -46,6 +46,16 @@ namespace ConsoleEnhancer
                 if (int.TryParse(val.Trim(), out m)) CeEspera.SuspenderTrasMin = Math.Max(0, m);
                 return true;
             }
+            // 21-11 (1.2.1): la barra de tareas oculta desde la consola apagada hasta que vuelve su imagen (src\Lanzador\EsperaCubierta.cs),
+            // el procesador en espera (src\Lanzador\Espera.cs) y, solo pruebas, lo que mira la sonda en vez de la capturadora
+            if (key == "espera_ocultar_barra") { CeBarra.Permitido = val.Trim() != "0"; return true; }
+            if (key == "espera_cpu_max")
+            {
+                int c;
+                if (int.TryParse(val.Trim(), out c)) CeEspera.CpuMax = Math.Max(0, Math.Min(100, c));
+                return true;
+            }
+            if (key == "espera_sonda_fuente") { CeEspera.SondaFuente = val.Trim(); return true; }
             if (key != "apagar_pc_modo") return false;
             ShutdownMode = CeSuspension.Normaliza(val);
             CeSuspension.Modo = ShutdownMode;
@@ -67,7 +77,7 @@ namespace ConsoleEnhancer
         // Lo que hace ApagarPc tras el aviso: true = hecho (no apagar)
         public static bool Dormir()
         {
-            if (Modo == "espera") return CeEspera.Entrar();
+            if (Modo == "espera") return CeEspera.EntrarAparte(); // (1.2.1: en su propio proceso; si no arranca, en este como antes)
             if (Modo == "suspender") return SuspenderYVolver();
             return false;
         }
@@ -84,14 +94,28 @@ namespace ConsoleEnhancer
             if (arg == "--prueba-espera")
             {
                 Log.Write("Prueba de la espera ligera: pantalla apagada y la sonda mirando; la consola, un mando o una tecla la despiertan");
+                CeEspera.Prueba = true; // (1.2.1: sin capturadora no se suspende el PC)
                 return CeEspera.Entrar() ? 0 : 1;
             }
+            // 1.2.1: la espera en su proceso (lo abre la app al apagarse la consola), la guarda de la barra de tareas y las pruebas sin
+            // consola de todo el apagado (src\Lanzador\Espera.cs, src\Lanzador\EsperaCubierta.cs)
+            if (arg == "--espera") return CeEspera.Proceso(Environment.GetCommandLineArgs());
+            if (arg == "--ce-guarda-barra") return CeBarra.Guardian();
+            if (arg == "--prueba-cadena" || arg.StartsWith("--prueba-cadena=")) return CeEspera.PruebaCadena(Segundos(arg, 20));
+            if (arg == "--prueba-espera-simulada" || arg.StartsWith("--prueba-espera-simulada=")) return CeEspera.PruebaEsperaSimulada(Segundos(arg, 20));
+            if (arg.StartsWith("--prueba-app=")) return CeEspera.PruebaApp(Segundos(arg, 6));
             if (arg == "--prueba-suspender")
             {
                 Log.Write("Prueba de suspension: se suspende el PC ya y al despertar se abre la app");
                 return SuspenderYVolver() ? 0 : 1;
             }
             return int.MinValue;
+        }
+
+        static int Segundos(string arg, int def)
+        {
+            int i = arg.IndexOf('='), s;
+            return i > 0 && int.TryParse(arg.Substring(i + 1), out s) ? Math.Max(1, Math.Min(600, s)) : def;
         }
 
         // ------------------------------------------------------------------ suspender y volver
@@ -136,6 +160,7 @@ namespace ConsoleEnhancer
                     if (!ok && !t.IsAlive) { Log.Write("Suspension: SetSuspendState fallo (error " + err + "): se apaga"); return false; }
                     Log.Write("Suspension: el PC no se ha dormido en 60 s (algun programa lo impide): sigue encendido");
                     Escritorio.Cancelado();
+                    CeEspera.AlCerrarApp(false); // (1.2.1: fuera la cubierta negra y la barra visible)
                     return true;
                 }
                 despierto.WaitOne();
@@ -146,6 +171,10 @@ namespace ConsoleEnhancer
                 if (hNot != IntPtr.Zero) try { PowerUnregisterSuspendResumeNotification(hNot); } catch { }
                 keep.Free();
             }
+            // 1.2.1: la cubierta negra (puesta al apagarse la consola) sigue hasta ver el telon de --inicio (lo pone antes de esperar a que
+            // este proceso suelte el mutex)
+            EventWaitHandle telon = null;
+            try { telon = new EventWaitHandle(false, EventResetMode.ManualReset, CeEspera.EventoTelon); telon.Reset(); } catch { telon = null; }
             try
             {
                 ProcessStartInfo psi = new ProcessStartInfo(Exe, CeInicio.ArgumentosInicio() + " --tras-suspension --desde-espera");
@@ -154,6 +183,7 @@ namespace ConsoleEnhancer
                 Process.Start(psi);
             }
             catch (Exception ex) { Log.Error("Suspension: no se pudo abrir la app al despertar", ex); }
+            if (telon != null) { if (CeCubierta.Puesta) telon.WaitOne(5000); telon.Dispose(); }
             return true;
         }
 
@@ -278,6 +308,10 @@ namespace ConsoleEnhancer
         public static void AlAbrir(Config cfg)
         {
             CeEspera.Recordar(cfg); // (la capturadora para la sonda de la espera ligera, src\Lanzador\Espera.cs)
+            // 1.2.1: la barra de tareas que se quedo oculta (la app murio) otra vez visible; abierta desde la espera, vuelve al verse la
+            // consola. Con apagar_pc=1, la cubierta negra preparada (oculta) para el apagado (src\Lanzador\EsperaCubierta.cs)
+            CeBarra.AlAbrir(CeEspera.DesdeEspera);
+            if (cfg.ShutdownPc) ThreadPool.QueueUserWorkItem(delegate { try { CeCubierta.Preparar(); } catch (Exception ex) { Log.Error("Cubierta negra", ex); } });
             if (!cfg.ShutdownPc || cfg.ShutdownMode != "suspender") return;
             ThreadPool.QueueUserWorkItem(delegate { Thread.Sleep(8000); PedirArmar(false); });
         }

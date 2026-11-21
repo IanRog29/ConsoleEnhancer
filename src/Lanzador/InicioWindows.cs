@@ -65,16 +65,21 @@ namespace ConsoleEnhancer
             {
                 Log.Write("Consola apagada: aviso de " + s + " s antes de " + (CeSuspension.Modo == "espera" ? "dejar en espera" : CeSuspension.Modo == "suspender" ? "suspender" : "apagar") + " el PC (apagar_pc=1)");
                 string porque;
-                if (!AvisoApagado.Mostrar(s, false, false, out porque))
+                CeCubierta.Pausa(true); // (1.2.1: el aviso encima de la cubierta negra; la cubierta no se le vuelve a poner delante)
+                bool seguir = AvisoApagado.Mostrar(s, false, false, out porque);
+                CeCubierta.Pausa(false);
+                if (!seguir)
                 {
                     Log.Write("Apagado del PC cancelado (" + porque + ")");
                     Escritorio.Cancelado(); // (el PC sigue encendido: el escritorio normal, si estaba en negro)
+                    CeEspera.AlCerrarApp(false); // (1.2.1: fuera la cubierta negra y la barra de tareas otra vez visible)
                     return;
                 }
             }
             // 1.0.14 (src\Suspension.cs): suspender y, al despertar con el mando o el teclado, volver a abrir la app; si no puede, apagar
             if (CeSuspension.NoApaga && CeSuspension.Dormir()) return;
             CeInicio.ApagarPcYa(false);
+            CeEspera.TrasApagar(); // (1.2.1: la cubierta negra hasta que Windows cierre la sesion)
         }
     }
 
@@ -387,8 +392,24 @@ namespace ConsoleEnhancer
         {
             reloj.Start();
             bool prueba = Array.IndexOf(args, "--inicio-prueba") >= 0;
+            bool tras = Array.IndexOf(args, "--tras-suspension") >= 0;
+            bool appPrueba = false;
+            foreach (string a in args) if (a.StartsWith("--prueba-app=")) appPrueba = true;
+            Application.EnableVisualStyles();
+            List<Telon> telones = null;
+            long negro = -1;
+            // 21-11 (1.2.1): tras la espera o la suspension, el telon LO PRIMERO (antes esperaba aqui a que la app de antes soltara el mutex,
+            // con la pantalla ya encendida y nada delante: se veia el escritorio). La espera tiene su cubierta negra puesta hasta que esto
+            // avisa (ConsoleEnhancer_TelonArriba); el telon, en todas las pantallas y sin cursor
+            if (tras)
+            {
+                telones = PonerTelones(prueba);
+                negro = reloj.ElapsedMilliseconds;
+                EventWaitHandle ev;
+                if (EventWaitHandle.TryOpenExisting(CeEspera.EventoTelon, out ev)) { ev.Set(); ev.Dispose(); }
+            }
             // 1.0.14: al despertar de la suspension, la app que suspendio el PC aun tiene el mutex unos instantes: esperar a que lo suelte
-            if (Array.IndexOf(args, "--tras-suspension") >= 0)
+            if (tras && !appPrueba)
                 for (int i = 0; i < 100; i++)
                 {
                     Mutex w;
@@ -398,19 +419,22 @@ namespace ConsoleEnhancer
                 }
             // Ya abierta (o arrancando): nada
             Mutex o;
-            if (Mutex.TryOpenExisting("Local\\ConsoleEnhancer_SingleInstance", out o)) { o.Dispose(); return 0; }
+            if (!appPrueba && Mutex.TryOpenExisting("Local\\ConsoleEnhancer_SingleInstance", out o))
+            {
+                o.Dispose();
+                if (telones != null) foreach (Telon tl in telones) tl.Close();
+                return 0;
+            }
 
             // El negro lo primero (antes de leer nada del disco)
-            Application.EnableVisualStyles();
-            Telon telon = new Telon(prueba);
-            telon.Show();
-            telon.Refresh();
-            long negro = reloj.ElapsedMilliseconds;
+            if (telones == null) { telones = PonerTelones(prueba); negro = reloj.ElapsedMilliseconds; }
+            Telon telon = telones[0];
 
             logInicio = Path.Combine(Paths.Datos, @"logs\inicio.log");
             try { FileInfo f = new FileInfo(logInicio); if (f.Exists && f.Length > 256 * 1024) f.Delete(); } catch { }
-            LogI("===== Abriendo ConsoleEnhancer al iniciar sesion =====" + (prueba ? " (prueba: el telon fuera de la pantalla)" : ""));
-            LogI("Negro en pantalla (" + negro + " ms)");
+            LogI("===== Abriendo ConsoleEnhancer al iniciar sesion =====" + (tras ? " (al despertar)" : "") + (prueba ? " (prueba: el telon fuera de la pantalla)" : ""));
+            LogI("Negro en pantalla (" + negro + " ms" + (telones.Count > 1 ? ", " + telones.Count + " pantallas" : "") + ", sin cursor)");
+            if (tras) CeBarra.Adoptar("--inicio al despertar (pid " + Process.GetCurrentProcess().Id + ")"); // (1.2.1: la barra sigue oculta hasta la imagen)
 
             StringBuilder resto = new StringBuilder();
             foreach (string a in args)
@@ -433,7 +457,7 @@ namespace ConsoleEnhancer
             catch (Exception ex)
             {
                 LogI("Error al abrir la app: " + ex.Message);
-                telon.Close();
+                foreach (Telon tl in telones) tl.Close();
                 return 2;
             }
 
@@ -449,7 +473,8 @@ namespace ConsoleEnhancer
                 catch (Exception ex) { porque = "error mirando la app: " + ex.Message; }
                 if (porque == null)
                 {
-                    if (v == 2) { if (grande == DateTime.MinValue) grande = DateTime.UtcNow; else if ((DateTime.UtcNow - grande).TotalMilliseconds >= 250) porque = "pantalla de carga vista"; }
+                    // (1.2.1: 450 ms, no 250: la pantalla de carga entra con un fundido de 0,35 s; a los 250 ms aun se veia lo de detras al 30 %)
+                    if (v == 2) { if (grande == DateTime.MinValue) grande = DateTime.UtcNow; else if ((DateTime.UtcNow - grande).TotalMilliseconds >= 450) porque = "pantalla de carga vista"; }
                     else grande = DateTime.MinValue;
                     if (v == 1) { if (otra == DateTime.MinValue) otra = DateTime.UtcNow; else if ((DateTime.UtcNow - otra).TotalMilliseconds >= 400) porque = "ventana de la app (asistente o aviso)"; }
                     else otra = DateTime.MinValue;
@@ -458,7 +483,7 @@ namespace ConsoleEnhancer
                 if (porque == null) return;
                 t.Stop();
                 LogI("Quitado el negro: " + porque + " (" + reloj.ElapsedMilliseconds + " ms)");
-                telon.Close();
+                for (int i = telones.Count - 1; i >= 0; i--) telones[i].Close();
             };
             t.Start();
             Application.Run(telon);
@@ -474,15 +499,24 @@ namespace ConsoleEnhancer
             return 0;
         }
 
+        // (1.2.1) Uno por pantalla (el de la principal el primero); en la prueba, uno fuera de la pantalla
+        static List<Telon> PonerTelones(bool prueba)
+        {
+            List<Telon> l = new List<Telon>();
+            l.Add(new Telon(prueba, Screen.PrimaryScreen.Bounds));
+            if (!prueba) foreach (Screen sc in Screen.AllScreens) if (!sc.Primary) l.Add(new Telon(false, sc.Bounds));
+            foreach (Telon tl in l) { tl.Show(); tl.Refresh(); }
+            return l;
+        }
+
         sealed class Telon : Form
         {
             readonly bool prueba;
-            public Telon(bool prueba)
+            public Telon(bool prueba, Rectangle s)
             {
                 this.prueba = prueba;
                 FormBorderStyle = FormBorderStyle.None;
                 StartPosition = FormStartPosition.Manual;
-                Rectangle s = Screen.PrimaryScreen.Bounds;
                 Bounds = prueba ? new Rectangle(-12000, -12000, s.Width / 4, s.Height / 4) : s;
                 BackColor = Color.Black;
                 TopMost = !prueba;
@@ -493,6 +527,12 @@ namespace ConsoleEnhancer
             {
                 base.OnShown(e);
                 if (!prueba) Cursor.Hide();
+            }
+            // (1.2.1) sin cursor tambien sin moverlo (Cursor.Hide solo vale para las ventanas de este hilo cuando llega un WM_SETCURSOR)
+            protected override void WndProc(ref Message m)
+            {
+                if (m.Msg == 0x0020 && !prueba) { SetCursor(IntPtr.Zero); m.Result = (IntPtr)1; return; }
+                base.WndProc(ref m);
             }
             // Sin quitarle el foco a nadie: la app se pone delante sola
             protected override bool ShowWithoutActivation { get { return true; } }
@@ -532,6 +572,7 @@ namespace ConsoleEnhancer
         delegate bool EnumWindowsProc(IntPtr h, IntPtr l);
         [StructLayout(LayoutKind.Sequential)] struct RECT { public int Left, Top, Right, Bottom; }
         [DllImport("user32.dll")] static extern bool AllowSetForegroundWindow(int pid);
+        [DllImport("user32.dll")] static extern IntPtr SetCursor(IntPtr c);
         [DllImport("user32.dll")] static extern bool EnumWindows(EnumWindowsProc cb, IntPtr l);
         [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
         [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr h);
@@ -929,6 +970,7 @@ namespace ConsoleEnhancer
         System.Threading.Timer esperaReloj;
         void VolverAEsperaSinConsola()
         {
+            BarraAlVolverLaImagen(); // (1.2.1)
             if (!CeEspera.DesdeEspera || !cfg.ShutdownPc || cfg.ShutdownMode == "apagar" || CeEspera.VolverSinConsolaS <= 0) return;
             int s = CeEspera.VolverSinConsolaS;
             Log.Write("Abierta desde la espera: si en " + s + " s no se ve la consola, vuelve a la espera");
@@ -944,6 +986,32 @@ namespace ConsoleEnhancer
                 }
                 catch (Exception ex) { Log.Error("Volver a la espera", ex); }
             }, null, s * 1000, 10000);
+        }
+
+        // 21-11 (1.2.1): abierta desde la espera con la barra de tareas oculta (src\Lanzador\EsperaCubierta.cs): vuelve cuando la imagen de
+        // la consola esta delante (vista por mpv / el motor y sin la pantalla de carga ni el telon de la app), 1 s seguido. Sin la consola
+        // (despierta con una tecla), sigue oculta: al cerrar la app se muestra (Main, CeEspera.AlCerrarApp) y si vuelve a la espera, sigue
+        System.Windows.Forms.Timer barraReloj;
+        void BarraAlVolverLaImagen()
+        {
+            if (!CeBarra.Oculta) return;
+            int seguidas = 0;
+            barraReloj = new System.Windows.Forms.Timer();
+            barraReloj.Interval = 500;
+            barraReloj.Tick += delegate
+            {
+                try
+                {
+                    if (!CeBarra.Oculta || userExit || PowerOffClock != null) { barraReloj.Stop(); return; }
+                    bool delante = consoleSeen && splash == null && curtain == null;
+                    seguidas = delante ? seguidas + 1 : 0;
+                    if (seguidas < 2) return;
+                    barraReloj.Stop();
+                    CeBarra.Mostrar("la imagen de la consola ya esta delante");
+                }
+                catch (Exception ex) { Log.Error("Barra de tareas al volver la imagen", ex); }
+            };
+            barraReloj.Start();
         }
 
         // 1.0.14: apagar_pc_modo=espera|suspender|apagar. Con suspender se arman los mandos y teclados (UAC). Antes, lo que hace y gasta
