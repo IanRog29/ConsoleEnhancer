@@ -5,6 +5,26 @@ publicada es una etiqueta `vX.Y.Z` de git; GitHub Actions monta su zip y copia a
 
 ## [Sin publicar]
 
+## [1.0.8] - 2026-11-21
+
+### Arreglado
+- **Los perfiles por juego se guardaban en un "juego" que no existe**: al encender la PS5, su pantalla de bienvenida ("Te damos la
+  bienvenida de nuevo a PlayStation · ¿Quién está usando…?") se leía como el nombre de un juego, y todo lo jugado después se guardaba
+  en ese perfil. Ahora las pantallas del sistema (bienvenida, elegir usuario, iniciar sesión, actualización, reposo) no cuentan como
+  juego. *The PS5 welcome / user-select screen was taken as a game name, so every game's settings went into that one profile.*
+- **La herencia de la versión anterior cogía datos de otra instalación**: ahora manda la carpeta `ConsoleEnhancer*` de al lado
+  (`%LOCALAPPDATA%\ConsoleEnhancer` solo si no hay ninguna), y no copia las copias de seguridad (`.antes-*`).
+
+### Mejorado
+- **El primer arranque de una versión nueva, mucho más rápido**: bajaba otra vez mpv y Magpie (~40 s) y compilaba todos los shaders
+  del motor (~18 s). Ahora se traen de la versión anterior (solo se compila lo que ha cambiado y solo se baja lo que es de otra
+  versión). Medido: de ~1 min a 11 s hasta el motor listo. *First start of a new version reuses mpv, Magpie and the compiled shaders
+  from the previous one (~1 min → 11 s).*
+- **Selector de la generación (L3)**: ya no tiene "Sin generación" (se apaga con el botón de captura, como siempre) y sus textos se
+  leen bien: "Generación: DLSS FG", la lista con el elegido entre « » (antes unas flechas que la fuente no tenía y salían como
+  cuadros, el tipo repetido y el final cortado) y DLSS FG con el mismo nombre en todas partes. *L3 frame-generation selector: no
+  "off" entry, fixed garbled text.*
+
 ## [1.0.7] - 2026-11-21
 
 ### Arreglado

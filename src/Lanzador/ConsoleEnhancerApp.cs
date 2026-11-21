@@ -275,7 +275,7 @@ namespace ConsoleEnhancer
         // completos y el giro de la 1.0.5 encendidos -> halos; Smooth Motion de serie en RTX 40). Una vez por version (la marca
         // "# ce_ini_version=" al final): lo de arriba del plan pasa a ser el base.ini de ahora, el plan y lo de debajo se quedan, y se
         // añade la generacion de un plan nuevo de este PC (lo demas del plan, lo elegido en el asistente, no se toca). Copia: .antes-<version>
-        public const string IniVersion = "1.0.7";
+        public const string IniVersion = "1.0.8";
         static readonly string[] ClavesGenPlan = { "generacion_tipo", "generacion_tipo_60", "generacion_tipo_30", "motor_generacion_60", "motor_generacion_30",
                                                    "generacion_lista_60", "generacion_lista_30", "generacion_60", "generacion_disponible" };
         static void ActualizarIni()

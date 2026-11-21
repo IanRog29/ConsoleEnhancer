@@ -127,6 +127,10 @@ namespace ConsoleEnhancer
 
         static readonly Regex HoraRx = new Regex(@"^\s*\d{1,2}\s*[:.;]\s*\d{2}\s*(a\.?\s?m\.?|p\.?\s?m\.?)?\s*$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
         // Rotulos de la interfaz (PS5 / Xbox) y estados que NO son un juego (minusculas, sin tildes: DetectorMenu.Normal)
+        static readonly string[] PantallasSistema = {
+            "bienvenida", "welcome", "quien esta usando", "who's using", "whos using", "selecciona un usuario", "elige un usuario",
+            "choose a user", "select a user", "pulsa el boton", "press the ps button", "press the button", "iniciar sesion", "sign in",
+            "actualizacion del sistema", "system update", "modo de reposo", "rest mode", "apagando", "turning off" };
         static readonly string[] Interfaz = {
             "en linea", "sin conexion", "fuera de linea", "desconectado", "conectado", "online", "offline", "buscar", "search", "inicio",
             "home", "biblioteca", "library", "ajustes", "settings", "tienda", "store", "notificaciones", "notifications", "descargas",
@@ -151,6 +155,10 @@ namespace ConsoleEnhancer
             string n = DetectorMenu.Normal(t);
             foreach (string w in Interfaz) if (n == w) return false;    // un rotulo exacto de la interfaz
             if (n.Contains("en linea") || n.Contains("sin conexion") || n.Contains("fuera de linea")) return false;
+            // 21-11 (el usuario: "siguen sin guardarse los perfiles"): la pantalla de bienvenida / eleccion de usuario de la PS5 al
+            // encenderla ("Te damos la bienvenida de nuevo a PlayStation | ¿Quien esta usando este mando?") se leia como un juego y todo lo
+            // jugado despues se guardaba en ese perfil. Frases de pantallas del sistema (no juegos), en español e ingles
+            foreach (string f in PantallasSistema) if (n.Contains(f)) return false;
             // Una pantalla de ajustes / biblioteca / tienda de la consola (no un juego): DetectorMenu ya tiene esas frases
             string frase;
             if (DetectorMenu.EsPantallaConsola(t, c, out frase)) return false;

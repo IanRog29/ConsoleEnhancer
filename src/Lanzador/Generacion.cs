@@ -35,7 +35,7 @@ namespace ConsoleEnhancer
                 case "fsr3": return "FSR 3 FG";
                 case "xess": return "XeSS FG";
                 case "vfg": return "NVIDIA VFG";
-                default: return engine ? "DLSS-G" : "DLSS FG";
+                default: return "DLSS FG";   // (21-11, 1.0.8: igual en el motor y en Magpie; antes "DLSS-G" en el motor)
             }
         }
 
@@ -43,7 +43,9 @@ namespace ConsoleEnhancer
         List<string> GenOptions()
         {
             PrepareCfg();
-            List<string> r = new List<string> { "no" };
+            // 21-11 (1.0.8, el usuario: "al apretar el joystick izquierdo para cambiar de frame gen no hagas que se pueda desactivar"): sin
+            // "Sin generacion" en la lista (se apaga con el boton de captura, como antes)
+            List<string> r = new List<string>();
             foreach (string t in cfg.CapMode ? cfg.GenList30 : cfg.GenList60)
             {
                 if (r.Contains(t)) continue;
@@ -70,8 +72,9 @@ namespace ConsoleEnhancer
         string GenListText(List<string> opts, string sel, bool engine)
         {
             List<string> l = new List<string>();
-            foreach (string t in opts) l.Add(t == sel ? "▸ " + GenLabel(t, engine) + " ◂" : GenLabel(t, engine));
-            return string.Join("   ", l.ToArray());
+            // (1.0.8: sin ▸ ◂, que la fuente del aviso del motor no tiene y salian como cuadros; « » si las tiene)
+            foreach (string t in opts) l.Add(t == sel ? "«" + GenLabel(t, engine) + "»" : GenLabel(t, engine));
+            return string.Join("  ", l.ToArray());
         }
 
         // L3 (al soltarlo) o Ctrl+G
@@ -87,6 +90,7 @@ namespace ConsoleEnhancer
             {
                 List<string> opts = GenOptions();
                 string cur = GenCurrent();
+                if (opts.Count == 0) { Osd("Generación · no hay ninguna disponible en este PC"); return; }
                 bool open = genSel != null && (DateTime.Now - genLastPress).TotalMilliseconds < GenOpenMs;
                 // 19-11 noche (el usuario: "cuando pulso l3 sigue en smooth motion"): la 1a pulsacion ya pasa al siguiente (antes solo enseñaba la lista y, sin una 2a pulsacion en 1,4 s, dejaba lo puesto)
                 if (!open) { int c0 = opts.IndexOf(cur); genSel = opts[(c0 + 1) % opts.Count]; }
@@ -97,8 +101,9 @@ namespace ConsoleEnhancer
                 }
                 genLastPress = DateTime.Now;
                 bool engine = cfg.EngineNow && genSel != "fsr3" && genSel != "xess" && genSel != "vfg";
-                string head = "Generación · " + GenLabel(genSel, engine) + (genSel == cur ? " (puesta)" : "");
-                string list = GenListText(opts, genSel, engine) + "   ·   L3 = siguiente";
+                // (1.0.8: el titulo es lo de antes del primer " · "; antes salia "Generación" solo y el tipo dos veces detras)
+                string head = "Generación: " + GenLabel(genSel, engine) + (genSel == cur ? " (actual)" : "");
+                string list = (opts.Count > 1 ? GenListText(opts, genSel, engine) + " · L3: cambiar" : "la única disponible en este PC");
                 lock (osdQueue) osdQueue.Add(OsdCmd(head + " · " + list, GenOpenMs.ToString(CultureInfo.InvariantCulture), false));
                 int seq = ++genSeq;
                 if (genTimer == null) genTimer = new System.Threading.Timer(delegate { GenTimerFired(); }, null, Timeout.Infinite, Timeout.Infinite);
@@ -154,7 +159,7 @@ namespace ConsoleEnhancer
                           (engine != Config.EngineActive ? (engine ? ": al motor propio" : ": a mpv + Magpie (" + (cfg.Dlss5Off ? "sin DLSS 5: " : "") + "esta generacion la hace Magpie)") : ReopenNote) +
                           " · " + cfg.ProfileText);
                 SaveCurProfile();
-                string title = t == "no" ? "Generación de fotogramas desactivada" : "Generación · " + GenLabel(t, engine);
+                string title = t == "no" ? "Generación de fotogramas desactivada" : "Generación: " + GenLabel(t, engine);
                 string sub = t == "no" ? "Solo las imágenes reales de la consola" : GenDetail(t, engine);
                 RestartLs(title, sub, false, true);
             }

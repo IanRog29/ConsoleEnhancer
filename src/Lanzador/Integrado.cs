@@ -82,12 +82,15 @@ namespace ConsoleEnhancer
             try
             {
                 if (File.Exists(Path.Combine(d, "consoleenhancer.ini"))) return;
+                // (1.0.8) primero las versiones de al lado (portables: la de antes de verdad); %LOCALAPPDATA% solo si no hay ninguna (en la
+                // 1.0.7 se mezclaban y ganaba un %LOCALAPPDATA% viejo de otra instalacion con un perfil malo)
                 List<string> fuentes = new List<string>();
-                fuentes.Add(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ConsoleEnhancer"));
                 string padre = Path.GetDirectoryName(appDir.TrimEnd('\\'));
                 if (!string.IsNullOrEmpty(padre) && Directory.Exists(padre))
                     foreach (string dir in Directory.GetDirectories(padre, "ConsoleEnhancer*"))
-                        if (!string.Equals(dir.TrimEnd('\\'), appDir.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase)) fuentes.Add(Path.Combine(dir, "datos"));
+                        if (!string.Equals(dir.TrimEnd('\\'), appDir.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase) && File.Exists(Path.Combine(dir, @"datos\consoleenhancer.ini")))
+                            fuentes.Add(Path.Combine(dir, "datos"));
+                if (fuentes.Count == 0) fuentes.Add(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ConsoleEnhancer"));
                 string yo = Path.GetFullPath(d).TrimEnd('\\');
                 Dictionary<string, string> mejor = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
                 foreach (string f in fuentes)
@@ -104,6 +107,7 @@ namespace ConsoleEnhancer
                             if (n.StartsWith(".") || n.EndsWith(".log", StringComparison.OrdinalIgnoreCase) || n.Equals(HeredadoTxt, StringComparison.OrdinalIgnoreCase)) continue;
                             // (lo elegido con L3 en versiones de antes era Smooth Motion de serie en RTX 40: desde la 1.0.7, DLSS FG del plan)
                             if (n.Equals("generacion_tipo.txt", StringComparison.OrdinalIgnoreCase)) continue;
+                            if (n.IndexOf(".antes-", StringComparison.OrdinalIgnoreCase) >= 0 || n.EndsWith(".anterior", StringComparison.OrdinalIgnoreCase)) continue;   // (copias)
                             string k = sub.Length == 0 ? n : sub + "\\" + n;
                             string ya;
                             if (!mejor.TryGetValue(k, out ya) || File.GetLastWriteTimeUtc(a) > File.GetLastWriteTimeUtc(ya)) mejor[k] = a;
@@ -119,9 +123,49 @@ namespace ConsoleEnhancer
                     Directory.CreateDirectory(Path.GetDirectoryName(dst));
                     if (!File.Exists(dst)) { File.Copy(kv.Value, dst, false); sb.AppendLine(kv.Key + " <- " + kv.Value); }
                 }
+                // (1.0.8, el usuario: "tarda mas en abrirse la app que Prisma"): el primer arranque de cada version bajaba otra vez mpv y
+                // Magpie (37 s) y compilaba todos los shaders del motor (~18 s: la cache estaba vacia). De la carpeta de la que sale el ini:
+                // la cache de shaders (solo cambian los que se han tocado: la clave es el texto) y mpv\ y magpie\ si aqui no estan
+                // (Componentes mira su .version: si es otra version, los baja igual)
+                string de = Path.GetDirectoryName(mejor["consoleenhancer.ini"]);
+                int cso = 0;
+                string cache = Path.Combine(de, @"logs\cache");
+                if (Directory.Exists(cache))
+                {
+                    string dc = Path.Combine(d, @"logs\cache");
+                    Directory.CreateDirectory(dc);
+                    foreach (string a in Directory.GetFiles(cache, "*.cso"))
+                    {
+                        string dst = Path.Combine(dc, Path.GetFileName(a));
+                        if (!File.Exists(dst)) { File.Copy(a, dst, false); cso++; }
+                    }
+                }
+                if (cso > 0) sb.AppendLine("logs\\cache: " + cso + " shaders compilados <- " + cache);
+                string appDe = Path.GetDirectoryName(de.TrimEnd('\\'));
+                if (Path.GetFileName(de.TrimEnd('\\')).Equals("datos", StringComparison.OrdinalIgnoreCase))
+                    foreach (string comp in new[] { "mpv", "magpie" })
+                    {
+                        string src = Path.Combine(appDe, comp), dst = Path.Combine(appDir, comp);
+                        if (!File.Exists(Path.Combine(src, ".version")) || File.Exists(Path.Combine(dst, ".version"))) continue;
+                        int n = CopiarCarpeta(src, dst);
+                        sb.AppendLine(comp + "\\: " + n + " ficheros <- " + src);
+                    }
                 File.WriteAllText(Path.Combine(d, HeredadoTxt), sb.ToString(), new UTF8Encoding(false));
             }
             catch { }
+        }
+
+        static int CopiarCarpeta(string src, string dst)
+        {
+            int n = 0;
+            Directory.CreateDirectory(dst);
+            foreach (string f in Directory.GetFiles(src))
+            {
+                string t = Path.Combine(dst, Path.GetFileName(f));
+                if (!File.Exists(t)) { File.Copy(f, t, false); n++; }
+            }
+            foreach (string s in Directory.GetDirectories(src)) n += CopiarCarpeta(s, Path.Combine(dst, Path.GetFileName(s)));
+            return n;
         }
 
         // ---- Rutas de mpv y del motor (al leer el ini: Config.Load) ----
