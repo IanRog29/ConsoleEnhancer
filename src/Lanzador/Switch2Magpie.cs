@@ -1075,7 +1075,11 @@ namespace ConsoleEnhancer
         public string Framerate120 = "120";        // ini framerate_120 (la GC573 anuncia 120 exacto a 1080p/1440p)
         public string Permit120 = "auto";          // ini permitir_120: auto (solo si la tele va a >=120 Hz y la captura admite 120) | 1 | 0
         public string[] Capturas120 = new string[0]; // ini capturas_120 (ConsoleEnhancer: las escribe el plan con los formatos que lista TU capturadora a 120; vacio = sin modo 120. En Prisma, las de la GC573: 1080p y 1440p)
-        public string FramerateNow { get { return Mode120 ? Framerate120 : Framerate; } } // 20-11 (HZ120): la velocidad de captura de ahora
+        // 20-11 (HZ120): la velocidad de captura de ahora. 21-11 (1.2.1, el usuario: "se me ha quedado congelada la app al salir al menu desde
+        // rocket league"): en el HOME / menu de la consola (4K nativo, CaptureNow) se pedia framerate=120 con el modo 120 del juego: mpv no
+        // pudo cambiar en caliente, se reabrio a 3840x2160 a 120 (la GC573 no lo da) y se quedo en "sin senal" para siempre. A 120 solo en el
+        // juego y con una captura que lo admite (Capturas120); si no, la de siempre (60)
+        public string FramerateNow { get { return Mode120 && !HomeNative && Captura120Ok(CaptureNow) ? Framerate120 : Framerate; } }
         public bool Captura120Ok(string size) { if (Capturas120 == null) return false; foreach (string cc in Capturas120) if (cc == size) return true; return false; }
         // 20-11 (HDCP120): aviso de HDCP (PS5/PS4) solo cuando de verdad no hay imagen un rato largo (ver ConsolasApp.ObservaConsola)
         public bool HdcpWarn = true;               // ini hdcp_aviso (0 lo apaga)
@@ -13788,7 +13792,7 @@ namespace ConsoleEnhancer
                     ShowCurtain();
                     // Otro tamaño de ventana (4K): otra cadena de efectos (a 4K no se escala). EnsureLossless reabre Magpie si cambia
                     if (newWindow) lock (lsModeSync) MagpieLive.Close("otra ventana de mpv (" + Config.WindowFor(cfg.VideoSize) + ")");
-                    Log.Write("Captura a " + SizeName(cfg.VideoSize) + ": se vuelve a abrir mpv" +
+                    Log.Write("Captura a " + SizeName(cfg.CaptureNow) + " (" + cfg.FramerateNow + " fps): se vuelve a abrir mpv" +
                               (newWindow ? " y Magpie (ventana de " + Config.WindowFor(cfg.VideoSize) + ")" : " (Magpie sigue abierto)"));
                     relaunchSize = null;
                     signalOn = false;
