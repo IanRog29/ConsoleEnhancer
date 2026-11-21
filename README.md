@@ -141,7 +141,7 @@ with help a lot too.
   extra software. The app reads the controller without taking it away from the console and, outside the picture, drives the PC (PC mode).
 - **On-screen settings menu**: the controller's centre button (Xbox / PS / HOME), Ctrl+O or tray > *On-screen settings menu…*. It
   lists everything you can change (capture, 30 / 60 / 120 mode, frame generation and its type, DLSS 5 with level and passes, and the
-  upscaler, including each **DLSS model**: automatic, M, L, K, J, E, saved for all games) with the current values marked. Move with
+  upscaler, including each **DLSS model**: automatic, M, L, K, J, E, saved for all games, plus **FSR 1** and **No upscaling**, saved per game) with the current values marked. Move with
   the D-pad, the stick or the arrow keys; **Apply** sets everything at once with a single reopen of the picture; B or the centre button
   close it without changes. It doesn't take focus away from the picture (frame generation keeps going) and doesn't open over the
   console menu. If the Xbox button also opens the Windows Game Bar, turn that off in Settings > Gaming.
@@ -556,7 +556,7 @@ y contar en qué PC y con qué consola lo usas.
   aparte. La app lee el mando sin quitárselo a la consola y, fuera de la imagen, maneja el PC (modo PC).
 - **Menú de ajustes en pantalla**: el botón central del mando (Xbox / PS / HOME), Ctrl+O o bandeja > *Menú de ajustes en pantalla…*.
   Muestra todo lo que se puede cambiar (captura, modo 30 / 60 / 120, generación de fotogramas y su tipo, DLSS 5 con nivel y pasadas, y
-  el escalador, con cada **modelo de DLSS**: automático, M, L, K, J, E, guardado para todos los juegos) con lo de ahora marcado. Se
+  el escalador, con cada **modelo de DLSS**: automático, M, L, K, J, E, guardado para todos los juegos, y **FSR 1** y **Sin reescalado**, guardados por juego) con lo de ahora marcado. Se
   mueve con la cruceta, el stick o las flechas; **Aplicar** lo pone todo a la vez con una sola reapertura de la imagen; B o el botón
   central cierran sin cambiar nada. No le quita el foco a la imagen (la generación sigue) y no se abre encima del menú de la consola.
   Si el botón Xbox abre también la Game Bar de Windows, apágala en Configuración > Juegos.

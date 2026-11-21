@@ -78,6 +78,7 @@ namespace ConsoleEnhancer
             if (s == "fsr4") return "fsr4";
             if (s == "fsr2" || s == "fsr3") return "fsr3";
             if (s == "fsr") return "fsr1";
+            if (s == "ninguno") return "catrom";   // (1.2.01: sin reescalado = estirado simple, sin IA)
             return "fsr1";   // (R3 / sin DLSS: el FSR 1 propio del motor; catrom queda en el motor por si se pide a mano)
         }
 

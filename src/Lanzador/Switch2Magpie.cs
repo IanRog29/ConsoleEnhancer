@@ -1071,7 +1071,10 @@ namespace ConsoleEnhancer
         public bool FgOff = false;        // generacion de fotogramas apagada (boton de captura del mando)
         public bool AltScalerOn = false;  // R3: el escalador alternativo en vez del normal
 
-        public string ScalerNow { get { return AltScalerOn ? AltScaler : (D5ScalerNow ?? Scaler); } }
+        // 21-11 (1.2.01, el usuario: "añade opcion de fsr 1 o de directamente no usar reescalado"): el escalador elegido en el menu de
+        // ajustes para este juego ("" = el de siempre; fsr = FSR 1; ninguno = sin reescalado: estirado simple, Catmull-Rom en el motor)
+        public string ScalerPick = "";
+        public string ScalerNow { get { return ScalerPick.Length > 0 ? ScalerPick : AltScalerOn ? AltScaler : (D5ScalerNow ?? Scaler); } }
         // (15-11: tabla_modelo_<modo> con 4 numeros = sin DLSS 5, y con DLSS 5 en 1, 2 y 3 pasadas)
         public int Af30OnePass = 0;
         // 16-11 noche: tabla_modelo_<modo>_1440= / _1080= / _720= (por captura; sin ella, la del modo)
@@ -1143,9 +1146,10 @@ namespace ConsoleEnhancer
                     // 21-11 (1.0.9): lo que hace de verdad el motor (Ce.EngineUpscaler): DLSS, XeSS, FSR 3/4 o FSR 1
                     string eu = Ce.EngineUpscaler(this);
                     return eu == "dlss" ? "DLSS " + EngineModelName(EnginePresetNow) + " · motor propio" : eu == "xess" ? "XeSS · motor propio" :
-                           eu == "fsr4" ? "FSR 4 · motor propio" : eu == "fsr3" ? "FSR 3 · motor propio" : "FSR 1 · motor propio";
+                           eu == "fsr4" ? "FSR 4 · motor propio" : eu == "fsr3" ? "FSR 3 · motor propio" :
+                           eu == "catrom" ? "sin reescalado · motor propio" : "FSR 1 · motor propio";
                 }
-                return UpscaleOn ? ScalerName(ScalerNow) : "4K nativo";
+                return UpscaleOn ? ScalerName(ScalerNow) : "sin reescalado";
             }
         }
 
@@ -1166,7 +1170,7 @@ namespace ConsoleEnhancer
                 case "lanczos": return "Lanczos";
                 case "bicubic": return "Bicubico";
                 case "cas": return "CAS (escalado)";
-                default: return "sin escalado";
+                default: return "sin reescalado";
             }
         }
 
@@ -5586,6 +5590,7 @@ namespace ConsoleEnhancer
         public string Capture = "2560x1440";
         public int Level = 2, Passes = 1;
         public bool Dlss5 = true, Scaler = true, Cap = false, Fg = true;
+        public string ScalerPick = "";   // 21-11 (1.2.01): escalador elegido en el menu (fsr / ninguno; "" = el de siempre). Columna 6
         public bool Mode120 = false;  // 20-11 (HZ120): modo 120 fps guardado por juego (columna "modo" = 120; manda sobre Cap)
         // 19-11 (GENERACION): el tipo de generacion elegido con L3 en este juego, en el modo 60 y en el 30 ("" = el del ini). Columna 10
         public string Pick60 = "", Pick30 = "";
@@ -5615,7 +5620,7 @@ namespace ConsoleEnhancer
         {
             return (Capture == "1280x720" ? "720p" : Capture == "1920x1080" ? "1080p" : Capture == "3840x2160" ? "4K" : "1440p") +
                    (Mode120 ? ", modo 120 fps" : Cap ? ", modo 30 fps" : "") + ", nivel " + Level + ", " + Passes + " pasada" + (Passes > 1 ? "s" : "") +
-                   (Dlss5 ? "" : ", DLSS 5 apagado") + (Scaler ? "" : ", escalador alternativo") + (Fg ? "" : ", sin generacion de fotogramas") +
+                   (Dlss5 ? "" : ", DLSS 5 apagado") + (ScalerPick == "fsr" ? ", FSR 1" : ScalerPick == "ninguno" ? ", sin reescalado" : Scaler ? "" : ", escalador alternativo") + (Fg ? "" : ", sin generacion de fotogramas") +
                    (Pick60.Length > 0 ? ", generacion del 60: " + Pick60 : "") + (Pick30.Length > 0 ? ", generacion del 30: " + Pick30 : "");
         }
 
@@ -5658,6 +5663,7 @@ namespace ConsoleEnhancer
                     p.Passes = Math.Max(1, Math.Min(3, p.Passes)); // (sin 4 pasadas desde el 03-11: las guardadas con 4 pasan a 3)
                     p.Dlss5 = f[4].Trim() != "0";
                     p.Scaler = f[5].Trim() != "0";
+                    if (f[5].Trim() == "fsr" || f[5].Trim() == "ninguno") p.ScalerPick = f[5].Trim();   // (1.2.01: FSR 1 / sin reescalado)
                     p.Cap = f.Length > 6 && f[6].Trim() == "30";
                     p.Mode120 = f.Length > 6 && f[6].Trim() == "120"; // 20-11 (HZ120)
                     p.Fg = !(f.Length > 7 && f[7].Trim() == "0");
@@ -5726,7 +5732,7 @@ namespace ConsoleEnhancer
                 foreach (GameProfile p in list)
                 {
                     sb.Append(p.Name.Replace("|", " ")).Append('|').Append(p.Capture).Append('|').Append(p.Level).Append('|')
-                      .Append(p.Passes).Append('|').Append(p.Dlss5 ? 1 : 0).Append('|').Append(p.Scaler ? 1 : 0).Append('|')
+                      .Append(p.Passes).Append('|').Append(p.Dlss5 ? 1 : 0).Append('|').Append(p.ScalerPick.Length > 0 ? p.ScalerPick : p.Scaler ? "1" : "0").Append('|')
                       .Append(p.Mode120 ? 120 : p.Cap ? 30 : 60).Append('|').Append(p.Fg ? 1 : 0).Append('|').Append(p.NameSure ? 1 : 0);
                     if (p.PickText.Length > 0) sb.Append('|').Append(p.PickText); // (19-11, GENERACION: solo si se ha elegido con L3)
                     sb.Append("\r\n");
@@ -6011,7 +6017,7 @@ namespace ConsoleEnhancer
             {
                 Load();
                 p.Capture = from.Capture; p.Level = from.Level; p.Passes = from.Passes; p.Dlss5 = from.Dlss5;
-                p.Scaler = from.Scaler; p.Cap = from.Cap; p.Mode120 = from.Mode120; p.Fg = from.Fg; p.Pick60 = from.Pick60; p.Pick30 = from.Pick30;
+                p.Scaler = from.Scaler; p.ScalerPick = from.ScalerPick; p.Cap = from.Cap; p.Mode120 = from.Mode120; p.Fg = from.Fg; p.Pick60 = from.Pick60; p.Pick30 = from.Pick30;
                 if (!list.Contains(p)) list.Add(p);
                 SaveAll();
             }
@@ -7816,6 +7822,20 @@ namespace ConsoleEnhancer
             // 15-11: no con Magpie reabriendose (como SetPasses / SetMode): a las 19:26:37 se acepto la de 1440p con Magpie aun
             // preparando la de 1080p, que siguio con su enfoque de 1080p. Los ajustes de un juego (applying) si: los pone el
             if (!applying && (passesBusy || !lsReady)) return;
+            // 21-11 (1.2.01, el usuario: "he cambiado de 1440p a 4k y se ha quedado pillada la app ahi cargando"): en el modo 120 una captura
+            // que la capturadora no da a 120 (4K en la GC573) se abria a 3840x2160 a 120 fps -> No Signal para siempre. Se baja al 60 antes
+            if (cfg.Mode120 && !cfg.Captura120Ok(size))
+            {
+                cfg.Mode120 = false; cfg.CapMode = false;
+                want30 = false;
+                SaveText(Paths.ModeFile, "60");
+                lock (cmdQueue)
+                {
+                    vfDedupe = DedupeOn(cfg, fgWanted);
+                    cmdQueue.Add(vfDedupe ? JsonCmd("vf", "set", FrameFilter(cfg)) : JsonCmd("vf", "clr", ""));
+                }
+                Log.Write("Captura a " + SizeName(size) + ": la capturadora no la da a 120 fps -> modo 60 fps");
+            }
             captureSw = Stopwatch.StartNew();
             SaveText(Paths.CaptureFile, size);
             if ((Config.EngineActive || Config.WindowFor(size) == Config.WindowFor(cfg.VideoSize)) && ipcUp)
@@ -10098,6 +10118,7 @@ namespace ConsoleEnhancer
             p.Passes = dlss5Passes;
             p.Dlss5 = dlss5Shown;
             p.Scaler = dlssScalerOn;
+            p.ScalerPick = scalerPick;   // (1.2.01)
             p.Cap = cfg.CapMode;
             p.Mode120 = cfg.Mode120; // 20-11 (HZ120)
             p.Fg = fgWanted;
@@ -10327,11 +10348,15 @@ namespace ConsoleEnhancer
         }
 
         // R3 del perfil de un juego: escalador normal (true) o el alternativo
-        void SetScalerChoice(bool normal)
+        void SetScalerChoice(bool normal) { SetScalerChoice(normal, ""); }
+        void SetScalerChoice(bool normal, string pick)
         {
             dlssScalerOn = normal;
             cfg.AltScalerOn = !normal;
+            scalerPick = pick == "fsr" || pick == "ninguno" ? pick : "";   // (1.2.01)
+            cfg.ScalerPick = scalerPick;
         }
+        string scalerPick = "";
 
         void LeaveHome(string name, double[] icon)
         {
@@ -10359,7 +10384,7 @@ namespace ConsoleEnhancer
                 cfg.VideoSize = p.Capture;
                 SaveText(Paths.CaptureFile, p.Capture);
                 SetDlss5State(p.Dlss5); // (Magpie se abre ya con el o sin el)
-                SetScalerChoice(p.Scaler);
+                SetScalerChoice(p.Scaler, p.ScalerPick);
                 fgWanted = p.Fg;
                 SaveText(Paths.FgFile, p.Fg ? "1" : "0");
                 SetPicks(p.Pick60, p.Pick30); // (19-11, GENERACION: el tipo de generacion elegido con L3 en este juego)
@@ -10407,7 +10432,7 @@ namespace ConsoleEnhancer
                 fgWanted = p.Fg;
                 SaveText(Paths.FgFile, p.Fg ? "1" : "0");
                 SetPicks(p.Pick60, p.Pick30); // (19-11, GENERACION: el tipo de generacion elegido con L3 en este juego)
-                SetScalerChoice(p.Scaler);
+                SetScalerChoice(p.Scaler, p.ScalerPick);
                 // Otra ventana (la captura de 4K): mpv y Magpie se reabren y Magpie coge ya todo lo de arriba
                 if (newWindow)
                 {
@@ -10438,6 +10463,7 @@ namespace ConsoleEnhancer
             cfg.FgOff = !fgWanted || !cfg.FgAvailable;
             cfg.Dlss5Off = !dlss5Shown;
             cfg.AltScalerOn = !dlssScalerOn;
+            cfg.ScalerPick = scalerPick;
         }
 
         // Cuantos cambios obligan a reabrir Magpie con lo elegido ahora (sin escribir). El enfoque de otra captura no cuenta
@@ -10798,7 +10824,7 @@ namespace ConsoleEnhancer
                 // Otra ventana (4K): mpv y Magpie se reabren y Magpie ya coge todo; si no, Magpie se reabre al acabar el cambio
                 if (p.Capture != cfg.VideoSize) RequestCapture(p.Capture);
                 if (p.Dlss5 != dlss5Shown) SetDlss5State(p.Dlss5);
-                SetScalerChoice(p.Scaler);
+                SetScalerChoice(p.Scaler, p.ScalerPick);
                 if (p.Fg != fgWanted)
                 {
                     fgWanted = p.Fg;
@@ -11684,6 +11710,7 @@ namespace ConsoleEnhancer
             DateTime now = DateTime.Now;
             PasadasWatch(now); // (18-11, PASADAS: src\Pasadas.cs)
             CeEscalasMagpie(st); // (ConsoleEnhancer: la escala de DLSS 5 por Magpie que cabe en este PC, src\Escalas.cs)
+            if (pid > 0) FpsMagpieVigila(st.Captured); // (1.2.01: Magpie no llega a los fps del modo -> se baja un paso, src\FpsBajo.cs)
             if (st.Errors > 0 && (now - lastErrLog).TotalSeconds >= 30)
             {
                 lastErrLog = now;

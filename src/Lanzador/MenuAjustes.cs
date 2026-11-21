@@ -503,8 +503,12 @@ namespace ConsoleEnhancer
                 foreach (string l in Config.DlssPicks) { ev.Add("dlss:" + l); et.Add("DLSS " + Config.EngineModelName(l)); }
             }
             else { ev.Add("normal"); et.Add(cfg.ScalerName(cfg.Scaler)); }
-            if (cfg.AltScaler != cfg.Scaler) { ev.Add("alt"); et.Add(cfg.ScalerName(cfg.AltScaler)); }
-            string ea = !dlssScalerOn ? "alt" : ev[0] == "normal" ? "normal" : "dlss:" + (Config.DlssPick.Length > 0 ? Config.DlssPick : "auto");
+            if (cfg.AltScaler != cfg.Scaler && cfg.AltScaler != "fsr" && cfg.AltScaler != "ninguno") { ev.Add("alt"); et.Add(cfg.ScalerName(cfg.AltScaler)); }
+            // (1.2.01, el usuario: "añade opcion de fsr 1 o de directamente no usar reescalado por si no quiere el usuario"): para este juego
+            if (cfg.Scaler != "fsr") { ev.Add("pick:fsr"); et.Add("FSR 1"); }
+            if (cfg.Scaler != "ninguno") { ev.Add("pick:ninguno"); et.Add(Tx.T("Sin reescalado", "No upscaling")); }
+            string ea = scalerPick.Length > 0 && cfg.Scaler != scalerPick ? "pick:" + scalerPick :
+                        !dlssScalerOn && ev.Contains("alt") ? "alt" : ev[0] == "normal" ? "normal" : "dlss:" + (Config.DlssPick.Length > 0 ? Config.DlssPick : "auto");
             esc.Poner(ev, et, ea, ea);
             esc.Carrusel = ev.Count > 3;
             esc.Visible = ev.Count > 1;
@@ -527,7 +531,8 @@ namespace ConsoleEnhancer
             {
                 string m = mo.Val;
                 List<string> v = new List<string> { "30", "60" }, t = new List<string> { "30 fps", "60 fps" };
-                if (Puede120(capSel) || modoAhora == 120) { v.Add("120"); t.Add(Tx.T("120 fps", "120 fps")); }
+                // (1.2.01: a 4K el 120 no se ofrece aunque se este en el 120: la capturadora no da 4K a 120 y la app se quedaba cargando)
+                if (Puede120(capSel) || (modoAhora == 120 && cfg.Captura120Ok(capSel))) { v.Add("120"); t.Add(Tx.T("120 fps", "120 fps")); }
                 if (!v.Contains(m)) m = "60";
                 mo.Poner(v, t, m, modoAhora.ToString());
             }
@@ -677,6 +682,7 @@ namespace ConsoleEnhancer
             int modoAhora = cfg.Mode120 ? 120 : cfg.CapMode ? 30 : 60;
             string capV = AjVal(e, "cap") ?? cfg.VideoSize, modoV = AjVal(e, "modo") ?? modoAhora.ToString();
             int modo = int.Parse(modoV);
+            if (modo == 120 && !cfg.Captura120Ok(capV)) modo = 60;   // (1.2.01: 4K a 120 no lo da la capturadora)
             bool capCambia = capV != cfg.VideoSize, modoCambia = modo != modoAhora;
             lastPadAction = DateTime.Now;   // (el telon / el aviso de lo que reabre lleva el texto, como con un boton)
             lock (profileSync) applying = true;
@@ -692,7 +698,8 @@ namespace ConsoleEnhancer
                 if ((v = AjVal(e, "d5")) != null && (v == "1") != dlss5Shown) SetDlss5State(v == "1");
                 if ((v = AjVal(e, "esc")) != null)
                 {
-                    SetScalerChoice(v != "alt");
+                    if (v.StartsWith("pick:")) SetScalerChoice(true, v.Substring(5));   // (1.2.01: FSR 1 / sin reescalado)
+                    else SetScalerChoice(v != "alt");
                     if (v.StartsWith("dlss:")) { string l = v.Substring(5); Config.DlssPick = l == "auto" ? "" : l; }
                 }
                 if ((v = AjVal(e, "fg")) != null)

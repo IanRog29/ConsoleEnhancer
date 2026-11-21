@@ -5,6 +5,23 @@ publicada es una etiqueta `vX.Y.Z` de git; GitHub Actions monta su zip y copia a
 
 ## [Sin publicar]
 
+## [1.2.01] - 2026-11-21
+
+### Added / Añadido
+- **Settings menu (Guide button): "FSR 1" and "No upscaling" in the Upscaler row**, saved per game. "No upscaling" is a plain stretch
+  to the screen (Catmull-Rom in the app's engine), with no AI upscaler: the lightest option.
+  *Menú de ajustes: "FSR 1" y "Sin reescalado" en la fila del escalador, guardados por juego.*
+
+### Fixed / Arreglado
+- **Switching the capture to 4K while in 120 fps mode no longer leaves the app stuck loading**: the capture card can't capture 4K at
+  120 fps, so the app opened it at 4K/120 and waited for a picture forever. Now 4K switches to 60 fps mode, and the settings menu
+  doesn't offer 120 fps at 4K. *Pasar la captura a 4K en el modo 120 ya no deja la app cargando: a 4K va el modo 60.*
+- **The low-fps helper now also works when Magpie makes the picture** (DLSS 5 through Magpie): if Magpie gets clearly fewer real
+  frames than the mode needs for ~10 s (for example 70 of 120 with DLSS 5 in Rocket League), it steps down: DLSS 5 passes, DLSS 5 off,
+  FSR 1 upscaler, 120 → 60 fps, lower capture, 30 fps with frame generation. It shows on screen what it changed and saves it in the
+  game's profile. The "DLSS 5 off" step now really reopens the picture (before, it only changed the setting).
+  *El aviso de fps bajos también con Magpie (DLSS 5): baja un paso (con FSR 1 como paso nuevo antes de bajar el modo) y lo guarda.*
+
 ## [1.2.0] - 2026-11-21
 
 ### Added / Añadido

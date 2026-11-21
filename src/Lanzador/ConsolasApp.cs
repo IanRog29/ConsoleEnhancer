@@ -76,7 +76,7 @@ namespace ConsoleEnhancer
                 cfg.VideoSize = c.CapturaCercana(p.Capture);
                 SaveText(Paths.CaptureFile, cfg.VideoSize);
                 SetDlss5State(p.Dlss5);
-                SetScalerChoice(p.Scaler);
+                SetScalerChoice(p.Scaler, p.ScalerPick);
                 fgWanted = p.Fg;
                 SaveText(Paths.FgFile, p.Fg ? "1" : "0");
             }
