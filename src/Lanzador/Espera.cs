@@ -35,7 +35,8 @@
 //    que hay para devolverlo al salir, y el plan propio se borra (0,2-0,3 s) ya abierta.
 //  - La pantalla encendida sin que nadie toque nada (otro programa pide pantalla, ES_DISPLAY_REQUIRED): otra vez apagada a los 2 s, y si
 //    vuelve una y otra vez, cada vez mas tarde (10, 30 s, 2 y 5 min).
-//  - Las teclas de verdad en espera se las queda la app (despiertan, pero Windows no abre Inicio ni Alt+F4 el "Apagar Windows").
+//  - Las teclas Win y de menu en espera no llegan a Windows (despiertan, pero no abren Inicio); el resto va a la cubierta, que no hace
+//    nada con ellas (ni Alt+F4 la cierra).
 //  - Al despertar: la pantalla lo primero (la tele tarda en encenderse; delante, negro), el plan de antes antes de abrir la app y el
 //    --inicio con su telon antes de que se cierre esta.
 using System;
@@ -513,8 +514,8 @@ namespace ConsoleEnhancer
                 try { SendMessage(Handle, 0x0112, (IntPtr)0xF170, (IntPtr)2); } catch { } // WM_SYSCOMMAND, SC_MONITORPOWER, apagada
             }
 
-            // 1.2.1: las teclas de verdad se las queda la app (la que despierta tampoco llega a Windows: ni Inicio, ni Alt+Tab, ni el "Apagar
-            // Windows" de Alt+F4 en el escritorio); lo inyectado pasa
+            // 1.2.1: las teclas de Windows (Win y la de menu) no llegan a Windows mientras dura: la que despierta no abre Inicio encima de la
+            // cubierta. El resto llega a la ventana de delante, la cubierta (no hace nada con ellas). Lo inyectado pasa y no despierta
             IntPtr TeclaLL(int code, IntPtr wParam, IntPtr lParam)
             {
                 if (code >= 0 && (Marshal.ReadInt32(lParam, 8) & 0x10) == 0) // sin LLKHF_INJECTED
@@ -524,7 +525,8 @@ namespace ConsoleEnhancer
                     {
                         try { BeginInvoke((MethodInvoker)delegate { Fin("una tecla"); }); } catch { }
                     }
-                    return (IntPtr)1;
+                    int vk = Marshal.ReadInt32(lParam, 0);
+                    if (vk == 0x5B || vk == 0x5C || vk == 0x5D) return (IntPtr)1; // VK_LWIN, VK_RWIN, VK_APPS
                 }
                 return CallNextHookEx(IntPtr.Zero, code, wParam, lParam);
             }
