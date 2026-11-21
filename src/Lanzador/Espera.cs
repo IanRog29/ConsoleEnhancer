@@ -29,7 +29,7 @@
 //    (Windows 11) se queda en 15,6 ms. Medido con una fuente falsa a 59,94: 158 -> 109 Mciclos/s y 425 -> 189 cambios de contexto/s.
 //    La consola se ve antes: la segunda mirada a los 0,4 s (ce_standby.lua) y el cierre de la sonda avisa al momento (Process.Exited).
 //  - Plan de energia propio mientras dura: copia del Economizador con el procesador a espera_cpu_max % (50 de serie: el P-state mas bajo
-//    en un Ryzen 5 2600; medido "% rendimiento del procesador" 110 % -> 45 %), sin turbo, el disco apagado a los 3 min y la pantalla a
+//    en un Ryzen 5 2600; medido "% rendimiento del procesador" 110 % -> 45 %), sin turbo, el disco duro parado a los 10 min y la pantalla a
 //    1 min (por si algo la enciende). Se borra al despertar (y al abrir la app si se quedo). Sin poder crearlo, el Economizador como antes.
 //    Volver al plan de antes tarda 0,8-1,5 s (el Economizador tal cual, 0,9-1,1 s): se hace antes de abrir la app, que apunta el plan
 //    que hay para devolverlo al salir, y el plan propio se borra (0,2-0,3 s) ya abierta.
@@ -568,7 +568,7 @@ namespace ConsoleEnhancer
         // (si existe) y al salir se vuelve al que habia; el que habia se apunta en data\standby_plan.txt por si la app muere en espera
         // (al abrirla otra vez se devuelve). Sin el plan, nada.
         // 1.2.1: un plan propio (PlanEspera, "ConsoleEnhancer (espera)"), copia del Economizador (o del de ahora si no esta) con el
-        // procesador a espera_cpu_max % y sin turbo, el disco apagado a los 3 min y la pantalla a 1 min; se borra al volver (y al abrir la
+        // procesador a espera_cpu_max % y sin turbo, el disco duro parado a los 10 min y la pantalla a 1 min; se borra al volver (y al abrir la
         // app, si se quedo). La marca se apunta antes de cambiar de plan
         static readonly Guid PlanEconomizador = new Guid("a1841308-3541-4fab-bc81-f71556f20b4a");
         static readonly Guid PlanEspera = new Guid("c0e5e5a0-7e57-4c0e-9e5a-0000000c0121");
@@ -637,7 +637,7 @@ namespace ConsoleEnhancer
             Guid p = PlanEspera;
             Valor(p, SubProcesador, ProcesadorMax, (uint)CpuMax);
             Valor(p, SubProcesador, Turbo, 0);           // (0 = sin turbo)
-            Valor(p, SubDisco, DiscoApagar, 180);
+            Valor(p, SubDisco, DiscoApagar, 600);   // (10 min: un disco duro que se para y arranca cada pocos minutos hace mas ruido)
             Valor(p, SubVideo, PantallaApagar, 60);
             try
             {
@@ -645,7 +645,7 @@ namespace ConsoleEnhancer
                 PowerWriteFriendlyName(IntPtr.Zero, ref p, IntPtr.Zero, IntPtr.Zero, n, (uint)n.Length);
             }
             catch { }
-            return "copia del " + (fuente == PlanEconomizador ? "Economizador" : "plan de antes") + ", procesador al " + CpuMax + " % sin turbo, disco a los 3 min, pantalla a 1 min";
+            return "copia del " + (fuente == PlanEconomizador ? "Economizador" : "plan de antes") + ", procesador al " + CpuMax + " % sin turbo, disco a los 10 min, pantalla a 1 min";
         }
 
         static void Valor(Guid plan, Guid sub, Guid ajuste, uint v)
