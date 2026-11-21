@@ -5,7 +5,7 @@
 //    nombre esperado, se avisa una vez de que no es oficial ni la soporta NVIDIA y se copia a <app>\extras\ (donde la busca la
 //    deteccion, OpcionesDeteccion.RutasExtra, y de donde Ce.PrepararExtras la copia a magpie\). La app NO dice de donde sacarla ni
 //    enlaza ninguna descarga. "Quitar DLSS 5" lo borra de extras\ (PrepararExtras quita luego la copia de magpie\).
-//  - Encender DLSS 5: juegos\dlss5_activo.txt (como el boton A jugando). DLSS 5 dentro del motor propio (motor_dlss5=1) solo si junto
+//  - Encender DLSS 5: games\dlss5_on.txt (como el boton A jugando). DLSS 5 dentro del motor propio (motor_dlss5=1) solo si junto
 //    al motor esta PrismaNr.dll (de uso propio, no se publica): sin ella va por mpv + Magpie.
 //  - Componentes (mpv, Magpie): comprobar y volver a bajar (--componentes-reparar, Componentes.cs).
 //  - Apoyo: Ko-fi, siempre opcional (la app es gratis y completa).
@@ -47,7 +47,7 @@ namespace ConsoleEnhancer
         public static string Dll { get { return Path.Combine(Dir, Integrado.Dlss5Dll); } }
         public static string Sm86 { get { return Path.Combine(Dir, @"runtimes\dlssg_sm86"); } }
         static string Sm86Viejo { get { return Path.Combine(Dir, "dlssg_sm86"); } }
-        public static string PrismaNr { get { return Path.Combine(Paths.AppDir, @"motor\PrismaNr.dll"); } }
+        public static string PrismaNr { get { return Path.Combine(Paths.AppDir, @"engine\PrismaNr.dll"); } }
         public static bool HayDlss5 { get { return File.Exists(Dll); } }
         public static bool HaySm86 { get { return Directory.Exists(Sm86) || Directory.Exists(Sm86Viejo); } }
         public static bool MotorPuede { get { return File.Exists(PrismaNr); } }
@@ -139,12 +139,15 @@ namespace ConsoleEnhancer
                 Mal(w, Tx.T("No se pudo copiar a ", "Could not copy to ") + Dir + ":\r\n" + ex.Message);
                 return false;
             }
-            // opcional: la carpeta dlssg_sm86 (1.2.02: con DLSS 5, el DLSS FG de Magpie la necesita en RTX 30 y tambien en RTX 40/50)
-            if (Pregunta(w, Tx.T("Copiado.\r\n\r\n¿Tienes también la carpeta dlssg_sm86? Con DLSS 5 la imagen va por Magpie y su DLSS Frame Generation " +
-                                 "la necesita (en cualquier RTX); sin ella se usa otra generación (XeSS FG o Smooth Motion). Si no la tienes, di que no.",
-                                 "Copied.\r\n\r\nDo you also have the dlssg_sm86 folder? With DLSS 5 the picture goes through Magpie and its DLSS Frame Generation " +
-                                 "needs it (on any RTX); without it another frame generation is used (XeSS FG or Smooth Motion). If you do not have it, say no."), MessageBoxIcon.Question))
-                AnadirSm86(w);
+            // opcional: la carpeta dlssg_sm86 (1.2.02: con DLSS 5, el DLSS FG de Magpie la necesita en RTX 30 y tambien en RTX 40/50).
+            // 21-11 (1.2.06, el usuario: "sigue apareciendo lo de si tengo la carpeta de dlss fg y te habia dicho que quitaras esa pregunta"):
+            // ya no se pregunta. Si esta junto a la DLL elegida (o una carpeta mas arriba) se copia sola; si no, se sigue sin ella (otra
+            // generacion; el menu de ajustes dice "DLSS FG · Falta dlssg_sm86" y donde ponerla)
+            if (!HaySm86)
+            {
+                string sm = BuscarSm86(origen);
+                if (sm != null) PonerSm86(w, sm);
+            }
             // encenderlo
             bool on = Pregunta(w, Tx.T("¿Encender DLSS 5 ya? (Jugando se enciende y se apaga con el botón A del mando.)",
                                        "Turn DLSS 5 on now? (While playing, the controller's A button turns it on and off.)"), MessageBoxIcon.Question);
@@ -156,29 +159,32 @@ namespace ConsoleEnhancer
             return true;
         }
 
-        static void AnadirSm86(IWin32Window w)
+        // dlssg_sm86 junto a la DLL elegida: en su carpeta o hasta dos mas arriba (X\dlssg_sm86 o X\runtimes\dlssg_sm86). null = no esta
+        static string BuscarSm86(string dll)
         {
-            string de;
-            using (FolderBrowserDialog f = new FolderBrowserDialog())
+            try
             {
-                f.Description = Tx.T("Tu carpeta dlssg_sm86", "Your dlssg_sm86 folder");
-                f.ShowNewFolderButton = false;
-                if (f.ShowDialog(w) != DialogResult.OK) return;
-                de = f.SelectedPath;
+                string x = Path.GetDirectoryName(Path.GetFullPath(dll));
+                for (int i = 0; i < 3 && !string.IsNullOrEmpty(x); i++, x = Path.GetDirectoryName(x))
+                {
+                    if (Path.GetFileName(x.TrimEnd('\\')).Equals("dlssg_sm86", StringComparison.OrdinalIgnoreCase)) return x;
+                    foreach (string c in new[] { Path.Combine(x, "dlssg_sm86"), Path.Combine(x, @"runtimes\dlssg_sm86") })
+                        if (Directory.Exists(c) && Directory.GetFiles(c, "*.dll", SearchOption.AllDirectories).Length > 0) return c;
+                }
             }
-            // (vale la carpeta misma o una que la tenga dentro: runtimes\dlssg_sm86)
-            if (!Path.GetFileName(de.TrimEnd('\\')).Equals("dlssg_sm86", StringComparison.OrdinalIgnoreCase))
-            {
-                string a = Path.Combine(de, "dlssg_sm86"), b = Path.Combine(de, @"runtimes\dlssg_sm86");
-                de = Directory.Exists(a) ? a : Directory.Exists(b) ? b : null;
-            }
-            if (de == null) { Mal(w, Tx.T("La carpeta tiene que llamarse dlssg_sm86.", "The folder must be named dlssg_sm86.")); return; }
+            catch { }
+            return null;
+        }
+
+        // Copia la carpeta dlssg_sm86 encontrada a extras\runtimes\ (sin preguntar; solo avisa si algo no vale)
+        static void PonerSm86(IWin32Window w, string de)
+        {
             string[] dlls = Directory.GetFiles(de, "*.dll", SearchOption.AllDirectories);
-            if (dlls.Length == 0) { Mal(w, Tx.T("En esa carpeta no hay ninguna DLL.", "There is no DLL in that folder.")); return; }
+            if (dlls.Length == 0) return;
             foreach (string d in dlls)
             {
                 string m = MirarDll(d);
-                if (m != null) { Mal(w, Path.GetFileName(d) + ": " + m); return; }
+                if (m != null) { Log.Write("dlssg_sm86 junto a la DLL no vale (" + Path.GetFileName(d) + ": " + m + "): no se copia"); return; }
             }
             try
             {
@@ -317,10 +323,10 @@ namespace ConsoleEnhancer
         {
             bool bien;
             string est = Extras.EstadoComponentes(out bien);
-            if (est == null) { MessageBox.Show(Tx.T("No está scripts\\componentes.json en la carpeta de la app.", "scripts\\componentes.json is not in the app folder."), "ConsoleEnhancer"); return; }
+            if (est == null) { MessageBox.Show(Tx.T("No está scripts\\components.json en la carpeta de la app.", "scripts\\components.json is not in the app folder."), "ConsoleEnhancer"); return; }
             string t = Tx.T("Programas libres que usa ConsoleEnhancer (se bajan de sus páginas oficiales, con su SHA-256 comprobado):\r\n\r\n",
                             "Free programs ConsoleEnhancer uses (downloaded from their official pages, SHA-256 checked):\r\n\r\n") + est + "\r\n" +
-                       Tx.T("NVIDIA Streamline / DLSS / Reflex (motor\\): vienen en el zip.\r\n\r\n", "NVIDIA Streamline / DLSS / Reflex (motor\\): included in the zip.\r\n\r\n") +
+                       Tx.T("NVIDIA Streamline / DLSS / Reflex (engine\\): vienen en el zip.\r\n\r\n", "NVIDIA Streamline / DLSS / Reflex (engine\\): included in the zip.\r\n\r\n") +
                        (bien ? Tx.T("Todo está bien. ¿Volver a descargarlos igualmente (repara una instalación dañada)? La app se cierra y se vuelve a abrir.",
                                     "Everything is fine. Download them again anyway (repairs a damaged install)? The app closes and reopens.")
                              : Tx.T("Falta algo o es de otra versión. ¿Descargarlo ahora? La app se cierra y se vuelve a abrir.",

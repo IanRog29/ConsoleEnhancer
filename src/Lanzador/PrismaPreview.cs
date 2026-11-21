@@ -23,7 +23,7 @@ namespace ConsoleEnhancer
             if (spec.StartsWith("telon-vivo", StringComparison.OrdinalIgnoreCase)) return LiveCurtainTest(spec);
             string[] parts = spec.Split(';');
             string dir = parts[0];
-            string imgPath = parts.Length > 1 ? parts[1] : Path.Combine(Paths.Datos, @"juegos\banco_oot.png");
+            string imgPath = parts.Length > 1 ? parts[1] : Path.Combine(Paths.Datos, @"games\banco_oot.png");
             Directory.CreateDirectory(dir);
             Cursor.Show();
             using (Bitmap frame = LoadFrame(imgPath))
@@ -133,7 +133,7 @@ namespace ConsoleEnhancer
         // con su pastilla; en cada fase una copia de la pantalla con scripts\captura.exe grab (PNG a pantalla completa y la linea de
         // <carpeta>\parpadeo.txt: diferencia entre copias seguidas y brillo). Lo que pasa, en <carpeta>\telon_vivo.txt.
         // Con la tele en espera DWM compone 1 vez por segundo: cada copia espera >1,5 s tras cada cambio, y los fundidos se prueban
-        // largos (4 s) con la copia a mitad. No toca juegos\ ni el log de la app. Devuelve los fallos
+        // largos (4 s) con la copia a mitad. No toca games\ ni el log de la app. Devuelve los fallos
         [DllImport("user32.dll")] static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int cx, int cy, uint flags);
         [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
         static StreamWriter rep;

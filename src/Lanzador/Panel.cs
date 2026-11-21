@@ -1,7 +1,7 @@
-// Panel.cs - "Ajustes de ConsoleEnhancer.exe" (21-11-2026, 1.2.0): una ventana con todo lo que se cambia fuera de la imagen.
+// Panel.cs - "ConsoleEnhancer Settings.exe" (21-11-2026, 1.2.0): una ventana con todo lo que se cambia fuera de la imagen.
 //
 // El usuario: "en la carpeta de la app deja mas claro, pon un ejecutable para cambiar cosas y desinstalar y todo".
-// ConsoleEnhancer.exe --ajustes (lo abre "Ajustes de ConsoleEnhancer.exe", src\Ajustes\Ajustes.cs, junto al exe). Sustituye a
+// ConsoleEnhancer.exe --ajustes (lo abre "ConsoleEnhancer Settings.exe", src\Ajustes\Ajustes.cs, junto al exe). Sustituye a
 // "Inicio y apagado.bat". Con la app abierta o cerrada:
 //  - Abrir ConsoleEnhancer / asistente de configuracion.
 //  - Como se usa el PC (como una consola / como un PC normal), abrir con Windows, escritorio negro, que hace el PC al apagar la consola.

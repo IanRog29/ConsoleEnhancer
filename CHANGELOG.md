@@ -5,6 +5,25 @@ publicada es una etiqueta `vX.Y.Z` de git; GitHub Actions monta su zip y copia a
 
 ## [Sin publicar]
 
+## [1.2.06] - 2026-11-21
+
+### Changed / Cambiado
+- **English by default, with a language picker when the app opens**: the first window (the one that downloads mpv and Magpie) has
+  **English / Español** buttons at the top right; the choice is remembered (`data\language.txt`) and also applies to the wizard. It
+  can be changed later from the tray menu (**Language / Idioma**, the app reopens) or the first step of the wizard. Before, the app
+  followed the Windows language.
+  *En inglés de serie, con selector de idioma al abrir la app (primera ventana, asistente y bandeja); se recuerda lo elegido.*
+- **File and folder names in English**: `engine\` (was `motor\`), `languages\`, `licenses\`, `resources\`, `downloads\`, `data\`
+  (portable data, was `datos\`), `data\games\` (was `juegos\`), `README.txt` (was `LEEME.txt`) and `ConsoleEnhancer Settings.exe`
+  (was `Ajustes de ConsoleEnhancer.exe`); the files the app saves also have English names (`capture.txt`, `profiles.txt`,
+  `console.txt`...). Data from earlier versions is renamed automatically the first time the app opens, and inherited from an older
+  portable folder with the new names, so your settings and game profiles are kept.
+  *Nombres de archivos y carpetas en inglés; los datos de versiones anteriores se renombran solos y no se pierde nada.*
+- **No more "Do you also have the dlssg_sm86 folder?" question** when adding DLSS 5: if that folder is next to the
+  `nvngx_dlssnr.dll` you pick (or one or two folders up), it is copied without asking; if not, the app carries on without it (the
+  settings menu still says "DLSS FG · dlssg_sm86 missing" and where to put it).
+  *Ya no se pregunta por la carpeta dlssg_sm86 al añadir DLSS 5: si está junto a la DLL se copia sola.*
+
 ## [1.2.05] - 2026-11-21
 
 ### Fixed / Arreglado

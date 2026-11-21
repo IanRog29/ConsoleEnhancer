@@ -45,7 +45,7 @@ namespace ConsoleEnhancer
             else if (!c.CapturaUtil(cfg.VideoSize)) cfg.VideoSize = c.CapturaCercana(cfg.VideoSize);
         }
 
-        // Los ajustes guardados de la consola ("Consola" en juegos\perfiles.txt; nuevo con los de ahora), antes de abrir la imagen:
+        // Los ajustes guardados de la consola ("Consola" en games\profiles.txt; nuevo con los de ahora), antes de abrir la imagen:
         // como LeaveHome pero sin telon ni cambio de captura (aun no hay nada abierto)
         void AplicarPerfilConsola(ConsolaPerfil c)
         {
@@ -163,7 +163,7 @@ namespace ConsoleEnhancer
         void ConsolaAudio(string state) { if (state != null) audioNow = state; }
 
         // AnalyzeGrab, con una consola cuyo menu no se reconoce (lab = null, nada del HOME): con consola=auto, de reojo, el HOME de la
-        // Switch 2 (sus franjas iguales a juegos\home_ref.txt en 2 capturas seguidas: la PS5 o la Xbox no las pueden dar) y las palabras
+        // Switch 2 (sus franjas iguales a games\home_ref.txt en 2 capturas seguidas: la PS5 o la Xbox no las pueden dar) y las palabras
         // de la pantalla (OCR, 60-150 ms: cada 5 s los 3 primeros minutos, luego cada 30 s); y con una PlayStation, el aviso de HDCP
         void ObservaConsola(Bitmap full, Bitmap small, double[] strips, bool noSignal, double[] rf)
         {

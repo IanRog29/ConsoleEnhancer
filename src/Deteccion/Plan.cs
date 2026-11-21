@@ -25,7 +25,7 @@ namespace ConsoleEnhancer.Deteccion
         public string Consola = "";      // claves de Consolas.cs: switch2, switch1, ps5, ps4, xboxseries, xboxone, otra ("" = no se sabe)
         public bool PreferirLatencia;    // menos latencia antes que mas imagenes (no usa la generacion por Magpie)
         public Calibracion Calibracion;  // banco del primer arranque (null = estimacion)
-        // (20-11, HdrVrr.cs) lo que sabe el lanzador y no la deteccion: G-SYNC visto funcionando en esta pantalla otra vez (datos\vrr_visto.txt) y
+        // (20-11, HdrVrr.cs) lo que sabe el lanzador y no la deteccion: G-SYNC visto funcionando en esta pantalla otra vez (data\vrr_seen.txt) y
         // VRRREQUESTSTATE del perfil global de NVIDIA (-1 no se sabe)
         public bool VrrVisto;
         public int GsyncGlobal = -1;

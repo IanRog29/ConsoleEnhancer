@@ -1,7 +1,7 @@
 @echo off
 rem preparar.bat - todo en un clic para quien baja el codigo fuente de ConsoleEnhancer (git clone o el zip de "Code"):
 rem   1. baja mpv, Magpie y NVIDIA Streamline a terceros\ (versiones fijas de sus releases oficiales, comprobando el SHA-256:
-rem      scripts\componentes.json y scripts\descargar_dependencias.ps1; unos 950 MB la primera vez, luego ya no)
+rem      scripts\components.json y scripts\descargar_dependencias.ps1; unos 950 MB la primera vez, luego ya no)
 rem   2. compila el lanzador (build.bat) y el motor (build_motor.bat) con el csc de .NET Framework 4.8 que trae Windows
 rem   3. pasa la prueba de deteccion con los PCs simulados (tests\build_deteccion.bat)
 rem   4. con "paquete": monta tambien el zip de la release (scripts\empaquetar.ps1 -Zip) en dist\

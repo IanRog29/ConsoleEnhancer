@@ -86,7 +86,7 @@ shared uint sAny;
 shared vec3 sH[16][32];
 shared vec2 sP[16][32];
 
-// 11-11: PUERTA DE TRAMADO. Las capturas reales de Ocarina (10-11, juegos\debug\tramado) NO tienen tramado de 5 bits: niveles de
+// 11-11: PUERTA DE TRAMADO. Las capturas reales de Ocarina (10-11, games\debug\tramado) NO tienen tramado de 5 bits: niveles de
 // 8 bits seguidos (0,1,2,3...; en un nivel de 5 bits el 34-37 % de los puntos, como al azar), ruido de +-1 nivel. Aun asi el filtro
 // tomaba por "5 bits" el 24-56 % de los 3x3 con algo de contraste (diferencias de 0-1 niveles pasan la prueba de "multiplo de 8,25")
 // y con la otra via (3x3 de menos de 9-13 niveles) alisaba casi toda la textura suave: la neblina perdia los montes y arboles del

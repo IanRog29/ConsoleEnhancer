@@ -11,7 +11,7 @@ namespace ConsoleEnhancer
     //   - la primera pulsacion enseña la lista del modo de ahora (30 o 60) con lo que va puesto; cada pulsacion mas, el siguiente;
     //   - 1,4 s sin pulsar y se pone el elegido (una sola reapertura, sin telon si se puede: el puente del motor o el relevo).
     // Teclado: Ctrl+G sobre la imagen de la consola (como L3). Mantener L3 ~0,8 s = el filtro de tramado nuevo / el de antes (lo que
-    // hacia L3 hasta hoy). Lo elegido va por modo y por juego (columna 10 de juegos\perfiles.txt) y en juegos\generacion_tipo.txt (lo de
+    // hacia L3 hasta hoy). Lo elegido va por modo y por juego (columna 10 de games\profiles.txt) y en games\framegen_type.txt (lo de
     // ahora, para abrir la app ya jugando). Sin elegir nada, lo del ini (generacion_tipo_60/30, motor_generacion_60/30) como antes.
     // Tipos: Sin generacion | Smooth Motion (driver) | DLSS FG (Magpie con DLSS 5; DLSS-G del motor propio sin el) | XeSS FG | FSR 3 FG
     // (estos dos solo Magpie: con DLSS 5 apagado va mpv + Magpie sin DLSS 5). Los de cada modo: ini generacion_lista_60 / _30 (los que
@@ -181,7 +181,7 @@ namespace ConsoleEnhancer
             return fps + " · DLSS 5 " + Dlss5PassText();
         }
 
-        // Lo elegido con L3 en cada modo ("" = lo del ini), en la config y en juegos\generacion_tipo.txt
+        // Lo elegido con L3 en cada modo ("" = lo del ini), en la config y en games\framegen_type.txt
         void SetPicks(string p60, string p30)
         {
             cfg.FgPick60 = Config.ParsePick(p60);

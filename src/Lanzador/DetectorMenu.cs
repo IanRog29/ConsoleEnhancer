@@ -24,7 +24,7 @@
 //    lector) daba pistas a la Xbox y se cambio a ella (04:33 y 04:35). Ahora PistaReloj no da la Xbox con una PlayStation puesta y las
 //    pistas de cada captura van por PistasMenu (abajo).
 //  - Switch 2: la hora del HOME (arriba a la derecha, con el wifi y la bateria a su derecha) cuenta como el HOME cuando sus franjas no
-//    casan (la captura en grises del motor, juegos\home_ref.txt de otra resolucion); nada cambia cuando el nombre cian se lee.
+//    casan (la captura en grises del motor, games\home_ref.txt de otra resolucion); nada cambia cuando el nombre cian se lee.
 // C# 5
 using System;
 using System.Collections.Generic;
@@ -156,7 +156,7 @@ namespace ConsoleEnhancer
         public static Rectangle ZonaFranja(int w, int h) { return Rectangle.FromLTRB((int)(w * 0.02), (int)(h * 0.015), (int)(w * 0.99), (int)(h * 0.125)); }
 
         // El HOME de la Switch 2 (y de la Switch): la hora arriba a la derecha con el wifi y la bateria a su derecha (17:49 a x 0,765-0,825,
-        // y 0,083-0,13 en juegos\diag_home; la bateria a x 0,93-0,96). Para cuando sus franjas no casan. La hora se busca solo en su sitio
+        // y 0,083-0,13 en games\diag_home; la bateria a x 0,93-0,96). Para cuando sus franjas no casan. La hora se busca solo en su sitio
         // (x 0,735-0,85: ahi no la ponen ni la PS5, x 0,915-0,955, ni el Inicio de la Xbox, pegada a la derecha) y a su derecha tiene que
         // haber algo (los iconos): el OCR no siempre lee "96%"
         public static Rectangle ZonaSwitch(int w, int h) { return Rectangle.FromLTRB((int)(w * 0.735), (int)(h * 0.045), (int)(w * 0.85), (int)(h * 0.165)); }
@@ -482,7 +482,7 @@ namespace ConsoleEnhancer
     // Pura (sin la app): la usan MenuPs5Captura / MenuPs5Pista (src\MenuPs5.cs) y la prueba sin consola (src\PruebaDeteccion.cs, seccion 4).
     //  - La puesta ve su menu con su lector (l.Vista = Menu): si es de las probadas (la PS5), la refuerza (Consolas.VistoMenuPropio). Si
     //    es la Xbox (SIN PROBAR: su lector busca la hora en toda la franja y tambien casa con la de la PS5), se mira si es la hora de la
-    //    PS5 en su sitio exacto: la PS5 detras (el 20-11 05:22-05:28 la app abria con la Xbox por consola.txt y la PS5 delante)
+    //    PS5 en su sitio exacto: la PS5 detras (el 20-11 05:22-05:28 la app abria con la Xbox por console.txt y la PS5 delante)
     //  - Sin su menu (ni una pantalla suya sin la hora): de que consola es la hora de arriba (DetectorMenu.PistaReloj)
     // Cada cosa, cada 5 s como mucho (cada una con su reloj)
     sealed class PistasMenu

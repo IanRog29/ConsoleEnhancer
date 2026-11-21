@@ -12,13 +12,13 @@
 //    de juego y los "Game Hubs" con el nombre arriba. Mismo enfoque: leer el texto grande del overlay. Implementado defensivo: si no
 //    reconoce nada, cae al perfil unico de la consola ("Consola"), sin romper nada.
 //
-// Al leer un nombre fiable por primera vez se guarda su perfil (juegos\perfiles.txt, con la MISMA clave que la Switch pero marcada por
+// Al leer un nombre fiable por primera vez se guarda su perfil (games\profiles.txt, con la MISMA clave que la Switch pero marcada por
 // consola: "PS5: <juego>" / "Xbox Series: <juego>", para no mezclar juegos de consolas distintas: GameProfiles.SameGame respeta la
-// etiqueta) y se asocia una HUELLA visual estable (la tarjeta/caratula del conmutador: juegos\huellas_consola.txt) para re-reconocer ese
+// etiqueta) y se asocia una HUELLA visual estable (la tarjeta/caratula del conmutador: games\console_fingerprints.txt) para re-reconocer ese
 // juego mas tarde sin leer el nombre, como los iconos del HOME de la Switch. Con histeresis: si en un momento no hay nombre legible se
 // mantiene el ultimo juego reconocido; si nunca se reconoce, el perfil unico de antes.
 //
-// Clave del ini (switch2.ini; en ConsoleEnhancer consoleenhancer.ini y recursos\base.ini), de serie ENCENDIDO con caida segura: ps5_reconocer_juegos=1 y xbox_reconocer_juegos=1 (0 = el perfil unico).
+// Clave del ini (switch2.ini; en ConsoleEnhancer consoleenhancer.ini y resources\base.ini), de serie ENCENDIDO con caida segura: ps5_reconocer_juegos=1 y xbox_reconocer_juegos=1 (0 = el perfil unico).
 // Prueba sin consola: --test-juegos-consola=<carpeta de imagenes>[;<informe>] (por juego del nombre: xbox_* usa la Xbox, el resto la PS5).
 // C# 5 (sin C# 6+).
 using System;
@@ -974,7 +974,7 @@ namespace ConsoleEnhancer
     // ===================================================================
     //  21-11 (PORTADA; el usuario: "en ps5 es facilisimo, al entrar a un juego sale en gigante unos segundos la portada, haz que la
     //  memorice"): al arrancar un juego la PS5 pone su portada a pantalla completa, quieta, unos segundos. Su firma (luma en 16x9
-    //  celdas de la imagen entera) se guarda con el perfil del juego (juegos\portadas_consola.txt) la primera vez, cuando el juego se
+    //  celdas de la imagen entera) se guarda con el perfil del juego (games\console_covers.txt) la primera vez, cuando el juego se
     //  supo en el menu; despues, al ver otra vez esa portada, se pone ese juego y sus ajustes aunque el menu no se leyera (como el icono
     //  del HOME de la Switch 2). Hasta 4 firmas por juego (otras capturas / resoluciones)
     // ===================================================================
@@ -1066,7 +1066,7 @@ namespace ConsoleEnhancer
             return mx - mn < 12 && m < 45;
         }
 
-        static readonly AlmacenFirmas almacen = new AlmacenFirmas("portadas_consola.txt", W * H, "Portadas de los juegos de la consola al arrancar (las guarda la app): perfil|luma de 16x9 celdas");
+        static readonly AlmacenFirmas almacen = new AlmacenFirmas("console_covers.txt", W * H, "Portadas de los juegos de la consola al arrancar (las guarda la app): perfil|luma de 16x9 celdas");
 
         // El perfil de la portada mas parecida (por debajo de Misma) o null
         public static string Busca(double[] f, out double dist) { return almacen.Busca(f, Misma, out dist); }
@@ -1074,17 +1074,17 @@ namespace ConsoleEnhancer
         public static void Renombra(string viejo, string nuevo) { almacen.Renombra(viejo, nuevo); }
     }
 
-    // 21-11 (quinta vuelta): el icono del juego en foco del inicio de la PS5 (JuegoConsola.IconoFoco) de cada perfil (juegos\iconos_consola.txt)
+    // 21-11 (quinta vuelta): el icono del juego en foco del inicio de la PS5 (JuegoConsola.IconoFoco) de cada perfil (games\console_icons.txt)
     static class IconosConsola
     {
-        static readonly AlmacenFirmas almacen = new AlmacenFirmas("iconos_consola.txt", JuegoConsola.IcoN * JuegoConsola.IcoN, "Iconos de los juegos en el inicio de la consola (los guarda la app): perfil|luma normalizada de 12x12 celdas");
+        static readonly AlmacenFirmas almacen = new AlmacenFirmas("console_icons.txt", JuegoConsola.IcoN * JuegoConsola.IcoN, "Iconos de los juegos en el inicio de la consola (los guarda la app): perfil|luma normalizada de 12x12 celdas");
         public static string Busca(double[] f, out double dist) { return almacen.Busca(f, JuegoConsola.MismoIcono, out dist); }
         public static void Guarda(string perfil, double[] f) { almacen.Guarda(perfil, f, JuegoConsola.MismoIcono); }
         public static void Renombra(string viejo, string nuevo) { almacen.Renombra(viejo, nuevo); }
         public static bool Tiene(string perfil) { return almacen.Tiene(perfil); }
     }
 
-    // Firmas (portadas, iconos) por perfil en un fichero de juegos\: perfil|v1,v2,... (hasta 4 por perfil)
+    // Firmas (portadas, iconos) por perfil en un fichero de games\: perfil|v1,v2,... (hasta 4 por perfil)
     sealed class AlmacenFirmas
     {
         readonly object sync = new object();

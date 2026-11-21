@@ -46,7 +46,7 @@ First-run details:
   the console, the display and the plan. At the end you choose whether it starts with Windows and what the PC does when you turn the
   console off (nothing, low-power mode, sleep or shut down; see [Power](#power-what-the-pc-does-when-the-console-turns-off)).
 
-**Settings and uninstall: open `Ajustes de ConsoleEnhancer.exe`** (next to `ConsoleEnhancer.exe`), with the app open or closed. It has
+**Settings and uninstall: open `ConsoleEnhancer Settings.exe`** (next to `ConsoleEnhancer.exe`), with the app open or closed. It has
 everything in one window: open the app or the setup wizard, how the PC is used (like a console / like a normal PC), start with Windows,
 black desktop, what the PC does when the console turns off, DLSS 5 (your own file), download mpv/Magpie again, test the countdown or
 the standby, the logs and **Uninstall** (it puts Windows back as it was and deletes only the app's own files; you choose whether to keep
@@ -87,7 +87,7 @@ with help a lot too.
   properly reconstructed, without blocky red edges (`croma=2` in `motor_extra`; `croma=0` = as before).
 - **Scaling that adapts to your PC** (`escalas_adaptables=1`, on by default): the wizard estimates the DLSS model and percentages for
   your GPU and display; while you play, the engine measures GPU time every second and lowers quality if it can't keep up (within 2 s)
-  or raises it little by little if there is headroom (after 20 s), and remembers it for next time (`datos\escalas_motor.txt`). With
+  or raises it little by little if there is headroom (after 20 s), and remembers it for next time (`data\scales_engine.txt`). With
   mpv + Magpie it adjusts between one session and the next. Tray > Picture > *Self-adjusting scales* / *Forget the learned scales*.
   With the "DLSS 5" extra in the engine there is also an **emergency brake**: if the GPU is far over budget, it drops a pass or cuts the %
   at once (so the GPU doesn't choke) and keeps that as the learned value, without fighting the fine adjustment.
@@ -128,7 +128,7 @@ with help a lot too.
   Store, Game Pass, Settings, Captures...) and video / music apps (Netflix, YouTube, Spotify, Twitch...) are treated like the console
   menu: native 4K, no game profile and no frame generation, until you are back on the menu (or the previous game's picture returns).
   They never create a fake game or get saved as a game's cover art.
-- **Recognises each game and keeps its profile** (`juegos\perfiles.txt`): on Switch / Switch 2 it reads the game name on the HOME screen
+- **Recognises each game and keeps its profile** (`games\profiles.txt`): on Switch / Switch 2 it reads the game name on the HOME screen
   and stores its icon, so whatever you change with the controller (capture, DLSS 5 model and passes, upscaler, 30/60 mode and frame
   generation type) is remembered per game and applied again automatically next time you enter it. On **PS5** it recognises the game by
   its **focused icon** on the Home screen (with its name next to it) and by its **cover art** when it starts: just enter the game from the
@@ -136,7 +136,7 @@ with help a lot too.
   with the focused tile on Home (the big one, with the name below) and each game's start-up image (*preliminary: tested with official
   screenshots, not yet with a real Xbox*). If the game is not recognised, it uses the single console-wide profile, as before
   (`ps5_reconocer_juegos=1`, `xbox_reconocer_juegos=1`; 0 = one profile for the whole console). What it learns is stored in
-  `juegos\iconos_consola.txt` and `juegos\portadas_consola.txt`.
+  `games\console_icons.txt` and `games\console_covers.txt`.
 - **Controllers**: Xbox / XInput, DualSense / DualShock 4, Switch and Switch 2 controllers, 8BitDo, GameSir and generic HID, with no
   extra software. The app reads the controller without taking it away from the console and, outside the picture, drives the PC (PC mode).
 - **On-screen settings menu**: the controller's centre button (Xbox / PS / HOME), Ctrl+O or tray > *On-screen settings menu…*. It
@@ -165,15 +165,15 @@ with help a lot too.
   Each one explains what it does first; switch whenever you like.
 - **Uninstall** (tray > *Uninstall ConsoleEnhancer…*): removes the start-with-Windows task, brings back the normal desktop and power plan,
   and deletes only the app's own files (anything else in its folder stays). Your settings and game profiles can be kept for a later install.
-- **`Ajustes de ConsoleEnhancer.exe`** next to `ConsoleEnhancer.exe` (replaces `Inicio y apagado.bat`): all of the above plus DLSS 5,
+- **`ConsoleEnhancer Settings.exe`** next to `ConsoleEnhancer.exe` (replaces `Inicio y apagado.bat`): all of the above plus DLSS 5,
   components, logs, the countdown and standby tests and uninstall, in one window. If the app is open, it offers to restart it to apply
   the changes.
 - **Components**: mpv and Magpie are downloaded once from their official pages with their SHA-256 checked (offline, from the zips in
-  `descargas\`); tray > *Components: check / download again* repairs them.
+  `downloads\`); tray > *Components: check / download again* repairs them.
 - **Updates keep your data**: the first time a new version opens, it copies the settings, per-game profiles and recognised console from
-  the previous version's folder (noted in `datos\heredado.txt`), reuses mpv, Magpie and the compiled shaders (first start ~11 s instead
+  the previous version's folder (noted in `data\inherited.txt`), reuses mpv, Magpie and the compiled shaders (first start ~11 s instead
   of ~1 min) and applies the new general settings while keeping what the wizard chose (backup in `.antes-*`).
-- **Portable**: with `portable.txt` next to the exe (included in the zip), everything is stored in `datos\`; if you delete it, in
+- **Portable**: with `portable.txt` next to the exe (included in the zip), everything is stored in `data\`; if you delete it, in
   `%LOCALAPPDATA%\ConsoleEnhancer`.
 - **Interface in English and Spanish**, chosen in the wizard's first step.
 
@@ -181,7 +181,7 @@ with help a lot too.
 
 With `apagar_pc=1` (wizard's last step or tray > *Shut down the PC when the console is turned off*), `apagar_pc_modo` picks what
 happens. Change it in the wizard, in tray > *When the console is turned off, the PC* (with *How does each one work and how much
-power?*) or in `Ajustes de ConsoleEnhancer.exe`.
+power?*) or in `ConsoleEnhancer Settings.exe`.
 
 | Mode | How it works | Power at the wall |
 |---|---|---|
@@ -209,7 +209,7 @@ left like that all day), but it's the only mode where turning the console on is 
   or moving the mouse more than 40 px, cancels it; input injected by other programs (Joyxoff, controller mappers, Steam Input) doesn't.
 - The PC is not shut down if the GPU failed in the last minute (see *Doesn't close by itself if the GPU stalls*).
 - Closing the app yourself (Exit, Alt+F4) never shuts down or sleeps the PC.
-- `Ajustes de ConsoleEnhancer.exe` > *Test the shutdown notice* / *Test standby* (the low-power mode: the screen goes off; turn the
+- `ConsoleEnhancer Settings.exe` > *Test the shutdown notice* / *Test standby* (the low-power mode: the screen goes off; turn the
   console or a controller on, or press a key).
 
 ## DLSS 5 (optional)
@@ -281,7 +281,7 @@ X = right click, R3 = middle click, B = Esc, D-pad = arrow keys, View + Menu = A
 quarantines it, restore it and add the folder to its exclusions; or build it yourself (see *For developers*).
 
 **The mpv / Magpie download fails.** Internet is needed once. Behind a proxy or offline: download the two zips linked in that window
-(also in `licencias\VERSIONES.txt`) on another PC and put them in a `descargas\` folder next to `ConsoleEnhancer.exe`; they are checked
+(also in `licenses\VERSIONS.txt`) on another PC and put them in a `downloads\` folder next to `ConsoleEnhancer.exe`; they are checked
 the same way. If it says it can't write, the folder is read-only (Program Files): move it to one of your own.
 
 **Black screen or "No Signal".** Check that the picture shows in the wizard's *Test picture*. Close any program using the capture card
@@ -311,7 +311,7 @@ why ("NO es la consola apagada: ...").
 
 **My desktop is stuck black.** `ConsoleEnhancer.exe --restaurar-escritorio`.
 
-**Where are the settings and the log?** In `datos\` next to the exe (portable) or in `%LOCALAPPDATA%\ConsoleEnhancer`:
+**Where are the settings and the log?** In `data\` next to the exe (portable) or in `%LOCALAPPDATA%\ConsoleEnhancer`:
 `consoleenhancer.ini` and `logs\consoleenhancer.log` / `engine.log`. If you open an *issue*, attach the log (check first that it doesn't
 contain anything of yours you don't want to show, such as folder names).
 
@@ -330,16 +330,16 @@ injected inputs it ignored.
 
 **Turning the console on doesn't bring the PC back.** That only works in the low-power mode (*Standby*), because there the PC never
 turns off. After *Sleep* or *Shut down* the console and the controllers can't turn the PC on: use a key or the power button. Test the
-low-power mode in `Ajustes de ConsoleEnhancer.exe` > *Test standby*.
+low-power mode in `ConsoleEnhancer Settings.exe` > *Test standby*.
 
 ## Legal notices
 
 - **License**: ConsoleEnhancer is free software under the **GPL-3.0** (`LICENSE`), **without any warranty**, with a section 7 additional
   permission for use with the official NVIDIA, AMD, Intel and Microsoft libraries (`LICENSE-EXCEPTION.txt`). Third-party code, versions
-  and licenses: [`THIRD-PARTY.md`](THIRD-PARTY.md) and `licencias\` in the zip.
+  and licenses: [`THIRD-PARTY.md`](THIRD-PARTY.md) and `licenses\` in the zip.
 - **What is in the zip**: the app and the NVIDIA Streamline / DLSS / Reflex DLLs, unmodified and signed by NVIDIA, which NVIDIA allows to
   be redistributed inside an application; their terms (no selling them on their own, no reverse engineering...) are in
-  `licencias\NVIDIA-AVISO.txt` and also apply to you.
+  `licenses\NVIDIA-NOTICE.txt` and also apply to you.
 - **mpv and Magpie are not redistributed by ConsoleEnhancer**: the app downloads them from their official releases, with their licenses
   (GPL) and source code on their pages.
 - **"DLSS 5" is not included.** `nvngx_dlssnr.dll` is a community-modified NVIDIA DLL with no signature or license, and
@@ -368,13 +368,13 @@ Step by step:
 ```bat
 powershell -ExecutionPolicy Bypass -File scripts\descargar_dependencias.ps1   :: terceros\mpv, terceros\magpie, terceros\streamline
 build.bat                       :: bin\ConsoleEnhancer.exe (src\Lanzador + src\Deteccion) y bin\ listo (mpv y magpie enlazados a terceros\)
-build_motor.bat                 :: bin\motor\ConsoleEnhancerEngine.exe (src\Motor) + DLL de Streamline
+build_motor.bat                 :: bin\engine\ConsoleEnhancerEngine.exe (src\Motor) + DLL de Streamline
 tests\build_deteccion.bat       :: tests\bin\DeteccionTest.exe
 tests\bin\DeteccionTest.exe --simula=todo --sin-d3d12 --salida=deteccion.txt   :: 23 PCs simulados
 powershell -ExecutionPolicy Bypass -File scripts\empaquetar.ps1 -Zip -Version v1.2.0   :: dist\ConsoleEnhancer\ y dist\ConsoleEnhancer-v1.2.0.zip
 ```
 
-- **Dependencies**: the table `scripts\componentes.json` (version, URL, SHA-256 and what is taken from each zip) is used by
+- **Dependencies**: the table `scripts\components.json` (version, URL, SHA-256 and what is taken from each zip) is used by
   `descargar_dependencias.ps1` and by the app itself. To change a version, change it there.
 - **Package** (`scripts\empaquetar.ps1`): allow-list. It includes the app, the engine with Streamline / DLSS, scripts, languages,
   resources and licenses; it does **not** include mpv or Magpie (the app downloads them) or anything non-redistributable, and it checks
@@ -390,7 +390,7 @@ powershell -ExecutionPolicy Bypass -File scripts\empaquetar.ps1 -Zip -Version v1
 | `--asistente-auto` | Writes the ini with the detection plan (estimated scales, picture, controller), without asking |
 | `--simula=<caso>` | With `--asistente-auto`: another PC's plan (`amd-rx7800xt`, `intel-arc-b580`, `rtx3060`, `sin-nvidia`...) |
 | `--dry-run` | Prepares the Magpie copy and writes the chain and the mpv command line to the log, without launching anything |
-| `--componentes=<carpeta>` | Downloads and installs mpv and Magpie in that folder without asking (or from the zips in `<carpeta>\descargas`) and reports in `componentes.log` |
+| `--componentes=<carpeta>` | Downloads and installs mpv and Magpie in that folder without asking (or from the zips in `<carpeta>\downloads`) and reports in `componentes.log` |
 | `--componentes-reparar` | Downloads mpv and Magpie again even if they are fine (what tray > *Components: check / download again* does) |
 | `--ui-preview=asistente;<carpeta>` | Images of the wizard's 9 steps (es / en), without opening anything |
 | `--ui-preview=apagado;<carpeta>` | Images of the shutdown notice |
@@ -409,9 +409,9 @@ src\Lanzador\   the tray app (C# 5, WinForms): mpv, Magpie, the engine, controll
                 user extras (Add / Remove DLSS 5) and the support link (Extras.cs)
 src\Deteccion\  detection of GPU, displays, capture cards, audio and controllers; the picture plan; simulated PCs
 src\Motor\      the D3D12 image engine (capture, DLSS / XeSS / FSR, frame generation, Reflex, OSD)
-scripts\        mpv lua and glsl, componentes.json, descargar_dependencias.ps1, empaquetar.ps1
-recursos\       base.ini (starting settings), mpv.conf (mpv portable_config), icon
-idiomas\        en.txt (English on-screen texts)
+scripts\        mpv lua and glsl, components.json, descargar_dependencias.ps1, empaquetar.ps1
+resources\       base.ini (starting settings), mpv.conf (mpv portable_config), icon
+languages\        en.txt (English on-screen texts)
 parches\        source code changes for Magpie (GPL-3.0), optional
 tests\          DeteccionTest
 DISENO.md       design and decisions; LEEME.txt: status, what has been tested and what is missing
@@ -464,7 +464,7 @@ Detalles de la primera vez:
   consola, la pantalla y el plan. Al final eliges si se abre al iniciar Windows y qué hace el PC al apagar la consola (nada, bajo
   consumo, suspender o apagar; ver [Energía](#energía-qué-hace-el-pc-al-apagar-la-consola)).
 
-**Ajustes y desinstalar: abre `Ajustes de ConsoleEnhancer.exe`** (junto a `ConsoleEnhancer.exe`), con la app abierta o cerrada. Tiene
+**Ajustes y desinstalar: abre `ConsoleEnhancer Settings.exe`** (junto a `ConsoleEnhancer.exe`), con la app abierta o cerrada. Tiene
 todo en una ventana: abrir la app o el asistente, cómo se usa el PC (como una consola / como un PC normal), abrirse con Windows,
 escritorio negro, qué hace el PC al apagar la consola, DLSS 5 (tu propio archivo), volver a bajar mpv/Magpie, probar el aviso o la
 espera, los registros y **Desinstalar** (deja Windows como estaba y borra solo los archivos de la app; tú eliges si guardar tus ajustes y
@@ -505,7 +505,7 @@ y contar en qué PC y con qué consola lo usas.
   YUY2 / NV12 se reconstruye bien, sin bordes rojos en escalones (`croma=2` en `motor_extra`; `croma=0` = como antes).
 - **Escalas que se adaptan a tu PC** (`escalas_adaptables=1`, de serie): el asistente estima el modelo de DLSS y los porcentajes para tu
   gráfica y tu pantalla; jugando, el motor mide el tiempo de gráfica cada segundo y baja la calidad si no llega (en 2 s) o la sube poco
-  a poco si sobra (tras 20 s), y lo recuerda para la próxima vez (`datos\escalas_motor.txt`). Con mpv + Magpie se ajusta entre una
+  a poco si sobra (tras 20 s), y lo recuerda para la próxima vez (`data\scales_engine.txt`). Con mpv + Magpie se ajusta entre una
   partida y otra. Bandeja > Imagen > *Escalas que se adaptan solas* / *Olvidar las escalas aprendidas*. Con el extra "DLSS 5" en el
   motor hay además un **freno de emergencia**: si la gráfica va muy por encima de lo que cabe, quita una pasada o baja el % de golpe
   (para no atascar la gráfica) y eso queda como lo aprendido, sin pelearse con el ajuste fino.
@@ -545,7 +545,7 @@ y contar en qué PC y con qué consola lo usas.
   Store, Game Pass, Configuración, Capturas...) y las apps de vídeo y música (Netflix, YouTube, Spotify, Twitch...) se tratan como el
   menú de la consola: 4K nativo, sin perfil de juego ni generación, hasta volver al menú (o hasta que vuelve la imagen del juego de
   antes). Nunca crean un juego falso ni se guardan como portada de un juego.
-- **Reconoce cada juego y le guarda su perfil** (`juegos\perfiles.txt`): en la Switch / Switch 2 lee el nombre del juego en el HOME
+- **Reconoce cada juego y le guarda su perfil** (`games\profiles.txt`): en la Switch / Switch 2 lee el nombre del juego en el HOME
   y guarda su icono, así que lo que cambies con el mando (captura, modelo y pasadas de DLSS 5, escalador, modo 30/60 y tipo de
   generación) se recuerda por juego y se vuelve a poner solo la próxima vez que entras. En la **PS5** reconoce el juego por su
   **icono en foco** en el Inicio (con su nombre al lado) y por su **portada** al arrancarlo: basta con entrar en el juego desde el
@@ -553,7 +553,7 @@ y contar en qué PC y con qué consola lo usas.
   Inicio (la grande, con el nombre abajo) y la imagen de arranque de cada juego (*preliminar: probado con capturas oficiales, sin
   probar aún con una Xbox de verdad*). Si no reconoce el juego, usa el perfil único de la consola, como antes
   (`ps5_reconocer_juegos=1`, `xbox_reconocer_juegos=1`; 0 = un solo perfil para toda la consola). Lo que aprende está en
-  `juegos\iconos_consola.txt` y `juegos\portadas_consola.txt`.
+  `games\console_icons.txt` y `games\console_covers.txt`.
 - **Mandos**: Xbox / XInput, DualSense / DualShock 4, mandos de Switch y Switch 2, 8BitDo, GameSir y genéricos HID, sin programas
   aparte. La app lee el mando sin quitárselo a la consola y, fuera de la imagen, maneja el PC (modo PC).
 - **Menú de ajustes en pantalla**: el botón central del mando (Xbox / PS / HOME), Ctrl+O o bandeja > *Menú de ajustes en pantalla…*.
@@ -582,16 +582,16 @@ y contar en qué PC y con qué consola lo usas.
   la consola). Cada uno explica antes lo que hace; se cambia cuando quieras.
 - **Desinstalar** (bandeja > *Desinstalar ConsoleEnhancer…*): quita el inicio con Windows, devuelve el escritorio y el plan de energía
   normales y borra solo los archivos de la app (lo demás de su carpeta se queda). Tus ajustes y perfiles se pueden guardar para otra vez.
-- **`Ajustes de ConsoleEnhancer.exe`** junto a `ConsoleEnhancer.exe` (sustituye a `Inicio y apagado.bat`): todo lo anterior más DLSS 5,
+- **`ConsoleEnhancer Settings.exe`** junto a `ConsoleEnhancer.exe` (sustituye a `Inicio y apagado.bat`): todo lo anterior más DLSS 5,
   componentes, registros, las pruebas del aviso y de la espera y desinstalar, en una ventana. Si la app está abierta, ofrece reiniciarla
   para aplicar los cambios.
 - **Componentes**: mpv y Magpie se bajan una vez de sus páginas oficiales comprobando su SHA-256 (sin internet, con los zip en
-  `descargas\`); bandeja > *Componentes: comprobar / volver a descargar* los repara.
+  `downloads\`); bandeja > *Componentes: comprobar / volver a descargar* los repara.
 - **Al actualizar no pierdes nada**: la primera vez que se abre una versión nueva, copia los ajustes, los perfiles de cada juego y la
-  consola reconocida de la carpeta de la versión anterior (se apunta en `datos\heredado.txt`), reutiliza mpv, Magpie y los shaders ya
+  consola reconocida de la carpeta de la versión anterior (se apunta en `data\inherited.txt`), reutiliza mpv, Magpie y los shaders ya
   compilados (primer arranque de ~1 min a ~11 s) y pone los ajustes generales nuevos sin tocar lo que eligió el asistente (copia en
   `.antes-*`).
-- **Portable**: con `portable.txt` junto al exe (viene en el zip), todo se guarda en `datos\`; si lo borras, en
+- **Portable**: con `portable.txt` junto al exe (viene en el zip), todo se guarda en `data\`; si lo borras, en
   `%LOCALAPPDATA%\ConsoleEnhancer`.
 - **Interfaz en español e inglés**, a elegir en el primer paso del asistente.
 
@@ -599,7 +599,7 @@ y contar en qué PC y con qué consola lo usas.
 
 Con `apagar_pc=1` (último paso del asistente o bandeja > *Apagar el PC al apagar la consola*), `apagar_pc_modo` elige qué pasa. Se
 cambia en el asistente, en bandeja > *Al apagar la consola, el PC* (con *¿Cómo funciona cada uno y cuánto gasta?*) o en
-`Ajustes de ConsoleEnhancer.exe`.
+`ConsoleEnhancer Settings.exe`.
 
 | Modo | Cómo funciona | Consumo en el enchufe |
 |---|---|---|
@@ -628,7 +628,7 @@ todo el día), pero es el único modo en el que basta con encender la consola pa
   Steam Input) no cuenta.
 - No apaga el PC si la gráfica falló en el último minuto (ver *No se cierra sola si la gráfica se para*).
 - Cerrar la app a mano (Salir, Alt+F4) nunca apaga ni duerme el PC.
-- `Ajustes de ConsoleEnhancer.exe` > *Probar el aviso de apagado* / *Probar el modo espera* (el bajo consumo: se apaga la pantalla;
+- `ConsoleEnhancer Settings.exe` > *Probar el aviso de apagado* / *Probar el modo espera* (el bajo consumo: se apaga la pantalla;
   enciende la consola o un mando, o pulsa una tecla).
 
 ## DLSS 5 (opcional)
@@ -699,7 +699,7 @@ X = clic derecho, R3 = clic central, B = Esc, cruceta = flechas, Vista + Menú =
 Si el antivirus lo pone en cuarentena, restáuralo y añade la carpeta a sus exclusiones; o compílalo tú (ver *Para desarrolladores*).
 
 **La descarga de mpv / Magpie falla.** Hace falta internet una vez. Con proxy o sin conexión: baja los dos zip que enlaza la ventana
-(también en `licencias\VERSIONES.txt`) en otro PC y ponlos en una carpeta `descargas\` junto a `ConsoleEnhancer.exe`; se comprueban
+(también en `licenses\VERSIONS.txt`) en otro PC y ponlos en una carpeta `downloads\` junto a `ConsoleEnhancer.exe`; se comprueban
 igual. Si dice que no puede escribir, la carpeta es de solo lectura (Archivos de programa): muévela a una tuya.
 
 **Pantalla negra o "No Signal".** Comprueba que la imagen se ve en el *Probar imagen* del asistente. Cierra cualquier programa que use
@@ -729,7 +729,7 @@ dice el motivo ("NO es la consola apagada: ...").
 
 **Se me ha quedado el escritorio en negro.** `ConsoleEnhancer.exe --restaurar-escritorio`.
 
-**¿Dónde están los ajustes y el log?** En `datos\` junto al exe (portable) o en `%LOCALAPPDATA%\ConsoleEnhancer`:
+**¿Dónde están los ajustes y el log?** En `data\` junto al exe (portable) o en `%LOCALAPPDATA%\ConsoleEnhancer`:
 `consoleenhancer.ini` y `logs\consoleenhancer.log` / `engine.log`. Si abres un *issue*, adjunta el log (revisa antes que no lleve nada
 tuyo que no quieras enseñar, como nombres de carpetas).
 
@@ -748,16 +748,16 @@ entradas inyectadas no contó.
 
 **Encender la consola no hace volver el PC.** Eso solo va en el modo de bajo consumo (*En espera*), porque ahí el PC nunca se apaga.
 Tras *Suspender* o *Apagar*, ni la consola ni los mandos pueden encender el PC: usa una tecla o el botón de encendido. Prueba el bajo
-consumo en `Ajustes de ConsoleEnhancer.exe` > *Probar el modo espera*.
+consumo en `ConsoleEnhancer Settings.exe` > *Probar el modo espera*.
 
 ## Avisos legales
 
 - **Licencia**: ConsoleEnhancer es software libre bajo la **GPL-3.0** (`LICENSE`), **sin ninguna garantía**, con un permiso adicional de
   la sección 7 para usarlo con las librerías oficiales de NVIDIA, AMD, Intel y Microsoft (`LICENSE-EXCEPTION.txt`). Código de terceros,
-  versiones y licencias: [`THIRD-PARTY.md`](THIRD-PARTY.md) y `licencias\` en el zip.
+  versiones y licencias: [`THIRD-PARTY.md`](THIRD-PARTY.md) y `licenses\` en el zip.
 - **Lo que va en el zip**: la app y las DLL de NVIDIA Streamline / DLSS / Reflex, sin cambios y firmadas por NVIDIA, que NVIDIA deja
   repartir dentro de una aplicación; sus condiciones (no venderlas sueltas, no hacer ingeniería inversa...) están en
-  `licencias\NVIDIA-AVISO.txt` y valen también para ti.
+  `licenses\NVIDIA-NOTICE.txt` y valen también para ti.
 - **mpv y Magpie no los reparte ConsoleEnhancer**: los baja la app de sus releases oficiales, con sus licencias (GPL) y su código fuente
   en sus páginas.
 - **"DLSS 5" no se incluye.** `nvngx_dlssnr.dll` es una DLL de NVIDIA modificada por la comunidad, sin firma ni licencia, y
@@ -785,15 +785,15 @@ Paso a paso:
 ```bat
 powershell -ExecutionPolicy Bypass -File scripts\descargar_dependencias.ps1   :: terceros\mpv, terceros\magpie, terceros\streamline
 build.bat                       :: bin\ConsoleEnhancer.exe (src\Lanzador + src\Deteccion) y bin\ listo (mpv y magpie enlazados a terceros\)
-build_motor.bat                 :: bin\motor\ConsoleEnhancerEngine.exe (src\Motor) + DLL de Streamline
+build_motor.bat                 :: bin\engine\ConsoleEnhancerEngine.exe (src\Motor) + DLL de Streamline
 tests\build_deteccion.bat       :: tests\bin\DeteccionTest.exe
 tests\bin\DeteccionTest.exe --simula=todo --sin-d3d12 --salida=deteccion.txt   :: 23 PCs simulados
 powershell -ExecutionPolicy Bypass -File scripts\empaquetar.ps1 -Zip -Version v1.2.0   :: dist\ConsoleEnhancer\ y dist\ConsoleEnhancer-v1.2.0.zip
 ```
 
-- **Dependencias**: la tabla `scripts\componentes.json` (versión, URL, SHA-256 y qué se coge de cada zip) la usan
+- **Dependencias**: la tabla `scripts\components.json` (versión, URL, SHA-256 y qué se coge de cada zip) la usan
   `descargar_dependencias.ps1` y la propia app. Para cambiar de versión, se cambia ahí.
-- **Paquete** (`scripts\empaquetar.ps1`): lista blanca. Lleva la app, el motor con Streamline / DLSS, scripts, idiomas, recursos y
+- **Paquete** (`scripts\empaquetar.ps1`): lista blanca. Lleva la app, el motor con Streamline / DLSS, scripts, languages, resources y
   licencias; **no** lleva mpv ni Magpie (los baja la app) ni nada no redistribuible, y comprueba que no hay datos del PC donde se monta
   (tu usuario, el nombre del equipo y lo que pongas en `scripts\privado.txt`, que no va a git).
 - **GitHub Actions** (`.github/workflows/compilar.yml`): compila y pasa las pruebas en cada push; con una etiqueta `v*` monta el zip y
@@ -806,7 +806,7 @@ powershell -ExecutionPolicy Bypass -File scripts\empaquetar.ps1 -Zip -Version v1
 | `--asistente-auto` | Escribe el ini con el plan de la detección (escalas estimadas, imagen, mando), sin preguntar |
 | `--simula=<caso>` | Con `--asistente-auto`: el plan de otro PC (`amd-rx7800xt`, `intel-arc-b580`, `rtx3060`, `sin-nvidia`...) |
 | `--dry-run` | Prepara la copia de Magpie y apunta en el log la cadena y la línea de mpv, sin lanzar nada |
-| `--componentes=<carpeta>` | Baja e instala mpv y Magpie en esa carpeta sin preguntar (o con los zip de `<carpeta>\descargas`) e informa en `componentes.log` |
+| `--componentes=<carpeta>` | Baja e instala mpv y Magpie en esa carpeta sin preguntar (o con los zip de `<carpeta>\downloads`) e informa en `componentes.log` |
 | `--componentes-reparar` | Vuelve a bajar mpv y Magpie aunque estén bien (lo que hace bandeja > *Componentes: comprobar / volver a descargar*) |
 | `--ui-preview=asistente;<carpeta>` | Imágenes de los 9 pasos del asistente (es / en), sin abrir nada |
 | `--ui-preview=apagado;<carpeta>` | Imágenes del aviso de apagado |
@@ -825,9 +825,9 @@ src\Lanzador\   la app de bandeja (C# 5, WinForms): mpv, Magpie, el motor, mando
                 extras del usuario (Añadir / Quitar DLSS 5) y el enlace de apoyo (Extras.cs)
 src\Deteccion\  detección de gráfica, pantallas, capturadoras, audio y mandos; el plan de imagen; PCs simulados
 src\Motor\      el motor de imagen D3D12 (captura, DLSS / XeSS / FSR, generación, Reflex, OSD)
-scripts\        lua y glsl de mpv, componentes.json, descargar_dependencias.ps1, empaquetar.ps1
-recursos\       base.ini (ajustes de partida), mpv.conf (portable_config de mpv), icono
-idiomas\        en.txt (textos de pantalla en inglés)
+scripts\        lua y glsl de mpv, components.json, descargar_dependencias.ps1, empaquetar.ps1
+resources\       base.ini (ajustes de partida), mpv.conf (portable_config de mpv), icono
+languages\        en.txt (textos de pantalla en inglés)
 parches\        cambios de código fuente para Magpie (GPL-3.0), opcionales
 tests\          DeteccionTest
 DISENO.md       diseño y decisiones; LEEME.txt: estado, lo probado y lo que falta

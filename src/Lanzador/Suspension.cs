@@ -10,7 +10,7 @@
 //    Administracion de energia > "Permitir que este dispositivo reactive el equipo"). La app arma (con un aviso de UAC, una vez por
 //    dispositivo nuevo) los teclados, los mandos (Xbox/XInput, mandos HID y sus receptores USB: el dispositivo USB padre) y la radio
 //    Bluetooth (mandos y teclados por Bluetooth). Tambien quita "pedir la contrasena al despertar" (CONSOLELOCK=0) para que no salga la
-//    pantalla de bloqueo. Lo armado se apunta en datos\despertar_armado.txt; al abrir la app, si hay mandos o teclados nuevos, se vuelve
+//    pantalla de bloqueo. Lo armado se apunta en data\wake_armed.txt; al abrir la app, si hay mandos o teclados nuevos, se vuelve
 //    a pedir. Linea de comandos: --ce-despertar (lo pide con UAC), --ce-despertar-admin (el exe elevado), --prueba-suspender (suspende
 //    de verdad, sin consola ni aviso, y abre la app al despertar).
 //  - Ojo: un mando por Bluetooth o un receptor que se apaga del todo al dormir puede no despertar el PC (depende del hardware y de que la
@@ -72,7 +72,7 @@ namespace ConsoleEnhancer
             return false;
         }
         static string Exe { get { return Path.GetFullPath(System.Reflection.Assembly.GetEntryAssembly().Location); } }
-        static string Marca { get { return Path.Combine(Paths.Datos, "despertar_armado.txt"); } }
+        static string Marca { get { return Path.Combine(Paths.Datos, "wake_armed.txt"); } }
 
         // Lo que mira CeInicio.Argumento: int.MinValue = no es mio
         public static int Argumento(string arg)
@@ -161,7 +161,7 @@ namespace ConsoleEnhancer
         // Lo que habria que armar: id de instancia -> por que (para el log)
         // Fabricantes de mandos y receptores (VID USB): con el mando apagado muchos receptores cambian de identidad (el de GameSir pasa de
         // PID_1040 XInput a PID_2106, un HID del fabricante) y es ESE el que tiene que despertar el PC al encender el mando. Se arman todos
-        // los dispositivos USB/HID de estos fabricantes y de los de cualquier mando visto alguna vez (vid= en datos\despertar_armado.txt)
+        // los dispositivos USB/HID de estos fabricantes y de los de cualquier mando visto alguna vez (vid= en data\wake_armed.txt)
         static readonly string[] VidsMandos = { "045E", "054C", "057E", "2DC8", "3537", "0079", "20D6", "0E6F", "24C6", "146B", "0F0D", "1532", "28DE", "2563", "11C0", "1949", "2F24", "3285", "33DF", "413D" };
         static readonly System.Text.RegularExpressions.Regex VidRx = new System.Text.RegularExpressions.Regex(@"VID_([0-9A-F]{4})", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 

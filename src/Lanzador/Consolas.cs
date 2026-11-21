@@ -4,7 +4,7 @@
 // sus juegos, los nombres de sus botones para los avisos, el consejo de HDCP y como se ve que se ha apagado (cuanto esperar a una
 // pantalla "No Signal" antes de darla por apagada: al arrancar un juego la PS5 o la Xbox pueden cambiar de modo de video).
 // Se elige con consola= en switch2.ini: auto (de serie) | switch2 | switch1 | ps5 | ps4 | xboxseries | xboxone | otra. Con auto,
-// la ultima vista (juegos\consola.txt; sin ella la Switch 2 si ya se vio su HOME en este PC, juegos\home_ref.txt, y si no "otra")
+// la ultima vista (games\console.txt; sin ella la Switch 2 si ya se vio su HOME en este PC, games\home_ref.txt, y si no "otra")
 // y lo que se vea en la imagen (Pista*/Visto*: el HOME de Nintendo, palabras leidas por el OCR, la resolucion de verdad de un menu,
 // la cadencia y, si algun dia se sabe leer, la señal de entrada de la capturadora). Lo que dice cada consola: docs\CONSOLAS.md.
 // En los textos de pantalla: "consola" a secas (Visible). C# 5
@@ -130,7 +130,7 @@ namespace ConsoleEnhancer
 
         static string Fmt(double v) { return v.ToString("0.#", CultureInfo.InvariantCulture); }
 
-        // El perfil de juego de las consolas cuyo menu no se reconoce (juegos\perfiles.txt): lo cambiado con el mando se recuerda ahi y
+        // El perfil de juego de las consolas cuyo menu no se reconoce (games\profiles.txt): lo cambiado con el mando se recuerda ahi y
         // no se mezcla con los juegos de la Switch 2. Uno solo, "Consola" (sale en algun aviso: el usuario quiere "consola" a secas, sin
         // el nombre de la detectada); la captura que no tenga sentido con la consola de ahora la corrige CapturaCercana
         public const string NombrePerfilConsola = "Consola";
@@ -283,9 +283,9 @@ namespace ConsoleEnhancer
         static string origen = "de serie";
         static bool iniciada;
 
-        // (las pruebas usan otra carpeta: nada en juegos\)
-        static string carpeta = Path.Combine(Paths.Datos, "juegos");
-        static string ArchivoUltima { get { return Path.Combine(carpeta, "consola.txt"); } }
+        // (las pruebas usan otra carpeta: nada en games\)
+        static string carpeta = Path.Combine(Paths.Datos, "games");
+        static string ArchivoUltima { get { return Path.Combine(carpeta, "console.txt"); } }
         static string ArchivoHomeRef { get { return Path.Combine(carpeta, "home_ref.txt"); } }
 
         // Cambio de consola (con auto): la de antes, la nueva y por que. Lo avisa la app (log, aviso, perfil de la consola)
@@ -340,7 +340,7 @@ namespace ConsoleEnhancer
             ConsolaPerfil last = null;
             try { if (File.Exists(ArchivoUltima)) { string g = File.ReadAllText(ArchivoUltima).Trim(); last = Buscar(g); guardada = g; } }
             catch { }
-            if (last != null) { actual = last; origen = "la ultima vista (juegos\\consola.txt)"; return; }
+            if (last != null) { actual = last; origen = "la ultima vista (games\\console.txt)"; return; }
             // Sin historia: la Switch 2 si ya se vio su HOME en este PC (la app era solo para ella), si no ninguna en concreto
             bool sw2 = false;
             try { sw2 = File.Exists(ArchivoHomeRef); } catch { }
@@ -421,7 +421,7 @@ namespace ConsoleEnhancer
         // 20-11 (CONSOLA): el 20-11 a las 04:33 y 04:35 la PS5 se tomo por la Xbox: con la PS5 puesta, cada captura en la que su lector no
         // leia su hora (la pantalla de inicio con el avatar junto a la hora: OCR "3C) 2:42"; algo a su derecha; un fundido) iba a buscar
         // la de la Xbox en TODA la franja de arriba, que incluye el sitio de la de la PS5: su propia hora daba 0,6 a la Xbox cada 5 s y
-        // nada a la PS5 (su menu reconocido no sumaba), y en 5 pistas se cambiaba a un perfil SIN PROBAR y se guardaba en consola.txt.
+        // nada a la PS5 (su menu reconocido no sumaba), y en 5 pistas se cambiaba a un perfil SIN PROBAR y se guardaba en console.txt.
         // Ahora:
         //  - Cada pista es PROPIA (algo que solo da esa consola: su HOME con la referencia, su hora en su sitio exacto, su marca o sus
         //    pantallas en el texto) o de APOYO (la hora en la franja de arriba, "PlayStation" o "Xbox" sueltas, la cadencia de 40...).
@@ -430,7 +430,7 @@ namespace ConsoleEnhancer
         //    ultima; a una SIN PROBAR desde una probada, 3 en 20 s) en los ultimos 10 min.
         //  - Ante la duda gana la puesta: su menu visto con su lector la refuerza (VistoMenuPropio, solo las probadas) y, si lo ha visto
         //    hace menos de 20 s, solo una prueba concluyente (el HOME de la Switch 2 con su referencia) la cambia.
-        //  - juegos\consola.txt solo se escribe con la consola confirmada (al cambiar, o la puesta con sus pruebas propias)
+        //  - games\console.txt solo se escribe con la consola confirmada (al cambiar, o la puesta con sus pruebas propias)
         public const double PuntosCambio = 3.0;
         const double MediaVidaS = 600;
         public const double SeparacionS = 5;            // 2 pruebas propias, con esto como poco entre la primera y la ultima
@@ -442,7 +442,7 @@ namespace ConsoleEnhancer
         static readonly Dictionary<string, DateTime> rechazoLog = new Dictionary<string, DateTime>();
         static DateTime puntosAt = DateTime.MinValue;
         static string ultimaPistaLog;
-        static string guardada;                         // lo que hay en juegos\consola.txt (leido al abrir o escrito despues)
+        static string guardada;                         // lo que hay en games\console.txt (leido al abrir o escrito despues)
         public static volatile Func<DateTime> Reloj; // (pruebas: un reloj falso)
 
         static DateTime Ahora() { Func<DateTime> r = Reloj; return r != null ? r() : DateTime.Now; }
@@ -544,7 +544,7 @@ namespace ConsoleEnhancer
 
         // Con sync: ¿cambia la consola? La de mas puntos si llega a PuntosCambio, dobla a la siguiente (la puesta incluida) y esta
         // confirmada por sus pruebas propias; y si la puesta acaba de ver su propio menu, solo con una prueba concluyente. La confirmada
-        // se recuerda (juegos\consola.txt) para la proxima vez
+        // se recuerda (games\console.txt) para la proxima vez
         static ConsolaPerfil DecidirLocked(string porque, DateTime now, bool concluyente, out ConsolaPerfil antes)
         {
             antes = null;
@@ -634,18 +634,18 @@ namespace ConsoleEnhancer
             Configurar(ini);
         }
 
-        // (pruebas) Otra carpeta para consola.txt y home_ref.txt (null = juegos\); devuelve la de antes
+        // (pruebas) Otra carpeta para console.txt y home_ref.txt (null = games\); devuelve la de antes
         public static string CarpetaDePrueba(string dir)
         {
             lock (sync)
             {
                 string old = carpeta;
-                carpeta = dir ?? Path.Combine(Paths.Datos, "juegos");
+                carpeta = dir ?? Path.Combine(Paths.Datos, "games");
                 return old;
             }
         }
 
-        // El HOME de Nintendo visto (AnalyzeGrab, al pasar al HOME). conRef = casaba con juegos\home_ref.txt (el de la Switch 2).
+        // El HOME de Nintendo visto (AnalyzeGrab, al pasar al HOME). conRef = casaba con games\home_ref.txt (el de la Switch 2).
         // altoNativo = lo que da AltoNativo con la captura del HOME (0 si no se midio): 1080 o menos es la Switch 1
         public static ConsolaPerfil VistoHomeNintendo(bool conRef, int altoNativo)
         {
@@ -884,18 +884,18 @@ namespace ConsoleEnhancer
             Action<ConsolaPerfil, ConsolaPerfil, string> onChange = null;
             try
             {
-                // Con la carpeta de verdad (juegos\, solo leyendo): consola=switch2 y consola=auto en este PC (con juegos\home_ref.txt y sin
-                // juegos\consola.txt) dan la Switch 2 con su HOME, como antes de que hubiera consolas
+                // Con la carpeta de verdad (games\, solo leyendo): consola=switch2 y consola=auto en este PC (con games\home_ref.txt y sin
+                // games\console.txt) dan la Switch 2 con su HOME, como antes de que hubiera consolas
                 bool realLast = File.Exists(ArchivoUltima), realRef = File.Exists(ArchivoHomeRef);
                 Reiniciar("switch2");
                 check("consola=switch2 -> Switch 2 con el HOME a 4K nativo y los juegos por su icono", Actual == Switch2 && Actual.TieneHome && Actual.HomeNativo4K && Actual.ApagadoPorMenu);
                 Reiniciar("auto");
                 ConsolaPerfil enPc = Actual;
-                check("consola=auto en este PC (juegos\\consola.txt " + (realLast ? "si" : "no") + ", home_ref.txt " + (realRef ? "si" : "no") + ") -> " + enPc.Clave +
+                check("consola=auto en este PC (games\\console.txt " + (realLast ? "si" : "no") + ", home_ref.txt " + (realRef ? "si" : "no") + ") -> " + enPc.Clave +
                       " (" + Origen + ")", realLast || (realRef ? enPc == Switch2 && enPc.TieneHome : enPc == Otra));
                 Directory.CreateDirectory(tmp);
                 foreach (string old in Directory.GetFiles(tmp)) File.Delete(old);
-                lock (sync) carpeta = tmp; // (nada en juegos\)
+                lock (sync) carpeta = tmp; // (nada en games\)
                 check("Buscar(\"PS5\") = ps5", Buscar("PS5") == Ps5);
                 check("Buscar(\"Switch 2\") = switch2", Buscar("Switch 2") == Switch2);
                 check("Buscar(\"Xbox Series X\") = xboxseries", Buscar("Xbox Series X") == XboxSeries);
@@ -949,13 +949,13 @@ namespace ConsoleEnhancer
                 check("auto: \"Xbox Series\", \"Game Pass\" y \"Xbox Series\" en 6 s -> Xbox Series", xsAntes && VistoTexto("Xbox Series S") == XboxSeries);
                 check("auto: la señal 1440p a 120 Hz descarta la Switch 1 y la PS4", VistaSenal(2560, 1440, 119.88, false) == null && Actual == XboxSeries);
                 Reiniciar("auto");
-                check("auto: al abrir, la ultima vista (consola.txt = xboxseries)", Actual == XboxSeries);
-                File.Delete(Path.Combine(tmp, "consola.txt"));
+                check("auto: al abrir, la ultima vista (console.txt = xboxseries)", Actual == XboxSeries);
+                File.Delete(Path.Combine(tmp, "console.txt"));
                 Reiniciar("auto");
-                check("auto: sin consola.txt ni el HOME de la Switch 2 visto nunca -> otra", Actual == Otra);
+                check("auto: sin console.txt ni el HOME de la Switch 2 visto nunca -> otra", Actual == Otra);
                 File.WriteAllText(Path.Combine(tmp, "home_ref.txt"), "1,2,3");
                 Reiniciar("auto");
-                check("auto: sin consola.txt pero con juegos\\home_ref.txt -> switch2 (como antes)", Actual == Switch2);
+                check("auto: sin console.txt pero con games\\home_ref.txt -> switch2 (como antes)", Actual == Switch2);
                 Reiniciar("xbox one x");
                 check("consola=xbox one x -> xboxone", Actual == XboxOne && Elegida == "xboxone");
                 Reiniciar("gamecube");
@@ -965,8 +965,8 @@ namespace ConsoleEnhancer
 
                 // La resolucion de verdad: capturas del HOME y de la biblioteca de la Switch 2 (1080p) tal cual -> 1080; de 720p agrandada
                 // a 1080p -> 720; agrandada a 4K (una consola de 1080p con la captura de 4K) -> 1080; con el vecino mas cercano -> 1080
-                string[] imgs = { @"juegos\test_biblioteca\bib_02_rocket.png", @"juegos\test_biblioteca\bib_05_ff7.png", @"juegos\test_biblioteca\bib_08_hollow.png",
-                                  @"juegos\test_biblioteca\bib_01_re_debajo.png" };
+                string[] imgs = { @"games\test_biblioteca\bib_02_rocket.png", @"games\test_biblioteca\bib_05_ff7.png", @"games\test_biblioteca\bib_08_hollow.png",
+                                  @"games\test_biblioteca\bib_01_re_debajo.png" };
                 foreach (string rel in imgs)
                 {
                     string path = Path.Combine(Paths.AppDir, rel);
@@ -1033,19 +1033,19 @@ namespace ConsoleEnhancer
         // carpeta de prueba (tmp) y el reloj falso de SelfTest
         static void PruebaCambios(Action<string, bool> check, string tmp, Action<DateTime> ponHora, Func<DateTime> hora, Func<ConsolaPerfil> cambio)
         {
-            string txt = Path.Combine(tmp, "consola.txt");
+            string txt = Path.Combine(tmp, "console.txt");
             Func<string> enTxt = delegate { try { return File.Exists(txt) ? File.ReadAllText(txt).Trim() : "(nada)"; } catch { return "?"; } };
             DateTime t = hora().AddHours(5);
             ponHora(t);
 
-            // 1. La PS5 puesta (consola.txt = ps5) y su propia hora leida en la franja de arriba (lo que pasaba: su lector no la leia por el
-            //    avatar junto a ella y la de la Xbox si), cada 5 s durante 10 min: sigue la PS5 y consola.txt no cambia
+            // 1. La PS5 puesta (console.txt = ps5) y su propia hora leida en la franja de arriba (lo que pasaba: su lector no la leia por el
+            //    avatar junto a ella y la de la Xbox si), cada 5 s durante 10 min: sigue la PS5 y console.txt no cambia
             File.WriteAllText(txt, "ps5");
             Reiniciar("auto");
             cambio();
             bool ok = Actual == Ps5;
             for (int i = 0; i < 120; i++) { t = t.AddSeconds(5); ponHora(t); if (VistoMenuXbox("4:33") != null) ok = false; }
-            check("20-11: PS5 puesta y la hora en la franja de arriba (la de la Xbox) 120 veces en 10 min -> sigue la PS5, consola.txt = " + enTxt(),
+            check("20-11: PS5 puesta y la hora en la franja de arriba (la de la Xbox) 120 veces en 10 min -> sigue la PS5, console.txt = " + enTxt(),
                   ok && Actual == Ps5 && cambio() == null && enTxt() == "ps5");
 
             // 2. Lo mismo con su menu reconocido de vez en cuando y alguna palabra suelta ("Xbox", "Game Pass"): sigue la PS5
@@ -1070,7 +1070,7 @@ namespace ConsoleEnhancer
             // 4. Una Xbox de verdad en lugar de la PS5: sus pantallas ("Mis juegos y aplicaciones") cada 5 s, sin el menu de la PS5: a la Xbox
             //    (SIN PROBAR) con 3 pruebas propias en 20 s como poco, no antes
             t = t.AddMinutes(30); ponHora(t);
-            Reiniciar("auto"); // (consola.txt = ps5)
+            Reiniciar("auto"); // (console.txt = ps5)
             cambio();
             DateTime t0 = t;
             ConsolaPerfil nueva = null;
@@ -1082,13 +1082,13 @@ namespace ConsoleEnhancer
                 if (nueva != null) cuando = (t - t0).TotalSeconds;
                 t = t.AddSeconds(5); ponHora(t);
             }
-            check("20-11: PS5 puesta y una Xbox de verdad (sus pantallas cada 5 s) -> Xbox Series a los " + cuando + " s (no antes de 20 s), consola.txt = " + enTxt(),
+            check("20-11: PS5 puesta y una Xbox de verdad (sus pantallas cada 5 s) -> Xbox Series a los " + cuando + " s (no antes de 20 s), console.txt = " + enTxt(),
                   nueva == XboxSeries && cuando >= SeparacionSinProbarS && enTxt() == "xboxseries");
             check("20-11: con la Xbox elegida sola (SIN PROBAR): apagado prudente (negro y silencio nunca, No Signal jugando " + Fmt(EsperaSinSenalMinS(XboxSeries)) + " s)",
                   ApagadoPrudente(XboxSeries) && NegroApagadoS(XboxSeries) >= 86400 && EsperaSinSenalMinS(XboxSeries) >= 10 && !ApagadoPorMenuSeguro(XboxSeries));
 
-            // 5. Lo del 20-11 05:22: la Xbox puesta por error (consola.txt = xboxseries) con la PS5 detras: su menu en su sitio cada 5 s
-            //    (MenuPs5Pista) -> la PS5 a la tercera (1,5 cada una: 3 puntos) y consola.txt = ps5
+            // 5. Lo del 20-11 05:22: la Xbox puesta por error (console.txt = xboxseries) con la PS5 detras: su menu en su sitio cada 5 s
+            //    (MenuPs5Pista) -> la PS5 a la tercera (1,5 cada una: 3 puntos) y console.txt = ps5
             File.WriteAllText(txt, "xboxseries");
             t = t.AddMinutes(30); ponHora(t);
             Reiniciar("auto");
@@ -1099,10 +1099,10 @@ namespace ConsoleEnhancer
             bool dos = VistoMenuPs5("5:22") == null && Actual == XboxSeries;
             t = t.AddSeconds(5); ponHora(t);
             ok = antesXbox && dos && VistoMenuPs5("5:22") == Ps5 && Actual == Ps5;
-            check("20-11: Xbox puesta por error y el menu de la PS5 en su sitio cada 5 s -> PS5 a los 10 s, consola.txt = " + enTxt(), ok && enTxt() == "ps5");
+            check("20-11: Xbox puesta por error y el menu de la PS5 en su sitio cada 5 s -> PS5 a los 10 s, console.txt = " + enTxt(), ok && enTxt() == "ps5");
 
-            // 6. Sin consola.txt ni home_ref.txt (otra) y solo la hora en la franja 10 min: nunca a la Xbox (SIN PROBAR) por la hora;
-            //    consola.txt sin escribir
+            // 6. Sin console.txt ni home_ref.txt (otra) y solo la hora en la franja 10 min: nunca a la Xbox (SIN PROBAR) por la hora;
+            //    console.txt sin escribir
             File.Delete(txt);
             File.Delete(Path.Combine(tmp, "home_ref.txt"));
             t = t.AddMinutes(30); ponHora(t);
@@ -1110,11 +1110,11 @@ namespace ConsoleEnhancer
             cambio();
             ok = Actual == Otra;
             for (int i = 0; i < 120; i++) { t = t.AddSeconds(5); ponHora(t); if (VistoMenuXbox("6:00") != null) ok = false; }
-            check("20-11: otra (sin consola.txt) y solo la hora en la franja 120 veces -> sigue otra, consola.txt " + enTxt(), ok && Actual == Otra && enTxt() == "(nada)");
+            check("20-11: otra (sin console.txt) y solo la hora en la franja 120 veces -> sigue otra, console.txt " + enTxt(), ok && Actual == Otra && enTxt() == "(nada)");
 
-            // 7. Una sola prueba propia no escribe consola.txt
+            // 7. Una sola prueba propia no escribe console.txt
             VistoMenuPs5("6:10");
-            check("20-11: una sola vez el menu de la PS5 (sin consola.txt) -> sigue otra y consola.txt sin escribir", Actual == Otra && enTxt() == "(nada)");
+            check("20-11: una sola vez el menu de la PS5 (sin console.txt) -> sigue otra y console.txt sin escribir", Actual == Otra && enTxt() == "(nada)");
 
             // 8. El apagado de cada una (consola=auto salvo lo dicho)
             check("Apagado PS5 (auto): negro y silencio nunca, No Signal 8 s", !ApagadoPrudente(Ps5) && NegroApagadoS(Ps5) >= 86400 && EsperaSinSenalMinS(Ps5) == 8);

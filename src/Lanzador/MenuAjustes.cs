@@ -49,12 +49,12 @@ namespace ConsoleEnhancer
     // ---------------------------------------------------------------- el modelo de DLSS elegido (1.0.12)
     // El usuario: "añade a las opciones de escalador diferentes dlss". "" = el de siempre (el de la tabla del modo / motor_modelo_*); si no,
     // la letra (E, J, K, L, M) en el motor propio (preset=) y en Magpie (renderPreset: 5, 10, 11, 12, 13). Para todos los juegos, en
-    // datos\juegos\dlss_modelo_elegido.txt
+    // data\games\dlss_model_choice.txt
     partial class Config
     {
         static string dlssPick;
         static readonly object dlssPickSync = new object();
-        static string DlssPickFile { get { return Path.Combine(Paths.Datos, @"juegos\dlss_modelo_elegido.txt"); } }
+        static string DlssPickFile { get { return Path.Combine(Paths.Datos, @"games\dlss_model_choice.txt"); } }
         public static readonly string[] DlssPicks = { "M", "L", "K", "J", "E" };
 
         public static string DlssPick

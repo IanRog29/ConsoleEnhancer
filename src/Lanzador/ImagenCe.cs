@@ -15,7 +15,7 @@
 //    NvAPI_DRS_SetSettingEx privado (el de Profile Inspector) y, si no, el publico. MEDIDO 20-11 (driver del usuario): Allow y Driver Flags
 //    los rechaza sin administrador (NVAPI -137); los demas no. Esos dos se ponen UNA vez con un aviso de UAC (al guardar el asistente con RTX
 //    HDR, o al abrir la app si faltan; --ce-rtx-hdr-admin=<flags>) y se quedan; los demas se ponen al abrir y se devuelven al salir a lo que
-//    habia (si un ajuste ya estaba en el perfil, su valor de antes; si no, se quita: datos\imagen_restaurar.txt, lineas drs=). Solo se engancha si la ventana es opaca y cubre la
+//    habia (si un ajuste ya estaba en el perfil, su valor de antes; si no, se quita: data\picture_restore.txt, lineas drs=). Solo se engancha si la ventana es opaca y cubre la
 //    pantalla entera (el motor si; Magpie y mpv depende): la app mira a los ~20-60 s si el proceso cargo nvAIHDR*.dll y lo apunta.
 //    rtx_hdr_metodo=magpie: el efecto RTX HDR de Magpie (lo de Prisma, rtx_hdr de Config: solo con mpv + Magpie, ~15 ms a 4K).
 //    Con RTX HDR la NVIDIA App pide el Auto HDR de Windows apagado: si esta encendido en global, se avisa en el log.
@@ -26,12 +26,12 @@
 //    Microsoft; para la app haria falta un truco de D3DBehaviors): no es limpio. En AMD / Intel no hay HDR añadido.
 //  - VRR (vrr=auto|0|1): auto = encendido solo con la pantalla VRR, tearing de DXGI y, en NVIDIA, G-SYNC VISTO funcionando en esa pantalla
 //    (los bits "activo / pedido / en modo VRR" de NvAPI_Disp_GetVRRInfo cambian con lo que este abierto: lo visto se recuerda en
-//    datos\vrr_visto.txt) y sin G-SYNC apagado en el perfil global (0x1094F1F7 = 0). Encendido: el motor recibe vrr=1 (y vrr_fg_vsync=
+//    data\vrr_seen.txt) y sin G-SYNC apagado en el perfil global (0x1094F1F7 = 0). Encendido: el motor recibe vrr=1 (y vrr_fg_vsync=
 //    si motor_vrr_fg_vsync >= 0; LATENCIA4 de Prisma: el motor_vrr de Prisma = Config.EngineVrr lo decide esto, solo con la pantalla VRR
 //    y tearing de DXGI: sin NVIDIA el motor no sabe si hay VRR y saldrian cortes), Magpie su VRR en los modos con DLSS FG (magpie_vrr_60_fg / _30_fg de Prisma, por DXGI con la
 //    sincronizacion forzada: sin cortes) y, en NVIDIA, G-SYNC tambien en ventana para los tres exe (perfil: 0x1194F158 VRR_MODE = 2 y
 //    0x1094F1F7 VRRREQUESTSTATE = 2, quitado al salir). Apagado: los tres magpie_vrr* a 0.
-// Lo que se cambio en el sistema se apunta en datos\imagen_restaurar.txt hasta devolverlo.
+// Lo que se cambio en el sistema se apunta en data\picture_restore.txt hasta devolverlo.
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -123,8 +123,8 @@ namespace ConsoleEnhancer
         public static string VrrPorque = "";
         static PantallaInfo pantalla;              // la de la imagen (la principal), vista al abrir
         static readonly object sync = new object();
-        static string Marca { get { return Path.Combine(Paths.Datos, "imagen_restaurar.txt"); } }
-        static string FicheroVrrVisto { get { return Path.Combine(Paths.Datos, "vrr_visto.txt"); } }
+        static string Marca { get { return Path.Combine(Paths.Datos, "picture_restore.txt"); } }
+        static string FicheroVrrVisto { get { return Path.Combine(Paths.Datos, "vrr_seen.txt"); } }
         public static readonly string[] Exes = { "ConsoleEnhancerEngine.exe", "Magpie.exe", "mpv.exe" };
 
         // ------------------------------------------------------------------ al abrir (Program.Main, tras leer el ini) y al salir
@@ -886,7 +886,7 @@ namespace ConsoleEnhancer
             ToolStripMenuItem esc = new ToolStripMenuItem(Idioma.T("Escalas que se adaptan solas (reabre la app)"), null, delegate { CeCambiar("escalas_adaptables", cfg.CeEscalas ? "0" : "1", true); });
             ToolStripMenuItem olv = new ToolStripMenuItem(Idioma.T("Olvidar las escalas aprendidas (reabre la app)"), null, delegate
             {
-                foreach (string f in new[] { "escalas_motor.txt", "escalas_magpie.txt" })
+                foreach (string f in new[] { "scales_engine.txt", "scales_magpie.txt" })
                     try { string r = Path.Combine(Paths.Datos, f); if (File.Exists(r)) File.Delete(r); } catch { }
                 Log.Write("Escalas aprendidas borradas desde la bandeja");
                 CeReabrir();

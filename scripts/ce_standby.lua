@@ -1,4 +1,4 @@
--- ce_espera.lua - la sonda de la espera ligera (1.0.14, src\Lanzador\Suspension.cs): mpv sin ventana (--vo=null) mirando la
+-- ce_standby.lua - la sonda de la espera ligera (1.0.14, src\Lanzador\Suspension.cs): mpv sin ventana (--vo=null) mirando la
 -- capturadora a poca resolucion. Cada `cada_s` segundos una mirada (screenshot-raw): si NO es la pantalla "No Signal" de la
 -- capturadora ni negro del todo en `seguidas` miradas seguidas, la consola se ha encendido -> sale con el codigo 55.
 -- Mismo criterio de "No Signal" que ce_power.lua (franjas negras arriba y abajo y un recuadro gris en el centro).
@@ -8,7 +8,7 @@ local options = require 'mp.options'
 
 -- una_vez=yes: una sola mirada y fuera (codigo 55 = imagen, 0 = "No Signal" o negro): la app la lanza cada pocos segundos
 local o = { cada_s = 1.0, seguidas = 2, codigo = 55, grid_w = 48, grid_h = 27, negro = 12, una_vez = false }
-options.read_options(o, 'ce_espera')
+options.read_options(o, 'ce_standby')
 
 local function muestras()
     local r = mp.command_native({name = "screenshot-raw", flags = "video"})

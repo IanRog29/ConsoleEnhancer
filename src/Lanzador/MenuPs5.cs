@@ -9,7 +9,7 @@
 //  - Menu visto en 2 capturas seguidas: a 4K nativo a 60 fps, sin Magpie, sin generacion y SIN Smooth Motion (Config.EngineSmoothMode da
 //    0: si el motor lo llevaba se vuelve a abrir una sola vez, ya con lo del menu)
 //  - 3 capturas seguidas sin el menu (un juego, negro de cargar): al juego, con los ajustes de toda la consola ("Consola" en
-//    juegos\perfiles.txt, lo cambiado con el mando se recuerda ahi); si el juego lleva Smooth Motion, el motor se abre una vez con el
+//    games\profiles.txt, lo cambiado con el mando se recuerda ahi); si el juego lleva Smooth Motion, el motor se abre una vez con el
 //  - El menu de apagado de la PS5 (centro de control > apagado: "Entrar en modo de reposo", "Apagar la PS5"...), leido en el menu: si
 //    sale "No Signal", reposo o apagado, se cierra la app enseguida (PowerMenuSeen). Si no se vio, "No Signal" como jugando: la espera de
 //    la PS5 (EsperaSinSenalMinS, 8 s; al arrancar un juego con HDR o 120 Hz cambia de modo de video unos segundos) y se cierra
@@ -347,7 +347,7 @@ namespace ConsoleEnhancer
                 DateTime now = File.GetLastWriteTime(f);
                 string bn = Path.GetFileNameWithoutExtension(f);
                 Match mt = Regex.Match(bn, @"_(\d{2})(\d{2})(\d{2})$");
-                if (!mt.Success) mt = Regex.Match(bn, @"^\d{8}-(\d{2})(\d{2})(\d{2})"); // (juegos\diag_home: 20261116-110025-928_...)
+                if (!mt.Success) mt = Regex.Match(bn, @"^\d{8}-(\d{2})(\d{2})(\d{2})"); // (games\diag_home: 20261116-110025-928_...)
                 if (mt.Success)
                     now = now.Date.AddHours(int.Parse(mt.Groups[1].Value)).AddMinutes(int.Parse(mt.Groups[2].Value)).AddSeconds(int.Parse(mt.Groups[3].Value));
                 using (Bitmap src = new Bitmap(f))
@@ -772,12 +772,12 @@ namespace ConsoleEnhancer
 
         int ps5DiagsSesion;
         int ps5DiagsSalida;             // 1.2.0: capturas guardadas al salir del menu (como mucho 3 por sesion)
-        // La captura en la que no se leyo la hora (juegos\debug\ps5, las 8 mas nuevas), para ajustar el lector
+        // La captura en la que no se leyo la hora (games\debug\ps5, las 8 mas nuevas), para ajustar el lector
         static string GuardarDiagPs5(Bitmap full, string ocr)
         {
             try
             {
-                string dir = Path.Combine(Paths.Datos, @"juegos\debug\ps5");
+                string dir = Path.Combine(Paths.Datos, @"games\debug\ps5");
                 Directory.CreateDirectory(dir);
                 string f = Path.Combine(dir, DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture) + "_" + full.Width + "x" + full.Height + ".png");
                 full.Save(f, ImageFormat.Png);
@@ -979,7 +979,7 @@ namespace ConsoleEnhancer
                 if (d != 0 && d0 == 0)
                 {
                     ps5DecididoAt = now;
-                    // 1.2.0: la captura que saca del menu, a juegos\debug (las 3 primeras de la sesion), para ver si era un juego de verdad
+                    // 1.2.0: la captura que saca del menu, a games\debug (las 3 primeras de la sesion), para ver si era un juego de verdad
                     string diagSal = null;
                     if (d < 0 && l.Vista == VistaMenu.Juego && ps5DiagsSalida < 3) { ps5DiagsSalida++; diagSal = GuardarDiagPs5(full, null); }
                     Log.Write((d > 0 ? "Menu de la consola: decidido (" : "Fuera del menu de la consola: decidido (") + menuMaq.Porque + "; " +

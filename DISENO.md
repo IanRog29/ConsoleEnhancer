@@ -80,7 +80,7 @@ Leído en `Switch2Magpie\src\Switch2Magpie.cs` (13.100 líneas), `SinTelon.cs`, 
 
 ### 1.5 Consola (Switch 2)
 Reconocimiento del HOME (color cian del nombre, OCR de Windows, `HomeHints` en español "cambiar de", "ver más"), iconos y perfiles por
-juego (`juegos\`), HOME a 4K nativo, filtro de tramado de 5 bits (`s2_aa.glsl`, `s2_aa_fuerte.glsl`), esperas de "No Signal" al
+juego (`juegos\`), HOME a 4K nativo, filtro de tramado de 5 bits (`s2_aa.glsl`, `s2_aa_strong.glsl`), esperas de "No Signal" al
 arrancar juegos y en el menú de apagado, detección de juego a 30/60, apagar el PC al apagar la consola, 44 textos "Switch 2". Lo
 generaliza el agente CONSOLAS (`src\Consolas.cs`); aquí solo se usa su identificador (§5).
 

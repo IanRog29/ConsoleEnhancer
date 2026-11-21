@@ -40,7 +40,7 @@ body:
     attributes:
       label: Log
       description: |
-        Arrastra aquí `consoleenhancer.log` y `engine.log` (en `datos\logs\` junto al exe o en `%LOCALAPPDATA%\ConsoleEnhancer\logs`).
+        Arrastra aquí `consoleenhancer.log` y `engine.log` (en `data\logs\` junto al exe o en `%LOCALAPPDATA%\ConsoleEnhancer\logs`).
         **Revísalos antes**: pueden llevar nombres de tus carpetas o de tus juegos. / Drag the logs here, after checking them for private data.
   - type: checkboxes
     id: legal

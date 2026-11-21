@@ -1,7 +1,7 @@
 // PruebaDeteccion.cs - Prueba sin consola de src\DetectorMenu.cs (19-11, agente DETECCION): capturas de verdad con su etiqueta, antes y
 // ahora, y escenas (juego -> menu -> juego, la pantalla de un juego de la PS5, la pantalla atenuada, el negro al despertar o al arrancar un
 // juego...) con el ritmo de capturas de la app y un reloj simulado: aciertos, falsos positivos y cuanto se tarda en decidir.
-//   Switch2Magpie.exe --test-deteccion=<carpeta de imagenes>;<informe>     (juegos\test_deteccion; docs\CONSOLAS.md, seccion 9)
+//   Switch2Magpie.exe --test-deteccion=<carpeta de imagenes>;<informe>     (games\test_deteccion; docs\CONSOLAS.md, seccion 9)
 //   Switch2Magpie.exe --test-deteccion=listar;<carpeta>;<informe.tsv>      (cada imagen: lo de antes y lo de ahora, para etiquetar)
 // Las imagenes: <etiqueta>_<lo que sea>_HHmmss.(png|jpg); la hora del nombre es la "del PC" de esa imagen. Etiquetas: menu (con la hora),
 // menutexto (pantalla de la consola sin la hora), oscuro (el menu atenuado), negro, juego, pc (otra cosa: no es la consola), sw2home (el
@@ -388,15 +388,15 @@ namespace ConsoleEnhancer
         }
 
         // ---------------- 4. consola=auto: que consola es (20-11, agente CONSOLA) ----------------
-        // El 20-11 a las 04:33 y 04:35, con la PS5 puesta, la app cambio a la Xbox (SIN PROBAR) y lo guardo en juegos\consola.txt: en las
+        // El 20-11 a las 04:33 y 04:35, con la PS5 puesta, la app cambio a la Xbox (SIN PROBAR) y lo guardo en games\console.txt: en las
         // pantallas de la PS5 cuya hora no leia su lector (el avatar junto a la hora en su pantalla de inicio, algo a su derecha...), el
         // de la Xbox la encontraba en la franja de arriba y le daba la pista. Escenas con las capturas de verdad (y las ps5dudoso_*, hechas
         // de ellas), el ritmo de la app y el reloj falso de Consolas, haciendo lo que hace la app: MenuPs5Captura (Clasifica con la consola
         // puesta, la maquina menu <-> juego, el texto de la pantalla en el menu cada 1 s y PistasMenu en cada captura) y ObservaConsola (el
-        // texto de la pantalla cada 5 s). juegos\consola.txt en una carpeta de prueba
+        // texto de la pantalla cada 5 s). games\console.txt en una carpeta de prueba
         sealed class Esc
         {
-            public string Titulo, Txt;            // consola.txt al empezar (null = sin el)
+            public string Titulo, Txt;            // console.txt al empezar (null = sin el)
             public Tramo[] Tramos;
             public string Quiere;                 // la consola al acabar
             public double CambioMinS = -1, CambioMaxS = -1; // si tiene que cambiar: entre estos segundos desde el empiece
@@ -407,7 +407,7 @@ namespace ConsoleEnhancer
         {
             sb.Append("== 4. consola=auto: que consola es (20-11, la PS5 tomada por la Xbox) ==\r\n");
             sb.Append("Lo que hace la app con cada captura (Clasifica con la consola puesta, menu <-> juego, el texto de la pantalla y PistasMenu),\r\n");
-            sb.Append("con el reloj falso y consola.txt en una carpeta de prueba. ps5dudoso_* = pantallas de la PS5 cuya hora no lee su lector\r\n");
+            sb.Append("con el reloj falso y console.txt en una carpeta de prueba. ps5dudoso_* = pantallas de la PS5 cuya hora no lee su lector\r\n");
             sb.Append("(hechas de las de verdad: el avatar junto a la hora como en su pantalla de inicio, algo a su derecha, la hora en otro sitio).\r\n\r\n");
             Dictionary<string, List<Img>> por = new Dictionary<string, List<Img>>();
             List<Img> noLee = new List<Img>(); // (las de la PS5 cuya hora no lee su lector, en ligera y en gris)
@@ -438,7 +438,7 @@ namespace ConsoleEnhancer
             e.Tramos = new Tramo[] { new Tramo(juego, 20), new Tramo(noLee, 140), new Tramo(juego, 20) };
             escenas.Add(e);
             e = new Esc();
-            e.Titulo = "PS5 puesta (consola.txt = ps5) 10 min: su menu, sus pantallas que su lector no lee, juegos, la de un juego y el menu atenuado";
+            e.Titulo = "PS5 puesta (console.txt = ps5) 10 min: su menu, sus pantallas que su lector no lee, juegos, la de un juego y el menu atenuado";
             e.Txt = "ps5"; e.Quiere = "ps5"; e.Nunca = "xboxseries";
             e.Tramos = new Tramo[] { new Tramo(dudoso, 60), new Tramo(juego, 60), new Tramo(menu, 20), new Tramo(dudoso, 120), new Tramo(oscuro, 40),
                                      new Tramo(texto, 20), new Tramo(juego, 60), new Tramo(dudoso, 120), new Tramo(menu, 20), new Tramo(dudoso, 80) };
@@ -449,12 +449,12 @@ namespace ConsoleEnhancer
             e.Tramos = new Tramo[] { new Tramo(dudoso, 300) };
             escenas.Add(e);
             e = new Esc();
-            e.Titulo = "Xbox puesta por error (consola.txt = xboxseries, como el 20-11 05:22-05:28) y delante la PS5: su menu y sus pantallas 3 min";
+            e.Titulo = "Xbox puesta por error (console.txt = xboxseries, como el 20-11 05:22-05:28) y delante la PS5: su menu y sus pantallas 3 min";
             e.Txt = "xboxseries"; e.Quiere = "ps5"; e.CambioMinS = 0; e.CambioMaxS = 30;
             e.Tramos = new Tramo[] { new Tramo(menu, 60), new Tramo(dudoso, 60), new Tramo(juego, 60) };
             escenas.Add(e);
             e = new Esc();
-            e.Titulo = "Sin consola.txt (otra) y la PS5: su menu 2 min";
+            e.Titulo = "Sin console.txt (otra) y la PS5: su menu 2 min";
             e.Txt = null; e.Quiere = "ps5"; e.CambioMinS = 0; e.CambioMaxS = 30; e.Nunca = "xboxseries";
             e.Tramos = new Tramo[] { new Tramo(menu, 60), new Tramo(dudoso, 60) };
             escenas.Add(e);
@@ -508,7 +508,7 @@ namespace ConsoleEnhancer
         static bool UnaEscena(Esc es, string var, string tmp, Dictionary<string, LecturaMenu> cache, Dictionary<string, string> textos, out string res)
         {
             StringBuilder r = new StringBuilder();
-            string txt = Path.Combine(tmp, "consola.txt");
+            string txt = Path.Combine(tmp, "console.txt");
             foreach (string f in Directory.GetFiles(tmp)) File.Delete(f);
             if (es.Txt != null) File.WriteAllText(txt, es.Txt);
             DateTime t0 = new DateTime(2026, 11, 20, 4, 30, 0);
@@ -591,7 +591,7 @@ namespace ConsoleEnhancer
             if (es.CambioMinS < 0 && es.Quiere != null && es.Quiere == inicio.Clave && cambios.Count > 0) ok = false;
             StringBuilder pc = new StringBuilder();
             foreach (KeyValuePair<string, int> kv in cuenta) pc.Append(pc.Length > 0 ? ", " : "").Append(kv.Key).Append(' ').Append(kv.Value);
-            r.Append("      empieza ").Append(inicio.Clave).Append(", acaba ").Append(fin).Append(", consola.txt ").Append(enTxt).Append("; cambios: ")
+            r.Append("      empieza ").Append(inicio.Clave).Append(", acaba ").Append(fin).Append(", console.txt ").Append(enTxt).Append("; cambios: ")
              .Append(cambios.Count == 0 ? "ninguno" : string.Join("; ", cambios.ToArray())).Append("; pistas de PistasMenu: ").Append(pc.Length > 0 ? pc.ToString() : "ninguna")
              .Append("; puntos al acabar: ").Append(Consolas.PuntosTexto()).Append("\r\n");
             foreach (string m in log) if (m.StartsWith("Consola: ahora") || m.StartsWith("Consola: la imagen apunta")) r.Append("        log: ").Append(m.Length > 230 ? m.Substring(0, 230) + "..." : m).Append("\r\n");

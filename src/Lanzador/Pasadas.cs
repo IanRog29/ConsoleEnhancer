@@ -7,7 +7,7 @@
 //    Todo lo raro se apunta en switch2.log ("Vigilancia de DLSS 5: ...") aunque no llegue a reabrir. Los cortes de la captura por mover el
 //    raton sobre la imagen solo se apuntan (reabrir no los quita); pasadas_vigilancia=2 los cuenta tambien (prueba sin consola).
 //  - Diagnostico: al quitar DLSS 5 con el boton A (o cambiar de pasadas) con 2-3 pasadas, o antes de la cura automatica, el log de Magpie
-//    de esa imagen se guarda en juegos\debug\magpie (los 12 ultimos): Magpie solo deja ~1 MB de log (magpie.log + magpie.1.log, rota por
+//    de esa imagen se guarda en games\debug\magpie (los 12 ultimos): Magpie solo deja ~1 MB de log (magpie.log + magpie.1.log, rota por
 //    tamaño) y unas pocas reaperturas lo pisan (el del fallo del 18-11 01:31 ya no existia). Y si el usuario quita y pone DLSS 5 en menos de
 //    20 s, se dice en el log (el "gesto de cura").
 // Lo compila build.bat con el resto (partes de TrayApp). C# 5
@@ -272,13 +272,13 @@ namespace ConsoleEnhancer
             }
         }
 
-        // Copia del log de Magpie (el de la imagen de ahora) en juegos\debug\magpie; se quedan los 12 ultimos. null = no se pudo
+        // Copia del log de Magpie (el de la imagen de ahora) en games\debug\magpie; se quedan los 12 ultimos. null = no se pudo
         static string PasadasArchive(string why)
         {
             try
             {
                 if (!File.Exists(Paths.MagpieLog)) return null;
-                string dir = Path.Combine(Paths.Datos, @"juegos\debug\magpie");
+                string dir = Path.Combine(Paths.Datos, @"games\debug\magpie");
                 Directory.CreateDirectory(dir);
                 string dst = Path.Combine(dir, DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture) + "_" + why + ".log");
                 // (Magpie escribe seguido de un arranque a otro y rota por tamaño, ~500 KB, a magpie.1.log: los dos, el viejo antes)

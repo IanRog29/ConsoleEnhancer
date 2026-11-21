@@ -6,7 +6,7 @@
 //    la consola la app se cierra y el PC sigue como estaba. Se puede volver a la consola cuando se quiera.
 //  - Desinstalar: deja Windows como estaba (sin la tarea de inicio ni la entrada de Run, el escritorio normal, el plan de energia de
 //    antes si la espera lo dejo cambiado) y borra la app: solo SUS ficheros y carpetas (por si esta descomprimida dentro de Descargas o
-//    del escritorio: nunca la carpeta entera a ciegas) y, si se quiere, tus ajustes y perfiles (datos\ o %LOCALAPPDATA%\ConsoleEnhancer).
+//    del escritorio: nunca la carpeta entera a ciegas) y, si se quiere, tus ajustes y perfiles (data\ o %LOCALAPPDATA%\ConsoleEnhancer).
 //    El exe no se puede borrar a si mismo: un PowerShell oculto espera a que la app se cierre y borra (log en %TEMP%).
 //    Lo que no se toca: los perfiles de NVIDIA (Smooth Motion / RTX HDR en el perfil de Magpie y mpv: sin la app no hacen nada) y los
 //    dispositivos que se armaron para despertar el PC (Windows los trae asi de serie en los teclados).
@@ -134,8 +134,10 @@ namespace ConsoleEnhancer
         {
             bool datosDentro = datos.StartsWith(app.TrimEnd('\\') + "\\", StringComparison.OrdinalIgnoreCase);
             List<string> borrarRutas = new List<string>();
-            foreach (string n in new string[] { "ConsoleEnhancer.exe", "ConsoleEnhancer.exe.config", "Ajustes de ConsoleEnhancer.exe", "Inicio y apagado.bat", "LEEME.txt", "portable.txt",
-                                                 "idiomas", "licencias", "magpie", "motor", "mpv", "recursos", "scripts", "extras" })
+            foreach (string n in new string[] { "ConsoleEnhancer.exe", "ConsoleEnhancer.exe.config", "ConsoleEnhancer Settings.exe", "README.txt", "portable.txt", "languages", "licenses", "engine", "resources", "downloads",
+                                                 "magpie", "mpv", "scripts", "extras",
+                                                 // (1.2.06) los nombres de antes (en espanol)
+                                                 "Ajustes de ConsoleEnhancer.exe", "Inicio y apagado.bat", "LEEME.txt", "idiomas", "licencias", "motor", "recursos", "descargas" })
                 borrarRutas.Add(Path.Combine(app, n));
             try { foreach (string f in Directory.GetFiles(app, "ConsoleEnhancer.exe.antes-*")) borrarRutas.Add(f); } catch { }
             if (borrar) borrarRutas.Add(datos);

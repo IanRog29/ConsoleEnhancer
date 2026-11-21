@@ -4,7 +4,7 @@
 // app y, a la vez, por otro camino con otro retraso. Los caminos que la app puede ver y evitar:
 //  1. Windows "Escuchar este dispositivo" (Sonido > Grabar > propiedades de la entrada de la capturadora > Escuchar) encendido en la
 //     entrada de la capturadora: Windows la reproduce por su cuenta. Mientras suena por la app se apaga y al salir se vuelve a poner
-//     como estaba (se apunta en datos\juegos\escuchar_apagado.txt por si la app se cerrase de golpe; la proxima vez lo devuelve).
+//     como estaba (se apunta en data\games\poweroff_listen.txt por si la app se cerrase de golpe; la proxima vez lo devuelve).
 //     Se cambia con el almacen de propiedades del dispositivo (IMMDevice::OpenPropertyStore), como el panel de Sonido: sin UAC.
 //  2. Un mpv de audio de una sesion anterior que siguio sonando (la app se cerro de golpe, desde el administrador de tareas o un fallo):
 //     al empezar se cierran los que no son de esta sesion, y los nuevos van en un "job" de Windows que los cierra con la app.
@@ -39,7 +39,7 @@ namespace ConsoleEnhancer
 
     partial class TrayApp
     {
-        static readonly string EscucharFile = Paths.Datos + @"\juegos\escuchar_apagado.txt";
+        static readonly string EscucharFile = Paths.Datos + @"\games\poweroff_listen.txt";
         readonly object escucharSync = new object();
         readonly List<string> escucharApagado = new List<string>();   // entradas a las que la app quito "Escuchar"
         volatile bool vigilaOtros;

@@ -45,7 +45,7 @@ namespace ConsoleEnhancer
         // 18-11 (INTEGRADO): la carpeta del exe si es una carpeta completa de la app (paquete de scripts\empaquetar.ps1); antes, en la app original, una carpeta fija
         // como siempre (los exe de prueba compilados en otra carpeta). Ver Integrado.FindAppDir. Ya no son const: static readonly
         public static readonly string AppDir = Integrado.FindAppDir();
-        // ConsoleEnhancer: los datos (ini, log, juegos\) en Integrado.FindDataDir: <app>\datos (portable.txt) o %LOCALAPPDATA%\ConsoleEnhancer
+        // ConsoleEnhancer: los datos (ini, log, games\) en Integrado.FindDataDir: <app>\datos (portable.txt) o %LOCALAPPDATA%\ConsoleEnhancer
         public static readonly string Datos = Integrado.FindDataDir(AppDir);
         // (16-11: solo pruebas, --ini=<ruta>: otro ini sin tocar el de verdad, que editan otros)
         public static string IniFile = Datos + @"\consoleenhancer.ini";
@@ -61,24 +61,24 @@ namespace ConsoleEnhancer
         // Suavizado de bordes de la imagen de la capturadora (shader de mpv)
         public static readonly string EdgeAaShader = AppDir + @"\scripts\s2_aa.glsl";
         // 10-11: el mismo con el tramado quitado mucho mas a fondo en lo plano (niebla, oscuros); va con DLSS 5 apagado (Config.EdgeShaderNow)
-        public static readonly string EdgeAaShaderStrong = AppDir + @"\scripts\s2_aa_fuerte.glsl";
-        public static readonly string StrongDitherFile = Datos + @"\juegos\tramado_fuerte.txt"; // L3 del mando: 1 el filtro nuevo, 0 el de antes
+        public static readonly string EdgeAaShaderStrong = AppDir + @"\scripts\s2_aa_strong.glsl";
+        public static readonly string StrongDitherFile = Datos + @"\games\strong_dither.txt"; // L3 del mando: 1 el filtro nuevo, 0 el de antes
 
         // Pin de audio de la capturadora con el que ya se ha oido la consola
-        public static readonly string AudioPinFile = Datos + @"\juegos\audio_pin.txt";
+        public static readonly string AudioPinFile = Datos + @"\games\audio_pin.txt";
         // Lo elegido con el mando: tamaño de captura y nivel de DLSS 5
-        public static readonly string CaptureFile = Datos + @"\juegos\captura.txt";
-        public static readonly string Dlss5LevelFile = Datos + @"\juegos\dlss5_nivel.txt";
-        public static readonly string Dlss5OnFile = Datos + @"\juegos\dlss5_activo.txt";  // DLSS 5 (DLSSNR de Magpie): 1 si, 0 no
-        public static readonly string Dlss5PassesFile = Datos + @"\juegos\dlss5_pasadas.txt";
-        public static readonly string ModeFile = Datos + @"\juegos\modo.txt";
-        public static readonly string LastGameFile = Datos + @"\juegos\ultimo_juego.txt"; // el juego de la ultima vez (la app abierta jugando)
-        public static readonly string FgFile = Datos + @"\juegos\generacion.txt";        // generacion de fotogramas (1 si, 0 no; boton de captura)
+        public static readonly string CaptureFile = Datos + @"\games\capture.txt";
+        public static readonly string Dlss5LevelFile = Datos + @"\games\dlss5_level.txt";
+        public static readonly string Dlss5OnFile = Datos + @"\games\dlss5_on.txt";  // DLSS 5 (DLSSNR de Magpie): 1 si, 0 no
+        public static readonly string Dlss5PassesFile = Datos + @"\games\dlss5_passes.txt";
+        public static readonly string ModeFile = Datos + @"\games\mode.txt";
+        public static readonly string LastGameFile = Datos + @"\games\last_game.txt"; // el juego de la ultima vez (la app abierta jugando)
+        public static readonly string FgFile = Datos + @"\games\framegen.txt";        // generacion de fotogramas (1 si, 0 no; boton de captura)
         // 19-11 (GENERACION): el tipo de generacion elegido con L3 (selector), por modo: "60=smooth" / "30=xess" (sin linea = el del ini)
-        public static readonly string FgPickFile = Datos + @"\juegos\generacion_tipo.txt";
+        public static readonly string FgPickFile = Datos + @"\games\framegen_type.txt";
         // Las franjas fijas del HOME (arriba y la barra de iconos) de la ultima vez que se vio: sin ellas, abierta la app jugando,
         // cualquier texto azul del juego contaba como el HOME (02-11, TOTK)
-        public static readonly string HomeRefFile = Datos + @"\juegos\home_ref.txt";
+        public static readonly string HomeRefFile = Datos + @"\games\home_ref.txt";
 
         // ---- Magpie ----
         // El Magpie de la app, con ficheros propios (18-11, INTEGRADO: antes enlaces duros al Magpie instalado aparte; ver Integrado.cs)
@@ -228,7 +228,7 @@ namespace ConsoleEnhancer
         public string TestSourceGame = ""; // solo pruebas: la fuente cuando se esta en un juego (test_source = el HOME)
         // HOME de la consola a 4K nativo y 60 fps, tal cual llega: captura a 4K, ventana de 4K y sin Magpie (ni escalado, ni
         // DLSS 5, ni generacion de imagenes, ni el filtro de repetidas ni el suavizado de bordes de mpv). Al entrar en un juego
-        // vuelven sus ajustes (juegos\perfiles.txt) y Magpie escala
+        // vuelven sus ajustes (games\profiles.txt) y Magpie escala
         public bool HomeNativeEnabled = true;
         // 20-11 (PS5JUEGO): en las consolas con menu propio (PS5, Xbox Series), reconocer CADA JUEGO por su nombre (centro de control /
         // conmutador de la PS5, Guia / fichas de la Xbox) y recordarle su perfil, como el HOME de la Switch 2. 0 = un solo perfil para toda
@@ -245,14 +245,14 @@ namespace ConsoleEnhancer
         public bool TestAudioSearch = false; // solo pruebas: con test_source, buscar el pin de audio como si no se conociera
         public bool BenchNoGrabs = false;    // solo bancos: sin capturas de la app jugando
         // Modo banco (ini banco_s=N): con Magpie ya presentando se espera banco_calentar_s, se mide N s (log de Magpie), se apunta una
-        // linea en juegos\banco.txt (con banco_etiqueta) y la app se cierra sola, como al salir desde la bandeja
+        // linea en games\bench.txt (con banco_etiqueta) y la app se cierra sola, como al salir desde la bandeja
         public int BenchSecs = 0, BenchWarmSecs = 10;
         public int BenchReopens = 0;      // solo bancos (15-11): antes de medir, N reaperturas de Magpie como las del mando (tiempos de carga)
         public bool BenchEngine = false;  // solo bancos: las reaperturas son DLSS 5 si/no (con motor=propio: de Magpie al motor y vuelta)
         public string BenchLabel = "";
         // 10-11: diagnostico del tramado (ini diag_tramado = cuantas tandas por sesion, 0 = nada)
         public int DiagDither = 0;
-        // 15-11: capturas del HOME con el nombre del juego sin leer o dudoso, a juegos\diag_home (ini diag_home = cuantas por sesion, 0 = nada)
+        // 15-11: capturas del HOME con el nombre del juego sin leer o dudoso, a games\diag_home (ini diag_home = cuantas por sesion, 0 = nada)
         public int DiagHome = 12;
         public bool CloseOnPowerOff = true;
         // 19-11: al cerrarse la app por la consola apagada, apagar tambien el PC (ini apagar_pc=1; cerrarla a mano no lo apaga)
@@ -300,7 +300,7 @@ namespace ConsoleEnhancer
         // la que coger lo mas nuevo (magpie_actualizar: 0 nunca, 1 lo mas nuevo, 2 igual que el origen). Ver Integrado.PrepareMagpie
         public string MagpieSource = "";
         public int MagpieUpdate = 1;
-        // usar_carpetas_app: mpv\mpv.exe y motor\ConsoleEnhancerEngine.exe dentro de la app si estan (mpv_path y motor_ruta de respaldo)
+        // usar_carpetas_app: mpv\mpv.exe y engine\ConsoleEnhancerEngine.exe dentro de la app si estan (mpv_path y motor_ruta de respaldo)
         public bool AppFolders = true;
 
         // ---- Escalado de la ventana de mpv (2560x1440, o 4K) a la pantalla ----
@@ -313,7 +313,7 @@ namespace ConsoleEnhancer
         // usuario con LS): E en todo; K sin el jitter de un juego alisaba y arrastraba la textura suave. Con Magpie DLSS recibe
         // ademas movimiento medido por flujo optico (dlss_flujo): merece la pena volver a probar K o L
         public int DlssModel = 0;          // 0 = el de la tabla del modo (ModelTable); otro numero = ese en todos los modos
-        // ---- Tablas por modo (14-11, MEDIDAS en la RTX 4060 con el banco: ver juegos\banco.txt) ----
+        // ---- Tablas por modo (14-11, MEDIDAS en la RTX 4060 con el banco: ver games\bench.txt) ----
         // Clave: "60" / "30" (modo) + "_fg" (con generacion) [+ "_4k" en las de DLSS 5: captura 4K, ventana de 4K, sin escalado]
         // Modelo de DLSS SR { sin DLSS 5, con DLSS 5 }: el de mas calidad que deja 60 (o 30) reales clavadas. 13 M y 12 L (DLSS 4.5),
         // 11 K (DLSS 4), 5 E (DLSS 3, CNN). ini tabla_modelo_<clave>=a,b
@@ -696,7 +696,7 @@ namespace ConsoleEnhancer
         // Magpie.exe (sin ella corta: la global esta forzada a desactivada) y con la presentacion DXGI de Magpie (no DirectComposition)
         public string FgType60 = "", FgType30 = "";
         // 19-11 (GENERACION, el usuario: "apretando el joystick izquierdo da opcion a cambiar el tipo de frame generation"): lo elegido con
-        // L3 (selector en pantalla) por modo, por juego (perfil) y en juegos\generacion_tipo.txt: "" = lo del ini (generacion_tipo_60/30 y
+        // L3 (selector en pantalla) por modo, por juego (perfil) y en games\framegen_type.txt: "" = lo del ini (generacion_tipo_60/30 y
         // motor_generacion_60/30); dlss = DLSS FG (Magpie con DLSS 5, DLSS-G del motor sin el), smooth, fsr3, xess, vfg (estas tres solo las
         // hace Magpie: con DLSS 5 apagado va mpv + Magpie sin DLSS 5 en vez del motor propio)
         public string FgPick60 = "", FgPick30 = "";
@@ -851,7 +851,7 @@ namespace ConsoleEnhancer
         // momento, sin telon; generacion con Reflex y sincronizacion vertical). Con DLSS 5 encendido, mpv + Magpie como siempre (DLSSNR
         // solo esta en Magpie). motor=magpie: siempre como antes
         public string Engine = "propio";   // (ConsoleEnhancer: el motor propio de serie; el plan lo dice)
-        public string EnginePath = "";   // (ConsoleEnhancer: <app>\motor\ConsoleEnhancerEngine.exe)
+        public string EnginePath = "";   // (ConsoleEnhancer: <app>\engine\ConsoleEnhancerEngine.exe)
         // Modelo de DLSS SR del motor por modo (MEDIDO 15-11 en el motor: E 4,8 ms, K 6,2, M 10,1, L 12,1 por imagen a 4K). 16-11 (noche,
         // G2): L y M (transformer 2) dejan los bordes del texto/HUD sucios y temblando sobre fondo en movimiento y el menu quieto "respira"
         // (el "DLSS con bugs" del modo 30 sin DLSS 5); K limpio, quieto y mas barato (Ocarina 60: borde HUD K 0,36 / M 1,28, 8,1 / 12,4 ms)
@@ -1012,7 +1012,7 @@ namespace ConsoleEnhancer
         public bool EdgeAa = true;
         // 09-11: el mismo shader quita el tramado de las zonas casi planas (niebla, sombras): ini quitar_tramado
         public bool Dedither = true;
-        // 10-11: con DLSS 5 apagado, el shader s2_aa_fuerte.glsl (ini tramado_fuerte: 0 nunca, 1 con DLSS 5 apagado, 2 siempre)
+        // 10-11: con DLSS 5 apagado, el shader s2_aa_strong.glsl (ini tramado_fuerte: 0 nunca, 1 con DLSS 5 apagado, 2 siempre)
         public int StrongDither = 1;
         public bool StrongDitherOn = true; // lo del mando (L3)
 
@@ -1067,10 +1067,10 @@ namespace ConsoleEnhancer
         public int MagpieStartMaxSecs = 30;            // ini magpie_arranque_max_s
 
         // ---- Lo que elige el mando (lo pone la app antes de escribir la config de Magpie) ----
-        public bool CapMode = false;      // modo 30 fps (juegos\modo.txt)
+        public bool CapMode = false;      // modo 30 fps (games\mode.txt)
         // 20-11 (HZ120): modo 120 fps para esports (fallo 3). El boton de 30/60 cicla 30 -> 60 -> 120 cuando la captura admite 120. A 120:
         // captura a 120 real, sin generacion de fotogramas, Reflex en baja latencia, presentacion inmediata y el minimo proceso. La GC573
-        // da 120 EXACTO a 1080p y 1440p (4K y 720p solo 60): por eso solo se ofrece en esas capturas. modo.txt guarda "120"
+        // da 120 EXACTO a 1080p y 1440p (4K y 720p solo 60): por eso solo se ofrece en esas capturas. mode.txt guarda "120"
         public bool Mode120 = false;
         public string Framerate120 = "120";        // ini framerate_120 (la GC573 anuncia 120 exacto a 1080p/1440p)
         public string Permit120 = "auto";          // ini permitir_120: auto (solo si la tele va a >=120 Hz y la captura admite 120) | 1 | 0
@@ -1554,7 +1554,7 @@ namespace ConsoleEnhancer
             throw new FormatException("generacion_tipo: dlss, fsr3, xess, vfg o smooth");
         }
 
-        // 19-11 (GENERACION): un tipo guardado (perfil, juegos\generacion_tipo.txt): el tipo o "" si no vale
+        // 19-11 (GENERACION): un tipo guardado (perfil, games\framegen_type.txt): el tipo o "" si no vale
         public static string ParsePick(string v)
         {
             try { return string.IsNullOrEmpty(v) || v.Trim().Length == 0 ? "" : ParseFg(v); }
@@ -3712,7 +3712,7 @@ namespace ConsoleEnhancer
                 bool ok = FixedRw(on ? 1 : 0);
                 if (ok) engineFixedState = on ? 1 : 0;
                 else if (on) EngineFixedBroken = true;
-                if (ok) CeImagen.MarcaRefrescoFijo(on); // (ConsoleEnhancer: en datos\imagen_restaurar.txt: si la app se cae, se quita al volver a abrirla)
+                if (ok) CeImagen.MarcaRefrescoFijo(on); // (ConsoleEnhancer: en data\picture_restore.txt: si la app se cae, se quita al volver a abrirla)
                 Log.Write("NVIDIA: refresco fijo (G-SYNC apagado) para ConsoleEnhancerEngine.exe " + (on ? "puesto (60 con DLSS FG)" : "quitado (VRR)") +
                           (ok ? "" : " NO SE PUDO") + " en " + sw.ElapsedMilliseconds + " ms");
                 return ok;
@@ -4686,10 +4686,10 @@ namespace ConsoleEnhancer
     }
 
     // Textos azules del HOME que no son el nombre de un juego ("Cambiar de usuario", bajo el juego en uso). Se
-    // aprende su forma la primera vez que el OCR los lee (juegos\textos_home.txt) y HomeLabel los salta
+    // aprende su forma la primera vez que el OCR los lee (games\home_texts.txt) y HomeLabel los salta
     static class HomeHints
     {
-        static string FilePath { get { return Path.Combine(Paths.Datos, @"juegos\textos_home.txt"); } }
+        static string FilePath { get { return Path.Combine(Paths.Datos, @"games\home_texts.txt"); } }
         // (03-11: "Ver más", la casilla de la biblioteca, se tomaba por un juego)
         static readonly string[] Texts = { "cambiar de", "change user", "ver más", "ver mas", "see more" };
         // Casillas de la consola (no son juegos): al abrirlas se sigue en el HOME a 4K, sin LS ni perfil (08-11: la
@@ -5601,7 +5601,7 @@ namespace ConsoleEnhancer
         }
     }
 
-    // Ajustes recordados por juego (juegos\perfiles.txt): nombre|captura|nivel|pasadas|dlss5|escalador|modo|generacion|nombre_seguro
+    // Ajustes recordados por juego (games\profiles.txt): nombre|captura|nivel|pasadas|dlss5|escalador|modo|generacion|nombre_seguro
     class GameProfile
     {
         public string Name;          // el nombre leido en el HOME (GameNames: los largos juntando sus ventanas) o "Juego N"
@@ -5656,8 +5656,8 @@ namespace ConsoleEnhancer
     static class GameProfiles
     {
         // (15-11: la carpeta se cambia solo en la prueba --test-perfiles, sobre una copia)
-        static string Dir = Path.Combine(Paths.Datos, "juegos");
-        static string FilePath { get { return Path.Combine(Dir, "perfiles.txt"); } }
+        static string Dir = Path.Combine(Paths.Datos, "games");
+        static string FilePath { get { return Path.Combine(Dir, "profiles.txt"); } }
         static readonly object sync = new object();
         static List<GameProfile> list;
 
@@ -5692,7 +5692,7 @@ namespace ConsoleEnhancer
                     if (f.Length > 9) p.ParsePick(f[9].Trim()); // (19-11, GENERACION: el tipo elegido con L3)
                     list.Add(p);
                 }
-                // Los iconos van aparte (juegos\iconos_juegos.txt: nombre|180 numeros; 15-11: una linea por icono, puede haber varias)
+                // Los iconos van aparte (games\game_icons.txt: nombre|180 numeros; 15-11: una linea por icono, puede haber varias)
                 if (File.Exists(IconPath))
                     foreach (string raw in File.ReadAllLines(IconPath, Encoding.UTF8))
                     {
@@ -5707,7 +5707,7 @@ namespace ConsoleEnhancer
             catch (Exception ex) { Log.Error("Leyendo " + FilePath, ex); }
         }
 
-        static string IconPath { get { return Path.Combine(Dir, "iconos_juegos.txt"); } }
+        static string IconPath { get { return Path.Combine(Dir, "game_icons.txt"); } }
 
         // El juego cuyo icono se parece a este (el mas parecido, por debajo de HomeLabel.SameIcon), o null
         public static GameProfile FindByIcon(double[] icon)
@@ -5766,7 +5766,7 @@ namespace ConsoleEnhancer
         }
 
         // 15-11: el fichero entero o nada. File.WriteAllText trunca y luego escribe: un apagon o un cuelgue a mitad dejaba
-        // perfiles.txt vacio o cortado (todos los perfiles perdidos). Ahora a un .tmp en la misma carpeta, a disco de verdad
+        // profiles.txt vacio o cortado (todos los perfiles perdidos). Ahora a un .tmp en la misma carpeta, a disco de verdad
         // (Flush(true)) y luego se cambia por el bueno de una vez (File.Replace)
         public static void WriteAtomic(string path, string text)
         {
@@ -5787,7 +5787,7 @@ namespace ConsoleEnhancer
             }
         }
 
-        // Copia de perfiles.txt e iconos_juegos.txt (.bak) antes del primer cambio de nombre o union de perfiles de cada sesion
+        // Copia de profiles.txt e game_icons.txt (.bak) antes del primer cambio de nombre o union de perfiles de cada sesion
         static bool backedUp;
         static void Backup()
         {
@@ -5942,7 +5942,7 @@ namespace ConsoleEnhancer
             lock (sync) { Load(); return list.Contains(p); }
         }
 
-        // ---- 15-11: prueba sin consola (--test-perfiles=<carpeta con una COPIA de perfiles.txt e iconos_juegos.txt>) ----
+        // ---- 15-11: prueba sin consola (--test-perfiles=<carpeta con una COPIA de profiles.txt e game_icons.txt>) ----
         // Carga del formato de antes (8 columnas), iconos, un "Juego N" que pasa a su nombre, un perfil cortado que se junta con un
         // "Juego N" del mismo juego, y la escritura (entera, 9 columnas, sin .tmp, con .bak) vuelta a cargar del disco
         public static string SelfTest(string dir, out int failures)
@@ -6001,7 +6001,7 @@ namespace ConsoleEnhancer
                 check("9 columnas (" + (lines.Length > 1 ? lines[1] : "") + ")", lines.Length > 1 && lines[1].Split('|').Length == 9);
                 check("Copia .bak hecha antes del primer cambio", File.Exists(FilePath + ".bak"));
             }
-            finally { lock (sync) { Dir = Path.Combine(Paths.Datos, "juegos"); list = null; backedUp = false; } }
+            finally { lock (sync) { Dir = Path.Combine(Paths.Datos, "games"); list = null; backedUp = false; } }
             failures = fails;
             sb.Append(fails == 0 ? "Todo bien" : fails + " fallos").Append("\r\n");
             return sb.ToString();
@@ -6638,6 +6638,22 @@ namespace ConsoleEnhancer
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add(Idioma.T("Abrir config"), null, delegate { OpenConfig(); });
             menu.Items.Add(Idioma.T("Asistente de configuración"), null, delegate { AbrirAsistente(); }); // (ConsoleEnhancer: Asistente.cs)
+            // (1.2.06) Language / Idioma: se guarda y la app se vuelve a abrir en ese idioma
+            ToolStripMenuItem idiomaMenu = new ToolStripMenuItem("Language / Idioma");
+            foreach (string[] li in new[] { new[] { "en", "English" }, new[] { "es", "Español" } })
+            {
+                string lang = li[0];
+                ToolStripMenuItem it = new ToolStripMenuItem(li[1], null, delegate
+                {
+                    if (Idioma.Ingles == (lang == "en")) return;
+                    Idioma.Elegir(lang);
+                    Log.Write("Bandeja: idioma=" + lang + " (se reabre la app)");
+                    CeReabrir();
+                });
+                it.Checked = Idioma.Ingles == (lang == "en");
+                idiomaMenu.DropDownItems.Add(it);
+            }
+            menu.Items.Add(idiomaMenu);
             MenuCe(menu); // (ConsoleEnhancer: iniciar con Windows y apagar el PC, src\InicioWindows.cs)
             VolverAEsperaSinConsola(); // (1.0.14: abierta desde la espera y sin consola -> otra vez en espera, src\Lanzador\Espera.cs)
             MenuAcercaDe(menu); // (ConsoleEnhancer, GITHUB: licencias y avisos legales, src\Lanzador\Componentes.cs)
@@ -7416,10 +7432,10 @@ namespace ConsoleEnhancer
         // El filtro de mpv (AddCommonMpvArgs) quita las imagenes repetidas: Magpie solo recibe las distintas. Con Magpie no hace
         // falta cambiar de "look" de DLSS 5 segun el ritmo (lo hacia LS con su atajo): DLSSNR ajusta solo su resolucion de entrada
         // (adaptativa) para llegar al ritmo del juego
-        int dlss5Passes = 1;        // pasadas de DLSSNR (1-3), se guarda en juegos\dlss5_pasadas.txt
+        int dlss5Passes = 1;        // pasadas de DLSSNR (1-3), se guarda en games\dlss5_passes.txt
         bool want30;                // el juego va a 30 fps
         volatile bool vfDedupe;     // mpv lleva puesto el filtro de repetidas (TrayApp.DedupeOn)
-        int dlss5Level;             // nivel de DLSS 5 (1-4), se guarda en juegos\dlss5_nivel.txt
+        int dlss5Level;             // nivel de DLSS 5 (1-4), se guarda en games\dlss5_level.txt
         int fast60, slow30;         // lecturas seguidas (cada 0,5 s) a 45 fps o mas / a ~30 con imagenes nuevas
         double vfFps;               // imagenes por segundo a la salida del filtro de repetidas (mpv)
         bool vfNew;                 // la ultima que salio era nueva (no una copia de una imagen quieta)
@@ -7633,7 +7649,7 @@ namespace ConsoleEnhancer
         DateTime lastPadAction = DateTime.MinValue;
         volatile string relaunchSize;   // captura pedida con el mando: mpv se reabre con ella
         Stopwatch captureSw;            // desde que se pidio la captura (para el log: tiempo con el telon)
-        bool dlss5Shown = true;         // DLSS 5 encendido (false: sin DLSSNR en la cadena de Magpie; juegos\dlss5_activo.txt)
+        bool dlss5Shown = true;         // DLSS 5 encendido (false: sin DLSSNR en la cadena de Magpie; games\dlss5_on.txt)
         Stopwatch lsStartSw;            // desde que se abrio Magpie por ultima vez (para los tiempos del arranque en el log)
         readonly LinkQueue osdQueue = new LinkQueue();
 
@@ -7656,7 +7672,7 @@ namespace ConsoleEnhancer
         // rojo en vez de cian). La cola guarda la orden ya hecha
         static string OsdCmd(string text, string ms, bool warn)
         {
-            text = Idioma.T(text); // (ConsoleEnhancer: en ingles, idiomas\en.txt)
+            text = Idioma.T(text); // (ConsoleEnhancer: en ingles, languages\en.txt)
             return warn ? JsonCmd("script-message", "switch2-osd", ms, text, "warn")
                         : JsonCmd("script-message", "switch2-osd", ms, text);
         }
@@ -8022,7 +8038,7 @@ namespace ConsoleEnhancer
         }
 
         // 10-11: L3 del mando = filtro de tramado nuevo / el de antes, en caliente, para compararlos en el juego de verdad (antes L3
-        // repetia lo de A: DLSS 5 si/no). Se guarda para todos los juegos (juegos\tramado_fuerte.txt)
+        // repetia lo de A: DLSS 5 si/no). Se guarda para todos los juegos (games\strong_dither.txt)
         void ToggleStrongDither()
         {
             Process p = mpv;
@@ -8083,7 +8099,7 @@ namespace ConsoleEnhancer
         bool rwinDown;
         DateTime rwinUp = DateTime.MinValue, lastShotKey = DateTime.MinValue;
         volatile IntPtr mpvWindow;      // ventana de mpv (WatchLoop), para no tocar nada mas desde el gancho
-        volatile bool fgWanted = true;  // generacion de fotogramas pedida (juegos\generacion.txt y el perfil del juego)
+        volatile bool fgWanted = true;  // generacion de fotogramas pedida (games\framegen.txt y el perfil del juego)
         int fgBusy;
 
         void InstallKeyHook()
@@ -8285,20 +8301,20 @@ namespace ConsoleEnhancer
         Rectangle sysBox;               // donde estaba el nombre de la ultima casilla de la consola (con sysShape)
         volatile bool curGameGuess;     // curGame puesto al abrir la app sin ver el HOME (el ultimo juego o el pendiente)
         string staleWarned;             // ya se aviso de que el juego en uso no era este curGame
-        int diagHomeSaved;              // imagenes guardadas en juegos\diag_home en esta sesion
+        int diagHomeSaved;              // imagenes guardadas en games\diag_home en esta sesion
         // curGame y los ajustes que se guardan con el van juntos: SaveCurProfile (hilo del mando) no puede guardar los ajustes del
         // juego de antes con el nombre del nuevo mientras se entra en otro (LeaveHomeGrace cambiaba curGame y luego ponia applying)
         readonly object profileSync = new object();
         // El juego en el que se iba a entrar (elegido en el HOME, esperando a que cargue). Si la app se cierra antes de confirmar la
         // entrada (14-11 23:57: una pantalla "No Signal" al arrancar RESIDENT EVIL requiem la cerro) y se reabre sin ver el HOME,
-        // se pone este y no el ultimo juego (ultimo_juego.txt: Red Dead Redemption, con el que se guardaron 6 cambios del mando)
-        static readonly string PendingGameFile = Path.Combine(Paths.Datos, @"juegos\juego_pendiente.txt");
+        // se pone este y no el ultimo juego (last_game.txt: Red Dead Redemption, con el que se guardaron 6 cambios del mando)
+        static readonly string PendingGameFile = Path.Combine(Paths.Datos, @"games\pending_game.txt");
         bool pendingSaved;
 
         // HOME a 4K nativo (Config.HomeNative): con un juego en marcha, el HOME visto en 2 capturas seguidas = se ha vuelto
         // al HOME (se cierra LS y la imagen pasa a 4K tal cual); en el HOME, la consola deja de mostrarlo con un juego
         // seleccionado = se entra en ese juego (sus ajustes y LS). Recien abierta la app se esta en el HOME a 4K: si no se
-        // ve el HOME y si un juego en marcha, ya se estaba jugando (al ultimo juego, juegos\ultimo_juego.txt)
+        // ve el HOME y si un juego en marcha, ya se estaba jugando (al ultimo juego, games\last_game.txt)
         // 09-11: los ajustes van solo cuando se ha entrado DE VERDAD (antes se ponian al dejar de verse el HOME: encima del
         // aviso de "cerrar el programa" o de la pantalla de elegir usuario, tapadas por el telon). Cada captura fuera del
         // HOME es una de estas (OutGrab): el HOME atenuado (un aviso encima), una pantalla de la consola (OCR: elegir
@@ -8694,7 +8710,7 @@ namespace ConsoleEnhancer
         }
         int outTextLogs, startTextLogs;
 
-        // ---- 15-11: prueba sin consola de la entrada en los juegos desde el HOME (--test-entrada -> juegos\test_entrada.txt) ----
+        // ---- 15-11: prueba sin consola de la entrada en los juegos desde el HOME (--test-entrada -> games\test_entrada.txt) ----
         // Pantallas ya clasificadas por la logica de verdad (OutGrab, ResetOut, DecideHomeNative), con un reloj falso y al ritmo de la
         // app: en el HOME una captura cada 0,5 s, fuera cada entrada_captura_s, y la decision tras cada captura y cada 0,1 s fuera del
         // HOME (GrabLoop). Del HOME la prueba repite lo de AnalyzeGrab que cuenta para entrar (SimGrab): la casilla del cursor, si
@@ -9134,11 +9150,11 @@ namespace ConsoleEnhancer
             return null;
         }
 
-        // 16-11: la biblioteca y el HOME con capturas de verdad (juegos\test_biblioteca\casos.txt, si esta): ¿biblioteca?, el nombre que
+        // 16-11: la biblioteca y el HOME con capturas de verdad (games\test_biblioteca\casos.txt, si esta): ¿biblioteca?, el nombre que
         // se lee (la pastilla en la biblioteca, la etiqueta en el HOME; con el OCR de Windows) y "en uso" por "Cambiar de usuario" (solo HOME)
         static void LibraryImageTest(StringBuilder sb, ref int fails)
         {
-            string dir = Path.Combine(Paths.Datos, @"juegos\test_biblioteca"), list = Path.Combine(dir, "casos.txt");
+            string dir = Path.Combine(Paths.Datos, @"games\test_biblioteca"), list = Path.Combine(dir, "casos.txt");
             if (!File.Exists(list)) { sb.Append("(sin ").Append(list).Append(": prueba con imagenes no hecha)\r\n\r\n"); return; }
             sb.Append("-- 16-11: capturas de la biblioteca y del HOME (").Append(list).Append(") --\r\n\r\n");
             foreach (string raw in File.ReadAllLines(list, Encoding.UTF8))
@@ -9346,12 +9362,12 @@ namespace ConsoleEnhancer
             lock (cmdQueue) cmdQueue.Add(JsonCmd("script-message", "switch2-burst", prefix, "2"));
         }
 
-        // La respuesta del script de mpv: los .raw a PNG en juegos\debug\tramado (como mucho los 12 mas nuevos), en segundo plano
+        // La respuesta del script de mpv: los .raw a PNG en games\debug\tramado (como mucho los 12 mas nuevos), en segundo plano
         static void SaveDitherBurst(string prefix, int n, int w, int h, int stride, string format, string game)
         {
             try
             {
-                string dir = Path.Combine(Paths.Datos, @"juegos\debug\tramado");
+                string dir = Path.Combine(Paths.Datos, @"games\debug\tramado");
                 Directory.CreateDirectory(dir);
                 string g = game ?? "juego";
                 foreach (char c in Path.GetInvalidFileNameChars()) g = g.Replace(c, '_');
@@ -9538,7 +9554,7 @@ namespace ConsoleEnhancer
                     // 10-11: en el HOME con LS aun escalando, una miniatura de cada captura (para pasar a 4K nativo con el HOME quieto);
                     // jugando, la del HOME visto (para comprobar la copia de la pantalla del telon congelado, PutFrozenCurtain)
                     // 19-11 (DETECCION, src\DetectorMenu.cs): sin el nombre cian ni las franjas del HOME (la captura en grises del motor con
-                    // el 4K en yuy2, juegos\home_ref.txt de otra captura...): la hora del HOME arriba a la derecha, la del PC con la bateria a
+                    // el 4K en yuy2, games\home_ref.txt de otra captura...): la hora del HOME arriba a la derecha, la del PC con la bateria a
                     // su derecha ("17:49 100%"), cuenta como el HOME (OCR de la zona, ~40 ms, solo si hay algo como texto y ha cambiado)
                     // (no con el HOME atenuado: eso es el menu de apagado o el aviso de cerrar el suspendido, que lee DimRead)
                     double dkR, dcR;
@@ -9643,7 +9659,7 @@ namespace ConsoleEnhancer
                     else if (lab != null && inGame)
                     {
                         // Jugando: el nombre azul y las franjas del HOME (la de arriba y la barra de iconos, guardadas en
-                        // juegos\home_ref.txt). Muy claro (franjas casi iguales): al HOME ya; si no, con otra captura a los 0,15 s
+                        // games\home_ref.txt). Muy claro (franjas casi iguales): al HOME ya; si no, con otra captura a los 0,15 s
                         if (looksHome)
                         {
                             homeHits++;
@@ -10127,7 +10143,7 @@ namespace ConsoleEnhancer
         byte[] strictShape;             // jugando sin el HOME conocido: lo visto en la captura anterior
         double[] strictTop;
         int strictHits;
-        double[] homeRef, savedRef;     // las franjas del HOME (juegos\home_ref.txt)
+        double[] homeRef, savedRef;     // las franjas del HOME (games\home_ref.txt)
 
         // Las franjas del HOME, guardadas para la proxima vez (solo si han cambiado: la hora, la bateria...)
         void SaveRef(double[] r)
@@ -10177,7 +10193,7 @@ namespace ConsoleEnhancer
         }
 
         // 15-11: el nombre leido en el HOME es mejor para el perfil p (GameProfiles.Improve: un "Juego N", un nombre cortado): se le
-        // pone y se cambia en lo que usa el nombre (curGame, el juego del HOME, ultimo_juego.txt). Fuera de homeSync
+        // pone y se cambia en lo que usa el nombre (curGame, el juego del HOME, last_game.txt). Fuera de homeSync
         // 16-11: firm = NameReads.Firm (una lectura suelta no cambia el nombre de un perfil)
         void ImproveProfile(GameProfile p, string name, bool sure, string why, bool firm)
         {
@@ -10214,7 +10230,7 @@ namespace ConsoleEnhancer
         }
 
         // 15-11: una lectura del nombre fallida o que no encaja con las demas: la captura (a 1920x1080 como mucho) y el recorte del
-        // nombre tal cual (lo que mira el OCR) a juegos\diag_home, para verlas y repetirlas con --test-home (frase y nombre: lecturas.txt).
+        // nombre tal cual (lo que mira el OCR) a games\diag_home, para verlas y repetirlas con --test-home (frase y nombre: lecturas.txt).
         // Como mucho diag_home= por sesion (12; 0 = nada), 2 por seleccion y las 40 imagenes mas nuevas. Se escriben en segundo plano
         string SaveHomeDiag(Bitmap full, Rectangle fb, string why, string raw, NameReads nr)
         {
@@ -10223,7 +10239,7 @@ namespace ConsoleEnhancer
             diagHomeSaved++;
             try
             {
-                string dir = Path.Combine(Paths.Datos, @"juegos\diag_home");
+                string dir = Path.Combine(Paths.Datos, @"games\diag_home");
                 string tag = DateTime.Now.ToString("yyyyMMdd-HHmmss-fff", CultureInfo.InvariantCulture) + "_" + why;
                 int fw = Math.Min(full.Width, 1920), fh = full.Width > 1920 ? full.Height * 1920 / full.Width : full.Height;
                 Bitmap frame = CopyOf(full, new Rectangle(0, 0, full.Width, full.Height), fw, fh);
@@ -10245,7 +10261,7 @@ namespace ConsoleEnhancer
                     catch (Exception ex) { Log.Error("Guardando el diagnostico del HOME", ex); }
                     finally { frame.Dispose(); if (crop != null) crop.Dispose(); }
                 });
-                return @"juegos\diag_home\" + tag + ".png";
+                return @"games\diag_home\" + tag + ".png";
             }
             catch (Exception ex) { Log.Error("Guardando el diagnostico del HOME", ex); return null; }
         }
@@ -13441,7 +13457,7 @@ namespace ConsoleEnhancer
                     "\tdlssnr_pct=" + (pct.Length > 0 ? pct : "-") + "\terrores=" + errors +
                     "\tescalando=" + (MagpieLive.IsScaling() ? 1 : 0) +
                     "\tperfil=" + cfg.ProfileText;
-                File.AppendAllText(Path.Combine(Paths.Datos, @"juegos\banco.txt"), res + "\r\n", new UTF8Encoding(false));
+                File.AppendAllText(Path.Combine(Paths.Datos, @"games\bench.txt"), res + "\r\n", new UTF8Encoding(false));
                 Log.Write("Banco: " + res);
             }
             catch (Exception ex) { Log.Error("Banco", ex); }
@@ -13607,7 +13623,7 @@ namespace ConsoleEnhancer
                     // 15-11: el motor propio no llega a dar imagen 2 veces: el resto de la sesion, mpv + Magpie
                     if (eng && salida != 0 && ++engineFails >= 2)
                     {
-                        Log.Write("El motor propio no arranca (codigo " + salida + ", ver datos\\logs\\engine.log): mpv + Magpie el resto de la sesion");
+                        Log.Write("El motor propio no arranca (codigo " + salida + ", ver data\\logs\\engine.log): mpv + Magpie el resto de la sesion");
                         cfg.Engine = "magpie";
                         Config.EngineActive = false;
                         lock (lsModeSync) EnsureLossless();
@@ -13821,7 +13837,7 @@ namespace ConsoleEnhancer
                 if (!userExit && Config.EngineActive && p.ExitCode != 0 && p.ExitCode != MpvConst.PowerOffExitCode && !File.Exists(Paths.FlagFile))
                 {
                     engineCrashes++;
-                    Log.Write("El motor propio se ha cerrado solo (codigo " + p.ExitCode + ", vez " + engineCrashes + "; ver datos\\logs\\engine.log): " +
+                    Log.Write("El motor propio se ha cerrado solo (codigo " + p.ExitCode + ", vez " + engineCrashes + "; ver data\\logs\\engine.log): " +
                               (engineCrashes >= 3 ? "el resto de la sesion mpv + Magpie" : "se vuelve a abrir"));
                     if (engineCrashes >= 3) cfg.Engine = "magpie";
                     ShowCurtain();
@@ -14096,7 +14112,7 @@ namespace ConsoleEnhancer
                 // Xbox): --test-juegos-consola=<carpeta>[;<informe>] (xbox_* usa la Xbox, el resto la PS5)
                 if (arg.StartsWith("--test-juegos-consola=")) return JuegoConsola.Prueba(arg.Substring(22));
                 // 19-11 (DETECCION): el menu de la consola con imagenes y escenas, antes y ahora (src\PruebaDeteccion.cs):
-                // --test-deteccion=<carpeta>[;<informe>] (juegos\test_deteccion) o --test-deteccion=listar;<carpeta>;<informe.tsv>
+                // --test-deteccion=<carpeta>[;<informe>] (games\test_deteccion) o --test-deteccion=listar;<carpeta>;<informe.tsv>
                 if (arg.StartsWith("--test-deteccion=")) return PruebaDeteccion.Run(arg.Substring(17));
                 if (arg.StartsWith("--ui-preview=")) return PrismaPreview.Run(arg.Substring(13));
                 // 18-11 (MANDOS): --test-mandos=<segundos>;<archivo>: mandos detectados, botones pulsados y el modo PC (sin mandar nada)
@@ -14105,7 +14121,7 @@ namespace ConsoleEnhancer
                 if (arg.StartsWith("--test-bloqueo=")) return BlockTest.Run(arg.Substring(15), args);
                 // 18-11 (MANDOS): el modo PC del mando sin la app abierta (residente, sin ventanas; en lugar de Joyxoff)
                 if (arg == "--mando-pc") return PadResident.Run();
-                // 19-11 (ESCRITORIO): a mano, sin abrir la app: el escritorio normal (juegos\escritorio_normal.txt) o el negro
+                // 19-11 (ESCRITORIO): a mano, sin abrir la app: el escritorio normal (games\desktop_normal.txt) o el negro
                 if (arg == "--restaurar-escritorio") return Escritorio.AMano(false);
                 if (arg == "--escritorio-negro") return Escritorio.AMano(true);
                 if (arg.StartsWith("--test-escritorio=")) return Escritorio.Prueba(arg.Substring(18));
@@ -14115,36 +14131,36 @@ namespace ConsoleEnhancer
                     bool saveDenied;
                     return NvProfiles.Apply(out saveDenied);
                 }
-                // 15-11: prueba sin consola de la limpieza, votacion y union de los nombres leidos (GameNames) -> juegos\test_nombres.txt
+                // 15-11: prueba sin consola de la limpieza, votacion y union de los nombres leidos (GameNames) -> games\test_nombres.txt
                 if (arg == "--test-nombres")
                 {
                     int fails;
                     string rep = GameNames.SelfTest(out fails);
-                    File.WriteAllText(Path.Combine(Paths.Datos, @"juegos\test_nombres.txt"), rep, new UTF8Encoding(false));
+                    File.WriteAllText(Path.Combine(Paths.Datos, @"games\test_nombres.txt"), rep, new UTF8Encoding(false));
                     return fails;
                 }
                 // 15-11: prueba sin consola de la entrada en los juegos desde el HOME (pantallas ya clasificadas por OutGrab / ResetOut /
-                // DecideHomeNative con un reloj falso; ver TrayApp.EntrySelfTest) -> juegos\test_entrada.txt
+                // DecideHomeNative con un reloj falso; ver TrayApp.EntrySelfTest) -> games\test_entrada.txt
                 if (arg == "--test-entrada")
                 {
                     int fails;
                     string rep = TrayApp.EntrySelfTest(out fails);
-                    File.WriteAllText(Path.Combine(Paths.Datos, @"juegos\test_entrada.txt"), rep, new UTF8Encoding(false));
+                    File.WriteAllText(Path.Combine(Paths.Datos, @"games\test_entrada.txt"), rep, new UTF8Encoding(false));
                     return fails;
                 }
                 // 15-11: prueba de los perfiles guardados (cargar el formato de antes, cambiar nombres, juntar, escribir) sobre una COPIA:
-                // --test-perfiles=<carpeta con perfiles.txt e iconos_juegos.txt> -> <carpeta>\test_perfiles.txt
+                // --test-perfiles=<carpeta con profiles.txt e game_icons.txt> -> <carpeta>\test_perfiles.txt
                 if (arg.StartsWith("--test-perfiles="))
                 {
                     string dir = arg.Substring(16);
-                    if (string.Equals(Path.GetFullPath(dir).TrimEnd('\\'), Path.Combine(Paths.Datos, "juegos"), StringComparison.OrdinalIgnoreCase))
+                    if (string.Equals(Path.GetFullPath(dir).TrimEnd('\\'), Path.Combine(Paths.Datos, "games"), StringComparison.OrdinalIgnoreCase))
                         return -1; // (nunca sobre los perfiles de verdad)
                     int fails;
                     string rep = GameProfiles.SelfTest(dir, out fails);
                     File.WriteAllText(Path.Combine(dir, "test_perfiles.txt"), rep, new UTF8Encoding(false));
                     return fails;
                 }
-                // Prueba del lector del HOME con imagenes: --test-home=<png>[;<png>...] o una carpeta (juegos\diag_home) -> juegos\test_home.txt.
+                // Prueba del lector del HOME con imagenes: --test-home=<png>[;<png>...] o una carpeta (games\diag_home) -> games\test_home.txt.
                 // 15-11: con lo que lee el OCR tal cual, el nombre limpio, si la etiqueta esta cortada y el icono, y al final todas las
                 // lecturas juntas como si fueran de una misma seleccion (NameReads). Los recortes del nombre (_nombre.png) se leen tal cual
                 if (arg.StartsWith("--test-home="))
@@ -14243,7 +14259,7 @@ namespace ConsoleEnhancer
                         sb.Append("Todas juntas (como lecturas seguidas de un mismo juego): \"").Append(all.Best).Append("\"")
                           .Append(all.Sure ? ", seguro" : ", sin confirmar").Append(all.Clipped ? ", se desplaza" : "")
                           .Append(" (").Append(all.Count).Append(" lecturas utiles de ").Append(all.Attempts).Append(")\r\n");
-                    File.WriteAllText(Path.Combine(Paths.Datos, @"juegos\test_home.txt"), sb.ToString(), new UTF8Encoding(false));
+                    File.WriteAllText(Path.Combine(Paths.Datos, @"games\test_home.txt"), sb.ToString(), new UTF8Encoding(false));
                     return 0;
                 }
                 if (arg == "--dry-run") dryRun = true;
@@ -14255,6 +14271,8 @@ namespace ConsoleEnhancer
             }
 
             // ConsoleEnhancer (GITHUB): mpv y Magpie no van en el zip (sus licencias): la primera vez se bajan de sus releases oficiales (src\Lanzador\Componentes.cs)
+            // (1.2.06) el idioma antes de la primera ventana: el del ini o el elegido; si no, ingles (Idioma.Poner)
+            try { Idioma.Poner(Ce.IniLeer("idioma")); } catch { }
             { int cr = Componentes.Asegurar(args, dryRun); if (cr >= 0) return cr; }
             // ConsoleEnhancer: primer arranque / --asistente / hardware cambiado -> deteccion + asistente (src\ConsoleEnhancerApp.cs)
             try { int ar = Ce.Arranque(args, dryRun); if (ar >= 0) return ar; }

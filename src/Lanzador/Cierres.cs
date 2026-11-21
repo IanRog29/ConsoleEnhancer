@@ -223,7 +223,7 @@ namespace ConsoleEnhancer
                 Log.Write("El motor se ha cerrado sin imagen y sin pedirselo " + (zeroExits - 1) + " veces seguidas: se sale de la app (no es la consola apagada)");
                 return false;
             }
-            Log.Write("El motor (pid " + p.Id + ") se ha cerrado sin dar imagen y sin que se le pidiera (codigo 0; ver datos\\logs\\engine.log): se vuelve a abrir (" + zeroExits + "a vez)");
+            Log.Write("El motor (pid " + p.Id + ") se ha cerrado sin dar imagen y sin que se le pidiera (codigo 0; ver data\\logs\\engine.log): se vuelve a abrir (" + zeroExits + "a vez)");
             ShowCurtain();
             Thread.Sleep(1500);
             return !userExit;
@@ -250,7 +250,7 @@ namespace ConsoleEnhancer
 
         // Main, antes de nada con ventanas: un fallo en la interfaz o en un hilo secundario va al log y la app sigue (antes: el cuadro de
         // error de .NET o el proceso muerto sin dejar rastro). Para que un hilo secundario no mate la app hace falta ademas
-        // ConsoleEnhancer.exe.config con legacyUnhandledExceptionPolicy (al lado del exe; en ConsoleEnhancer: recursos\ConsoleEnhancer.exe.config,
+        // ConsoleEnhancer.exe.config con legacyUnhandledExceptionPolicy (al lado del exe; en ConsoleEnhancer: resources\ConsoleEnhancer.exe.config,
         // que build.bat y scripts\empaquetar.ps1 ponen junto a ConsoleEnhancer.exe)
         public static void InstalarManejadoresDeFallos()
         {

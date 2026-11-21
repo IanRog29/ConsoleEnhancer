@@ -13,7 +13,7 @@ namespace ConsoleEnhancer
     // Por que: la app se abre al iniciar sesion (inicio\PrismaInicio.exe) y su telon negro llega ~3 s tarde; con el escritorio negro de
     // fondo no se ve Windows al encender. Antes (19-11 por la manana) se dejo negro a mano y para siempre; ahora lo pone y lo quita la app.
     //   Negro  = color solido 0 0 0 sin imagen, Spotlight apagado, sin iconos del escritorio y la barra de tareas en ocultacion automatica.
-    //   Normal = lo de juegos\escritorio_normal.txt (editable): se guarda la primera vez de inicio\fondo_antes.txt (los valores de antes del
+    //   Normal = lo de games\desktop_normal.txt (editable): se guarda la primera vez de inicio\fondo_antes.txt (los valores de antes del
     //            negro a mano) y despues del escritorio que haya al abrir la app si no es el negro (si el usuario cambia el fondo con la app
     //            cerrada, se apunta el nuevo). Nunca se guarda el negro como normal.
     // Cuando (ini escritorio_negro=1; 0 = no se toca nada):
@@ -27,7 +27,7 @@ namespace ConsoleEnhancer
     //     Switch2Magpie.exe --restaurar-escritorio (y --escritorio-negro para lo contrario).
     //   - Un exe de prueba compilado en otra carpeta no lo toca (si se mata se quedaria negro). Prueba sin consola ni ventanas:
     //     --test-escritorio=<segundos>[;apagado] (abrir, esperar y cerrar a mano o por la consola apagada; no apaga nada).
-    // Estado en juegos\escritorio_estado.txt ("negro"/"normal", hora y por que). Todo en switch2.log con "Escritorio:".
+    // Estado en games\desktop_state.txt ("negro"/"normal", hora y por que). Todo en switch2.log con "Escritorio:".
     // Spotlight: se pone su ultima foto al momento y se deja encendido en el registro, pero no vuelve a cambiar de foto hasta el
     // siguiente inicio de sesion (o reinicio del Explorador): sin reiniciar el Explorador no se ha encontrado como encenderlo en vivo.
     // ConsoleEnhancer (19-11, agente CE): APAGADO de serie (escritorio_negro=0); se ofrece junto a "Iniciar con Windows" (asistente y
@@ -40,8 +40,8 @@ namespace ConsoleEnhancer
         static volatile bool cerrando;
         static DateTime windowsCerrando = DateTime.MinValue;
 
-        static string NormalFile { get { return Path.Combine(Paths.Datos, @"juegos\escritorio_normal.txt"); } }
-        static string EstadoFile { get { return Path.Combine(Paths.Datos, @"juegos\escritorio_estado.txt"); } }
+        static string NormalFile { get { return Path.Combine(Paths.Datos, @"games\desktop_normal.txt"); } }
+        static string EstadoFile { get { return Path.Combine(Paths.Datos, @"games\desktop_state.txt"); } }
         static string FondoAntesFile { get { return Path.Combine(Paths.AppDir, @"inicio\fondo_antes.txt"); } }
 
         const string KDesktop = @"Control Panel\Desktop";

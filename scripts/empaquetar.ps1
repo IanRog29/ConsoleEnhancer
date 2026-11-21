@@ -4,18 +4,18 @@
 # con sus licencias), los scripts de mpv, idiomas, recursos, licencias y avisos.
 # NO va (y se comprueba al final):
 #  - mpv ni Magpie: no los reparte ConsoleEnhancer. La app los baja la primera vez que se abre de sus releases oficiales (con su
-#    SHA-256: scripts\componentes.json, src\Lanzador\Componentes.cs). Asi no hay que repartir el codigo fuente de mpv / FFmpeg ni los
+#    SHA-256: scripts\components.json, src\Lanzador\Componentes.cs). Asi no hay que repartir el codigo fuente de mpv / FFmpeg ni los
 #    binarios de Magpie Experimental (que llevan DLL de NVIDIA, AMD e Intel que su autor pide no volver a repartir sin revisar)
 #  - nvngx_dlssnr.dll ("DLSS 5": DLL de NVIDIA modificada, sin firma), runtimes\dlssg_sm86 (autofirmado), PrismaNr.dll
-#  - el ini, logs, datos\, juegos\ ni nada del PC donde se monta
+#  - el ini, logs, data\, games\ ni nada del PC donde se monta
 # Antes: build.bat y build_motor.bat (o preparar.bat). Streamline sale de terceros\streamline (scripts\descargar_dependencias.ps1;
 # si falta, se baja, salvo con -SinDescargar).
 #
 # Uso: powershell -ExecutionPolicy Bypass -File scripts\empaquetar.ps1 [-Zip] [-Version v1.0.0] [-Web https://github.com/<usuario>/ConsoleEnhancer]
 #        [-Destino <carpeta>] [-Forzar] [-SinDescargar] [-Streamline <carpeta>]
 #  -Zip       ademas dist\ConsoleEnhancer-<Version>.zip (o ConsoleEnhancer.zip) y su .sha256
-#  -Version   la version que se escribe en LEEME.txt y en el nombre del zip (la etiqueta de git en GitHub Actions)
-#  -Web       la pagina del proyecto (codigo fuente) que se escribe en LEEME.txt y licencias\LEEME.txt
+#  -Version   la version que se escribe en README.txt y en el nombre del zip (la etiqueta de git en GitHub Actions)
+#  -Web       la pagina del proyecto (codigo fuente) que se escribe en README.txt y licenses\README.txt
 # Datos personales: ademas del usuario y el nombre de este PC, busca las lineas de scripts\privado.txt si existe (no va a git).
 param(
     [string]$Raiz = (Split-Path -Parent $PSScriptRoot),
@@ -37,7 +37,7 @@ $Destino = Full $Destino
 $porDefecto = -not $Streamline
 if (-not $Streamline) { $Streamline = "$Raiz\terceros\streamline" }
 foreach ($o in @($Raiz, $Streamline)) { if ($Destino -ieq (Full $o) -or $Destino.StartsWith((Full $o) + '\', [StringComparison]::OrdinalIgnoreCase)) { if ($Destino.StartsWith("$Raiz\dist\", [StringComparison]::OrdinalIgnoreCase)) { continue }; throw "El destino no puede estar dentro de $o (salvo $Raiz\dist)" } }
-$tabla = (Get-Content -LiteralPath "$Raiz\scripts\componentes.json" -Raw -Encoding UTF8 | ConvertFrom-Json).componentes
+$tabla = (Get-Content -LiteralPath "$Raiz\scripts\components.json" -Raw -Encoding UTF8 | ConvertFrom-Json).componentes
 $sl = $tabla | Where-Object { $_.nombre -eq 'streamline' }
 
 # ---- Streamline: si falta, se baja (version fija, con su SHA-256) ----
@@ -46,10 +46,10 @@ if (-not (Test-Path "$Streamline\bin\x64\sl.interposer.dll")) {
     Write-Output 'Falta Streamline: scripts\descargar_dependencias.ps1 -Solo streamline'
     & "$PSScriptRoot\descargar_dependencias.ps1" -Raiz $Raiz -Solo streamline
 }
-foreach ($need in @("$Raiz\bin\ConsoleEnhancer.exe", "$Raiz\bin\motor\ConsoleEnhancerEngine.exe")) { if (-not (Test-Path $need)) { throw "Falta $need (compila con build.bat y build_motor.bat, o preparar.bat)" } }
+foreach ($need in @("$Raiz\bin\ConsoleEnhancer.exe", "$Raiz\bin\engine\ConsoleEnhancerEngine.exe")) { if (-not (Test-Path $need)) { throw "Falta $need (compila con build.bat y build_motor.bat, o preparar.bat)" } }
 if (Test-Path $Destino) {
     if (@(Get-ChildItem -LiteralPath $Destino -Force).Count -gt 0) {
-        if ($Forzar -and (Test-Path "$Destino\ConsoleEnhancer.exe") -and (Test-Path "$Destino\licencias")) { Remove-Item -LiteralPath $Destino -Recurse -Force }
+        if ($Forzar -and (Test-Path "$Destino\ConsoleEnhancer.exe") -and (Test-Path "$Destino\licenses")) { Remove-Item -LiteralPath $Destino -Recurse -Force }
         else { throw "$Destino ya tiene cosas (con -Forzar se rehace, solo si es un paquete de antes)" }
     }
 }
@@ -71,27 +71,28 @@ $webTxt = if ($Web) { $Web } else { 'la pagina de GitHub del proyecto / the proj
 # ---- la app ----
 Poner "$Raiz\bin\ConsoleEnhancer.exe" "$Destino\ConsoleEnhancer.exe"
 # (20-11, CIERRES de Prisma) legacyUnhandledExceptionPolicy: un fallo en un hilo secundario va al log y no cierra la app
-Poner "$Raiz\recursos\ConsoleEnhancer.exe.config" "$Destino\ConsoleEnhancer.exe.config"
+Poner "$Raiz\resources\ConsoleEnhancer.exe.config" "$Destino\ConsoleEnhancer.exe.config"
 Texto "$Destino\portable.txt" @(
-    'ConsoleEnhancer portable: con este fichero los datos (ajustes, log, juegos, calibracion) van en la carpeta datos\ de aqui al lado.',
-    'Borralo para guardarlos en %LOCALAPPDATA%\ConsoleEnhancer (p. ej. si la carpeta de la app no se puede escribir).',
-    'ConsoleEnhancer portable: with this file the data (settings, log, games, calibration) is kept in the datos\ folder next to it.')
-foreach ($f in @('ce_power.lua', 'ce_diag.lua', 'ce_espera.lua', 's2_aa.glsl', 's2_aa_fuerte.glsl', 'componentes.json')) { Poner "$Raiz\scripts\$f" "$Destino\scripts\$f" }
-Poner "$Raiz\recursos\base.ini" "$Destino\recursos\base.ini"
+    'ConsoleEnhancer portable: with this file the data (settings, log, games, calibration) is kept in the data\ folder next to it.',
+    'Delete it to keep them in %LOCALAPPDATA%\ConsoleEnhancer (e.g. if the app folder cannot be written to).',
+    'ConsoleEnhancer portable: con este fichero los datos (ajustes, log, juegos, calibracion) van en la carpeta data\ de aqui al lado.',
+    'Borralo para guardarlos en %LOCALAPPDATA%\ConsoleEnhancer (p. ej. si la carpeta de la app no se puede escribir).')
+foreach ($f in @('ce_power.lua', 'ce_diag.lua', 'ce_standby.lua', 's2_aa.glsl', 's2_aa_strong.glsl', 'components.json')) { Poner "$Raiz\scripts\$f" "$Destino\scripts\$f" }
+Poner "$Raiz\resources\base.ini" "$Destino\resources\base.ini"
 # (1.2.0) el panel de ajustes (sustituye a "Inicio y apagado.bat"): como se usa el PC, apagado, DLSS 5, componentes, desinstalar
-Poner "$Raiz\bin\Ajustes de ConsoleEnhancer.exe" "$Destino\Ajustes de ConsoleEnhancer.exe"
-Get-ChildItem "$Raiz\idiomas" -File -Filter *.txt | ForEach-Object { Poner $_.FullName "$Destino\idiomas\$($_.Name)" }
+Poner "$Raiz\bin\ConsoleEnhancer Settings.exe" "$Destino\ConsoleEnhancer Settings.exe"
+Get-ChildItem "$Raiz\languages" -File -Filter *.txt | ForEach-Object { Poner $_.FullName "$Destino\languages\$($_.Name)" }
 # (mpv\ solo con su portable_config\mpv.conf: mpv.exe lo baja la app la primera vez)
-Poner "$Raiz\recursos\mpv.conf" "$Destino\mpv\portable_config\mpv.conf"
+Poner "$Raiz\resources\mpv.conf" "$Destino\mpv\portable_config\mpv.conf"
 
 # ---- el motor y las DLL de produccion de Streamline (firmadas por NVIDIA) ----
-Poner "$Raiz\bin\motor\ConsoleEnhancerEngine.exe" "$Destino\motor\ConsoleEnhancerEngine.exe"
+Poner "$Raiz\bin\engine\ConsoleEnhancerEngine.exe" "$Destino\engine\ConsoleEnhancerEngine.exe"
 foreach ($d in @('sl.interposer.dll', 'sl.common.dll', 'sl.dlss.dll', 'sl.dlss_g.dll', 'sl.reflex.dll', 'sl.pcl.dll', 'nvngx_dlss.dll', 'nvngx_dlssg.dll')) {
-    Poner "$Streamline\bin\x64\$d" "$Destino\motor\$d"
+    Poner "$Streamline\bin\x64\$d" "$Destino\engine\$d"
 }
 
 # ---- licencias y avisos ----
-$lic = "$Destino\licencias"
+$lic = "$Destino\licenses"
 Poner "$Raiz\LICENSE" "$lic\ConsoleEnhancer-LICENSE.txt"
 Poner "$Raiz\LICENSE-EXCEPTION.txt" "$lic\ConsoleEnhancer-LICENSE-EXCEPTION.txt"
 Poner "$Raiz\THIRD-PARTY.md" "$lic\THIRD-PARTY.md"
@@ -99,28 +100,28 @@ foreach ($f in @('license.txt', '3rd-party-licenses.md', 'nvngx_dlss.license.txt
     if (-not (Test-Path "$Streamline\$f")) { throw "Falta la licencia $Streamline\$f (scripts\descargar_dependencias.ps1 -Solo streamline -Forzar)" }
     Poner "$Streamline\$f" "$lic\streamline\$f"
 }
-Texto "$lic\NVIDIA-AVISO.txt" @(
-    'Componentes de NVIDIA en motor\ / NVIDIA components in motor\',
+Texto "$lic\NVIDIA-NOTICE.txt" @(
+    'Componentes de NVIDIA en engine\ / NVIDIA components in engine\',
     '',
-    'motor\nvngx_dlss.dll (NVIDIA DLSS Super Resolution) y motor\nvngx_dlssg.dll (NVIDIA DLSS Frame Generation) son de NVIDIA Corporation',
+    'engine\nvngx_dlss.dll (NVIDIA DLSS Super Resolution) y engine\nvngx_dlssg.dll (NVIDIA DLSS Frame Generation) son de NVIDIA Corporation',
     'y NO estan bajo la GPL de ConsoleEnhancer: se reparten sin cambios segun la NVIDIA RTX SDKs License (streamline\nvngx_dlss.license.txt).',
-    'motor\sl.*.dll son NVIDIA Streamline (MIT, streamline\license.txt); sl.reflex.dll y sl.pcl.dll llevan NVIDIA Reflex (streamline\reflex.license.txt).',
+    'engine\sl.*.dll son NVIDIA Streamline (MIT, streamline\license.txt); sl.reflex.dll y sl.pcl.dll llevan NVIDIA Reflex (streamline\reflex.license.txt).',
     'Al usarlas aceptas tambien estas condiciones de NVIDIA: solo se usan como parte de ConsoleEnhancer; no se pueden vender, alquilar,',
     'sublicenciar ni repartir sueltas; no se puede hacer ingenieria inversa, descompilarlas o desensamblarlas, ni quitar sus avisos; no se',
     'puede eludir ninguna limitacion tecnica, cifrado o mecanismo de seguridad o autenticacion; NVIDIA las da TAL CUAL, sin garantia de',
     'ningun tipo, y no responde de ningun dano; estan sujetas a las leyes de exportacion de los EE. UU.; NVIDIA conserva todos sus derechos.',
     'DLSS solo funciona con graficas NVIDIA GeForce RTX. ConsoleEnhancer no esta patrocinado ni respaldado por NVIDIA.',
     '',
-    'motor\nvngx_dlss.dll (NVIDIA DLSS Super Resolution) and motor\nvngx_dlssg.dll (NVIDIA DLSS Frame Generation) belong to NVIDIA',
+    'engine\nvngx_dlss.dll (NVIDIA DLSS Super Resolution) and engine\nvngx_dlssg.dll (NVIDIA DLSS Frame Generation) belong to NVIDIA',
     'Corporation and are NOT covered by ConsoleEnhancer''s GPL: they are redistributed unmodified under the NVIDIA RTX SDKs License',
-    '(streamline\nvngx_dlss.license.txt). motor\sl.*.dll are NVIDIA Streamline (MIT, streamline\license.txt); sl.reflex.dll and sl.pcl.dll',
+    '(streamline\nvngx_dlss.license.txt). engine\sl.*.dll are NVIDIA Streamline (MIT, streamline\license.txt); sl.reflex.dll and sl.pcl.dll',
     'contain NVIDIA Reflex (streamline\reflex.license.txt). By using them you also accept these NVIDIA terms: they may only be used as part of',
     'ConsoleEnhancer; they may not be sold, rented, sublicensed or distributed on their own; you may not reverse engineer, decompile or',
     'disassemble them, or remove their notices; you may not bypass, disable or circumvent any technical limitation, encryption, security or',
     'authentication mechanism; NVIDIA provides them AS IS, without warranty of any kind, and is not liable for any damages; they are subject',
     'to U.S. export laws; NVIDIA reserves all rights. DLSS only works on NVIDIA GeForce RTX GPUs. ConsoleEnhancer is not sponsored or',
     'endorsed by NVIDIA.')
-$ver = @('# Versiones de los componentes de terceros / third-party component versions (scripts\componentes.json)', '')
+$ver = @('# Versiones de los componentes de terceros / third-party component versions (scripts\components.json)', '')
 foreach ($c in $tabla) {
     $donde = if ($c.al_abrir) { 'NO va en el paquete: la app lo baja la primera vez de / NOT in the package: downloaded on first start from' } else { 'en el paquete / in the package:' }
     $ver += "$($c.nombre) $($c.version) - $donde"
@@ -129,19 +130,19 @@ foreach ($c in $tabla) {
     $ver += "  licencia / license: $($c.licencia)"
     $ver += "  codigo fuente / source: $($c.fuente)"
 }
-Texto "$lic\VERSIONES.txt" $ver
+Texto "$lic\VERSIONS.txt" $ver
 $mpvC = $tabla | Where-Object { $_.nombre -eq 'mpv' }; $magC = $tabla | Where-Object { $_.nombre -eq 'magpie' }
-Texto "$lic\LEEME.txt" @(
+Texto "$lic\README.txt" @(
     "ConsoleEnhancer $verTxt - licencias y componentes de terceros / licenses and third-party components (detalle: THIRD-PARTY.md)",
     '',
     " - ConsoleEnhancer: GPL-3.0 (ConsoleEnhancer-LICENSE.txt) con un permiso adicional de la seccion 7 para usarlo con las librerias de",
     "   NVIDIA, AMD, Intel y Microsoft (ConsoleEnhancer-LICENSE-EXCEPTION.txt). Codigo fuente: $webTxt",
     '   Incluye: FSR 1 EASU/RCAS y CAS (AMD FidelityFX, MIT), FXAA 3.11 (NVIDIA, BSD-3-Clause) y un filtro derivado de Magpie (GPL-3.0):',
     '   avisos completos en THIRD-PARTY.md.',
-    " - NVIDIA Streamline $($sl.version) (motor\sl.*.dll): MIT (streamline\license.txt, 3rd-party-licenses.md).",
-    ' - NVIDIA DLSS Super Resolution y Frame Generation (motor\nvngx_dlss.dll, nvngx_dlssg.dll): NVIDIA RTX SDKs License',
-    '   (streamline\nvngx_dlss.license.txt) y NVIDIA-AVISO.txt.',
-    ' - NVIDIA Reflex (motor\sl.reflex.dll, sl.pcl.dll): streamline\reflex.license.txt.',
+    " - NVIDIA Streamline $($sl.version) (engine\sl.*.dll): MIT (streamline\license.txt, 3rd-party-licenses.md).",
+    ' - NVIDIA DLSS Super Resolution y Frame Generation (engine\nvngx_dlss.dll, nvngx_dlssg.dll): NVIDIA RTX SDKs License',
+    '   (streamline\nvngx_dlss.license.txt) y NVIDIA-NOTICE.txt.',
+    ' - NVIDIA Reflex (engine\sl.reflex.dll, sl.pcl.dll): streamline\reflex.license.txt.',
     '',
     'Bajados por la app la primera vez (NO van en el paquete; cada uno con su licencia, dentro de su carpeta):',
     "Downloaded by the app on first start (NOT in the package; each one keeps its license inside its folder):",
@@ -150,8 +151,8 @@ Texto "$lic\LEEME.txt" @(
     '',
     'Marcas (NVIDIA, DLSS, Reflex, GeForce RTX, AMD, FSR, FidelityFX, Intel, XeSS, Nintendo, Sony, PlayStation, Microsoft, Xbox...): de sus',
     'duenos; aqui solo describen compatibilidad. ConsoleEnhancer no esta afiliado a ninguno. / Trademarks belong to their owners.',
-    'No incluido / not included: nvngx_dlssnr.dll, runtimes\dlssg_sm86 (ver extras\LEEME.txt).')
-Texto "$Destino\extras\LEEME.txt" @(
+    'No incluido / not included: nvngx_dlssnr.dll, runtimes\dlssg_sm86 (ver extras\README.txt).')
+Texto "$Destino\extras\README.txt" @(
     'Extras NO OFICIALES (no vienen con ConsoleEnhancer y la app funciona entera sin ellos). Solo si ya los tienes:',
     ' - nvngx_dlssnr.dll ("DLSS 5", filtro DLSSNR de Magpie): DLL de NVIDIA modificada por la comunidad, SIN FIRMA, sin licencia.',
     '   Lo facil: icono de la bandeja > "Anadir DLSS 5 (tu propio archivo)..." (o el boton del ultimo paso del asistente): elige tu',
@@ -165,38 +166,40 @@ Texto "$Destino\extras\LEEME.txt" @(
     'runtimes\dlssg_sm86 (community, self-signed). If you already have them, use tray icon > "Add DLSS 5 (your own file)..." (it checks the',
     'file and copies it here) or put them here by hand; used at your own risk. ConsoleEnhancer does',
     'not distribute, download or recommend them.')
-Texto "$Destino\LEEME.txt" @(
-    "ConsoleEnhancer $verTxt - tu consola por la capturadora, mejorada en el PC (cualquier consola, capturadora y grafica)",
+Texto "$Destino\README.txt" @(
+    "ConsoleEnhancer $verTxt - your console through a capture card, enhanced on your PC / tu consola por la capturadora, mejorada en el PC",
+    '',
+    'GETTING STARTED: open ConsoleEnhancer.exe. The first time it downloads mpv and Magpie (free programs the app uses) from their official',
+    'pages (about 670 MB, once; offline: put their zips in a downloads\ folder next to the exe). Then a wizard detects your capture device,',
+    'GPU and display, tests picture and sound and picks the best chain for your PC. Run it again from the tray menu, where you can also make',
+    'it start with Windows and choose what the PC does when the console is turned off.',
+    'SETTINGS AND UNINSTALL: "ConsoleEnhancer Settings.exe" (next to it): how the PC is used, start with Windows, what the PC does',
+    'when the console is turned off, DLSS 5 (your own file, in extras\), download mpv/Magpie again, logs and uninstall.',
+    'Unzip it into one of your own folders, not Program Files.',
+    "Help, issues and source code: $webTxt. Licenses: licenses\README.txt. No warranty (GPL-3.0).",
+    'ConsoleEnhancer is free and complete. If you find it useful and want to support it (optional): https://ko-fi.com/ianrog29',
+    '',
+    '--- ESPANOL ---',
     '',
     'EMPEZAR: abre ConsoleEnhancer.exe.',
     ' 1. La primera vez baja mpv y Magpie (programas libres que usa la app) de sus paginas oficiales: unos 670 MB, una sola vez.',
-    '    Sin internet: pon sus zip (los enlaces salen en esa ventana y en licencias\VERSIONES.txt) en una carpeta descargas\ aqui al lado.',
+    '    Sin internet: pon sus zip (los enlaces salen en esa ventana y en licenses\VERSIONS.txt) en una carpeta downloads\ aqui al lado.',
     ' 2. Luego sale el asistente: detecta la capturadora, la grafica y la pantalla, prueba la imagen y el sonido y elige la mejor cadena',
     '    (DLSS / FSR 1, generacion de fotogramas segun la grafica). Otra vez: menu de la bandeja > Asistente de configuracion.',
     ' 3. En el ultimo paso (o en el menu de la bandeja): abrirse al iniciar Windows y apagar el PC al apagar la consola (con un aviso de',
     '    15 s que se cancela con el mando, una tecla o el raton).',
-    'AJUSTES Y DESINSTALAR: "Ajustes de ConsoleEnhancer.exe" (aqui al lado): como se usa el PC, abrirse con Windows, que hace el PC',
+    'AJUSTES Y DESINSTALAR: "ConsoleEnhancer Settings.exe" (aqui al lado): como se usa el PC, abrirse con Windows, que hace el PC',
     '    al apagar la consola, DLSS 5 (tu propio archivo, en extras\), volver a bajar mpv/Magpie, registros y desinstalar.',
     'Descomprime en una carpeta tuya (Documentos, Escritorio, D:\Juegos...), no en Archivos de programa.',
-    'Datos: datos\ (con portable.txt) o %LOCALAPPDATA%\ConsoleEnhancer. Log: datos\logs\consoleenhancer.log y engine.log.',
+    'Datos: data\ (con portable.txt) o %LOCALAPPDATA%\ConsoleEnhancer. Log: data\logs\consoleenhancer.log y engine.log.',
     'Requisitos: Windows 10 2004 o posterior (64 bits), .NET Framework 4.8, grafica con Direct3D 12, una capturadora.',
     "Ayuda, problemas y codigo fuente: $webTxt",
-    'Licencias: licencias\LEEME.txt. Extras no oficiales: extras\LEEME.txt. Sin garantia (GPL-3.0).',
-    'ConsoleEnhancer es gratis y completo. Si te es util y quieres apoyarlo (opcional): https://ko-fi.com/ianrog29',
-    '',
-    'GETTING STARTED: open ConsoleEnhancer.exe. The first time it downloads mpv and Magpie (free programs the app uses) from their official',
-    'pages (about 670 MB, once; offline: put their zips in a descargas\ folder next to the exe). Then a wizard detects your capture device,',
-    'GPU and display, tests picture and sound and picks the best chain for your PC. Run it again from the tray menu, where you can also make',
-    'it start with Windows and choose what the PC does when the console is turned off.',
-    'SETTINGS AND UNINSTALL: "Ajustes de ConsoleEnhancer.exe" (next to it): how the PC is used, start with Windows, what the PC does',
-    'when the console is turned off, DLSS 5 (your own file, in extras\), download mpv/Magpie again, logs and uninstall.',
-    'Unzip it into one of your own folders, not Program Files.',
-    "Help, issues and source code: $webTxt. Licenses: licencias\LEEME.txt. No warranty (GPL-3.0).",
-    'ConsoleEnhancer is free and complete. If you find it useful and want to support it (optional): https://ko-fi.com/ianrog29')
+    'Licencias: licenses\README.txt. Extras no oficiales: extras\README.txt. Sin garantia (GPL-3.0).',
+    'ConsoleEnhancer es gratis y completo. Si te es util y quieres apoyarlo (opcional): https://ko-fi.com/ianrog29')
 
 # ---- comprobaciones ----
 $noVan = @('nvngx_dlssnr.dll', 'DLSSNR-DLL-Options.zip', 'NGX_OTA_Switch.bat', 'switch2.ini', 'consoleenhancer.ini', 'hardware.txt', 'mpv.exe', 'Magpie.exe', 'PrismaNr.dll', 'PrismaNrTest.exe')
-$malos = @(Get-ChildItem -LiteralPath $Destino -Recurse -File -Force | Where-Object { $_.Name -in $noVan -or $_.FullName -like '*dlssg_sm86*' -or $_.FullName -like '*\juegos\*' -or $_.FullName -like '*\datos\*' -or $_.FullName -like "$Destino\magpie\*" -or $_.Extension -in @('.log', '.pdb', '.obj', '.zip') })
+$malos = @(Get-ChildItem -LiteralPath $Destino -Recurse -File -Force | Where-Object { $_.Name -in $noVan -or $_.FullName -like '*dlssg_sm86*' -or $_.FullName -like '*\games\*' -or $_.FullName -like '*\data\*' -or $_.FullName -like "$Destino\magpie\*" -or $_.Extension -in @('.log', '.pdb', '.obj', '.zip') })
 if ($malos.Count -gt 0) { throw ("En el paquete hay lo que no debe: " + (($malos | ForEach-Object { $_.FullName }) -join ', ')) }
 # Solo DLL firmadas por NVIDIA (las nuestras son los exe)
 foreach ($f in Get-ChildItem -LiteralPath $Destino -Recurse -File | Where-Object { $_.Extension -eq '.dll' }) {
@@ -207,7 +210,7 @@ foreach ($f in Get-ChildItem -LiteralPath $Destino -Recurse -File | Where-Object
 $personal = @($env:USERNAME, $env:COMPUTERNAME, $env:USERPROFILE)
 if (Test-Path "$Raiz\scripts\privado.txt") { $personal += @(Get-Content -LiteralPath "$Raiz\scripts\privado.txt" -Encoding UTF8 | Where-Object { $_ -and -not $_.StartsWith('#') } | ForEach-Object { $_.Trim() }) }
 $personal = @($personal | Where-Object { $_ -and $_.Length -ge 3 } | Select-Object -Unique)
-$mirar = @("$Destino\ConsoleEnhancer.exe", "$Destino\motor\ConsoleEnhancerEngine.exe") + @(Get-ChildItem -LiteralPath $Destino -Recurse -File | Where-Object { $_.Extension -in @('.txt', '.ini', '.lua', '.glsl', '.conf', '.config', '.md', '.json') -and $_.FullName -notlike "$lic\streamline\*" } | ForEach-Object { $_.FullName })
+$mirar = @("$Destino\ConsoleEnhancer.exe", "$Destino\engine\ConsoleEnhancerEngine.exe") + @(Get-ChildItem -LiteralPath $Destino -Recurse -File | Where-Object { $_.Extension -in @('.txt', '.ini', '.lua', '.glsl', '.conf', '.config', '.md', '.json') -and $_.FullName -notlike "$lic\streamline\*" } | ForEach-Object { $_.FullName })
 $avisos = 0
 foreach ($e in $mirar) {
     $b = [IO.File]::ReadAllBytes($e)

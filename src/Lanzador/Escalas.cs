@@ -11,7 +11,7 @@
 //     subiendo con histeresis, y lo recuerda (src\Motor\Engine\EngineAdapta.cs; aqui solo los argumentos adapta=1 adapta_clave=...).
 //  3) EN MARCHA, mpv + Magpie (no cambia en caliente): con DLSS 5 por Magpie, si Magpie recibe menos imagenes reales de las que da mpv
 //     15 s seguidos, la escala de ese modo baja 10 puntos para la proxima apertura (y al 25 %, una pasada menos); tras 10 min sin
-//     perder nada sube 5 (si no se sabe ya que mas no cabe). Se guarda en datos\escalas_magpie.txt por grafica + driver y se aplica
+//     perder nada sube 5 (si no se sabe ya que mas no cabe). Se guarda en data\scales_magpie.txt por grafica + driver y se aplica
 //     al arrancar (Config.Dlss5PctTable).
 // Claves: escalas_adaptables=1 (0 = lo del ini fijo, como Prisma), escalas_modelo_max=auto|pedido|L|M|K|E (hasta donde puede subir el
 // motor el modelo de DLSS SR; auto lo escribe el plan: L con modelos transformer, E sin ellos).
@@ -107,8 +107,8 @@ namespace ConsoleEnhancer
             sb.AppendLine("# ===== Escalas estimadas para " + g.Nombre + " (indice " + g.Indice.ToString("0.##", CultureInfo.InvariantCulture) +
                           (g.IndiceEstimado ? ", estimado por la familia" : "") + "; salida " + p.OutW + "x" + p.OutH + ") =====");
             sb.AppendLine("# Punto de partida: lo medido en una RTX 4060 Ti (indice 1,2) a 4K escalado por la grafica, con margen. Con escalas_adaptables=1");
-            sb.AppendLine("# el motor las ajusta solo en marcha (datos\\escalas_motor.txt) y con Magpie se corrigen de una vez a la siguiente");
-            sb.AppendLine("# (datos\\escalas_magpie.txt). Puedes fijarlas aqui; borrar esos ficheros = volver a empezar por estas.");
+            sb.AppendLine("# el motor las ajusta solo en marcha (data\\scales_engine.txt) y con Magpie se corrigen de una vez a la siguiente");
+            sb.AppendLine("# (data\\scales_magpie.txt). Puedes fijarlas aqui; borrar esos ficheros = volver a empezar por estas.");
             foreach (string[] e in RefDlss5)
             {
                 string[] f = e[1].Split(',');
@@ -158,12 +158,12 @@ namespace ConsoleEnhancer
             a.Add("adapta=1");
             string g = GpuClave;
             if (g.Length > 0) a.Add("adapta_clave=" + g);
-            a.Add("adapta_fichero=" + Path.Combine(Paths.Datos, "escalas_motor.txt"));
+            a.Add("adapta_fichero=" + Path.Combine(Paths.Datos, "scales_engine.txt"));
             string t = cfg.CeModeloMax;
             if (t == "L" || t == "M" || t == "K" || t == "E") a.Add("adapta_techo=" + t);
         }
 
-        // Grafica + driver (la primera parte de la huella de datos\hardware.txt: VID:DID:driver)
+        // Grafica + driver (la primera parte de la huella de data\hardware.txt: VID:DID:driver)
         static string gpuClave;
         public static string GpuClave
         {
@@ -187,7 +187,7 @@ namespace ConsoleEnhancer
         // ------------------------------------------------------------------ camino de Magpie: lo aprendido
         sealed class FilaMagpie { public int Pct = -2, NoPct; public double MinBien; public string Fecha = ""; }
         static Dictionary<string, FilaMagpie> tabla;
-        static string Fichero { get { return Path.Combine(Paths.Datos, "escalas_magpie.txt"); } }
+        static string Fichero { get { return Path.Combine(Paths.Datos, "scales_magpie.txt"); } }
 
         static void Cargar()
         {

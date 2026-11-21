@@ -26,7 +26,7 @@ jobs:
           $todos = @(git ls-files)
           # (git ls-files --eol: "i/-text" = contenido binario en el indice)
           $bin = @(git ls-files --eol | Where-Object { $_ -match '^i/-text' } | ForEach-Object { ($_ -split "`t", 2)[1] })
-          $permitidos = @('recursos/prisma.ico', 'recursos/prisma_512.png')
+          $permitidos = @('resources/prisma.ico', 'resources/prisma_512.png')
           $bin = $bin | Where-Object { $permitidos -notcontains $_ }
           if ($bin) { 'Binarios en el repositorio (solo se permiten los iconos propios):'; $bin; exit 1 }
           $malos = $todos | Where-Object { $_ -match '(?i)(nvngx_|dlssg_sm86|DLSSNR-DLL|NGX_OTA|PrismaNr|\.(exe|dll|pdb|obj|lib|zip|7z|log)$|\.antes-|(^|/)(terceros|datos|juegos|logs|extras|bin|dist|obj)/|consoleenhancer\.ini$|switch2\.ini$|privado\.txt$)' }
@@ -35,7 +35,7 @@ jobs:
           # git grep devuelve 1 cuando NO encuentra nada (lo normal aqui): no debe contar como fallo del paso
           $LASTEXITCODE = 0
           if ($personal) { 'Posibles datos personales (rutas de usuario o correos):'; $personal; exit 1 }
-          Get-Content scripts/componentes.json -Raw | ConvertFrom-Json | Out-Null
+          Get-Content scripts/components.json -Raw | ConvertFrom-Json | Out-Null
           'Repositorio limpio'
           # pwsh en Actions sale con el ultimo $LASTEXITCODE: forzar 0 si todas las comprobaciones pasaron
           exit 0
@@ -63,7 +63,7 @@ jobs:
           name: ConsoleEnhancer-bin
           path: |
             bin/ConsoleEnhancer.exe
-            bin/motor/ConsoleEnhancerEngine.exe
+            bin/engine/ConsoleEnhancerEngine.exe
             deteccion.txt
 
   release:
@@ -79,7 +79,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: terceros/_descargas
-          key: terceros-${{ hashFiles('scripts/componentes.json') }}
+          key: terceros-${{ hashFiles('scripts/components.json') }}
 
       - name: NVIDIA Streamline (de su release oficial, con su SHA-256)
         shell: pwsh
@@ -113,7 +113,7 @@ jobs:
           $notas.Add('')
           $notas.Add('SHA-256: `' + ((Get-Content "dist/ConsoleEnhancer-$tag.zip.sha256" -Raw).Split(' ')[0]) + '`')
           $notas.Add('')
-          $notas.Add('License GPL-3.0 (+ LICENSE-EXCEPTION.txt). Includes unmodified NVIDIA Streamline / DLSS / Reflex (licencias\). Does not include "DLSS 5" or anything unofficial. / Licencia GPL-3.0 (+ LICENSE-EXCEPTION.txt). Incluye NVIDIA Streamline / DLSS / Reflex sin cambios (licencias\). No incluye "DLSS 5" ni nada no oficial.')
+          $notas.Add('License GPL-3.0 (+ LICENSE-EXCEPTION.txt). Includes unmodified NVIDIA Streamline / DLSS / Reflex (licenses\). Does not include "DLSS 5" or anything unofficial. / Licencia GPL-3.0 (+ LICENSE-EXCEPTION.txt). Incluye NVIDIA Streamline / DLSS / Reflex sin cambios (licenses\). No incluye "DLSS 5" ni nada no oficial.')
           Set-Content -LiteralPath notas.md -Value $notas -Encoding UTF8
 
       - name: Crear la Release

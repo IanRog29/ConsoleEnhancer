@@ -9,7 +9,7 @@
 //  - Sin Updater.exe en la copia (el fork tiene la busqueda de actualizaciones quitada al compilar: no lo usa nunca)
 //  - Sin el icono de Magpie en la bandeja (MagpieOculto): Magpie tiene que llevarlo para arrancar sin su ventana (-t), asi que se le
 //    quita desde fuera en cuanto lo pone (y si el explorador se reinicia y lo vuelve a poner)
-//  - mpv\mpv.exe y motor\Switch2Engine.exe dentro de la app si existen (usar_carpetas_app=1), con las rutas del ini de respaldo
+//  - mpv\mpv.exe y engine\Switch2Engine.exe dentro de la app si existen (usar_carpetas_app=1), con las rutas del ini de respaldo
 //  - Sin nvngx_dlssnr.dll (un paquete para repartir no la lleva: es una DLL de NVIDIA modificada, sin firma): DLSS 5 no disponible y la
 //    app va sin el (con motor=propio, el motor propio), en vez de pedirle a Magpie un filtro que no puede cargar
 using System;
@@ -45,7 +45,7 @@ namespace ConsoleEnhancer
             return AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\');
         }
 
-        // Los datos (ini, log, juegos\, calibracion): <app>\datos si esta portable.txt y se puede escribir ahi; si no,
+        // Los datos (ini, log, games\, calibracion): <app>\datos si esta portable.txt y se puede escribir ahi; si no,
         // %LOCALAPPDATA%\ConsoleEnhancer. Pruebas: --datos=<carpeta> (lo mira Program.Main antes de tocar Paths)
         public static string FindDataDir(string appDir)
         {
@@ -56,7 +56,8 @@ namespace ConsoleEnhancer
                     if (a.StartsWith("--datos=", StringComparison.OrdinalIgnoreCase)) d = Path.GetFullPath(a.Substring(8));
                 if (d == null && File.Exists(Path.Combine(appDir, "portable.txt")))
                 {
-                    string p = Path.Combine(appDir, "datos");
+                    MoverViejo(appDir, "datos", "data");   // (1.2.06: carpetas en ingles; ver NombresIngles)
+                    string p = Path.Combine(appDir, "data");
                     Directory.CreateDirectory(p);
                     string probe = Path.Combine(p, ".escribir");
                     File.WriteAllText(probe, "");
@@ -66,17 +67,69 @@ namespace ConsoleEnhancer
             }
             catch { d = null; }
             if (d == null) d = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ConsoleEnhancer");
-            try { Directory.CreateDirectory(Path.Combine(d, "juegos")); Directory.CreateDirectory(Path.Combine(d, "logs")); } catch { }
+            MoverViejo(appDir, "descargas", "downloads");
+            NombresIngles(d);
+            try { Directory.CreateDirectory(Path.Combine(d, "games")); Directory.CreateDirectory(Path.Combine(d, "logs")); } catch { }
             HeredarDatos(d, appDir);
             return d.TrimEnd('\\');
         }
 
+        // 21-11 (1.2.06, el usuario: "los archivos haz que esten en ingles"): las carpetas y ficheros de datos tenian nombres en espanol
+        // (datos\, juegos\, captura.txt...). Los de una version anterior se renombran al abrir la app (si el nuevo aun no existe) y al
+        // heredar datos de otra version se copian ya con el nombre nuevo
+        static readonly string[] Viejos = {
+            "consola.txt", "console.txt", "perfiles.txt", "profiles.txt", "generacion_tipo.txt", "framegen_type.txt", "iconos_juegos.txt", "game_icons.txt",
+            "ultimo_juego.txt", "last_game.txt", "imagen_restaurar.txt", "picture_restore.txt", "generacion.txt", "framegen.txt",
+            "escalas_motor.txt", "scales_engine.txt", "escalas_magpie.txt", "scales_magpie.txt", "vrr_visto.txt", "vrr_seen.txt", "modo.txt", "mode.txt",
+            "escritorio_normal.txt", "desktop_normal.txt", "dlss5_activo.txt", "dlss5_on.txt", "despertar_armado.txt", "wake_armed.txt", "banco.txt", "bench.txt",
+            "tramado_fuerte.txt", "strong_dither.txt", "textos_home.txt", "home_texts.txt", "portadas_consola.txt", "console_covers.txt",
+            "iconos_consola.txt", "console_icons.txt", "heredado.txt", "inherited.txt", "espera_plan.txt", "standby_plan.txt",
+            "escuchar_apagado.txt", "poweroff_listen.txt", "escritorio_estado.txt", "desktop_state.txt", "dlss_modelo_elegido.txt", "dlss_model_choice.txt",
+            "dlss5_pasadas.txt", "dlss5_passes.txt", "dlss5_nivel.txt", "dlss5_level.txt", "juego_pendiente.txt", "pending_game.txt",
+            "huellas_consola.txt", "console_fingerprints.txt", "captura.txt", "capture.txt" };
+
+        public static string NombreIngles(string n)
+        {
+            for (int i = 0; i < Viejos.Length; i += 2) if (n.Equals(Viejos[i], StringComparison.OrdinalIgnoreCase)) return Viejos[i + 1];
+            return n;
+        }
+
+        static void MoverViejo(string dir, string viejo, string nuevo)
+        {
+            try
+            {
+                string a = Path.Combine(dir, viejo), b = Path.Combine(dir, nuevo);
+                if (Directory.Exists(a) && !Directory.Exists(b)) Directory.Move(a, b);
+            }
+            catch { }
+        }
+
+        static void NombresIngles(string d)
+        {
+            try
+            {
+                MoverViejo(d, "juegos", "games");
+                foreach (string dir in new[] { d, Path.Combine(d, "games") })
+                {
+                    if (!Directory.Exists(dir)) continue;
+                    foreach (string f in Directory.GetFiles(dir))
+                    {
+                        string n = Path.GetFileName(f), m = NombreIngles(n);
+                        if (m == n) continue;
+                        string dst = Path.Combine(dir, m);
+                        try { if (!File.Exists(dst)) File.Move(f, dst); } catch { }
+                    }
+                }
+            }
+            catch { }
+        }
+
         // 21-11 (1.0.7, el usuario: "en ConsoleEnhancer no se guardan perfiles por juego"): con portable.txt cada version se descomprime
-        // en su carpeta (Downloads\ConsoleEnhancer-v1.0.6...) y empezaba sin nada: ni el ini (asistente otra vez), ni juegos\perfiles.txt,
-        // ni juegos\consola.txt (sin el, consola generica: un solo perfil "Consola" hasta ver el menu de la PS5). Si los datos de ahora no
+        // en su carpeta (Downloads\ConsoleEnhancer-v1.0.6...) y empezaba sin nada: ni el ini (asistente otra vez), ni games\profiles.txt,
+        // ni games\console.txt (sin el, consola generica: un solo perfil "Consola" hasta ver el menu de la PS5). Si los datos de ahora no
         // tienen ini, se copian los de la version anterior: de cada fichero, el mas nuevo de las carpetas ConsoleEnhancer* de al lado y de
-        // %LOCALAPPDATA%\ConsoleEnhancer (los de datos\ y datos\juegos\; no logs ni cache). Se apunta en datos\heredado.txt
-        public const string HeredadoTxt = "heredado.txt";
+        // %LOCALAPPDATA%\ConsoleEnhancer (los de data\ y data\games\; no logs ni cache). Se apunta en data\inherited.txt
+        public const string HeredadoTxt = "inherited.txt";
         static void HeredarDatos(string d, string appDir)
         {
             try
@@ -88,8 +141,9 @@ namespace ConsoleEnhancer
                 string padre = Path.GetDirectoryName(appDir.TrimEnd('\\'));
                 if (!string.IsNullOrEmpty(padre) && Directory.Exists(padre))
                     foreach (string dir in Directory.GetDirectories(padre, "ConsoleEnhancer*"))
-                        if (!string.Equals(dir.TrimEnd('\\'), appDir.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase) && File.Exists(Path.Combine(dir, @"datos\consoleenhancer.ini")))
-                            fuentes.Add(Path.Combine(dir, "datos"));
+                        if (!string.Equals(dir.TrimEnd('\\'), appDir.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase))
+                            foreach (string sd in new[] { "data", "datos" })   // (1.2.06: hasta la 1.2.05, datos\)
+                                if (File.Exists(Path.Combine(dir, sd + @"\consoleenhancer.ini"))) { fuentes.Add(Path.Combine(dir, sd)); break; }
                 if (fuentes.Count == 0) fuentes.Add(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ConsoleEnhancer"));
                 string yo = Path.GetFullPath(d).TrimEnd('\\');
                 Dictionary<string, string> mejor = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -97,7 +151,7 @@ namespace ConsoleEnhancer
                 {
                     if (string.Equals(Path.GetFullPath(f).TrimEnd('\\'), yo, StringComparison.OrdinalIgnoreCase)) continue;
                     if (!File.Exists(Path.Combine(f, "consoleenhancer.ini"))) continue;
-                    foreach (string sub in new[] { "", "juegos" })
+                    foreach (string sub in new[] { "", "games", "juegos" })
                     {
                         string dir = sub.Length == 0 ? f : Path.Combine(f, sub);
                         if (!Directory.Exists(dir)) continue;
@@ -106,9 +160,10 @@ namespace ConsoleEnhancer
                             string n = Path.GetFileName(a);
                             if (n.StartsWith(".") || n.EndsWith(".log", StringComparison.OrdinalIgnoreCase) || n.Equals(HeredadoTxt, StringComparison.OrdinalIgnoreCase)) continue;
                             // (lo elegido con L3 en versiones de antes era Smooth Motion de serie en RTX 40: desde la 1.0.7, DLSS FG del plan)
-                            if (n.Equals("generacion_tipo.txt", StringComparison.OrdinalIgnoreCase)) continue;
                             if (n.IndexOf(".antes-", StringComparison.OrdinalIgnoreCase) >= 0 || n.EndsWith(".anterior", StringComparison.OrdinalIgnoreCase)) continue;   // (copias)
-                            string k = sub.Length == 0 ? n : sub + "\\" + n;
+                            n = NombreIngles(n);   // (1.2.06: los nombres de antes, en espanol, con el de ahora)
+                            if (n.Equals("framegen_type.txt", StringComparison.OrdinalIgnoreCase) || n.Equals(HeredadoTxt, StringComparison.OrdinalIgnoreCase)) continue;
+                            string k = sub.Length == 0 ? n : "games\\" + n;
                             string ya;
                             if (!mejor.TryGetValue(k, out ya) || File.GetLastWriteTimeUtc(a) > File.GetLastWriteTimeUtc(ya)) mejor[k] = a;
                         }
@@ -142,7 +197,8 @@ namespace ConsoleEnhancer
                 }
                 if (cso > 0) sb.AppendLine("logs\\cache: " + cso + " shaders compilados <- " + cache);
                 string appDe = Path.GetDirectoryName(de.TrimEnd('\\'));
-                if (Path.GetFileName(de.TrimEnd('\\')).Equals("datos", StringComparison.OrdinalIgnoreCase))
+                string deNombre = Path.GetFileName(de.TrimEnd('\\'));
+                if (deNombre.Equals("data", StringComparison.OrdinalIgnoreCase) || deNombre.Equals("datos", StringComparison.OrdinalIgnoreCase))
                     foreach (string comp in new[] { "mpv", "magpie" })
                     {
                         string src = Path.Combine(appDe, comp), dst = Path.Combine(appDir, comp);
@@ -170,7 +226,7 @@ namespace ConsoleEnhancer
 
         // ---- Rutas de mpv y del motor (al leer el ini: Config.Load) ----
         public static string AppMpv { get { return Path.Combine(Paths.AppDir, @"mpv\mpv.exe"); } }
-        public static string AppEngine { get { return Path.Combine(Paths.AppDir, @"motor\ConsoleEnhancerEngine.exe"); } }
+        public static string AppEngine { get { return Path.Combine(Paths.AppDir, @"engine\ConsoleEnhancerEngine.exe"); } }
 
         // magpie_actualizar (Config.MagpieUpdate): 0 nunca mira el origen, 1 coge del origen solo lo que sea mas nuevo, 2 lo deja igual que el origen
         public static volatile int MagpieUpdate = 1;

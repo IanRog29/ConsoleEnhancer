@@ -2,12 +2,12 @@
 # GitHub, comprobando el SHA-256) y los deja donde los buscan build.bat, build_motor.bat y empaquetar.ps1:
 #
 #   terceros\mpv\          mpv (mpv-player/mpv, build oficial x86_64-w64-mingw32 "full": FFmpeg con dshow dentro) + su
-#                          portable_config\mpv.conf (recursos\mpv.conf: asi el mpv.conf del usuario, si tiene, no cambia nada)
+#                          portable_config\mpv.conf (resources\mpv.conf: asi el mpv.conf del usuario, si tiene, no cambia nada)
 #   terceros\magpie\       Magpie Experimental (fork SAOG0721/Magpie, GPL-3.0). SIN nvngx_dlssnr.dll ni runtimes\dlssg_sm86
 #                          (vienen en su zip pero no son oficiales: DLL de NVIDIA modificada y runtime autofirmado; ver extras\)
 #   terceros\streamline\   NVIDIA Streamline SDK (NVIDIA-RTX/Streamline): solo bin\x64\ (las DLL de produccion) y las licencias
 #
-# Versiones, URL, SHA-256 y que se coge de cada zip: scripts\componentes.json (la misma tabla que usa la app para bajar mpv y Magpie
+# Versiones, URL, SHA-256 y que se coge de cada zip: scripts\components.json (la misma tabla que usa la app para bajar mpv y Magpie
 # la primera vez que se abre). Las descargas se guardan en terceros\_descargas (si ya estan y el hash cuadra, no se bajan otra vez).
 # Nada de esto va al repositorio (.gitignore). Solo PowerShell 5.1 de Windows, nada que instalar.
 #
@@ -32,8 +32,8 @@ if (-not $Destino) { $Destino = Join-Path $Raiz 'terceros' }
 if (-not $Cache) { $Cache = Join-Path $Destino '_descargas' }
 New-Item -ItemType Directory -Force $Destino, $Cache | Out-Null
 
-# ---- la tabla (scripts\componentes.json) ----
-$tabla = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'componentes.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+# ---- la tabla (scripts\components.json) ----
+$tabla = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'components.json') -Raw -Encoding UTF8 | ConvertFrom-Json
 $deps = [ordered]@{}
 foreach ($c in $tabla.componentes) { $deps[$c.nombre] = $c }
 
@@ -106,7 +106,7 @@ function Preparar([string]$nombre) {
     $n = Sacar $d $zip $dir
     if (-not (Test-Path (Join-Path $dir $d.comprobar.Replace('/', '\')))) { throw "$($nombre): no esta $($d.comprobar) en el zip" }
     if ($nombre -eq 'mpv') {
-        $conf = Join-Path $Raiz 'recursos\mpv.conf'
+        $conf = Join-Path $Raiz 'resources\mpv.conf'
         if (Test-Path $conf) { New-Item -ItemType Directory -Force "$dir\portable_config" | Out-Null; Copy-Item -LiteralPath $conf "$dir\portable_config\mpv.conf" -Force; $n++ }
     }
     if ($nombre -eq 'streamline') {
@@ -138,5 +138,5 @@ foreach ($k in $deps.Keys) {
     $txt += "  licencia: $($d.licencia)"
     $txt += "  codigo fuente: $($d.fuente)"
 }
-Set-Content -LiteralPath (Join-Path $Destino 'VERSIONES.txt') -Value $txt -Encoding UTF8
+Set-Content -LiteralPath (Join-Path $Destino 'VERSIONS.txt') -Value $txt -Encoding UTF8
 Write-Host ("Hecho en {0:N0} s. Ahora: build.bat, build_motor.bat y scripts\empaquetar.ps1 (o todo junto: preparar.bat)" -f $sw.Elapsed.TotalSeconds)

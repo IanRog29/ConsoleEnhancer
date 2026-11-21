@@ -3,7 +3,7 @@
 ConsoleEnhancer se distribuye bajo la **GPL-3.0** (`LICENSE`) con un **permiso adicional de la sección 7** para poder usarlo y
 repartirlo con las librerías oficiales de NVIDIA, AMD, Intel y Microsoft (`LICENSE-EXCEPTION.txt`). Este fichero recoge todo lo que
 **no** es código propio: lo que va en el zip de la release, lo que la app baja la primera vez y el código de terceros que hay dentro
-del repositorio. En el zip, las licencias completas van en `licencias\`.
+del repositorio. En el zip, las licencias completas van en `licenses\`.
 
 > **English summary.** The repository contains ConsoleEnhancer's own source (GPL-3.0 + a section 7 linking permission), a few
 > permissively licensed shader ports (AMD FidelityFX FSR 1 / CAS, MIT; NVIDIA FXAA 3.11, BSD-3-Clause) and one shader adapted from
@@ -16,15 +16,15 @@ del repositorio. En el zip, las licencias completas van en `licencias\`.
 
 | Componente | Versión y origen | Licencia | ¿Se puede repartir? |
 |---|---|---|---|
-| **ConsoleEnhancer** (`ConsoleEnhancer.exe`, `motor\ConsoleEnhancerEngine.exe`, `scripts\`, `recursos\`, `idiomas\`) | este repositorio | GPL-3.0 + `LICENSE-EXCEPTION.txt` | Sí. El código fuente de cada versión está en GitHub, junto a su release |
-| **NVIDIA Streamline** (`motor\sl.interposer.dll`, `sl.common.dll`, `sl.dlss.dll`, `sl.dlss_g.dll`, `sl.reflex.dll`, `sl.pcl.dll`) | v2.14.16, DLL de producción firmadas por NVIDIA, de `streamline-sdk-v2.14.16.zip` (https://github.com/NVIDIA-RTX/Streamline/releases) | MIT (`licencias\streamline\license.txt`, `3rd-party-licenses.md`) | Sí (MIT) |
-| **NVIDIA DLSS Super Resolution / Frame Generation** (`motor\nvngx_dlss.dll`, `motor\nvngx_dlssg.dll`) | Las del mismo SDK de Streamline 2.14.16, sin cambios | NVIDIA RTX SDKs License (`licencias\streamline\nvngx_dlss.license.txt`) | Sí, en código objeto y como parte de una aplicación con funciones propias (punto 1.c y 2 de su licencia), con condiciones al menos igual de protectoras para NVIDIA: `licencias\NVIDIA-AVISO.txt` |
-| **NVIDIA Reflex** (dentro de `sl.reflex.dll`, `sl.pcl.dll`) | Streamline 2.14.16 | Licencia de los SDK de NVIDIA (`licencias\streamline\reflex.license.txt`) | Sí, como parte de la aplicación (1.2 de su licencia) |
+| **ConsoleEnhancer** (`ConsoleEnhancer.exe`, `engine\ConsoleEnhancerEngine.exe`, `scripts\`, `resources\`, `languages\`) | este repositorio | GPL-3.0 + `LICENSE-EXCEPTION.txt` | Sí. El código fuente de cada versión está en GitHub, junto a su release |
+| **NVIDIA Streamline** (`engine\sl.interposer.dll`, `sl.common.dll`, `sl.dlss.dll`, `sl.dlss_g.dll`, `sl.reflex.dll`, `sl.pcl.dll`) | v2.14.16, DLL de producción firmadas por NVIDIA, de `streamline-sdk-v2.14.16.zip` (https://github.com/NVIDIA-RTX/Streamline/releases) | MIT (`licenses\streamline\license.txt`, `3rd-party-licenses.md`) | Sí (MIT) |
+| **NVIDIA DLSS Super Resolution / Frame Generation** (`engine\nvngx_dlss.dll`, `engine\nvngx_dlssg.dll`) | Las del mismo SDK de Streamline 2.14.16, sin cambios | NVIDIA RTX SDKs License (`licenses\streamline\nvngx_dlss.license.txt`) | Sí, en código objeto y como parte de una aplicación con funciones propias (punto 1.c y 2 de su licencia), con condiciones al menos igual de protectoras para NVIDIA: `licenses\NVIDIA-NOTICE.txt` |
+| **NVIDIA Reflex** (dentro de `sl.reflex.dll`, `sl.pcl.dll`) | Streamline 2.14.16 | Licencia de los SDK de NVIDIA (`licenses\streamline\reflex.license.txt`) | Sí, como parte de la aplicación (1.2 de su licencia) |
 
 Lo que pide NVIDIA y cómo se cumple:
 
-- *Distribuir con condiciones al menos igual de protectoras* (RTX SDKs 2.c, Reflex 1.2.v): `licencias\NVIDIA-AVISO.txt` (es / en),
-  sus licencias completas en `licencias\streamline\` y el permiso de `LICENSE-EXCEPTION.txt`, que deja claro que esas DLL no pasan a
+- *Distribuir con condiciones al menos igual de protectoras* (RTX SDKs 2.c, Reflex 1.2.v): `licenses\NVIDIA-NOTICE.txt` (es / en),
+  sus licencias completas en `licenses\streamline\` y el permiso de `LICENSE-EXCEPTION.txt`, que deja claro que esas DLL no pasan a
   ser GPL (RTX SDKs 4.e: el SDK no puede quedar sujeto a una licencia de código abierto).
 - *Nombrar DLSS en el "acerca de"* (suplemento, 7.1.b): menú de la bandeja > **Acerca de y licencias**, este fichero y el README. Solo
   texto: ningún logotipo de NVIDIA.
@@ -38,7 +38,7 @@ Lo que pide NVIDIA y cómo se cumple:
 ## 2. Lo que la app baja la primera vez (no va en el zip)
 
 ConsoleEnhancer **no reparte** mpv ni Magpie. La primera vez que se abre, con permiso del usuario, los baja de sus releases oficiales
-de GitHub a la carpeta de la app y comprueba su SHA-256 (`scripts\componentes.json`, `src\Lanzador\Componentes.cs`). Así:
+de GitHub a la carpeta de la app y comprueba su SHA-256 (`scripts\components.json`, `src\Lanzador\Componentes.cs`). Así:
 
 - no hace falta repartir el código fuente de mpv y de todas las librerías GPL que lleva su build (FFmpeg, libplacebo...): el usuario lo
   recibe de quien lo reparte, con su oferta de código fuente;
@@ -51,7 +51,7 @@ de GitHub a la carpeta de la app y comprueba su SHA-256 (`scripts\componentes.js
 | **Magpie Experimental** (`magpie\`) | v0.6.12-experimental (commit `716cc62`), `Magpie-Experimental-x64.zip` de https://github.com/SAOG0721/Magpie/releases | GPL-3.0 (`magpie\LICENSE-Magpie.txt`) y las de sus componentes (`magpie\THIRD-PARTY-NOTICES.md`: OptiScaler GPL-3.0, AMD FidelityFX, Intel XeSS, NVIDIA DLSS / RTX Video / VFX / NVAPI, MinHook, WinUI) | https://github.com/SAOG0721/Magpie/tree/v0.6.12-experimental |
 
 Del zip de Magpie la app **no saca** `nvngx_dlssnr.dll`, `DLSSNR-DLL-Options.zip`, `NGX_OTA_Switch.bat`, `runtimes\dlssg_sm86` ni
-`Updater.exe`. Sin internet, valen los mismos zip puestos a mano en `<app>\descargas\` (se comprueba igual su SHA-256).
+`Updater.exe`. Sin internet, valen los mismos zip puestos a mano en `<app>\downloads\` (se comprueba igual su SHA-256).
 
 Para desarrollar, `scripts\descargar_dependencias.ps1` baja lo mismo (y Streamline) a `terceros\`, que no va a git.
 
@@ -73,7 +73,7 @@ Para desarrollar, `scripts\descargar_dependencias.ps1` baja lo mismo (y Streamli
 |---|---|---|
 | `src\Motor\Engine\Shaders.cs` (`Easu`, `Rcas` dentro de `Cas`) | Port a HLSL de `FsrEasuF` y `FsrRcasF` de `ffx_fsr1.h` (AMD FidelityFX Super Resolution 1, https://github.com/GPUOpen-Effects/FidelityFX-FSR) | MIT, Copyright (c) 2021 Advanced Micro Devices, Inc. (texto abajo y en el fichero) |
 | `src\Motor\Engine\Shaders.cs` (`Cas`) | AMD FidelityFX Contrast Adaptive Sharpening (`ffx_cas.h`, https://github.com/GPUOpen-Effects/FidelityFX-CAS) | MIT, Copyright (c) 2020 Advanced Micro Devices, Inc. |
-| `scripts\s2_aa.glsl`, `scripts\s2_aa_fuerte.glsl`, `src\Motor\Engine\Shaders.cs` (`Aa`) | Suavizado de bordes que sigue NVIDIA FXAA 3.11 (Timothy Lottes), reescrito para mpv y en HLSL; el quitar el tramado es propio | BSD-3-Clause, Copyright (c) 2014-2015 NVIDIA Corporation (https://github.com/NVIDIAGameWorks/GraphicsSamples; texto abajo y en cada fichero) |
+| `scripts\s2_aa.glsl`, `scripts\s2_aa_strong.glsl`, `src\Motor\Engine\Shaders.cs` (`Aa`) | Suavizado de bordes que sigue NVIDIA FXAA 3.11 (Timothy Lottes), reescrito para mpv y en HLSL; el quitar el tramado es propio | BSD-3-Clause, Copyright (c) 2014-2015 NVIDIA Corporation (https://github.com/NVIDIAGameWorks/GraphicsSamples; texto abajo y en cada fichero) |
 | `src\Motor\Engine\EngineDlss5.cs` (`NrAntiFlickerShader`) | Filtro temporal adaptado de `src/Magpie.Core/DLSSNRTemporalShader.h` de Magpie Experimental v0.6.12 (https://github.com/SAOG0721/Magpie) | GPL-3.0, (c) los autores de Magpie. Sin el permiso adicional de `LICENSE-EXCEPTION.txt` (solo lo pueden dar sus autores). Solo se usa con la DLL no oficial de DLSS 5 |
 | `src\Deteccion\NvApi.cs`, `src\Lanzador\Switch2Magpie.cs` (`NvProfiles`), `src\Motor\Engine\NvDrs.cs` | Identificadores de funciones y ajustes de NVAPI (`nvapi_interface.h`, `NvApiDriverSettings.h`) para llamar al driver | NVIDIA NVAPI SDK, MIT (https://github.com/NVIDIA/nvapi) |
 | `src\Motor\Native\*.cs`, `src\Deteccion\DirectShow.cs` | Declaraciones de interop de Direct3D 12, DXGI, D3DCompiler, DirectShow y Streamline escritas a partir de sus cabeceras públicas | Direct3D: https://github.com/microsoft/DirectX-Headers (MIT); Streamline: MIT |

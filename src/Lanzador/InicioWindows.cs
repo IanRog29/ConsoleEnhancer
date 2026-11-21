@@ -92,7 +92,7 @@ namespace ConsoleEnhancer
         {
             { int su = CeSuspension.Argumento(arg); if (su != int.MinValue) return su; } // (1.0.14: src\Suspension.cs)
             if (arg == "--ajustes") return PanelAjustes.Run();
-            if (arg.StartsWith("--ajustes-preview=")) return PanelAjustes.Preview(arg.Substring(18));   // (1.2.0: "Ajustes de ConsoleEnhancer.exe", src\Lanzador\Panel.cs)
+            if (arg.StartsWith("--ajustes-preview=")) return PanelAjustes.Preview(arg.Substring(18));   // (1.2.0: "ConsoleEnhancer Settings.exe", src\Lanzador\Panel.cs)
             if (arg == "--inicio") return Lanzar(args);
             if (arg.StartsWith("--iniciar-con-windows="))
             {

@@ -1,4 +1,4 @@
-// Ajustes.cs - "Ajustes de ConsoleEnhancer.exe" (1.2.0): abre el panel de ajustes de la app (ConsoleEnhancer.exe --ajustes, junto a
+// Ajustes.cs - "ConsoleEnhancer Settings.exe" (1.2.0): abre el panel de ajustes de la app (ConsoleEnhancer.exe --ajustes, junto a
 // este exe): como se usa el PC, abrir con Windows, que hace el PC al apagar la consola, DLSS 5, componentes, registros y desinstalar.
 using System;
 using System.Diagnostics;

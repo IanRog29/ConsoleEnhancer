@@ -15,12 +15,7 @@ namespace ConsoleEnhancer.Deteccion
         {
             get
             {
-                if (ingles < 0)
-                {
-                    string l = "es";
-                    try { l = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName; } catch { }
-                    ingles = l == "es" ? 0 : 1;
-                }
+                if (ingles < 0) ingles = 1;   // (1.2.06) de serie en ingles; la app pone el elegido (Idioma.Poner)
                 return ingles == 1;
             }
             set { ingles = value ? 1 : 0; }

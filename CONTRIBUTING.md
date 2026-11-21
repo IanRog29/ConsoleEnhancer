@@ -9,7 +9,7 @@ Usa la plantilla de **Issues > Nuevo > Fallo**. Lo más útil:
 
 - tu gráfica, pantalla (resolución y Hz), capturadora y consola;
 - qué esperabas y qué pasó, y si pasa siempre;
-- el log: `datos\logs\consoleenhancer.log` y `engine.log` (o en `%LOCALAPPDATA%\ConsoleEnhancer\logs`). **Revísalo antes** de subirlo:
+- el log: `data\logs\consoleenhancer.log` y `engine.log` (o en `%LOCALAPPDATA%\ConsoleEnhancer\logs`). **Revísalo antes** de subirlo:
   puede llevar nombres de tus carpetas o de tus juegos.
 
 No subas capturas de juegos con derechos de autor salvo que hagan falta para entender el fallo (y entonces, solo un recorte).
@@ -23,16 +23,16 @@ Doble clic en `preparar.bat` (baja las dependencias, compila y pasa las pruebas)
 - **C# 5** (el `csc.exe` de .NET Framework 4.8 que trae Windows): nada de interpolación `$"..."`, `?.`, `nameof`, `=>` en miembros,
   inicializadores de propiedades automáticas ni otras cosas de C# 6 o posterior. `build.bat` y `build_motor.bat` lo comprueban al
   compilar.
-- Sin dependencias nuevas que haya que instalar. Si hace falta un programa de terceros, se añade a `scripts\componentes.json`
+- Sin dependencias nuevas que haya que instalar. Si hace falta un programa de terceros, se añade a `scripts\components.json`
   (versión fija, release oficial y SHA-256) y se explica su licencia en `THIRD-PARTY.md`.
-- Comentarios y log en español; los textos de pantalla en español e inglés (`Tx.T("es", "en")` o `idiomas\en.txt`).
+- Comentarios y log en español; los textos de pantalla en español e inglés (`Tx.T("es", "en")` o `languages\en.txt`).
 - Antes de mandar un cambio: `preparar.bat sindescargar` sin errores (compila los dos exe y pasa `DeteccionTest --simula=todo`).
 
 ## Lo que no puede ir al repositorio
 
 El CI lo comprueba y rechaza el cambio si aparece:
 
-- **Binarios** (`.exe`, `.dll`, `.zip`...): solo el icono propio de `recursos\`. Los programas de terceros se bajan con
+- **Binarios** (`.exe`, `.dll`, `.zip`...): solo el icono propio de `resources\`. Los programas de terceros se bajan con
   `scripts\descargar_dependencias.ps1`.
 - **Nada no redistribuible**: `nvngx_dlssnr.dll` ("DLSS 5"), `runtimes\dlssg_sm86`, cabeceras o librerías de SDK propietarios (NGX
   del SDK de DLSS...), código que eluda mecanismos de autenticación o protección de terceros.

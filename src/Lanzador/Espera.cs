@@ -6,7 +6,7 @@
 // corriente (no puede ver que se enciende la consola) y muchos receptores de mandos (el del GameSir, por ejemplo) no saben despertar
 // el PC. Aqui el PC sigue encendido pero en reposo:
 //  - Pantalla apagada (SC_MONITORPOWER) y otra vez si alguien la enciende moviendo el raton sin hacer nada mas.
-//  - La sonda: mpv sin ventana ni GPU (--vo=null, sin sonido) a 1280x720 (la GC573 solo acepta 1280x720 a 59,94 de lo pequeno; ~7 % de un nucleo) con scripts\ce_espera.lua: 1 mirada por segundo; sale
+//  - La sonda: mpv sin ventana ni GPU (--vo=null, sin sonido) a 1280x720 (la GC573 solo acepta 1280x720 a 59,94 de lo pequeno; ~7 % de un nucleo) con scripts\ce_standby.lua: 1 mirada por segundo; sale
 //    con 55 cuando ve imagen (ni "No Signal" ni negro) dos veces seguidas. Prioridad baja y EcoQoS (Windows la lleva a los nucleos
 //    lentos y a poca frecuencia). Este proceso tambien con EcoQoS y prioridad baja. Si mpv se cierra por otra cosa, se relanza.
 //  - Mandos: PadHub (XInput, HID por USB y Bluetooth) cada 0,5 s: un mando nuevo (el receptor del GameSir aparece como mando al
@@ -101,10 +101,10 @@ namespace ConsoleEnhancer
         public static bool Entrar()
         {
             Leer();
-            string mpv = Path.Combine(Paths.AppDir, @"mpv\mpv.exe"), lua = Path.Combine(Paths.AppDir, @"scripts\ce_espera.lua");
+            string mpv = Path.Combine(Paths.AppDir, @"mpv\mpv.exe"), lua = Path.Combine(Paths.AppDir, @"scripts\ce_standby.lua");
             if (device.Length == 0 || !File.Exists(mpv) || !File.Exists(lua))
             {
-                Log.Write("Espera: sin capturadora, mpv o scripts\\ce_espera.lua: se suspende el PC");
+                Log.Write("Espera: sin capturadora, mpv o scripts\\ce_standby.lua: se suspende el PC");
                 return CeSuspension.SuspenderYVolver();
             }
             Log.Write("Consola apagada: el PC en espera (apagar_pc_modo=espera): pantalla apagada; la consola, un mando o una tecla lo encienden");
@@ -196,7 +196,7 @@ namespace ConsoleEnhancer
                     string lavf = (sondaFallos % 4 < 2 ? "video_size=1280x720" + (pixfmt.Length > 0 ? ",pixel_format=" + pixfmt : "") + "," : "") + "rtbufsize=16000000";
                     string args = "--no-config \"av://dshow:video=" + device + "\" --demuxer-lavf-o=" + lavf +
                                   " --no-audio --vo=null --untimed --cache=no --hwdec=no --priority=idle --idle=no --input-default-bindings=no" +
-                                  " --script=\"" + lua + "\" --msg-level=all=warn,ce_espera=info";
+                                  " --script=\"" + lua + "\" --msg-level=all=warn,ce_standby=info";
                     ProcessStartInfo psi = new ProcessStartInfo(mpv, args);
                     psi.UseShellExecute = false;
                     psi.CreateNoWindow = true;
@@ -298,10 +298,10 @@ namespace ConsoleEnhancer
 
         // ------------------------------------------------------------------ el plan de energia "Economizador" mientras dura
         // Lo que hace Windows en su reposo: CPU al minimo, PCIe (la grafica) y USB en ahorro. Se pone el plan Economizador de Windows
-        // (si existe) y al salir se vuelve al que habia; el que habia se apunta en datos\espera_plan.txt por si la app muere en espera
+        // (si existe) y al salir se vuelve al que habia; el que habia se apunta en data\standby_plan.txt por si la app muere en espera
         // (al abrirla otra vez se devuelve). Sin el plan, nada.
         static readonly Guid PlanEconomizador = new Guid("a1841308-3541-4fab-bc81-f71556f20b4a");
-        static string PlanFile { get { return Path.Combine(Paths.Datos, "espera_plan.txt"); } }
+        static string PlanFile { get { return Path.Combine(Paths.Datos, "standby_plan.txt"); } }
 
         public static void PlanDeAntes(string cuando) { Economizador(false, cuando); }
 

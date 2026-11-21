@@ -2,8 +2,8 @@
 // licencias (GPL de mpv y su FFmpeg; Magpie Experimental, que ademas lleva DLL de NVIDIA, AMD e Intel con sus propias condiciones y
 // pide no volver a repartir sus binarios sin revisarlas) hacen que lo limpio sea que cada usuario los baje de su pagina oficial.
 // La primera vez que se abre la app (antes del asistente) se bajan solos, con permiso, de sus releases oficiales de GitHub:
-//  - la tabla es scripts\componentes.json (la misma de scripts\descargar_dependencias.ps1): version, URL, SHA-256 y que se coge del zip
-//  - se comprueba el SHA-256 de cada zip; sin internet, valen los mismos zip puestos a mano en <app>\descargas\
+//  - la tabla es scripts\components.json (la misma de scripts\descargar_dependencias.ps1): version, URL, SHA-256 y que se coge del zip
+//  - se comprueba el SHA-256 de cada zip; sin internet, valen los mismos zip puestos a mano en <app>\downloads\
 //  - se sacan a <app>\mpv y <app>\magpie sin lo no oficial (nvngx_dlssnr.dll, runtimes\dlssg_sm86: los pone el usuario con el boton
 //    "Anadir DLSS 5" de la bandeja o del asistente, src\Lanzador\Extras.cs; ver extras\LEEME.txt)
 //  - bandeja > "Componentes: comprobar / volver a descargar" (Extras.cs): --componentes-reparar los vuelve a bajar todos
@@ -47,7 +47,7 @@ namespace ConsoleEnhancer
 
     static class Componentes
     {
-        public static string Tabla { get { return Path.Combine(Paths.AppDir, @"scripts\componentes.json"); } }
+        public static string Tabla { get { return Path.Combine(Paths.AppDir, @"scripts\components.json"); } }
 
         // ---- la tabla ----
         public static List<Componente> Leer(string file)
@@ -73,8 +73,8 @@ namespace ConsoleEnhancer
                     }
                 Lista(d, "incluir", c.Incluir); Lista(d, "excluir", c.Excluir); Lista(d, "no_oficial", c.NoOficial);
                 if (c.Nombre.Length == 0 || c.Url.Length == 0 || c.Sha256.Length != 64 || c.Destino.Length == 0 || c.Comprobar.Length == 0)
-                    throw new FormatException("componentes.json: falta algo en " + (c.Nombre.Length > 0 ? c.Nombre : "un componente"));
-                if (c.Destino.IndexOfAny(new char[] { '\\', '/', ':' }) >= 0 || c.Destino.Contains("..")) throw new FormatException("componentes.json: destino raro en " + c.Nombre);
+                    throw new FormatException("components.json: falta algo en " + (c.Nombre.Length > 0 ? c.Nombre : "un componente"));
+                if (c.Destino.IndexOfAny(new char[] { '\\', '/', ':' }) >= 0 || c.Destino.Contains("..")) throw new FormatException("components.json: destino raro en " + c.Nombre);
                 l.Add(c);
             }
             return l;
@@ -144,13 +144,15 @@ namespace ConsoleEnhancer
             Log.Write("Componentes de terceros: " + string.Join(", ", n.ToArray()));
             if (sinPreguntar) return -1;
             try { Application.EnableVisualStyles(); } catch { }
-            using (ComponentesForm f = new ComponentesForm(faltan, Paths.AppDir, !alguno, reparar && !alguno))
-            {
-                f.ShowDialog();
-                if (f.Hecho) return -1;
-                // sin lo que falta del todo la app no puede ni probar la imagen: salir (la proxima vez se vuelve a ofrecer)
-                return alguno ? 0 : -1;
-            }
+            while (true)
+                using (ComponentesForm f = new ComponentesForm(faltan, Paths.AppDir, !alguno, reparar && !alguno))
+                {
+                    f.ShowDialog();
+                    if (f.CambioIdioma) continue;   // (1.2.06) otra vez, en el idioma elegido
+                    if (f.Hecho) return -1;
+                    // sin lo que falta del todo la app no puede ni probar la imagen: salir (la proxima vez se vuelve a ofrecer)
+                    return alguno ? 0 : -1;
+                }
         }
 
         static int Prueba(string dir)
@@ -179,7 +181,7 @@ namespace ConsoleEnhancer
         // Baja (o coge de <dir>\descargas) y saca un componente a <dir>\<destino>. Devuelve los ficheros sacados
         public static long Instalar(Componente c, string dir, Progreso p, Func<bool> cancelado)
         {
-            string cache = Path.Combine(dir, "descargas");
+            string cache = Path.Combine(dir, "downloads");
             Directory.CreateDirectory(cache);
             string zip = Path.Combine(cache, c.Archivo);
             // (1.2.02) sin internet el usuario baja el enlace de la ventana, que se guarda con el nombre de la URL (Magpie-Experimental-x64.zip),
@@ -314,7 +316,7 @@ namespace ConsoleEnhancer
         // ---- vista previa sin red ni consola: --ui-preview=componentes;<carpeta> ----
         // (20-11, CE-UI) Dibuja la ventana del primer arranque en sus estados (inicial, comprobando, descargando con %, sacando,
         // error de huella y sin internet) en espanol e ingles y los guarda como PNG, para revisar que no se corta ningun texto sin
-        // tener que bajar nada. Usa datos de ejemplo: no lee componentes.json ni escribe en la carpeta de la app.
+        // tener que bajar nada. Usa datos de ejemplo: no lee components.json ni escribe en la carpeta de la app.
         public static int Preview(string carpeta)
         {
             Directory.CreateDirectory(carpeta);
@@ -391,6 +393,7 @@ namespace ConsoleEnhancer
         volatile bool cancelar;
         Thread hilo;
         public bool Hecho;
+        public bool CambioIdioma;   // (1.2.06) cerrada para volver a abrirla en el otro idioma
 
         // DPI a mano por si algun dia la app declara conciencia de DPI; hoy da 1 (Windows escala la ventana sola)
         static float Escala() { try { using (Graphics g = Graphics.FromHwnd(IntPtr.Zero)) return Math.Max(1f, g.DpiX / 96f); } catch { return 1f; } }
@@ -426,6 +429,29 @@ namespace ConsoleEnhancer
             cab.Text = PrismaUi.ShownName;
             cab.Location = new Point(S(M) + logo + S(10), y + (logo - cab.PreferredSize.Height) / 2);
             Controls.Add(cab);
+            // (1.2.06, el usuario: "al abrir la app [en ingles] y ahi pueda elegir el idioma"): English / Español arriba a la derecha;
+            // al cambiarlo la ventana se vuelve a abrir en ese idioma (Componentes.Asegurar) y queda elegido (Idioma.Elegir)
+            int xi = S(M) + S(W);
+            foreach (string[] li in new[] { new[] { "es", "Español" }, new[] { "en", "English" } })
+            {
+                string lang = li[0];
+                Button bi = BotonCe(li[1]);
+                bi.Width = Math.Max(S(84), TextRenderer.MeasureText(li[1], Font).Width + S(20)); bi.Height = S(28);
+                xi -= bi.Width;
+                bi.Location = new Point(xi, y + (logo - bi.Height) / 2);
+                xi -= S(8);
+                if (Tx.Ingles == (lang == "en")) { bi.BackColor = Acento; bi.ForeColor = Fondo; }
+                bi.TabStop = false;
+                bi.Click += delegate
+                {
+                    if (hilo != null && hilo.IsAlive) return;   // (bajando: no)
+                    if (Tx.Ingles == (lang == "en")) return;
+                    Idioma.Elegir(lang);
+                    CambioIdioma = true;
+                    Close();
+                };
+                Controls.Add(bi);
+            }
             y += logo + S(gap);
 
             long total = 0;
@@ -456,9 +482,9 @@ namespace ConsoleEnhancer
             Parrafo(cuerpo, false, S(M), S(W), ref y); y += S(gap);
 
             // ---- sin internet: poner los zip a mano ----
-            try { Directory.CreateDirectory(Path.Combine(dir, "descargas")); } catch { }   // (1.2.02: que la carpeta exista ya)
-            Parrafo(Tx.T("¿Sin internet en este PC? Baja estos ficheros en otro y ponlos en la carpeta \"descargas\" de la app:",
-                         "No internet on this PC? Download these files elsewhere and put them in the app's \"descargas\" folder:"), true, S(M), S(W), ref y);
+            try { Directory.CreateDirectory(Path.Combine(dir, "downloads")); } catch { }   // (1.2.02: que la carpeta exista ya)
+            Parrafo(Tx.T("¿Sin internet en este PC? Baja estos ficheros en otro y ponlos en la carpeta \"downloads\" de la app:",
+                         "No internet on this PC? Download these files elsewhere and put them in the app's \"downloads\" folder:"), true, S(M), S(W), ref y);
             y += S(4);
             TextBox enlaces = new TextBox();
             enlaces.Multiline = true; enlaces.ReadOnly = true; enlaces.WordWrap = false; enlaces.ScrollBars = ScrollBars.Horizontal;
@@ -636,10 +662,10 @@ namespace ConsoleEnhancer
                    Apoyo.Repo + "\r\n\r\n" +
                    Tx.T("Software libre: puedes repartirlo y cambiarlo según la GNU GPL versión 3 (con un permiso adicional para usarlo con las " +
                         "librerías de NVIDIA, AMD e Intel: LICENSE-EXCEPTION.txt). Va SIN NINGUNA GARANTÍA. Licencias y componentes de terceros: " +
-                        "carpeta licencias\\ (LEEME.txt).",
+                        "carpeta licenses\\ (README.txt).",
                         "Free software: you can redistribute and modify it under the GNU GPL version 3 (with an additional permission to use it " +
                         "with the NVIDIA, AMD and Intel libraries: LICENSE-EXCEPTION.txt). It comes WITH ABSOLUTELY NO WARRANTY. Licenses and " +
-                        "third-party components: the licencias\\ folder (LEEME.txt).") + "\r\n\r\n" +
+                        "third-party components: the licenses\\ folder (README.txt).") + "\r\n\r\n" +
                    Tx.T("Usa: NVIDIA DLSS, NVIDIA DLSS Frame Generation, NVIDIA Reflex y NVIDIA Streamline (© NVIDIA Corporation, con sus licencias); " +
                         "AMD FidelityFX Super Resolution 1 y CAS (© Advanced Micro Devices, Inc., MIT); NVIDIA FXAA 3.11 (© NVIDIA Corporation, BSD); " +
                         "mpv y Magpie Experimental (GPL, bajados de sus páginas oficiales).",
@@ -655,7 +681,7 @@ namespace ConsoleEnhancer
 
         public static void Mostrar()
         {
-            string lic = Path.Combine(Paths.AppDir, "licencias");
+            string lic = Path.Combine(Paths.AppDir, "licenses");
             DialogResult r = MessageBox.Show(Texto() + "\r\n\r\n" + Tx.T("¿Abrir la carpeta de licencias?", "Open the licenses folder?"),
                                              Tx.T("Acerca de ConsoleEnhancer", "About ConsoleEnhancer"), MessageBoxButtons.YesNo, MessageBoxIcon.Information);
             if (r != DialogResult.Yes) return;

@@ -27,7 +27,7 @@ namespace ConsoleEnhancer.Motor
     partial class Settings
     {
         public bool Adapta = false;
-        public string AdaptaClave = "", AdaptaFichero = "escalas_motor.txt", AdaptaTecho = "";
+        public string AdaptaClave = "", AdaptaFichero = "scales_engine.txt", AdaptaTecho = "";
         public string SrDlls = "";
 
         // Claves de ConsoleEnhancer que el Apply de siempre no conoce (false = desconocida, como antes)
@@ -300,7 +300,7 @@ namespace ConsoleEnhancer.Motor
             AdaptaEscribir();
         }
 
-        string AdRuta { get { return Program.DataPath(s.AdaptaFichero.Length > 0 ? s.AdaptaFichero : "escalas_motor.txt"); } }
+        string AdRuta { get { return Program.DataPath(s.AdaptaFichero.Length > 0 ? s.AdaptaFichero : "scales_engine.txt"); } }
 
         void AdaptaCargar()
         {

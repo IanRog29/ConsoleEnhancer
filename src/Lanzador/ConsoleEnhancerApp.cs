@@ -5,9 +5,9 @@
 //  - Claves nuevas del ini (Config es partial): device_path, audio_dispositivo, audio_pines, gpu_fabricante, motor_streamline,
 //    motor_adaptador, generacion_disponible, idioma
 //  - Ce.Arranque: antes de leer el ini. Sin ini (primer arranque), con --asistente o si el hardware ha cambiado (huella en
-//    datos\hardware.txt): la deteccion (src\Deteccion) y el asistente (Asistente.cs). --asistente-auto (y --dry-run sin ini): el plan
+//    data\hardware.txt): la deteccion (src\Deteccion) y el asistente (Asistente.cs). --asistente-auto (y --dry-run sin ini): el plan
 //    de la deteccion sin preguntar nada
-//  - Ce.EscribirIni: recursos\base.ini (ajustes generales probados) + el bloque del plan (lo que depende del hardware) -> el ini
+//  - Ce.EscribirIni: resources\base.ini (ajustes generales probados) + el bloque del plan (lo que depende del hardware) -> el ini
 //  - Lo que el resto del lanzador pregunta: si hay NVIDIA (NvProfiles), el escalador y los argumentos nuevos del motor, si la
 //    generacion es solo de Magpie (FSR 3 FG / XeSS FG: entonces mpv + Magpie con ella encendida)
 using System;
@@ -63,7 +63,7 @@ namespace ConsoleEnhancer
         // (1.0.10) RTX 30 con dlssg_sm86 (ini dlssg_solo_magpie=1): DLSS FG solo por Magpie (el DLSS-G del motor, Streamline, pide RTX 40)
         public static volatile bool DlssgSoloMagpie;
 
-        public static string BaseIni { get { return Path.Combine(Paths.AppDir, @"recursos\base.ini"); } }
+        public static string BaseIni { get { return Path.Combine(Paths.AppDir, @"resources\base.ini"); } }
         public static string HardwareFile { get { return Path.Combine(Paths.Datos, "hardware.txt"); } }
         public static string EngineLogDir { get { return Path.Combine(Paths.Datos, "logs"); } }
 
@@ -378,7 +378,7 @@ namespace ConsoleEnhancer
                 try { File.Copy(Paths.IniFile, Paths.IniFile + ".anterior", true); } catch { }
             }
             File.WriteAllText(Paths.IniFile, sb.ToString(), new UTF8Encoding(false));
-            // generacion de serie (el boton de captura la cambia luego: juegos\generacion.txt)
+            // generacion de serie (el boton de captura la cambia luego: games\framegen.txt)
             try { File.WriteAllText(Paths.FgFile, plan.GenDeSerie ? "1" : "0"); } catch { }
             GuardarHuella(hw, plan);
             Log.Write("Ini escrito con el plan: " + Paths.IniFile);
@@ -449,7 +449,7 @@ namespace ConsoleEnhancer
             }
             else if (p.DlssgSoloMagpie)
             {
-                // (1.0.10) RTX 30 con dlssg_sm86: DLSS FG por Magpie, apagada de serie (generacion.txt = 0: la enciende el boton, Ctrl+G o la bandeja)
+                // (1.0.10) RTX 30 con dlssg_sm86: DLSS FG por Magpie, apagada de serie (framegen.txt = 0: la enciende el boton, Ctrl+G o la bandeja)
                 sb.AppendLine("generacion_tipo=dlss");
                 sb.AppendLine("generacion_tipo_60=dlss");
                 sb.AppendLine("generacion_tipo_30=dlss");
@@ -490,7 +490,7 @@ namespace ConsoleEnhancer
 
     // ------------------------------------------------------------------ idioma de los textos de pantalla
     // Los textos de pantalla del lanzador estan escritos en espanol; en ingles se traducen al salir (avisos, telon, bandeja) con
-    // idiomas\en.txt: "texto en espanol<TAB>english text" por linea. Primero la frase entera; si no esta, trozos conocidos (los mas
+    // languages\en.txt: "texto en espanol<TAB>english text" por linea. Primero la frase entera; si no esta, trozos conocidos (los mas
     // largos antes). Lo que no este en la tabla sale en espanol
     static class Idioma
     {
@@ -501,16 +501,30 @@ namespace ConsoleEnhancer
 
         public static bool Ingles { get { return ingles; } }
 
+        // 21-11 (1.2.06, el usuario: "al abrir la app [que este en ingles] y ahi pueda elegir el idioma"): de serie en ingles (antes la
+        // lengua de Windows). auto = lo ultimo elegido (data\language.txt: en la primera ventana, el asistente o la bandeja); si nunca se
+        // ha elegido, ingles
         public static void Poner(string v)
         {
-            bool en = v == "en" || (v != "es" && !IdiomaWindowsEs());
+            v = (v ?? "").Trim().ToLowerInvariant();
+            bool en = v == "en" || (v != "es" && Guardado() != "es");
             ingles = en;
             Tx.Ingles = en;
         }
 
-        static bool IdiomaWindowsEs()
+        static string Fichero { get { return Path.Combine(Paths.Datos, "language.txt"); } }
+
+        static string Guardado()
         {
-            try { return CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "es"; } catch { return true; }
+            try { return File.Exists(Fichero) ? File.ReadAllText(Fichero).Trim().ToLowerInvariant() : null; } catch { return null; }
+        }
+
+        // Lo elegido por el usuario (es / en): vale para las siguientes veces aunque el ini diga idioma=auto
+        public static void Elegir(string v)
+        {
+            Poner(v);
+            try { File.WriteAllText(Fichero, ingles ? "en" : "es"); } catch { }
+            try { if (File.Exists(Paths.IniFile)) Ce.IniPoner("idioma", ingles ? "en" : "es"); } catch { }
         }
 
         public static string T(string s)
@@ -535,7 +549,7 @@ namespace ConsoleEnhancer
                 Dictionary<string, string> ex = new Dictionary<string, string>();
                 try
                 {
-                    string f = Path.Combine(Paths.AppDir, @"idiomas\en.txt");
+                    string f = Path.Combine(Paths.AppDir, @"languages\en.txt");
                     if (File.Exists(f))
                         foreach (string raw in File.ReadAllLines(f, Encoding.UTF8))
                         {

@@ -170,8 +170,8 @@ namespace ConsoleEnhancer
                                     "First start: let's detect your capture device, GPU and display and pick the best picture for your PC.")
                              : Tx.T("Configurar de nuevo.", "Set up again."));
             Etiqueta(Tx.T("Idioma / Language", "Language / Idioma"), 20, 30);
-            BotonCuerpo("Español", 16, 60, delegate { idioma = "es"; Tx.Ingles = false; Idioma.Poner("es"); Ir(0); });
-            BotonCuerpo("English", 252, 60, delegate { idioma = "en"; Tx.Ingles = true; Idioma.Poner("en"); Ir(0); });
+            BotonCuerpo("Español", 16, 60, delegate { idioma = "es"; Idioma.Elegir("es"); Ir(0); });
+            BotonCuerpo("English", 252, 60, delegate { idioma = "en"; Idioma.Elegir("en"); Ir(0); });
             Etiqueta(Tx.T("Elegido: ", "Selected: ") + (Tx.Ingles ? "English" : "Español"), 112, 30).ForeColor = Acento;
         }
 
