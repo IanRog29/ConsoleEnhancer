@@ -5,6 +5,23 @@ publicada es una etiqueta `vX.Y.Z` de git; GitHub Actions monta su zip y copia a
 
 ## [Sin publicar]
 
+## [1.2.08] - 2026-11-21
+
+### Fixed / Arreglado
+- **Microsoft Defender closing the app (no sound, controller not responding)**: with **Start with Windows** on, the app created a
+  scheduled task at logon. Defender's behaviour detection (`Behavior:Win32/Persistence.A!ml`) took a freshly unzipped, unsigned exe
+  doing that for malware: it killed ConsoleEnhancer a few seconds later (the picture stayed, but sound and the controller died) and
+  moved `ConsoleEnhancer.exe` to quarantine. Start with Windows is now a normal shortcut in your **Startup** folder (it shows in
+  Task Manager > Startup apps); the old task is removed automatically.
+  *Defender cerraba la app (sin sonido ni mando) y se llevaba el exe a cuarentena por la tarea programada de inicio: ahora es un
+  acceso directo en la carpeta Inicio y la tarea vieja se quita sola.*
+
+### Added / Añadido
+- If Defender has closed or quarantined the app in the last 30 days, the app explains it once when it opens and can open
+  **Windows Security** with the app folder copied, so you can add an exclusion yourself (the app never changes Defender settings).
+  Also in the tray: **Microsoft Defender: exclusion for the app...**. The README explains how to get the exe back from quarantine.
+  *Si Defender ha cerrado la app, un aviso al abrirla (y en la bandeja) para abrir Seguridad de Windows y añadir tú la exclusión.*
+
 ## [1.2.07] - 2026-11-21
 
 ### Fixed / Arreglado

@@ -14330,6 +14330,7 @@ namespace ConsoleEnhancer
                 catch { }
                 Log.Write("===== Inicio ConsoleEnhancer =====");
                 CeInicio.Sincronizar(cfg); // (ConsoleEnhancer: iniciar_con_windows, src\InicioWindows.cs)
+                try { CeDefender.AlAbrir(); } catch (Exception ex) { Log.Error("Microsoft Defender", ex); } // (1.2.08: si Defender cerro la app, explicarlo; src\Lanzador\DefenderAviso.cs)
                 CeSuspension.AlAbrir(cfg); // (1.0.14: que los mandos y teclados nuevos despierten el PC, src\Suspension.cs)
                 CeImagen.AlAbrir(cfg); // (ConsoleEnhancer: escalas aprendidas, VRR, HDR / RTX HDR / Auto HDR; src\ImagenCe.cs)
                 if (!string.Equals(Paths.IniFile, Paths.Datos + @"\consoleenhancer.ini", StringComparison.OrdinalIgnoreCase)) Log.Write("Ini de prueba: " + Paths.IniFile);

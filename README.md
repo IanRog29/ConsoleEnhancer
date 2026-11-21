@@ -281,6 +281,13 @@ X = right click, R3 = middle click, B = Esc, D-pad = arrow keys, View + Menu = A
 **Windows or the antivirus won't let me open it.** The exe is not signed. SmartScreen: *More info > Run anyway*. If the antivirus
 quarantines it, restore it and add the folder to its exclusions; or build it yourself (see *For developers*).
 
+**The picture stays but there is no sound and the controller does nothing / ConsoleEnhancer.exe disappeared.** Microsoft Defender
+closed the app (versions before 1.2.08 with *Start with Windows* on: Defender took its logon task for malware, a false positive).
+Windows Security > Virus & threat protection > **Protection history** > the ConsoleEnhancer entry > **Restore**, then open 1.2.08 or
+later (it uses a Startup folder shortcut instead and removes the old task). If it happens again: *Manage settings > Exclusions > Add an
+exclusion > Folder* with the app folder (the tray item **Microsoft Defender: exclusion for the app...** opens that page with the
+folder copied).
+
 **The mpv / Magpie download fails.** Internet is needed once. Behind a proxy or offline: download the two zips linked in that window
 (also in `licenses\VERSIONS.txt`) on another PC and put them in a `downloads\` folder next to `ConsoleEnhancer.exe`; they are checked
 the same way. If it says it can't write, the folder is read-only (Program Files): move it to one of your own.
@@ -700,6 +707,13 @@ X = clic derecho, R3 = clic central, B = Esc, cruceta = flechas, Vista + Menú =
 
 **Windows o el antivirus no me deja abrirlo.** El exe no está firmado. SmartScreen: *Más información > Ejecutar de todas formas*.
 Si el antivirus lo pone en cuarentena, restáuralo y añade la carpeta a sus exclusiones; o compílalo tú (ver *Para desarrolladores*).
+
+**Se queda la imagen pero sin sonido y el mando no hace nada / ha desaparecido ConsoleEnhancer.exe.** Microsoft Defender cerró la app
+(versiones anteriores a la 1.2.08 con *Iniciar con Windows*: tomó su tarea de inicio por un virus, un falso positivo). Seguridad de
+Windows > Protección antivirus y contra amenazas > **Historial de protección** > la entrada de ConsoleEnhancer > **Restaurar**, y abre la
+1.2.08 o posterior (usa un acceso directo en la carpeta Inicio y quita la tarea vieja). Si vuelve a pasar: *Administrar la configuración
+> Exclusiones > Agregar una exclusión > Carpeta* con la carpeta de la app (la opción de la bandeja **Microsoft Defender: excepción para
+la app...** abre esa página con la carpeta copiada).
 
 **La descarga de mpv / Magpie falla.** Hace falta internet una vez. Con proxy o sin conexión: baja los dos zip que enlaza la ventana
 (también en `licenses\VERSIONS.txt`) en otro PC y ponlos en una carpeta `downloads\` junto a `ConsoleEnhancer.exe`; se comprueban

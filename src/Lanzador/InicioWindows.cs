@@ -1,9 +1,9 @@
 // InicioWindows.cs - iniciar con Windows y apagar el PC al apagar la consola (19-11-2026, agente CE). Lo mismo que hace Prisma con
 // inicio\PrismaInicio.exe + la tarea "Prisma - inicio" y apagar_pc=1, pero dentro del propio exe y con un aviso que se puede cancelar.
 //
-//  - iniciar_con_windows=1: tarea programada "ConsoleEnhancer - inicio" (al iniciar sesion ESTE usuario; sin admin: su propio token y
-//    privilegios minimos) -> ConsoleEnhancer.exe --inicio. Si el Programador de tareas no la deja crear, la clave Run de HKCU (arranca
-//    algo mas tarde). La app la pone o la quita al arrancar segun el ini, solo si la clave esta en el ini; con 0 solo quita la suya (si
+//  - iniciar_con_windows=1: (1.2.08) acceso directo ConsoleEnhancer.lnk en la carpeta Inicio del usuario -> ConsoleEnhancer.exe --inicio
+//    (antes la tarea programada "ConsoleEnhancer - inicio": Microsoft Defender la tomo por persistencia de malware y cerro la app; se
+//    quita sola). Si no se puede crear el acceso directo, la clave Run de HKCU. La app la pone o la quita al arrancar segun el ini, solo si la clave esta en el ini; con 0 solo quita la suya (si
 //    la tarea es de otra copia de la app no se toca). Tambien el menu de la bandeja, el ultimo paso del asistente y la linea de
 //    comandos: --iniciar-con-windows=1|0 (pone o quita y sale; codigo 0 = hecho)
 //  - --inicio: telon negro al instante (encima de todo, sin cursor), abre la app (otro proceso con los mismos argumentos, p. ej.
@@ -152,11 +152,60 @@ namespace ConsoleEnhancer
             catch (Exception ex) { Log.Error("No se pudo apagar el PC", ex); }
         }
 
-        // ------------------------------------------------------------------ la tarea programada
-        // Lo que arranca al iniciar sesion: "tarea", "run" o null; exe = a que exe apunta
+        // ------------------------------------------------------------------ el arranque con Windows
+        // 1.2.08: un acceso directo en la carpeta Inicio del usuario (lo que usan los programas normales; sale en el Administrador de
+        // tareas > Aplicaciones de arranque). Antes era la tarea programada "ConsoleEnhancer - inicio": el 21-11 Microsoft Defender
+        // (Behavior:Win32/Persistence.A!ml) mato la app y la puso en cuarentena al crearla desde una carpeta de Descargas recien
+        // descomprimida. La tarea vieja se quita sola (Sincronizar / Poner)
+        static string Lnk { get { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Startup), "ConsoleEnhancer.lnk"); } }
+
+        static object Com(object o, string miembro, System.Reflection.BindingFlags f, params object[] a)
+        {
+            return o.GetType().InvokeMember(miembro, f, null, o, a);
+        }
+
+        static string LeerLnk()
+        {
+            if (!File.Exists(Lnk)) return null;
+            object sh = null, l = null;
+            try
+            {
+                sh = Activator.CreateInstance(Type.GetTypeFromProgID("WScript.Shell"));
+                l = Com(sh, "CreateShortcut", System.Reflection.BindingFlags.InvokeMethod, Lnk);
+                return Com(l, "TargetPath", System.Reflection.BindingFlags.GetProperty) as string ?? "";
+            }
+            catch { return ""; }
+            finally { if (l != null) Marshal.ReleaseComObject(l); if (sh != null) Marshal.ReleaseComObject(sh); }
+        }
+
+        static void CrearLnk()
+        {
+            object sh = null, l = null;
+            try
+            {
+                sh = Activator.CreateInstance(Type.GetTypeFromProgID("WScript.Shell"));
+                l = Com(sh, "CreateShortcut", System.Reflection.BindingFlags.InvokeMethod, Lnk);
+                System.Reflection.BindingFlags set = System.Reflection.BindingFlags.SetProperty;
+                Com(l, "TargetPath", set, Exe);
+                Com(l, "Arguments", set, Argumentos());
+                Com(l, "WorkingDirectory", set, Path.GetDirectoryName(Exe));
+                Com(l, "Description", set, "ConsoleEnhancer (" + Argumentos() + ")");
+                Com(l, "IconLocation", set, Exe + ",0");
+                Com(l, "Save", System.Reflection.BindingFlags.InvokeMethod);
+            }
+            finally { if (l != null) Marshal.ReleaseComObject(l); if (sh != null) Marshal.ReleaseComObject(sh); }
+        }
+
+        public static string Describir(string modo)
+        {
+            return modo == "acceso" ? "acceso directo en la carpeta Inicio" : modo == "tarea" ? "tarea \"" + TaskName + "\"" : modo == "run" ? "clave Run" : "nada";
+        }
+
+        // Lo que arranca al iniciar sesion: "acceso", "tarea" (la de antes de la 1.2.08), "run" o null; exe = a que exe apunta
         public static string Estado(out string exe)
         {
-            exe = null;
+            exe = LeerLnk();
+            if (exe != null) return "acceso";
             string xml;
             if (Schtasks("/Query /TN \"" + TaskName + "\" /XML", out xml) == 0)
             {
@@ -190,46 +239,51 @@ namespace ConsoleEnhancer
         // Pone o quita el arranque con Windows (esta copia de la app). det = lo que ha pasado (para el log y los avisos)
         public static bool Poner(bool on, out string det)
         {
-            string salida;
             if (!on)
             {
                 bool ok = true;
                 List<string> hecho = new List<string>();
-                string exe;
-                string modo = Estado(out exe);
-                if (modo == "tarea")
+                if (File.Exists(Lnk))
                 {
-                    if (Schtasks("/Delete /TN \"" + TaskName + "\" /F", out salida) == 0) hecho.Add("tarea quitada");
-                    else { ok = false; hecho.Add("no se pudo quitar la tarea: " + Una(salida)); }
+                    try { File.Delete(Lnk); hecho.Add("acceso directo quitado"); }
+                    catch (Exception ex) { ok = false; hecho.Add("no se pudo quitar el acceso directo: " + ex.Message); }
                 }
+                if (!QuitarTarea(hecho)) ok = false;
                 if (QuitarRun()) hecho.Add("quitada la entrada de Run");
                 det = hecho.Count > 0 ? string.Join(", ", hecho.ToArray()) : "no estaba";
                 return ok;
             }
-            string tmp = Path.Combine(Path.GetTempPath(), "consoleenhancer_tarea_" + Process.GetCurrentProcess().Id + ".xml");
             try
             {
-                File.WriteAllText(tmp, TareaXml(), Encoding.Unicode);
-                int rc = Schtasks("/Create /TN \"" + TaskName + "\" /XML \"" + tmp + "\" /F", out salida);
-                if (rc == 0)
-                {
-                    QuitarRun();
-                    det = "tarea \"" + TaskName + "\" -> " + Exe + " " + Argumentos();
-                    return true;
-                }
-                string err = Una(salida);
-                // Sin permiso para el Programador de tareas: la clave Run del usuario (no pide nada)
-                using (Microsoft.Win32.RegistryKey k = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(RunKey))
-                    k.SetValue(RunValue, "\"" + Exe + "\" " + Argumentos());
-                det = "sin tarea programada (" + err + "): clave Run de HKCU -> " + Exe + " " + Argumentos();
+                List<string> antes = new List<string>();
+                QuitarTarea(antes);   // (la de antes de la 1.2.08)
+                CrearLnk();
+                QuitarRun();
+                det = (antes.Count > 0 ? string.Join(", ", antes.ToArray()) + "; " : "") + "acceso directo en la carpeta Inicio (" + Lnk + ") -> " + Exe + " " + Argumentos();
                 return true;
             }
             catch (Exception ex)
             {
-                det = "fallo: " + ex.Message;
-                return false;
+                // Sin acceso directo (sin WScript.Shell, carpeta Inicio bloqueada...): la clave Run del usuario (no pide nada)
+                try
+                {
+                    using (Microsoft.Win32.RegistryKey k = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(RunKey))
+                        k.SetValue(RunValue, "\"" + Exe + "\" " + Argumentos());
+                    det = "sin acceso directo (" + ex.Message + "): clave Run de HKCU -> " + Exe + " " + Argumentos();
+                    return true;
+                }
+                catch (Exception ex2) { det = "fallo: " + ex.Message + " / " + ex2.Message; return false; }
             }
-            finally { try { File.Delete(tmp); } catch { } }
+        }
+
+        // La tarea programada de antes de la 1.2.08, si esta (solo la nuestra por su nombre)
+        static bool QuitarTarea(List<string> hecho)
+        {
+            string xml, salida;
+            if (Schtasks("/Query /TN \"" + TaskName + "\" /XML", out xml) != 0) return true;
+            if (Schtasks("/Delete /TN \"" + TaskName + "\" /F", out salida) == 0) { hecho.Add("tarea programada vieja quitada"); return true; }
+            hecho.Add("no se pudo quitar la tarea programada: " + Una(salida));
+            return false;
         }
 
         static bool QuitarRun()
@@ -255,50 +309,6 @@ namespace ConsoleEnhancer
             foreach (string s in Environment.GetCommandLineArgs())
                 if (s.StartsWith("--datos=", StringComparison.OrdinalIgnoreCase)) a += " \"" + s + "\"";
             return a;
-        }
-
-        static string TareaXml()
-        {
-            string sid = System.Security.Principal.WindowsIdentity.GetCurrent().User.Value;
-            string user = Environment.UserDomainName + "\\" + Environment.UserName;
-            string exe = Exe;
-            StringBuilder x = new StringBuilder();
-            x.AppendLine("<?xml version=\"1.0\" encoding=\"UTF-16\"?>");
-            x.AppendLine("<Task version=\"1.2\" xmlns=\"http://schemas.microsoft.com/windows/2004/02/mit/task\">");
-            x.AppendLine("  <RegistrationInfo>");
-            x.AppendLine("    <Description>" + SecurityElement.Escape("Abre ConsoleEnhancer al iniciar sesion, con la pantalla en negro hasta que se ve (" + exe + " --inicio). Se quita desde el menu de la bandeja o con --iniciar-con-windows=0.") + "</Description>");
-            x.AppendLine("  </RegistrationInfo>");
-            x.AppendLine("  <Principals>");
-            x.AppendLine("    <Principal id=\"Author\">");
-            x.AppendLine("      <UserId>" + SecurityElement.Escape(sid) + "</UserId>");
-            x.AppendLine("      <LogonType>InteractiveToken</LogonType>");
-            x.AppendLine("      <RunLevel>LeastPrivilege</RunLevel>");
-            x.AppendLine("    </Principal>");
-            x.AppendLine("  </Principals>");
-            x.AppendLine("  <Settings>");
-            x.AppendLine("    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>");
-            x.AppendLine("    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>");
-            x.AppendLine("    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>");
-            x.AppendLine("    <AllowHardTerminate>true</AllowHardTerminate>");
-            x.AppendLine("    <StartWhenAvailable>false</StartWhenAvailable>");
-            x.AppendLine("    <IdleSettings><StopOnIdleEnd>false</StopOnIdleEnd><RestartOnIdle>false</RestartOnIdle></IdleSettings>");
-            x.AppendLine("    <AllowStartOnDemand>true</AllowStartOnDemand>");
-            x.AppendLine("    <Enabled>true</Enabled>");
-            x.AppendLine("    <ExecutionTimeLimit>PT0S</ExecutionTimeLimit>");
-            x.AppendLine("    <Priority>4</Priority>");
-            x.AppendLine("  </Settings>");
-            x.AppendLine("  <Triggers>");
-            x.AppendLine("    <LogonTrigger><Enabled>true</Enabled><UserId>" + SecurityElement.Escape(user) + "</UserId></LogonTrigger>");
-            x.AppendLine("  </Triggers>");
-            x.AppendLine("  <Actions Context=\"Author\">");
-            x.AppendLine("    <Exec>");
-            x.AppendLine("      <Command>\"" + SecurityElement.Escape(exe) + "\"</Command>");
-            x.AppendLine("      <Arguments>" + SecurityElement.Escape(Argumentos()) + "</Arguments>");
-            x.AppendLine("      <WorkingDirectory>" + SecurityElement.Escape(Path.GetDirectoryName(exe)) + "</WorkingDirectory>");
-            x.AppendLine("    </Exec>");
-            x.AppendLine("  </Actions>");
-            x.AppendLine("</Task>");
-            return x.ToString();
         }
 
         static int Schtasks(string args, out string salida)
@@ -343,9 +353,10 @@ namespace ConsoleEnhancer
                     string modo = Estado(out exe);
                     bool mio = modo != null && EsEsteExe(exe);
                     string det;
-                    if (want == 1 && !mio)
+                    if (want == 1 && (!mio || modo == "tarea"))
                     {
-                        if (modo != null) Log.Write("Iniciar con Windows: apuntaba a " + exe + "; ahora a esta copia");
+                        if (modo == "tarea" && mio) Log.Write("Iniciar con Windows: la tarea programada de antes de la 1.2.08 pasa a acceso directo en la carpeta Inicio (con la tarea, Microsoft Defender puede cerrar la app)");
+                        else if (modo != null) Log.Write("Iniciar con Windows: apuntaba a " + exe + "; ahora a esta copia");
                         Poner(true, out det);
                         Log.Write("Iniciar con Windows (iniciar_con_windows=1): " + det);
                     }
@@ -355,8 +366,8 @@ namespace ConsoleEnhancer
                         Log.Write("Iniciar con Windows (iniciar_con_windows=0): " + det);
                     }
                     else if (want == 0 && modo != null)
-                        Log.Write("Iniciar con Windows: hay " + (modo == "tarea" ? "una tarea" : "una entrada de Run") + " de otra copia (" + exe + "); no se toca");
-                    else if (want == 1) Log.Write("Iniciar con Windows: " + (modo == "tarea" ? "tarea \"" + TaskName + "\"" : "clave Run") + " -> " + exe);
+                        Log.Write("Iniciar con Windows: hay " + Describir(modo) + " de otra copia (" + exe + "); no se toca");
+                    else if (want == 1) Log.Write("Iniciar con Windows: " + Describir(modo) + " -> " + exe);
                 }
                 catch (Exception ex) { Log.Error("Iniciar con Windows", ex); }
             });
@@ -841,6 +852,7 @@ namespace ConsoleEnhancer
             ceEscritorioItem.Checked = cfg.BlackDesktop;
             menu.Opening += delegate { ceApagarItem.Checked = cfg.ShutdownPc; ceEscritorioItem.Checked = cfg.BlackDesktop; MirarInicio(); };
             MirarInicio();
+            MenuDefender(menu); // (1.2.08: src\Lanzador\DefenderAviso.cs)
             MenuUsoYDesinstalar(menu); // (1.1.1: como una consola / como un PC normal, y desinstalar; src\Lanzador\Desinstalar.cs)
             MenuCeImagen(menu); // (20-11: Imagen > RTX HDR, Auto HDR, VRR, botones, escalas; src\ImagenCe.cs)
         }

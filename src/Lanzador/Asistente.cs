@@ -440,7 +440,7 @@ namespace ConsoleEnhancer
                     string exe, det;
                     string modo = CeInicio.Estado(out exe);
                     bool mio = modo != null && CeInicio.EsEsteExe(exe);
-                    if (inicioWin != mio && (inicioWin || mio))
+                    if ((inicioWin != mio && (inicioWin || mio)) || (inicioWin && modo == "tarea"))   // (1.2.08: la tarea vieja pasa a acceso directo)
                     {
                         bool ok = CeInicio.Poner(inicioWin, out det);
                         Log.Write("Asistente: iniciar con Windows " + (inicioWin ? "si" : "no") + ": " + det);
