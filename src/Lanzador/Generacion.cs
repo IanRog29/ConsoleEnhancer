@@ -40,13 +40,16 @@ namespace ConsoleEnhancer
         }
 
         // Los tipos del modo de ahora que funcionan aqui ("no" el primero)
-        List<string> GenOptions()
+        List<string> GenOptions() { return GenOptionsFor(cfg.CapMode, cfg.VideoSize); }
+
+        // (1.0.11, menu de ajustes del boton central: los tipos de OTRO modo / captura, la elegida en el menu)
+        List<string> GenOptionsFor(bool cap30, string videoSize)
         {
             PrepareCfg();
             // 21-11 (1.0.8, el usuario: "al apretar el joystick izquierdo para cambiar de frame gen no hagas que se pueda desactivar"): sin
             // "Sin generacion" en la lista (se apaga con el boton de captura, como antes)
             List<string> r = new List<string>();
-            foreach (string t in cfg.CapMode ? cfg.GenList30 : cfg.GenList60)
+            foreach (string t in cap30 ? cfg.GenList30 : cfg.GenList60)
             {
                 if (r.Contains(t)) continue;
                 if (t == "smooth" && (NvProfiles.SmoothBroken || Pantalla.Is119)) continue; // (ahi iria DLSS FG: repetido)
@@ -55,7 +58,7 @@ namespace ConsoleEnhancer
                 if (!cfg.FgAvailable || ((t == "smooth" || t == "dlss") && Ce.NoNvidia)) continue;
                 if (t == "dlss" && Ce.DlssgSoloMagpie && !Directory.Exists(Path.Combine(Paths.MagpieDir, @"runtimes\dlssg_sm86"))) continue; // (1.0.10: RTX 30 sin el runtime)
                 if (t == "fsr3" && !File.Exists(Path.Combine(Paths.MagpieDir, "amd_fidelityfx_framegeneration_dx12.dll"))) continue;
-                if (t == "xess" && (!File.Exists(Path.Combine(Paths.MagpieDir, "libxess_fg.dll")) || Config.WindowFor(cfg.VideoSize) == "1920x1080")) continue; // (19-11: a 1080p no arranca)
+                if (t == "xess" && (!File.Exists(Path.Combine(Paths.MagpieDir, "libxess_fg.dll")) || Config.WindowFor(videoSize) == "1920x1080")) continue; // (19-11: a 1080p no arranca)
                 r.Add(t);
             }
             return r;

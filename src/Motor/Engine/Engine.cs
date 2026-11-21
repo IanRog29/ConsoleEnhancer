@@ -1229,9 +1229,19 @@ namespace ConsoleEnhancer.Motor
             if (fgApplied && !Program.FocusHold && !Program.HasFocus() && Clock.SinceMs(lastFocusTry) > 3000)
             {
                 lastFocusTry = Clock.Now;
-                string who = Program.ForegroundInfo();   // 17-11 (REJAS, pedido de VELOCIDAD): quien tenia el primer plano
-                Log.Write("Sin el foco con la generacion puesta (lo tenia " + who + "): se recupera (" + (Program.Focus() ? "bien" : "no se pudo") + ")");
+                // 21-11 (1.0.11): con el menu Inicio, la barra de tareas o Alt+Tab delante, no (el usuario esta usando Windows: tecla Windows)
+                if (Program.ShellInFront())
+                {
+                    if (!shellLogged) { shellLogged = true; Log.Write("Sin el foco con la generacion puesta, pero lo tiene Windows (" + Program.ForegroundInfo() + "): no se recupera"); }
+                }
+                else
+                {
+                    shellLogged = false;
+                    string who = Program.ForegroundInfo();   // 17-11 (REJAS, pedido de VELOCIDAD): quien tenia el primer plano
+                    Log.Write("Sin el foco con la generacion puesta (lo tenia " + who + "): se recupera (" + (Program.Focus() ? "bien" : "no se pudo") + ")");
+                }
             }
+            else if (Program.HasFocus()) shellLogged = false;
             string extra = "";
             if (reflexOk && reflexApplied > 0)
             {
@@ -1312,6 +1322,7 @@ namespace ConsoleEnhancer.Motor
             presetCap[CapKey] = next;
         }
         long lastFocusTry;
+        bool shellLogged;   // (1.0.11: "lo tiene Windows" ya apuntado en esta perdida del foco)
         volatile bool reopenAsked;          // 16-11 (sin telon): switch2-reabrir
 
         // =============================================================================================== tuberia

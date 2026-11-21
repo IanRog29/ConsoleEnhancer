@@ -128,6 +128,7 @@ namespace ConsoleEnhancer
 
         // Codigo de salida que usa el script Lua cuando detecta que la consola se ha apagado
         public const int PowerOffExitCode = 42;
+        public const int ClosedByUserExitCode = 77;   // (1.0.11) la ventana de la imagen cerrada por el usuario: el motor y scripts\ce_power.lua
     }
 
     // ------------------------------------------------------------------
@@ -7120,6 +7121,21 @@ namespace ConsoleEnhancer
                 // Con el motor (la generacion lo necesita), de vuelta al momento si lo coge algo que no lo quiere. No en los relevos de
                 // DLSS 5 sin telon (ahi el primer plano es de mpv a proposito: Magpie escala la ventana de delante)
                 bool unwanted = h == IntPtr.Zero || h == proxy || cls == "Progman" || cls == "WorkerW";
+                // 21-11 (1.0.11, el usuario: "dentro de la app no me reacciona la tecla de Windows"): al abrirse el menu Inicio el primer plano
+                // pasa un instante por "nadie" y se devolvia al motor al momento: Inicio se cerraba nada mas abrirse. Ahora con "nadie" se
+                // espera 0,4 s y solo si sigue sin nadie (o en el escritorio) se devuelve; si lo ha cogido Windows (Inicio, buscador, barra), no
+                if (unwanted && h == IntPtr.Zero)
+                {
+                    Thread.Sleep(400);
+                    h = GetForegroundWindow();
+                    if (h != IntPtr.Zero && h != proxy)
+                    {
+                        cb.Length = 0; GetClassNameFg(h, cb, cb.Capacity); cls = cb.ToString();
+                        GetWindowThreadProcessId(h, out pid);
+                        unwanted = cls == "Progman" || cls == "WorkerW";
+                        if (h == img) return;
+                    }
+                }
                 bool back = false;
                 if (Config.EngineActive && unwanted && !RelevoToMagpieActive() && GetForegroundWindow() == h)
                 {
@@ -7659,6 +7675,14 @@ namespace ConsoleEnhancer
                         continue;
                     }
                     any = true;
+                    // 21-11 (1.0.11): el boton central abre / cierra el menu de ajustes; abierto, el mando es suyo (src\Lanzador\MenuAjustes.cs)
+                    if (AjustesMando(s))
+                    {
+                        prev = (ushort)(s.Buttons & 0xFFFF);
+                        prevShot = s.Buttons & (PadBtn.Capture | PadBtn.Touchpad);
+                        dirSeen = dirDone = 0; dirCount = 0; l3DownAt = DateTime.MinValue; shotAt = DateTime.MinValue;
+                        continue;
+                    }
                     // Captura (Switch, 8BitDo...) / panel tactil (PlayStation) = la generacion, como el boton de captura del GameSir. El del
                     // GameSir (su teclado) lo hace el gancho (KeyHook, que ademas se lo quita a Windows); si en 0,2 s no lo ha hecho, aqui
                     uint shot = s.Buttons & (PadBtn.Capture | PadBtn.Touchpad);
@@ -8035,6 +8059,7 @@ namespace ConsoleEnhancer
                         return (IntPtr)1;
                     }
                     // 21-11 (1.0.10, Reddit: sin mando): Ctrl+F / M / 1-4 / R / D / I sobre la imagen = lo de los botones (src\Lanzador\MenuJuego.cs)
+                    if (!up && !injected && AjustesTecla((uint)k.Vk)) return (IntPtr)1;   // (1.0.11: con el menu de ajustes abierto, flechas / Intro / Esc)
                     if (!up && !injected && TeclaCe((uint)k.Vk)) return (IntPtr)1;
                     if (!injected && k.Vk == 0x5C) // Win derecha
                     {
@@ -13596,6 +13621,16 @@ namespace ConsoleEnhancer
                 }
                 if (powerOffPid == p.Id && PowerOffClock != null)
                     Log.Write("Apagado: mpv " + (hung ? "sin terminar" : "terminado") + " a los " + PowerOffClock.ElapsedMilliseconds + " ms");
+                // 21-11 (1.0.11, el usuario: "si cierro la app desde la barra de tareas no se cierra"): la ventana de la imagen cerrada por el
+                // usuario (barra de tareas, su X, el administrador de tareas: el motor sale con 77, mpv tambien por scripts\ce_power.lua) = Salir.
+                // Antes se tomaba por un corte de la señal y se volvia a abrir. Las reaperturas de la app van por la tuberia, no por cerrar la ventana
+                if (!userExit && !hung && p.ExitCode == MpvConst.ClosedByUserExitCode)
+                {
+                    Log.Write("Ventana de la imagen cerrada por el usuario (barra de tareas o su X): se cierra la app");
+                    userExit = true;   // (ya: que nada de abajo lo tome por la consola apagada ni apague el PC)
+                    OnUi(delegate { QuitRequested(); });
+                    return 0;
+                }
                 // Captura cambiada con el mando: otra vez con el tamaño nuevo (no si se cerro por la consola apagada: entonces se sale)
                 if (!userExit && !hung && relaunchSize != null && powerOffPid != p.Id)
                 {

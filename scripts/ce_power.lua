@@ -1091,3 +1091,11 @@ mp.add_key_binding("ctrl+P", "switch2-power-debug", function()
     o.debug = not o.debug
     mp.osd_message("switch2_power debug: " .. (o.debug and "on" or "off"), 2)
 end)
+
+-- 21-11 (1.0.11, el usuario: "si cierro la app desde la barra de tareas no se cierra"): cerrar la ventana de mpv (barra de tareas, su X)
+-- sale con 77 = "cerrada por el usuario": el lanzador cierra la app entera (antes, con 0, lo tomaba por un corte de la senal y la reabria).
+-- El lanzador nunca cierra esta ventana para reabrirla (eso va por la tuberia, "quit")
+mp.add_forced_key_binding("CLOSE_WIN", "ce_cerrar_ventana", function()
+    msg.info("ventana cerrada por el usuario: quit 77")
+    mp.command("quit 77")
+end)
