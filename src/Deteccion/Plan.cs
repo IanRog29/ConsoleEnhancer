@@ -404,10 +404,13 @@ namespace ConsoleEnhancer.Deteccion
             {
                 // 17-11 (app original): el usuario prefiere Smooth Motion (60 reales sin cortes; DLSS-G con Reflex y vsync perdia 2 por segundo).
                 // Con la tele a 119,88 la cola de la sincronizacion no se vacia con Smooth Motion: DLSS-G
-                string t = f.SmoothMotion.Si && !es119 ? "smooth" : f.DlssG.Si ? "dlssg" : "ninguna";
+                // 21-11 (1.0.7): DLSS FG de serie, como Prisma desde el 20-11 03:58 (motor_generacion_60/30=dlss); Smooth Motion queda de
+                // alternativa en el selector de L3. Antes Smooth Motion de serie: "no hay DLSS FG" (el usuario, 21-11)
+                string t = f.DlssG.Si ? "dlssg" : f.SmoothMotion.Si && !es119 ? "smooth" : "ninguna";
                 p.Gen60 = mult >= 2 ? t : "ninguna"; p.Mult60 = mult >= 2 && t != "ninguna" ? 2 : 1;
                 p.Gen30 = t; p.Mult30 = t != "ninguna" ? 2 : 1;
                 if (t == "smooth" && f.DlssG.Si) p.GenAlternativa = "DLSS-G x2";
+                if (t == "dlssg" && f.SmoothMotion.Si) p.GenAlternativa = "Smooth Motion x2";
                 if (es119 && f.SmoothMotion.Si) p.Avisos.Add(Tx.T("Tele a 119,88 Hz: con DLSS-G; para Smooth Motion ponla a 120,000 Hz (Pantalla avanzada: «120», no «119»)", "TV at 119.88 Hz: DLSS-G; set 120.000 Hz for Smooth Motion"));
                 p.GenDeSerie = t != "ninguna";
             }
@@ -472,7 +475,7 @@ namespace ConsoleEnhancer.Deteccion
             {
                 if (serie60.Length > 0) l60.Add(serie60);
                 if (sm) l60.Add("smooth");
-                if (dg && !rtx40) l60.Add("dlss");
+                if (dg) l60.Add("dlss");   // (21-11, 1.0.7: tambien en RTX 40, como Prisma)
                 if (!sm && !dg) foreach (string t in magpie) if (t == "xess" ? xe : fs) l60.Add(t);
             }
             foreach (string t in l30) if (!p.Lista30.Contains(t)) p.Lista30.Add(t);

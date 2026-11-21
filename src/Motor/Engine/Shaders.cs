@@ -35,7 +35,7 @@ namespace ConsoleEnhancer.Motor
         // ---- Captura -> RGBA. Un hilo = 4 pixeles en horizontal (12 bytes en BGR24: siempre alineado a 4) ----
         // c0: ancho, alto, pitch (bytes), formato | c1: rango limitado (yuv), matriz (0 = 709, 1 = 601), offsetUV (nv12), dedupe
         public const string Unpack = @"
-cbuffer C : register(b0) { uint W, H, Pitch, Fmt; uint Limited, Mat601, UvOffset, Pad0; uint4 Pad1; uint4 Pad2; }
+cbuffer C : register(b0) { uint W, H, Pitch, Fmt; uint Limited, Mat601, UvOffset, Pad0; uint Chroma, Pc1, Pc2, Pc3; uint4 Pad2; }
 ByteAddressBuffer Src : register(t0);
 RWTexture2D<unorm float4> Dst : register(u0);
 
@@ -48,6 +48,25 @@ float3 Yuv(float y, float u, float v)
     return saturate(c);
 }
 float B(uint w, uint i) { return ((w >> (8 * i)) & 0xFF) / 255.0; }
+// 21-11 (croma=): el croma de 4:2:2 / 4:2:0 a resolucion completa. Antes, vecino: cada par de puntos con el mismo U/V (escalones de 2 px
+// en los bordes de color, sobre todo en el rojo, que casi no lleva luma). C(2k) exacto; C(2k+1) entre c1 (k) y c2 (k+1): 1 = Catmull-Rom
+// de 4 tomas recortado entre c1 y c2 (sin halos de color), 2 = ademas, donde hay borde de luma, del lado al que se parece su luma
+float2 HalfUv(float2 c0, float2 c1, float2 c2, float2 c3, float yl, float ym, float yr)
+{
+    if (Chroma == 0) return c1;
+    float2 lin = clamp((9.0 * (c1 + c2) - (c0 + c3)) / 16.0, min(c1, c2), max(c1, c2));
+    if (Chroma == 1) return lin;
+    float dl = ym - yl, dr = ym - yr;
+    float wl = 1.0 / (dl * dl + 1e-4), wr = 1.0 / (dr * dr + 1e-4);
+    float2 g = (c1 * wl + c2 * wr) / (wl + wr);
+    return lerp(lin, g, saturate(abs(yl - yr) * 8.0));
+}
+float4 Uv4(uint a, uint b)   // NV12: 2 pares UV de un dword, con la fila de croma vecina (el croma va entre dos filas)
+{
+    uint wa = Src.Load(a); float4 p = float4(B(wa, 0), B(wa, 1), B(wa, 2), B(wa, 3));
+    if (Chroma == 0) return p;
+    uint wb = Src.Load(b); return 0.75 * p + 0.25 * float4(B(wb, 0), B(wb, 1), B(wb, 2), B(wb, 3));
+}
 
 [numthreads(16, 8, 1)]
 void main(uint3 id : SV_DispatchThreadID)
@@ -75,20 +94,37 @@ void main(uint3 id : SV_DispatchThreadID)
     }
     else if (Fmt == 2)
     {
-        uint2 d = Src.Load2(row + id.x * 8); // Y0 U Y1 V | Y2 U Y3 V
-        Dst[uint2(x0 + 0, y)] = float4(Yuv(B(d.x, 0), B(d.x, 1), B(d.x, 3)), 1);
-        if (x0 + 1 < W) Dst[uint2(x0 + 1, y)] = float4(Yuv(B(d.x, 2), B(d.x, 1), B(d.x, 3)), 1);
-        if (x0 + 2 < W) Dst[uint2(x0 + 2, y)] = float4(Yuv(B(d.y, 0), B(d.y, 1), B(d.y, 3)), 1);
-        if (x0 + 3 < W) Dst[uint2(x0 + 3, y)] = float4(Yuv(B(d.y, 2), B(d.y, 1), B(d.y, 3)), 1);
+        int m = (int)id.x * 2, M = (int)((W + 1) / 2) - 1;
+        uint2 d = Src.Load2(row + id.x * 8);                      // Y0 U0 Y1 V0 | Y2 U1 Y3 V1
+        uint pm = Src.Load(row + (uint)max(m - 1, 0) * 4);
+        uint p2 = Src.Load(row + (uint)min(m + 2, M) * 4);
+        uint p3 = Src.Load(row + (uint)min(m + 3, M) * 4);
+        float2 cm = float2(B(pm, 1), B(pm, 3)), c0 = float2(B(d.x, 1), B(d.x, 3)), c1 = float2(B(d.y, 1), B(d.y, 3));
+        float2 c2 = float2(B(p2, 1), B(p2, 3)), c3 = float2(B(p3, 1), B(p3, 3));
+        float y0 = B(d.x, 0), y1 = B(d.x, 2), y2 = B(d.y, 0), y3 = B(d.y, 2), y4 = B(p2, 0);
+        float2 u1 = HalfUv(cm, c0, c1, c2, y0, y1, y2), u3 = HalfUv(c0, c1, c2, c3, y2, y3, y4);
+        Dst[uint2(x0 + 0, y)] = float4(Yuv(y0, c0.x, c0.y), 1);
+        if (x0 + 1 < W) Dst[uint2(x0 + 1, y)] = float4(Yuv(y1, u1.x, u1.y), 1);
+        if (x0 + 2 < W) Dst[uint2(x0 + 2, y)] = float4(Yuv(y2, c1.x, c1.y), 1);
+        if (x0 + 3 < W) Dst[uint2(x0 + 3, y)] = float4(Yuv(y3, u3.x, u3.y), 1);
     }
     else
     {
         uint yw = Src.Load(row + x0);                          // Y0..Y3
-        uint uv = Src.Load(UvOffset + (y / 2) * Pitch + x0);   // U0 V0 U1 V1
-        Dst[uint2(x0 + 0, y)] = float4(Yuv(B(yw, 0), B(uv, 0), B(uv, 1)), 1);
-        if (x0 + 1 < W) Dst[uint2(x0 + 1, y)] = float4(Yuv(B(yw, 1), B(uv, 0), B(uv, 1)), 1);
-        if (x0 + 2 < W) Dst[uint2(x0 + 2, y)] = float4(Yuv(B(yw, 2), B(uv, 2), B(uv, 3)), 1);
-        if (x0 + 3 < W) Dst[uint2(x0 + 3, y)] = float4(Yuv(B(yw, 3), B(uv, 2), B(uv, 3)), 1);
+        uint ra = UvOffset + (y / 2) * Pitch, rb = ra;         // U0 V0 U1 V1
+        if (Chroma != 0) rb = UvOffset + (uint)clamp((int)(y / 2) + ((y & 1) ? 1 : -1), 0, (int)(H / 2) - 1) * Pitch;
+        bool edge = x0 + 8 > W;
+        uint xl = x0 >= 4 ? x0 - 4 : 0, xr = edge ? x0 : x0 + 4;
+        float4 L = Uv4(ra + xl, rb + xl), Mi = Uv4(ra + x0, rb + x0), R = Uv4(ra + xr, rb + xr);
+        float2 c0 = Mi.xy, c1 = Mi.zw, cm = x0 ? L.zw : c0;
+        float2 c2 = edge ? c1 : R.xy, c3 = edge ? c1 : R.zw;
+        float y0 = B(yw, 0), y1 = B(yw, 1), y2 = B(yw, 2), y3 = B(yw, 3);
+        float y4 = edge ? y3 : B(Src.Load(row + x0 + 4), 0);
+        float2 u1 = HalfUv(cm, c0, c1, c2, y0, y1, y2), u3 = HalfUv(c0, c1, c2, c3, y2, y3, y4);
+        Dst[uint2(x0 + 0, y)] = float4(Yuv(y0, c0.x, c0.y), 1);
+        if (x0 + 1 < W) Dst[uint2(x0 + 1, y)] = float4(Yuv(y1, u1.x, u1.y), 1);
+        if (x0 + 2 < W) Dst[uint2(x0 + 2, y)] = float4(Yuv(y2, c1.x, c1.y), 1);
+        if (x0 + 3 < W) Dst[uint2(x0 + 3, y)] = float4(Yuv(y3, u3.x, u3.y), 1);
     }
 }";
 

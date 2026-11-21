@@ -119,6 +119,7 @@ namespace ConsoleEnhancer
                 else if (a.StartsWith("--simula=")) simula = a.Substring(9);
             }
             bool nuevo = !File.Exists(Paths.IniFile);
+            if (!nuevo && !forzar && !auto && !dryRun && simula == null) ActualizarIni();   // 21-11 (1.0.7)
             if (!nuevo && !forzar && !auto)
             {
                 // cambio de hardware: la huella de la ultima deteccion
@@ -266,6 +267,63 @@ namespace ConsoleEnhancer
                 File.WriteAllText(HardwareFile, sb.ToString(), new UTF8Encoding(false));
             }
             catch (Exception ex) { Log.Error("Guardando " + HardwareFile, ex); }
+        }
+
+        // ------------------------------------------------------------------ al actualizar: el ini al dia
+        // 21-11 (1.0.7): base.ini solo se escribia en el ini con el asistente (o al cambiar el hardware): quien actualizaba (o heredaba
+        // el ini de la version anterior, Integrado.HeredarDatos) seguia con los ajustes generales viejos (en la 1.0.6: los vectores
+        // completos y el giro de la 1.0.5 encendidos -> halos; Smooth Motion de serie en RTX 40). Una vez por version (la marca
+        // "# ce_ini_version=" al final): lo de arriba del plan pasa a ser el base.ini de ahora, el plan y lo de debajo se quedan, y se
+        // añade la generacion de un plan nuevo de este PC (lo demas del plan, lo elegido en el asistente, no se toca). Copia: .antes-<version>
+        public const string IniVersion = "1.0.7";
+        static readonly string[] ClavesGenPlan = { "generacion_tipo", "generacion_tipo_60", "generacion_tipo_30", "motor_generacion_60", "motor_generacion_30",
+                                                   "generacion_lista_60", "generacion_lista_30", "generacion_60", "generacion_disponible" };
+        static void ActualizarIni()
+        {
+            try
+            {
+                string ini = Paths.IniFile;
+                if (!File.Exists(ini) || !File.Exists(BaseIni)) return;
+                string t = File.ReadAllText(ini);
+                string marca = "# ce_ini_version=" + IniVersion;
+                if (t.Contains(marca)) return;
+                int ip = t.IndexOf("# ===== Plan de ConsoleEnhancer", StringComparison.Ordinal);
+                if (ip < 0) { Log.Write("Ini: sin el bloque del plan, no se pone al dia (" + ini + ")"); return; }
+                string resto = t.Substring(ip);
+                int ia = resto.IndexOf("# ===== Actualizacion a la ", StringComparison.Ordinal);
+                if (ia >= 0) resto = resto.Substring(0, ia);
+                StringBuilder gen = new StringBuilder();
+                try
+                {
+                    Hardware hw = Detectar(false);
+                    PreferenciasPlan pref = new PreferenciasPlan();
+                    pref.Consola = "";
+                    CeImagen.Preferencias(pref, hw.Pantallas.Find(delegate(PantallaInfo x) { return x.Principal; }));
+                    PlanImagen plan = Planificador.Elegir(hw, pref);
+                    string pi = PlanComoIni(plan, hw, IniLeer("consola"), IniLeer("idioma"), null);
+                    foreach (string raw in pi.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None))
+                    {
+                        int i = raw.IndexOf('=');
+                        if (i > 0 && !raw.StartsWith("#") && Array.IndexOf(ClavesGenPlan, raw.Substring(0, i).Trim()) >= 0) gen.AppendLine(raw.Trim());
+                    }
+                }
+                catch (Exception ex) { Log.Error("Ini al dia: plan nuevo para la generacion", ex); }
+                StringBuilder sb = new StringBuilder();
+                sb.AppendLine("# ConsoleEnhancer - ajustes (clave=valor; '#' = comentario). Lo de abajo del todo lo escribe el asistente segun tu hardware;");
+                sb.AppendLine("# puedes cambiar cualquier clave (la ultima linea de cada clave es la que vale). Asistente otra vez: menu de la bandeja.");
+                sb.AppendLine();
+                sb.Append(File.ReadAllText(BaseIni)).AppendLine();
+                sb.AppendLine();
+                sb.Append(resto.TrimEnd()).AppendLine();
+                sb.AppendLine();
+                sb.AppendLine("# ===== Actualizacion a la " + IniVersion + " (" + DateTime.Now.ToString("yyyy-MM-dd HH:mm") + "): arriba el base.ini nuevo; aqui la generacion de un plan nuevo =====");
+                sb.Append(gen.ToString());
+                sb.AppendLine(marca);
+                try { File.Copy(ini, ini + ".antes-" + IniVersion, true); } catch { }
+                File.WriteAllText(ini, sb.ToString(), new UTF8Encoding(false));
+                Log.Write("Ini al dia para la " + IniVersion + ": base.ini nuevo y la generacion del plan (" + gen.ToString().Replace("\r\n", " ").Trim() + "); copia en " + ini + ".antes-" + IniVersion);
+            }
+            catch (Exception ex) { Log.Error("Poniendo el ini al dia", ex); }
         }
 
         // ------------------------------------------------------------------ el plan -> el ini

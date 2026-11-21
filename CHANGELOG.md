@@ -5,6 +5,34 @@ publicada es una etiqueta `vX.Y.Z` de git; GitHub Actions monta su zip y copia a
 
 ## [Sin publicar]
 
+## [1.0.7] - 2026-11-21
+
+### Arreglado
+- **Los colores con capturadoras YUY2 (y NV12) ya no salen en escalones**: el motor reconstruía el color de cada par de puntos con
+  el mismo valor (vecino más cercano), y los bordes de color (sobre todo el rojo, que casi no lleva brillo) salían pixelados. Ahora el
+  color de los puntos intermedios se interpola con 4 tomas y, donde hay un borde de brillo, del lado al que se parece (`croma=2` de
+  serie en `motor_extra`; `croma=1` solo la interpolación, `croma=0` como antes). Medido con una imagen con bordes rojos y el color
+  como lo manda el HDMI: error en los bordes de color 27,4 → 18,5 y medio 4,4 → 2,3, con el mismo tiempo de gráfica. *YUY2/NV12
+  capture: chroma is now properly upsampled (4-tap, luma-guided at edges) instead of nearest-neighbour; red edges are no longer
+  blocky. `croma=0` restores the old behaviour.*
+- **Los perfiles por juego se pierden al actualizar**: con el zip portable cada versión empezaba en su propia carpeta de datos, sin el
+  ini (otra vez el asistente), sin los perfiles de cada juego y sin la consola reconocida (sin ella, un solo perfil "Consola" hasta ver
+  el menú de la PS5). Ahora, la primera vez que se abre una versión nueva, se copian los datos de la anterior (las carpetas
+  `ConsoleEnhancer*` de al lado o `%LOCALAPPDATA%\ConsoleEnhancer`; se apunta en `datos\heredado.txt`). *Per-game profiles, the
+  detected console and settings are now carried over from the previous version's folder.*
+- **Sin generación DLSS en RTX 40**: el plan ponía Smooth Motion de serie en las RTX 40 y quitaba DLSS FG del modo 60. Ahora DLSS FG
+  es la de serie en los dos modos y Smooth Motion queda como alternativa en el selector (L3). *DLSS frame generation is the default
+  on RTX 40 again (Smooth Motion stays selectable).*
+- **Los ajustes generales nuevos no llegaban a quien actualizaba**: `base.ini` solo se escribía en el ini con el asistente (lo que
+  ponía la 1.0.6 sobre los halos no se aplicaba a quien venía de la 1.0.5). Ahora, una vez por versión, la parte general del ini se
+  cambia por la nueva y la generación se vuelve a elegir para este PC; lo del asistente se queda (copia en `.antes-1.0.7`).
+  *Settings from new versions are now applied on update (backup kept).*
+
+### Mejorado
+- **Generación DLSS en los giros sin halos**: la generación recibe un solo vector, el del giro de la cámara (`fg_vectores=3`), y el
+  giro vuelve a encenderse (un giro rápido no se toma por un corte de escena). Los vectores por bloque daban halos alrededor del
+  personaje en GTA. *Frame generation gets a single camera-pan vector: smoother fast turns without halos.*
+
 ## [1.0.6] - 2026-11-21
 
 ### Arreglado

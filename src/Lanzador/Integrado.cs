@@ -67,7 +67,61 @@ namespace ConsoleEnhancer
             catch { d = null; }
             if (d == null) d = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ConsoleEnhancer");
             try { Directory.CreateDirectory(Path.Combine(d, "juegos")); Directory.CreateDirectory(Path.Combine(d, "logs")); } catch { }
+            HeredarDatos(d, appDir);
             return d.TrimEnd('\\');
+        }
+
+        // 21-11 (1.0.7, el usuario: "en ConsoleEnhancer no se guardan perfiles por juego"): con portable.txt cada version se descomprime
+        // en su carpeta (Downloads\ConsoleEnhancer-v1.0.6...) y empezaba sin nada: ni el ini (asistente otra vez), ni juegos\perfiles.txt,
+        // ni juegos\consola.txt (sin el, consola generica: un solo perfil "Consola" hasta ver el menu de la PS5). Si los datos de ahora no
+        // tienen ini, se copian los de la version anterior: de cada fichero, el mas nuevo de las carpetas ConsoleEnhancer* de al lado y de
+        // %LOCALAPPDATA%\ConsoleEnhancer (los de datos\ y datos\juegos\; no logs ni cache). Se apunta en datos\heredado.txt
+        public const string HeredadoTxt = "heredado.txt";
+        static void HeredarDatos(string d, string appDir)
+        {
+            try
+            {
+                if (File.Exists(Path.Combine(d, "consoleenhancer.ini"))) return;
+                List<string> fuentes = new List<string>();
+                fuentes.Add(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ConsoleEnhancer"));
+                string padre = Path.GetDirectoryName(appDir.TrimEnd('\\'));
+                if (!string.IsNullOrEmpty(padre) && Directory.Exists(padre))
+                    foreach (string dir in Directory.GetDirectories(padre, "ConsoleEnhancer*"))
+                        if (!string.Equals(dir.TrimEnd('\\'), appDir.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase)) fuentes.Add(Path.Combine(dir, "datos"));
+                string yo = Path.GetFullPath(d).TrimEnd('\\');
+                Dictionary<string, string> mejor = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                foreach (string f in fuentes)
+                {
+                    if (string.Equals(Path.GetFullPath(f).TrimEnd('\\'), yo, StringComparison.OrdinalIgnoreCase)) continue;
+                    if (!File.Exists(Path.Combine(f, "consoleenhancer.ini"))) continue;
+                    foreach (string sub in new[] { "", "juegos" })
+                    {
+                        string dir = sub.Length == 0 ? f : Path.Combine(f, sub);
+                        if (!Directory.Exists(dir)) continue;
+                        foreach (string a in Directory.GetFiles(dir))
+                        {
+                            string n = Path.GetFileName(a);
+                            if (n.StartsWith(".") || n.EndsWith(".log", StringComparison.OrdinalIgnoreCase) || n.Equals(HeredadoTxt, StringComparison.OrdinalIgnoreCase)) continue;
+                            // (lo elegido con L3 en versiones de antes era Smooth Motion de serie en RTX 40: desde la 1.0.7, DLSS FG del plan)
+                            if (n.Equals("generacion_tipo.txt", StringComparison.OrdinalIgnoreCase)) continue;
+                            string k = sub.Length == 0 ? n : sub + "\\" + n;
+                            string ya;
+                            if (!mejor.TryGetValue(k, out ya) || File.GetLastWriteTimeUtc(a) > File.GetLastWriteTimeUtc(ya)) mejor[k] = a;
+                        }
+                    }
+                }
+                if (!mejor.ContainsKey("consoleenhancer.ini")) return;
+                StringBuilder sb = new StringBuilder();
+                sb.AppendLine("Datos heredados de la version anterior (" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "):");
+                foreach (KeyValuePair<string, string> kv in mejor)
+                {
+                    string dst = Path.Combine(d, kv.Key);
+                    Directory.CreateDirectory(Path.GetDirectoryName(dst));
+                    if (!File.Exists(dst)) { File.Copy(kv.Value, dst, false); sb.AppendLine(kv.Key + " <- " + kv.Value); }
+                }
+                File.WriteAllText(Path.Combine(d, HeredadoTxt), sb.ToString(), new UTF8Encoding(false));
+            }
+            catch { }
         }
 
         // ---- Rutas de mpv y del motor (al leer el ini: Config.Load) ----
