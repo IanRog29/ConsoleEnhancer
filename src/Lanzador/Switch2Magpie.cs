@@ -733,8 +733,21 @@ namespace ConsoleEnhancer
         // (1.1.2) DLSS FG tendria que ir por Magpie (DLSS 5 encendido y no en el motor) y a Magpie le falta runtimes\dlssg_sm86
         public bool DlssFgPorMagpieSinRuntime
         {
-            get { return !Integrado.MagpieDlssgOk && ((!Dlss5Off && Integrado.Dlss5Available && !(EngineDlss5 && Engine == "propio")) || Ce.DlssgSoloMagpie); }
+            get
+            {
+                if (Integrado.MagpieDlssgOk) return false;
+                if (Ce.DlssgSoloMagpie) return true;
+                if (Dlss5Off || !Integrado.Dlss5Available || (EngineDlss5 && Engine == "propio")) return false;
+                // (1.2.04) el usuario, 21-11: "pantallazo negro unos segundos cada vez que cambio de juego o al menu". Con DLSS 5 que NO
+                // CABE (captura 4K: nada que escalar) DLSS FG la hace el motor propio y no hace falta dlssg_sm86; antes se cambiaba por XeSS
+                // FG (solo Magpie) y cada vuelta del menu (motor propio) al juego reabria mpv + Magpie con ~2 s de negro. Dlss5FitsNow pasa
+                // por PctKey -> ModeKeyGen -> FgTypeNow -> aqui: dentro de esa cuenta, como antes (true)
+                if (dfgDentro) return true;
+                dfgDentro = true;
+                try { return Dlss5FitsNow; } finally { dfgDentro = false; }
+            }
         }
+        [ThreadStatic] static bool dfgDentro;
         // La que va en su lugar: XeSS FG (no a 1080p), Smooth Motion, FSR 3 FG; si no hay ninguna, DLSS FG (y el aviso de Magpie)
         string FgSinDlssMagpie()
         {

@@ -5,6 +5,17 @@ publicada es una etiqueta `vX.Y.Z` de git; GitHub Actions monta su zip y copia a
 
 ## [Sin publicar]
 
+## [1.2.04] - 2026-11-21
+
+### Fixed / Arreglado
+- **No more black screen for ~2 s every time you go from the console menu to a game** with a 4K capture when Magpie lacks
+  `dlssg_sm86`: DLSS FG was swapped for XeSS FG (only Magpie does it) even though DLSS 5 doesn't run at 4K, so every return from the
+  menu closed the app's own engine and reopened mpv + Magpie. Now DLSS FG stays in the app's own engine and the picture isn't reopened.
+  *Sin pantallazo negro de ~2 s al pasar del menú de la consola a un juego con captura 4K (XeSS FG por Magpie sin hacer falta).*
+- **PS5 game names read with an extra letter** ("Rocket Leaguen": the ® read as an "n"): if the last word isn't in the Windows
+  dictionary (English or Spanish) and without that letter it is, the letter is removed. A name read cut at the start ("Theft Auto VI")
+  is now the same game as the full one ("Grand Theft Auto VI"), so it no longer switches to a wrong game for a moment.
+  *Nombres de juegos de la PS5 con una letra de más (el ® leído como "n") o cortados por delante: ya son el juego correcto.*
 ## [1.2.03] - 2026-11-21
 
 ### Fixed / Arreglado

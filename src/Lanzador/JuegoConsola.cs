@@ -334,6 +334,8 @@ namespace ConsoleEnhancer
             s = Regex.Replace(s, @"(?<=\p{Ll})['’]?(?:TM|TY|Tt|T)(?:\W.*)?$", "");
             s = Regex.Replace(s, @"[\[\]|•]", "");
             s = Regex.Replace(s, @"[^\p{L}\p{N}]+$", "");
+            // (1.2.04) el ® de "Rocket League®" leido como "n": "Rocket Leaguen" (src\Lanzador\Ortografia.cs)
+            s = Ortografia.QuitaMarcaPegada(s.Trim());
             return s.Trim();
         }
 
@@ -502,6 +504,13 @@ namespace ConsoleEnhancer
             int min = Math.Min(x.Length, y.Length);
             if (min < 8) return false;
             if (Romanos(SinTag(a ?? "")) != Romanos(SinTag(b ?? ""))) return false;   // "Grand Theft Auto V" no es "... VI"
+            // (1.2.04) el nombre cortado por delante (la etiqueta a medio entrar: "Theft Auto VI" = "Grand Theft Auto VI"): el final entero,
+            // desde el principio de una palabra, con 2 palabras o mas
+            {
+                string na = Regex.Replace(sa.Trim().ToLowerInvariant(), @"\s+", " "), nb = Regex.Replace(sb2.Trim().ToLowerInvariant(), @"\s+", " ");
+                string corto = na.Length <= nb.Length ? na : nb, largo = na.Length <= nb.Length ? nb : na;
+                if (corto.Length < largo.Length && corto.IndexOf(' ') > 0 && largo.EndsWith(" " + corto, StringComparison.Ordinal)) return true;
+            }
             int max = Math.Max(1, min / 5);
             if (Math.Abs(x.Length - y.Length) > max) return false;
             int[] prev = new int[y.Length + 1], cur = new int[y.Length + 1];
@@ -803,11 +812,19 @@ namespace ConsoleEnhancer
                                  new[] { "PS5: EA SPORTS FC 26", "PS5: EA SPORTS FC 25", "0" }, new[] { "PS5: Hitman 3", "PS5: Batman 3", "0" },
                                  new[] { "PS5: Grand Theft Auto VI", "PS5: Grand Theft Auto V", "0" }, new[] { "PS5: ROCKET", "PS5: ROCKET LEAGUE", "1" },
                                  new[] { "PS5: Grand Theft Auto VI", "PS5: Grand Thef Auto VI", "1" },
-                                 new[] { "PS5: Bfood60rne", "PS5: Bloodborne", "1" }, new[] { "PS5: NBA 2K25", "PS5: NBA 2K26", "0" } };
+                                 new[] { "PS5: Bfood60rne", "PS5: Bloodborne", "1" }, new[] { "PS5: NBA 2K25", "PS5: NBA 2K26", "0" },
+                                 new[] { "PS5: Theft Auto VI", "PS5: Grand Theft Auto VI", "1" }, new[] { "PS5: Theft Auto V", "PS5: Grand Theft Auto VI", "0" },
+                                 new[] { "PS5: Rocket aguen", "PS5: Rocket Leaguen", "1" } };
             foreach (string[] q in pares)
             {
                 bool same = GameProfiles.SameGame(q[0], q[1]);
                 sb.Append("  ").Append(same ? "mismo  " : "otro   ").Append(q[0]).Append(" / ").Append(q[1]).Append(": ").Append(same == (q[2] == "1") ? "OK" : "FALLO").Append("\r\n");
+            }
+            // (1.2.04) el ® leido como "n" pegada
+            foreach (string[] q in new[] { new[] { "P_r-m Rocket Leaguen", "Rocket League" }, new[] { "Batman", "Batman" }, new[] { "Grand Theft Auto VI", "Grand Theft Auto VI" }, new[] { "Bloodborne", "Bloodborne" } })
+            {
+                string got = LimpiaEtiqueta(q[0]);
+                sb.Append("  limpia \"").Append(q[0]).Append("\" -> \"").Append(got).Append("\": ").Append(got == q[1] ? "OK" : "FALLO").Append("\r\n");
             }
             List<Ocr.Linea> ls = new List<Ocr.Linea> {
                 new Ocr.Linea { Texto = "Bloodbornc", Alto = 30, X = 100, Y = 100 }, new Ocr.Linea { Texto = "BloodborneTY", Alto = 22, X = 100, Y = 300 },
