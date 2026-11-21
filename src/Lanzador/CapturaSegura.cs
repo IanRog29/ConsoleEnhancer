@@ -138,6 +138,7 @@ namespace ConsoleEnhancer
         public double CapturaSeguraSecs = 6;
         public string[] TestCapturaMala = new string[0];          // (solo pruebas: test_captura_mala=WxH@fps,...)
         public string TestCapturaMalaUrl = "av://lavfi:testsrc=size=0x0";   // (solo pruebas: test_captura_mala_url)
+        public bool TestSonido = false;                           // (solo pruebas con test_source: test_sonido=1, la consola "suena" siempre)
 
         public bool ParseCapturaSegura(string key, string val)
         {
@@ -154,6 +155,7 @@ namespace ConsoleEnhancer
                     TestCapturaMala = val.Split(new char[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries);
                     return true;
                 case "test_captura_mala_url": TestCapturaMalaUrl = val.Trim(); return true;
+                case "test_sonido": TestSonido = val.Trim() == "1"; return true;
             }
             return false;
         }
@@ -200,7 +202,14 @@ namespace ConsoleEnhancer
         bool CapConsolaReciente(double secs)
         {
             DateTime now = DateTime.Now;
+            CapSonidoPrueba(now);
             return (now - capConsolaVista).TotalSeconds < secs || (now - capSonido).TotalSeconds < secs;
+        }
+
+        // (solo pruebas: con test_source y test_sonido=1 la consola "suena" siempre, como el medidor de audio con la consola encendida)
+        void CapSonidoPrueba(DateTime now)
+        {
+            if (cfg.TestSonido && cfg.TestSource.Length > 0) { capSonido = now; capAudio = "sound"; }
         }
 
         // RunMpv, justo antes de lanzar (o despertar) la imagen: ¿se vigila este lanzamiento?
@@ -208,6 +217,7 @@ namespace ConsoleEnhancer
         {
             capRelanzarYa = false;
             capVigilado = null;
+            mpvSinNada = null;
             capLanzEng = eng;
             capLanzWoke = woke;
             if (!cfg.CapturaSegura) return;
@@ -246,15 +256,19 @@ namespace ConsoleEnhancer
         bool CapSinImagen(Process p)
         {
             if (!cfg.CapturaSegura || capLanzWoke) return false;
+            CapSonidoPrueba(DateTime.Now);
             double ms = (DateTime.Now - imageStart).TotalMilliseconds;
             bool sonando = (DateTime.Now - capSonido).TotalSeconds < 3;
+            // mpv sin nada abierto (no pudo abrir la capturadora con este formato; mpv.exe se queda esperando en vez de salir): ya, sin esperar
+            bool sinNada = mpvSinNada == p && !capLanzEng && ms > 300;
             CapFmt v = capVigilado;
+            if (v != null && sinNada) return CapSiguiente(v, "no se ha podido abrir (mpv sin nada abierto a los " + (int)ms + " ms)");
             if (v == null)
             {
                 // Sin vigilar (al abrir la app, o sin ver antes la consola) pero la consola suena y no llega ni una imagen en el doble de tiempo:
                 // tambien es el formato (p. ej. uno que la capturadora no da guardado en el perfil del juego de la ultima vez)
                 if (capPedido != null || !sonando) return false;
-                if (ms < 1000 * cfg.CapturaSeguraSecs * (capLanzEng ? 3.3 : 2)) return false;
+                if (!sinNada && ms < 1000 * cfg.CapturaSeguraSecs * (capLanzEng ? 3.3 : 2)) return false;
                 CapFmt pedido = CapturaSegura.Pedido(cfg);
                 if (pedido.Key == capRendidoKey && (DateTime.Now - capRendidoAt).TotalSeconds < 60) return false;
                 v = CapturaSegura.Efectivo(cfg);
@@ -271,6 +285,26 @@ namespace ConsoleEnhancer
                 if ((DateTime.Now - capConsolaVista).TotalSeconds > 10 + ms / 1000.0) { CapRendirse(v, "la consola en silencio y sin imagen: puede estar apagada"); return false; }
             }
             return CapSiguiente(v, "sin ninguna imagen en " + (int)ms + " ms" + (sonando ? " con la consola sonando" : ""));
+        }
+
+        // mpv que se ha quedado sin nada abierto (idle-active, MpvLinkLoop / MpvReader; null = ninguno)
+        volatile Process mpvSinNada;
+        DateTime mpvSinNadaLog = DateTime.MinValue;
+
+        // WaitForSignal, sin formato nuevo que vigilar: mpv sin nada abierto no va a dar imagen nunca (la capturadora no se pudo abrir: ocupada
+        // por otro programa, desenchufada, un formato que no da sin la consola vista antes...). true = se cierra y RunMpv lo reintenta (con su
+        // tope de intentos y su aviso, mpvFails); antes se quedaba "esperando a que se encienda" para siempre
+        bool MpvSinNada(Process p)
+        {
+            if (mpvSinNada != p || Config.EngineActive || userExit) return false;
+            if ((DateTime.Now - imageStart).TotalMilliseconds < 1500) return false;   // (un momento, por si acaba de abrirse)
+            mpvSinNada = null;
+            if ((DateTime.Now - mpvSinNadaLog).TotalSeconds > 30)
+            {
+                mpvSinNadaLog = DateTime.Now;
+                Log.Write("mpv no ha podido abrir la capturadora (" + CapturaSegura.Efectivo(cfg).Desc() + "): se queda sin nada abierto; se cierra y se vuelve a intentar");
+            }
+            return true;
         }
 
         // RunMpv: la imagen se ha cerrado sin dar imagen. true = relanzar ya (con el repuesto o porque se cerro por esto)

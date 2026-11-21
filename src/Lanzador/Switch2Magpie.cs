@@ -7937,10 +7937,10 @@ namespace ConsoleEnhancer
                 // Si no llega imagen nueva a tiempo, a la manera de siempre
                 Thread guard = new Thread(delegate ()
                 {
-                    Thread.Sleep(SwitchSecs * 1000);
+                    Thread.Sleep(SwitchWaitMs); // (21-11, 1.2.1: con captura_segura, 5 s)
                     if (relaunchSize == size && switchUntil != DateTime.MinValue)
                     {
-                        Log.Write("La captura a " + SizeName(size) + " no ha llegado en " + SwitchSecs + " s: se reabre mpv");
+                        Log.Write("La captura a " + SizeName(size) + " no ha llegado en " + SwitchWaitMs / 1000 + " s: se reabre mpv");
                         SwitchFallback();
                     }
                 });
@@ -7963,6 +7963,8 @@ namespace ConsoleEnhancer
         }
 
         const int SwitchSecs = 8;
+        // 21-11 (1.2.1): lo que se espera la primera imagen de un cambio de captura sin cerrar mpv antes de reabrirlo (CapturaSegura.cs)
+        int SwitchWaitMs { get { return cfg.CapturaSegura ? Math.Min(SwitchSecs * 1000, 5000) : SwitchSecs * 1000; } }
         DateTime switchUntil = DateTime.MinValue;  // cambio de captura sin cerrar mpv en marcha: sin vigilancia de apagado
         volatile bool ipcUp;                        // hay enlace IPC con mpv (para mandarle ordenes)
         readonly LinkQueue cmdQueue = new LinkQueue(); // (17-11: LinkQueue, ver osdQueue)
@@ -10791,7 +10793,9 @@ namespace ConsoleEnhancer
             bool ok = true;
             try
             {
-                if (reload) ok = homeSwitchEvt.WaitOne(SwitchSecs * 1000) && homeSwitchOk;
+                // (21-11, 1.2.1: con captura_segura, como mucho 5 s: un cambio sin cerrar mpv da su primera imagen en 0,3-1,2 s -log del usuario-
+                // y si la capturadora no da el formato nuevo, mpv se queda sin imagen: cuanto antes se reabre, antes llega el repuesto)
+                if (reload) ok = homeSwitchEvt.WaitOne(SwitchWaitMs) && homeSwitchOk;
                 if (ok && winChange) ok = EnsureWindowSize(p, win);
             }
             finally
@@ -11009,10 +11013,10 @@ namespace ConsoleEnhancer
                 }
                 Thread guard = new Thread(delegate ()
                 {
-                    Thread.Sleep(SwitchSecs * 1000);
+                    Thread.Sleep(SwitchWaitMs);
                     if (relaunchSize == size && switchUntil != DateTime.MinValue)
                     {
-                        Log.Write("La captura a " + cfg.FramerateNow + " fps no ha llegado en " + SwitchSecs + " s: se reabre mpv");
+                        Log.Write("La captura a " + cfg.FramerateNow + " fps no ha llegado en " + SwitchWaitMs / 1000 + " s: se reabre mpv");
                         SwitchFallback();
                     }
                 });
@@ -12838,6 +12842,9 @@ namespace ConsoleEnhancer
                             }
                             w.WriteLine("{\"command\":[\"get_property\",\"time-pos\"],\"request_id\":77}");
                             w.WriteLine("{\"command\":[\"get_property\",\"pause\"],\"request_id\":78}");
+                            // 21-11 (1.2.1, src\Lanzador\CapturaSegura.cs): sin su primera imagen, si mpv se ha quedado sin nada abierto (no pudo abrir
+                            // la capturadora: mpv.exe va en modo "pseudo-gui", con idle=yes, y en vez de salir se queda esperando)
+                            if (!videoSignal && !Config.EngineActive && step % 5 == 2) w.WriteLine("{\"command\":[\"get_property\",\"idle-active\"],\"request_id\":80}");
                             if (Config.EngineActive) w.WriteLine(CierresQuery); // (20-11, CIERRES: si la capturadora sigue mandando al motor)
                             // Avisos del mando en pantalla (los dibuja el script de mpv, una pastilla: Magpie los escala con la imagen;
                             // o el motor propio). Ya son la orden entera (OsdCmd: script-message switch2-osd)
@@ -12938,6 +12945,7 @@ namespace ConsoleEnhancer
                     {
                         lock (linkSync) paused = line.Contains("\"data\":true");
                     }
+                    else if (line.Contains("\"request_id\":80")) { if (line.Contains("\"data\":true")) mpvSinNada = readerMpv; } // (21-11, 1.2.1: CapturaSegura.cs)
                     else if (line.Contains("\"request_id\":79")) CierresCaptura(line); // (20-11, CIERRES: switch2-captura-ms del motor)
                     else if (line.Contains("\"client-message\"") && CierresEvent(line)) { } // (20-11, CIERRES: switch2-gpu del motor)
                     else if (line.Contains("\"client-message\"") && FpsEvent(line)) { } // (21-11: switch2-fps del motor, src\Lanzador\FpsBajo.cs)
@@ -12991,6 +12999,13 @@ namespace ConsoleEnhancer
                     // 18-11 (PASADAS): solo pruebas sin consola: salir como con "Salir" de la bandeja (deja los perfiles de NVIDIA como estaban)
                     else if (line.Contains("\"client-message\"") && line.Contains("\"args\":[\"switch2-test-salir\"") && cfg.TestSource.Length > 0)
                         OnUi(delegate { QuitRequested(); });
+                    // 21-11 (1.2.1): solo pruebas sin consola (como switch2-test-entrada): de vuelta al HOME / menu de la consola a 4K nativo
+                    else if (line.Contains("\"client-message\"") && line.Contains("\"args\":[\"switch2-test-home\"") && cfg.TestSource.Length > 0)
+                        ThreadPool.QueueUserWorkItem(delegate
+                        {
+                            try { Log.Write("Prueba: vuelta al menu de la consola (switch2-test-home)"); EnterHomeNative(); }
+                            catch (Exception ex) { Log.Error("Prueba de vuelta al menu", ex); }
+                        });
                     else if (line.Contains("\"client-message\"") && line.Contains("\"args\":[\"switch2-switched\""))
                     {
                         System.Text.RegularExpressions.Match m = System.Text.RegularExpressions.Regex.Match(line, "switch2-switched\",\"([^\"]*)\"");
@@ -13210,6 +13225,13 @@ namespace ConsoleEnhancer
                 // 21-11 (1.2.1, src\Lanzador\CapturaSegura.cs): sin imagen tras cambiar el formato de la capturadora con la consola encendida:
                 // ese formato no lo da; se cierra y RunMpv lo vuelve a abrir al momento con otro (antes: "esperando a que se encienda" para siempre)
                 if (CapSinImagen(p))
+                {
+                    try { p.Kill(); } catch { }
+                    return false;
+                }
+                // (y sin formato nuevo que vigilar, mpv sin nada abierto no va a dar imagen nunca -la capturadora ocupada, desenchufada...-:
+                // se cierra y RunMpv lo reintenta, con su tope y su aviso; antes se esperaba "a que se encienda" para siempre)
+                if (MpvSinNada(p))
                 {
                     try { p.Kill(); } catch { }
                     return false;
@@ -13468,6 +13490,8 @@ namespace ConsoleEnhancer
                     if (WaitForScaling(p, logStart, 8)) return true;
                     continue;
                 }
+                // 21-11 (1.2.1): sin Magpie abierto (no se pudo abrir) el atajo no hace nada: se lo comia la ventana de delante
+                if (!MagpieLive.Running) break;
                 // 21-11 (1.2.1): Magpie aun cargando: se le espera en vez de pulsar el atajo (alterna: lo pararia a punto de empezar)
                 if (!MagpieQuieto()) { if (WaitForScaling(p, logStart, 8)) return true; continue; }
                 Log.Write("Magpie no ha escalado solo: se pulsa su atajo");

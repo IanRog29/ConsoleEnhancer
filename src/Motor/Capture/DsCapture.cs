@@ -800,8 +800,8 @@ namespace ConsoleEnhancer.Motor.Capture
                 if (t != null) return t;
             }
             // 21-11 (1.2.1): ese tamaño no lo da la capturadora (antes: "no WxH capability", el motor sin imagen y el lanzador lo cerraba a
-            // los 30 s contandolo como fallo): el tamaño mas parecido que da (el mismo aspecto antes que otro; luego el area mas cercana), con
-            // el formato de la preferencia y la velocidad mas cercana
+            // los 30 s contandolo como fallo): el tamaño mas parecido que da (el mismo aspecto antes que otro; luego el area mas cercana, uno
+            // mas grande antes que uno mas pequeño: reducir pierde menos que agrandar), con el formato de la preferencia y la velocidad mas cercana
             foreach (CaptureFormat f in opt.Preference)
             {
                 DsType near = null;
@@ -811,7 +811,8 @@ namespace ConsoleEnhancer.Motor.Capture
                 {
                     if (t.Info.Format != f || t.Info.Width <= 0 || t.Info.Height <= 0) continue;
                     long aspect = Math.Abs((long)t.Info.Width * opt.Height - (long)t.Info.Height * opt.Width) > wantArea / 50 ? 1L << 40 : 0;
-                    long score = aspect + Math.Abs((long)t.Info.Width * t.Info.Height - wantArea);
+                    long area = (long)t.Info.Width * t.Info.Height;
+                    long score = aspect + (area >= wantArea ? area - wantArea : 2 * (wantArea - area));
                     if (score < bestScore) { bestScore = score; near = t; }
                 }
                 if (near == null) continue;
