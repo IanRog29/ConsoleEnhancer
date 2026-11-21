@@ -819,21 +819,23 @@ namespace ConsoleEnhancer
         // RunMpv, con mpv ya dando imagen tras reabrirse con Magpie (otra captura con otra ventana, el menu de ajustes, un cambio de motor
         // con el telon...): el puente tambien aqui (log del usuario 19:10:06, captura a 1440p desde el menu de ajustes: 10,5 s en negro). Listo
         // ya: al momento; si viene, el tardio
-        void PuenteAlReabrir(Process p, Bandera fin)
+        // true = el puente ya va (el motor despierta ahora); false = no hay (o vendra el tardio): el que llama pone el telon en vivo
+        bool PuenteAlReabrir(Process p, Bandera fin)
         {
             try
             {
-                if (!cfg.Dlss5Seamless || !cfg.MagpieBridge || cfg.BenchSecs > 0 || relevo != null || Config.EngineActive || cfg.HomeNative) return;
+                if (!cfg.Dlss5Seamless || !cfg.MagpieBridge || cfg.BenchSecs > 0 || relevo != null || Config.EngineActive || cfg.HomeNative) return false;
                 string title = PadRecent ? curGame : null;
                 if (StandbyListoYa())
                 {
                     Relevo r = BridgeWake(title, null, "mpv y Magpie reabiertos");
-                    if (r != null) BridgeUpAsync(r, cfg.Dlss5SeamlessWaitMs);
-                    return;
+                    if (r != null) { BridgeUpAsync(r, cfg.Dlss5SeamlessWaitMs); return true; }
+                    return false;
                 }
                 PuenteTardio(title, null, "mpv y Magpie reabiertos", p, fin);
             }
             catch (Exception ex) { Log.Error("Puente al reabrir", ex); }
+            return false;
         }
 
         // Al salir de la app (o un fallo): el motor del relevo, si lo hay, fuera

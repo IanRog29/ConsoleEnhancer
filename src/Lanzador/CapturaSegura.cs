@@ -81,7 +81,8 @@ namespace ConsoleEnhancer
                 KeyValuePair<CapFmt, DateTime> r;
                 if (replace.TryGetValue(p.Key, out r))
                 {
-                    if ((DateTime.Now - r.Value).TotalSeconds < ReplaceSecs) return r.Key;
+                    // (otro tamaño: la capturadora no tiene ese tamaño, no cambia en la sesion; la velocidad si puede, con la consola a 120 Hz)
+                    if (r.Key.Size != p.Size || (DateTime.Now - r.Value).TotalSeconds < ReplaceSecs) return r.Key;
                     replace.Remove(p.Key);
                     Log.Write("Captura segura: " + p.Desc() + " se vuelve a probar (el repuesto " + r.Key.Desc() + " ya tiene " + (int)ReplaceSecs + " s)");
                 }
@@ -366,10 +367,11 @@ namespace ConsoleEnhancer
                 if (pedido != null && !pedido.Same(ef))
                 {
                     CapturaSegura.Guardar(pedido, ef);
-                    Log.Write("Captura segura: " + ef.Desc() + " da imagen: se queda en lugar de " + pedido.Desc() + " (3 min; luego se vuelve a probar)");
-                    capAviso = Deteccion.Tx.T("La capturadora no da " + pedido.Desc() + " · se usa " + ef.Desc(),
-                                              "The capture card can't do " + pedido.Desc() + " · using " + ef.Desc());
+                    Log.Write("Captura segura: " + ef.Desc() + " da imagen: se queda en lugar de " + pedido.Desc() +
+                              (ef.Size != pedido.Size ? " (el resto de la sesion: es otro tamaño)" : " (3 min; luego se vuelve a probar)"));
+                    capAviso = AvisoRepuesto(pedido, ef);
                 }
+                else CapAvisoOtraVez();
                 capPedido = null;
                 capProbados.Clear();
             }
@@ -380,8 +382,33 @@ namespace ConsoleEnhancer
         void CapCambioHecho()
         {
             if (!cfg.CapturaSegura) return;
-            try { capBueno = CapturaSegura.Efectivo(cfg); }
+            try
+            {
+                capBueno = CapturaSegura.Efectivo(cfg);
+                CapAvisoOtraVez();
+                CapMostrarAviso();
+            }
             catch { }
+        }
+
+        static string AvisoRepuesto(CapFmt pedido, CapFmt ef)
+        {
+            return Deteccion.Tx.T("La capturadora no da " + pedido.Desc() + " · se usa " + ef.Desc(),
+                                  "The capture card can't do " + pedido.Desc() + " · using " + ef.Desc());
+        }
+
+        // Lo pedido otra vez con un repuesto ya guardado (se abre el repuesto al momento, sin esperar): el aviso tambien, como mucho cada 30 s
+        string capAvisoClave;
+        DateTime capAvisoAt = DateTime.MinValue;
+        void CapAvisoOtraVez()
+        {
+            CapFmt pedido = CapturaSegura.Pedido(cfg), ef = CapturaSegura.Efectivo(cfg);
+            if (pedido.Same(ef)) return;
+            string k = pedido.Key + ">" + ef.Key;
+            if (k == capAvisoClave && (DateTime.Now - capAvisoAt).TotalSeconds < 30) return;
+            capAvisoClave = k;
+            capAvisoAt = DateTime.Now;
+            capAviso = AvisoRepuesto(pedido, ef);
         }
 
         // Con la imagen ya a la vista (RunMpv, tras quitar el telon): el aviso del repuesto
@@ -390,7 +417,10 @@ namespace ConsoleEnhancer
             string a = capAviso;
             if (a == null) return;
             capAviso = null;
+            capAvisoClave = CapturaSegura.Pedido(cfg).Key + ">" + CapturaSegura.Efectivo(cfg).Key;
+            capAvisoAt = DateTime.Now;
             lock (cmdQueue) cmdQueue.Add(OsdCmd(a, "6000", true));
+            Log.Write("Captura segura: aviso en pantalla: " + a);
         }
     }
 }

@@ -7497,8 +7497,10 @@ namespace ConsoleEnhancer
 
                     // 16-11 (motor_en_espera): en el HOME a 4K nativo con mpv, 3 s seguidos sin cambios en marcha: el motor en espera, si
                     // hace falta (una vez por sesion; ahi el tiron de su arranque no se ve)
+                    // (21-11, 1.2.1: 1 s y no 3: en el log del usuario, a los 3 s de abrir la app ya se entraba en el juego, sin puente; el motor
+                    // tarda 4,7-7,4 s en estar listo: cuanto antes, mas veces llega para el puente de la entrada, src\SinTelon.cs PuenteTardio)
                     if (cfg.HomeNative && lsReady && !homeBusy && !passesBusy && relaunchSize == null && !relaunchEngine && !Config.EngineActive)
-                    { if (++homeQuietTicks >= 6) MaybePrestartStandby(); }
+                    { if (++homeQuietTicks >= 2) MaybePrestartStandby(); }
                     else homeQuietTicks = 0;
 
                     // Ventana de mpv con otro tamaño (ver RestoreWindowSize). Magpie mide la ventana al empezar a escalar: con el
@@ -10687,8 +10689,13 @@ namespace ConsoleEnhancer
                     {
                         brAfter = BridgeWake(title, subtitle, "entrada en " + title);
                         if (brAfter != null) BridgeUpAsync(brAfter, cfg.Dlss5SeamlessWaitMs);
-                        // 21-11 (1.2.1): sin motor en espera listo pero arrancandose: el puente en cuanto lo este (src\SinTelon.cs)
-                        else PuenteTardio(title, subtitle, "entrada en " + title, p, finEntrada);
+                        else
+                        {
+                            // 21-11 (1.2.1): sin motor en espera listo: el telon en vivo (la imagen del juego, sin escalar) mientras Magpie prepara
+                            // y, si se esta arrancando uno, el puente en cuanto lo este (src\TelonVivo.cs, src\SinTelon.cs)
+                            SwapToLiveCurtainAsync("entrada en " + title, p);
+                            PuenteTardio(title, subtitle, "entrada en " + title, p, finEntrada);
+                        }
                     }
                     if (lsStart != null) lsStart.Join();
                     // (el puente, si sigue tras Magpie: no llego a presentar)
@@ -13878,7 +13885,12 @@ namespace ConsoleEnhancer
                     // 21-11 (1.2.1): reabiertos mpv y Magpie (otra captura con otra ventana, un cambio de motor con el telon...): el motor en
                     // espera jugando encima mientras Magpie prepara, como en las demas reaperturas (src\SinTelon.cs)
                     Bandera finRun = null;
-                    if (relanzado && relevo == null) { finRun = new Bandera(); PuenteAlReabrir(p, finRun); }
+                    if (relanzado && relevo == null)
+                    {
+                        finRun = new Bandera();
+                        // (sin puente al momento: el telon en vivo, la imagen de la consola sin escalar, en vez de negro; src\TelonVivo.cs)
+                        if (!PuenteAlReabrir(p, finRun)) SwapToLiveCurtainAsync("mpv y Magpie reabiertos", p);
+                    }
                     bool scaled = WaitForScaling(p, logStart, 8);
                     // 21-11 (1.2.1): Magpie aun cargando (su log crece: el primer arranque lee cientos de efectos): mas tiempo antes de pulsar su
                     // atajo (alterna: con el escalado a punto de empezar lo paraba) o de reiniciarlo (ver MagpieQuieto)
