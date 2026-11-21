@@ -83,6 +83,7 @@ namespace ConsoleEnhancer.Motor
         // switch2-encima: 0 no, 1 encima de todo una vez, 2 encima y reafirmado (ver SetOnTop)
         public static volatile int OnTopMode;
         static bool startTopmost;           // topmost= del arranque (lo de siempre al volver a ponerse delante)
+        public static volatile bool ClosedOutside;   // (1.0.11) la ventana la cerro otro (el usuario): se sale con 77
 
         [DllImport("user32.dll")] static extern bool SetProcessDpiAwarenessContext(IntPtr ctx);
 
@@ -119,7 +120,9 @@ namespace ConsoleEnhancer.Motor
                 window.Shown += delegate { if (!FocusHold) window.TakeFocus(); windowReady.Set(); };
                 // 20-11 (CIERRES): cerrada desde fuera (Alt+F4 que no vio el lanzador, WM_CLOSE de otro programa): que conste (el motor
                 // sale con el codigo 0, como siempre; el lanzador ya no lo toma por "cerrado por el usuario" si no se lo pidio el)
-                window.FormClosing += delegate (object o, FormClosingEventArgs a) { if (!Quit) Log.Write("Ventana: cerrada desde fuera (" + a.CloseReason + "): el motor se cierra"); };
+                // 21-11 (1.0.11): y sale con 77 (ClosedOutside): el lanzador cierra la app entera (la barra de tareas cerraba solo la ventana
+                // y el lanzador la volvia a abrir). El lanzador nunca cierra la ventana para reabrirla (eso va por la tuberia)
+                window.FormClosing += delegate (object o, FormClosingEventArgs a) { if (!Quit) { ClosedOutside = true; Log.Write("Ventana: cerrada desde fuera (" + a.CloseReason + "): el motor se cierra (codigo 77: la app entera)"); } };
                 window.FormClosed += delegate { Quit = true; };
                 if (s.Standby)
                 {
@@ -160,6 +163,7 @@ namespace ConsoleEnhancer.Motor
                 if (e != null) e.Dispose();
                 try { window.BeginInvoke((MethodInvoker)delegate { window.Close(); }); } catch { }
             }
+            if (ClosedOutside && code == 0) code = 77;
             Log.Write("Fin (" + code + ")");
             return code;
         }
@@ -184,6 +188,34 @@ namespace ConsoleEnhancer.Motor
         }
 
         public static bool HasFocus() { try { return window != null && GetForegroundWindow() == window.Handle; } catch { return false; } }
+
+        // 21-11 (1.0.11, el usuario: "dentro de la app no me reacciona la tecla de Windows"): el primer plano lo tiene Windows (menu Inicio,
+        // buscador, barra de tareas, centro de notificaciones, Alt+Tab, vista de tareas) o nadie (al abrirse Inicio hay un instante sin nadie):
+        // es el usuario usando Windows, el foco NO se recupera (antes la generacion lo cogia otra vez a los <= 3 s y el menu Inicio se cerraba)
+        public static bool ShellInFront()
+        {
+            try
+            {
+                IntPtr h = GetForegroundWindow();
+                if (h == IntPtr.Zero) return true;
+                uint pid; GetWindowThreadProcessId(h, out pid);
+                string pn = "";
+                try { using (System.Diagnostics.Process p = System.Diagnostics.Process.GetProcessById((int)pid)) pn = p.ProcessName; } catch { }
+                return EsShell(pn);
+            }
+            catch { return false; }
+        }
+
+        public static bool EsShell(string proceso)
+        {
+            switch ((proceso ?? "").ToLowerInvariant())
+            {
+                case "explorer": case "startmenuexperiencehost": case "searchhost": case "searchapp": case "shellexperiencehost":
+                case "shellhost": case "textinputhost": case "lockapp": case "taskmgr":
+                    return true;
+                default: return false;
+            }
+        }
 
         public static bool Focus()
         {

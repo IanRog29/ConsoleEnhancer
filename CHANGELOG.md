@@ -5,6 +5,22 @@ publicada es una etiqueta `vX.Y.Z` de git; GitHub Actions monta su zip y copia a
 
 ## [Sin publicar]
 
+## [1.0.11] - 2026-11-21
+
+### Nuevo
+- **Menú de ajustes en pantalla con el botón central del mando** (Xbox / PS / HOME), también con Ctrl+O o desde la bandeja. Muestra
+  todo lo que se puede cambiar (captura, modo 30/60/120, generación de fotogramas y su tipo, DLSS 5 con nivel y pasadas, escalador,
+  filtro de tramado) con lo de ahora marcado; se cambia con la cruceta o el stick (o las flechas), lo cambiado queda señalado y
+  **Aplicar** lo pone todo a la vez con una sola reapertura de la imagen. B o el botón central cierran sin cambiar nada. No le quita el
+  foco a la imagen (la generación sigue). Si el botón Xbox abre también la Game Bar de Windows, apágalo en Configuración > Juegos.
+  *On-screen settings menu on the controller's Guide/PS/HOME button (or Ctrl+O): change everything and apply it all at once.*
+
+### Arreglado
+- **Cerrar desde la barra de tareas** (o la X de la ventana) ahora cierra la app entera; antes la app lo tomaba por un corte de la
+  señal y volvía a abrir la imagen. *Closing the window from the taskbar now quits the app.*
+- **La tecla Windows** jugando: el menú Inicio se cerraba solo (la app recuperaba el foco para la generación). Ahora, con Inicio, la
+  barra de tareas o Alt+Tab delante, el foco no se toca. *The Windows key / Start menu now works while playing.*
+
 ## [1.0.10] - 2026-11-21
 
 ### Nuevo

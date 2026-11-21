@@ -108,7 +108,13 @@ namespace ConsoleEnhancer
             ToolStripMenuItem est = new ToolStripMenuItem(Tx.T("Ver lo que va puesto (en pantalla)", "Show current settings (on screen)"), null, delegate { DesdeBandeja("estado", false, delegate { Osd(StatusText()); }); });
             est.ShortcutKeyDisplayString = "Ctrl+I";
 
-            ToolStripItem[] todo = { fg, tipo, modo, cap, d5, esc, tram, est };
+            // 1.0.11: el menu de ajustes en pantalla (el del boton central del mando)
+            ToolStripMenuItem panel = new ToolStripMenuItem(Tx.T("Menú de ajustes en pantalla…", "On-screen settings menu…"), null, delegate
+            {
+                DesdeBandeja("menu de ajustes", false, delegate { OnUi(delegate { AjustesAbrir("bandeja"); }); });
+            });
+            panel.ShortcutKeyDisplayString = Tx.T("Botón central / Ctrl+O", "Guide button / Ctrl+O");
+            ToolStripItem[] todo = { panel, fg, tipo, modo, cap, d5, esc, tram, est };
             int at = 0;
             foreach (ToolStripItem it in todo) menu.Items.Insert(at++, it);
             menu.Items.Insert(at, new ToolStripSeparator());
@@ -198,6 +204,13 @@ namespace ConsoleEnhancer
         bool TeclaCe(uint vk)
         {
             if ((GetAsyncKeyState(0x11) & 0x8000) == 0 || (GetAsyncKeyState(0x12) & 0x8000) != 0) return false;   // Ctrl sin Alt
+            if (vk == 0x4F)   // Ctrl+O: el menu de ajustes (1.0.11, src\Lanzador\MenuAjustes.cs)
+            {
+                if (userExit || (!AjPrueba && !EsVentanaDeLaApp(GetForegroundWindow()))) return false;
+                if (ajustesAbierto) AjustesCerrar("Ctrl+O");
+                else if (PuedeAbrirAjustes(true)) AjustesAbrir("Ctrl+O");
+                return true;
+            }
             Action a = null;
             bool heavy = false;
             string que = null;
