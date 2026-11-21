@@ -28,6 +28,7 @@ namespace ConsoleEnhancer.Motor
     {
         public bool Adapta = false;
         public string AdaptaClave = "", AdaptaFichero = "escalas_motor.txt", AdaptaTecho = "";
+        public string SrDlls = "";
 
         // Claves de ConsoleEnhancer que el Apply de siempre no conoce (false = desconocida, como antes)
         bool ApplyCe(string key, string val)
@@ -38,6 +39,8 @@ namespace ConsoleEnhancer.Motor
                 case "adapta_clave": AdaptaClave = val.Trim(); return true;
                 case "adapta_fichero": AdaptaFichero = val.Trim(); return true;
                 case "adapta_techo": AdaptaTecho = val.Trim().ToUpperInvariant(); return true;
+                case "dlls_sr": SrDlls = val.Trim(); return true;
+                case "fg_tipo": FgTipo = val.Trim().ToLowerInvariant(); return true;   // 21-11 (EngineFgFfx.cs): fsr3 = FSR 3 FG de FidelityFX   // 21-11 (EngineSr.cs): la carpeta de libxess.dll / amd_fidelityfx_*.dll (la de Magpie)
                 // (vrr= y vrr_fg_vsync= ya los hace el motor: Settings.Apply de Common.cs y EngineLatencia.cs, de Prisma LATENCIA4, fusion 20-11)
             }
             return false;

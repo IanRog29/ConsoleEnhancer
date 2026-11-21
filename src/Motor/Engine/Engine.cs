@@ -224,7 +224,9 @@ namespace ConsoleEnhancer.Motor
             if (queueMax > 0) scd.Flags = DXGI_SWAP_CHAIN_FLAG.FRAME_LATENCY_WAITABLE_OBJECT;   // 18-11 (LATENCIA): cola_max=
             scd.Flags |= VrrSwapFlags();   // 20-11 (LATENCIA4, vrr=1: ALLOW_TEARING; EngineLatencia.cs)
             IDXGISwapChain1 sc1;
-            Hr.Check(factory.CreateSwapChainForHwnd(queue, hwnd, ref scd, null, null, out sc1), "CreateSwapChainForHwnd");
+            // 21-11 (EngineFgFfx.cs): con fg_tipo=fsr3 la cadena la crea FidelityFX (intercala las imagenes generadas)
+            if (!(FgFfx && FfxFgCreateSwapChain(ref scd, out sc1)))
+                Hr.Check(factory.CreateSwapChainForHwnd(queue, hwnd, ref scd, null, null, out sc1), "CreateSwapChainForHwnd");
             factory.MakeWindowAssociation(hwnd, DXGI_MWA.NO_ALT_ENTER | DXGI_MWA.NO_WINDOW_CHANGES);
             swap = (IDXGISwapChain3)sc1;
             LatQueueInit();
@@ -545,6 +547,7 @@ namespace ConsoleEnhancer.Motor
             int rows = fmt == Shaders.FmtNv12 ? h + h / 2 : h;
             byte* src = (byte*)data;
             FrameHook(src, pitch, w, h, fmt, arrival);
+            if (NoSignalCongela(src, pitch, w, h, fmt)) { stats.Captured(true); return; }   // (21-11: el corte corto sin la pantalla No Signal)
             if (grabWanted) Grab(src, pitch, w, h, fmt);
             // Como el filtro de mpv: sin las repetidas (una copia si llevan 2 sin pasar); en el modo 30, ademas, como mucho
             // 1 de cada 2 (una nueva si han pasado 2 desde la ultima que paso, o cualquiera a las 3)
@@ -965,9 +968,16 @@ namespace ConsoleEnhancer.Motor
                 if (lin) RecordToSrgb();   // (20-11: la salida de DLSS en luz lineal -> outColor en sRGB)
                 UavBarrier(outColor);
             }
+            else if (!native && (scalerNow == "xess" || scalerNow == "ffx") && (scalerNow == "xess" ? !xessBroken && xessCtx != IntPtr.Zero : !ffxBroken && ffxHasCtx))
+            {
+                // 21-11 (EngineSr.cs): XeSS SR / FSR 3.1-4 en el motor
+                if (scalerNow == "xess") RecordXess(); else RecordFfx();
+                UavBarrier(outColor);
+                if (fgApplied) TagForFg(token, false);
+            }
             else if (!native)
             {
-                if (scalerNow == "fsr1") RecordEasu(c);   // 18-11 (MOTOR-CE): FSR 1 EASU (EngineUniversal.cs)
+                if (scalerNow == "fsr1" || scalerNow == "xess" || scalerNow == "ffx") RecordEasu(c);   // 18-11 (MOTOR-CE): FSR 1 EASU (EngineUniversal.cs); 21-11: si XeSS / FSR fallan
                 else
                 {
                     c[0] = (uint)outW; c[1] = (uint)outH; c[2] = 0; c[3] = 0;
@@ -1011,6 +1021,8 @@ namespace ConsoleEnhancer.Motor
                 Barrier(composed, D3D12_RESOURCE_STATES.UNORDERED_ACCESS, D3D12_RESOURCE_STATES.COPY_SOURCE);
                 show = composed;
             }
+
+            FfxFgRecord();   // 21-11 (EngineFgFfx.cs): FSR 3 FG, configurar y preparar sus entradas
 
             // 5. A la pantalla
             uint bi = swap.GetCurrentBackBufferIndex();
@@ -1209,6 +1221,7 @@ namespace ConsoleEnhancer.Motor
             TirSecond();    // (16-11 tirones: una linea cada ~20 s si ha pasado algo)
             LatSecond();    // (18-11 LATENCIA: lat_csv al fichero)
             AdaptaTick();   // (ConsoleEnhancer: escalas que se adaptan, EngineAdapta.cs)
+            FpsVigila();    // (21-11: si no se llega a los fps del modo por el PC, aviso al lanzador, EngineFps.cs)
             AutoPresetTick();
             Unbury(false);
             // La generacion de NVIDIA se apaga sola sin el foco ("window not focused"): se recupera (como mucho cada 3 s). 16-11 (sin telon):

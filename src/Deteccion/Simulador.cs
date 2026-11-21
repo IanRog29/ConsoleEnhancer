@@ -45,6 +45,7 @@ namespace ConsoleEnhancer.Deteccion
                 case "gtx1660": Gpu(h, op, 0x10DE, 0x2184, "NVIDIA GeForce GTX 1660", 6, 0x160, 58000, 2); break;
                 case "amd-rx7800xt": Gpu(h, op, 0x1002, 0x747E, "AMD Radeon RX 7800 XT", 16, 0, 0, 2); break;
                 case "amd-rx9070xt": Gpu(h, op, 0x1002, 0x7550, "AMD Radeon RX 9070 XT", 16, 0, 0, 2); break;
+                case "amd-rx6700xt": Gpu(h, op, 0x1002, 0x73DF, "AMD Radeon RX 6700 XT", 12, 0, 0, 2); break;
                 case "amd-rx580": Gpu(h, op, 0x1002, 0x67DF, "Radeon RX 580 Series", 8, 0, 0, 2); break;
                 case "intel-arc-b580": Gpu(h, op, 0x8086, 0xE20B, "Intel(R) Arc(TM) B580 Graphics", 12, 0, 0, 2); break;
                 case "intel-iris-xe": Gpu(h, op, 0x8086, 0x9A49, "Intel(R) Iris(R) Xe Graphics", 0.125, 0, 0, 2); break;

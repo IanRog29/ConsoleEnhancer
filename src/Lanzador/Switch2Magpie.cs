@@ -897,7 +897,15 @@ namespace ConsoleEnhancer
         // (19-11: en el menu de la PS5 a 4K nativo, nunca: el usuario lo quiere "nativamente sin smooth motion ni nada", src\MenuPs5.cs)
         public int EngineSmoothMode { get { if (FgOff || Mode120 || NvProfiles.EngineSmoothBroken || (HomeNative && Consolas.Actual.MenuPropio)) return 0; if (CapMode) return EngineSmoothFor(true) ? (Pantalla.Hz() >= 100 ? 2 : 1) : 0; return EngineSmoothFor(false) && Pantalla.Hz() >= 100 ? 1 : 0; } }   // (ConsoleEnhancer: en el modo 60 la generacion solo con la pantalla a 100 Hz o mas; 20-11 HZ120: a 120 sin Smooth Motion)
         // 19-11 (GENERACION): la generacion de ahora solo la hace Magpie (FSR 3 FG, XeSS FG, NVIDIA VFG): con DLSS 5 apagado, mpv + Magpie sin el
-        public bool FgMagpieOnly { get { return !FgOff && !HomeNative && (FgTypeNow == "fsr3" || FgTypeNow == "xess" || FgTypeNow == "vfg"); } }
+        // 21-11 (1.0.9): FSR 3 FG ya la hace el motor propio (src\Motor\Engine\EngineFgFfx.cs) salvo con DLSS de escalador (con ella el motor
+        // va sin Streamline, sin DLSS): entonces sigue Magpie. XeSS FG y la de NVIDIA VFX, Magpie
+        public bool FgMagpieOnly { get { return !FgOff && !HomeNative && ((FgTypeNow == "fsr3" && Ce.EngineUpscaler(this) == "dlss") || FgTypeNow == "xess" || FgTypeNow == "vfg"); } }
+        // El motor con FSR 3 FG (fg_tipo=fsr3 al abrirlo: su cadena de presentacion es la de FidelityFX; no se cambia en marcha)
+        public bool EngineFfxWanted { get { return !FgOff && !HomeNative && !Mode120 && FgTypeNow == "fsr3" && Ce.EngineUpscaler(this) != "dlss"; } }
+        public static volatile int EngineFfxLaunched = -1;
+        static readonly Dictionary<int, int> engineFfxByPid = new Dictionary<int, int>();
+        public static void NoteEngineFfx(Process p) { if (p == null) return; try { lock (engineFfxByPid) engineFfxByPid[p.Id] = EngineFfxLaunched; } catch { } }
+        public static int EngineFfxOf(Process p) { if (p == null) return -1; try { int v; lock (engineFfxByPid) return engineFfxByPid.TryGetValue(p.Id, out v) ? v : -1; } catch { return -1; } }
         // La clave del modo del motor con su generacion ("60_sm" con Smooth Motion, "60_dlssg" con DLSS-G; "" sin generacion)
         public string EngineModeKeyGen { get { return FgOff ? "" : (CapMode ? "30_" : "60_") + (EngineSmoothMode > 0 ? "sm" : "dlssg"); } }
         string EngineGet(Dictionary<string, string> t)
@@ -914,6 +922,7 @@ namespace ConsoleEnhancer
         // menu); sin generacion (boton de captura), en el 30 y con Smooth Motion, VRR como siempre (el 60 sin generacion a refresco fijo
         // pierde el ritmo: 59,94 en 120 Hz, medido 22,3 ms frente a 17,7 y saltos de 1 y 3 refrescos)
         public bool EngineFixed60Fg = true;
+        public bool EngineReserve = true;   // 21-11 (1.0.9) motor_reserva=0|1: motor de reserva con la otra generacion del modo (MaybeReserveEngine)
         public bool EngineFixedWanted { get { return EngineFixed60Fg && CeRefrescoFijoAhora() && !CapMode && !FgOff && !EngineSmoothFor(false) && !NvProfiles.EngineFixedBroken; } } // (ConsoleEnhancer: CeRefrescoFijoAhora, motor_60fg_refresco_fijo=auto, ImagenCe.cs)
         public static volatile int EngineFixedLaunched = -1;    // el refresco fijo del ultimo motor lanzado (EngineArgs): -1 ninguno, 0 no, 1 si
         static readonly Dictionary<int, int> engineFixedByPid = new Dictionary<int, int>();
@@ -922,7 +931,9 @@ namespace ConsoleEnhancer
         public static int EngineFixedOf(Process p) { if (p == null) return -1; try { int v; lock (engineFixedByPid) return engineFixedByPid.TryGetValue(p.Id, out v) ? v : -1; } catch { return -1; } }
         // DLSS 5 apagado, o que no cabe en este modo (60 con generacion: Magpie iria sin el, peor que el motor)
         // (19-11, GENERACION: y no con una generacion que solo hace Magpie, FgMagpieOnly)
-        public bool EngineNow { get { return Engine == "propio" && (Dlss5Off || !Dlss5FitsNow || EngineDlss5Now) && !FgMagpieOnly && File.Exists(EnginePath); } }
+        public bool EngineNow { get { return Engine == "propio" && (Dlss5Off || !Dlss5FitsNow || EngineDlss5Now) && !FgMagpieOnly && !ScalerMagpieOnly && File.Exists(EnginePath); } }
+        // 21-11 (1.0.9): XeSS y FSR 4 de escalador solo los tiene Magpie (el motor ponia FSR 1 sin decirlo): con ellos, mpv + Magpie
+        public bool ScalerMagpieOnly { get { return false; } }   // (1.0.9: ya no: el motor propio hace XeSS y FSR 3/4, EngineSr.cs)
         // 20-11 (DLSS 5 EN EL MOTOR): ini motor_dlss5=1 = DLSS 5 con 1 pasada lo hace el motor propio (PrismaNr.dll, de uso propio y fuera del repositorio, +
         // EngineDlss5.cs: DLSSNR sobre la captura antes de DLSS SR) en vez de mpv + Magpie: sin mpv, DWM ni la captura de Windows (el motor
         // va a ~35-48 ms con DLSS-G frente a 72-94 de Magpie con DLSS 5 y FG). 2-3 pasadas siguen en Magpie. Con la "fuerza total" (dlss5_fuerza, 20-11). Sin el 5o
@@ -1110,7 +1121,13 @@ namespace ConsoleEnhancer
             get
             {
                 if (CaptureNow == "3840x2160") return "4K nativo";
-                if (EngineNow) return ScalerNow == "dlss" ? "DLSS " + EngineModelName(EnginePresetNow) + " · motor propio" : "Catmull-Rom · motor propio";
+                if (EngineNow)
+                {
+                    // 21-11 (1.0.9): lo que hace de verdad el motor (Ce.EngineUpscaler): DLSS, XeSS, FSR 3/4 o FSR 1
+                    string eu = Ce.EngineUpscaler(this);
+                    return eu == "dlss" ? "DLSS " + EngineModelName(EnginePresetNow) + " · motor propio" : eu == "xess" ? "XeSS · motor propio" :
+                           eu == "fsr4" ? "FSR 4 · motor propio" : eu == "fsr3" ? "FSR 3 · motor propio" : "FSR 1 · motor propio";
+                }
                 return UpscaleOn ? ScalerName(ScalerNow) : "4K nativo";
             }
         }
@@ -1356,6 +1373,7 @@ namespace ConsoleEnhancer
                         case "pasadas_vigilancia_imagen_umbral": c.D5ImageOsc = Math.Max(0.5, ParseNum(val)); break;
                         case "pasadas_vigilancia_imagen_pct": c.D5ImagePct = Math.Max(1, Math.Min(100, ParseNum(val))); break;
                         case "motor_en_espera": c.EngineStandby = ParseBool(val); break;
+                        case "motor_reserva": c.EngineReserve = ParseBool(val); break;   // 21-11 (1.0.9): motor de reserva con la otra generacion (1 de serie)
                         case "dlss5_sin_telon": c.Dlss5Seamless = ParseBool(val); break;
                         case "dlss5_sin_telon_encima": c.Dlss5SeamlessOnTop = Math.Max(1, Math.Min(2, ParseInt(val))); break;
                         case "dlss5_sin_telon_foco": c.Dlss5SeamlessFocus = ParseBool(val); break;
@@ -5741,6 +5759,10 @@ namespace ConsoleEnhancer
             // nombres con distinta etiqueta de consola (o uno con y otro sin) NUNCA son el mismo juego, aunque el resto se solape ("PS5:
             // Rocket League" no es el "Rocket League" de la Switch 2). Asi no se mezclan juegos de consolas distintas
             if (JuegoConsola.TagConsola(a) != JuegoConsola.TagConsola(b)) return false;
+            // 21-11 (el usuario: "siguen sin guardarse los perfiles"): en las consolas con menu propio el OCR lee el mismo juego con
+            // erratas distintas cada vez ("Bfoodborne" / "Bloodborne"): cada una era un perfil nuevo. Ahora es el mismo (solo con etiqueta:
+            // la Switch 2 sigue igual)
+            if (JuegoConsola.TagConsola(a) != null && JuegoConsola.Parecido(a, b)) return true;
             string x = HomeLabel.Norm(a), y = HomeLabel.Norm(b);
             if (x.Length == 0 || y.Length == 0) return false;
             if (x == y) return true;
@@ -5778,6 +5800,29 @@ namespace ConsoleEnhancer
         // Perfil por nombre: el mismo nombre primero (tal cual, luego sin mayusculas, acentos ni signos); si no, el mismo juego
         // (otra ventana del nombre, SameGame). 15-11: ya no le cambia el nombre por uno mas largo de una sola lectura (asi podia
         // entrar basura del OCR: "HITMAN World of Assassination kAàiuy" el 12-11): eso lo decide Improve, con lecturas votadas
+        // 21-11 (quinta vuelta, PS5 por icono): otro nombre para un perfil (el "Juego N" o el leido con basura, ya con un nombre bien
+        // leido). Si ya hay otro perfil con ese nombre exacto no se toca (devuelve false)
+        public static bool ExisteNombre(string nombre)
+        {
+            lock (sync) { Load(); foreach (GameProfile q in list) if (q.Name == nombre) return true; return false; }
+        }
+
+        public static bool Renombra(string viejo, string nuevo)
+        {
+            if (string.IsNullOrEmpty(viejo) || string.IsNullOrEmpty(nuevo) || viejo == nuevo) return false;
+            lock (sync)
+            {
+                Load();
+                GameProfile p = null;
+                foreach (GameProfile q in list) { if (q.Name == nuevo) return false; if (q.Name == viejo) p = q; }
+                if (p == null) return false;
+                Backup();
+                p.Name = nuevo;
+                SaveAll();
+                return true;
+            }
+        }
+
         public static GameProfile Find(string name)
         {
             if (string.IsNullOrEmpty(name)) return null;
@@ -7355,6 +7400,8 @@ namespace ConsoleEnhancer
                     if (Config.EngineActive) SyncEngine();
                     if (Config.EngineActive) CheckEngineSmooth(now);   // 17-11 16:55
                     if (Config.EngineActive) CheckEngineFixed(now);    // 20-11 (LATENCIA5)
+                    if (Config.EngineActive) CheckEngineFfx(now);      // 21-11 (1.0.9): FSR 3 FG en el motor
+                    if (Config.EngineActive) MaybeReserveEngine(now);  // 21-11 (1.0.9): motor de reserva con la otra generacion
                     if (!Config.EngineActive && !relaunchEngine && !homeBusy && !passesBusy && relaunchSize == null && (now - lastWindowFix).TotalSeconds >= 10)
                     {
                         RECT wr;
@@ -11049,8 +11096,10 @@ namespace ConsoleEnhancer
         int standbySmooth = -1;   // 17-11 16:55: Smooth Motion con el que se abrio el motor en espera (Config.EngineSmoothLaunched/Running)
         void SetStandby(Process e, string ipc, bool ready)
         {
+            // 21-11 (1.0.9, motor de reserva): nunca dos en espera: el que hubiera (la reserva) se cierra antes
+            if (standbyEngine != null && standbyEngine != e) KillStandby("otro motor pasa a espera");
             standbySmooth = ready ? Config.EngineSmoothRunning : Config.EngineSmoothLaunched;   // (ready: el que hacia la imagen y pasa a espera)
-            if (!ready) Config.NoteEngineFixed(e);   // 20-11 (LATENCIA5): recien lanzado con EngineArgs: su refresco (fijo / VRR)
+            if (!ready) { Config.NoteEngineFixed(e); Config.NoteEngineFfx(e); }   // 20-11 (LATENCIA5): recien lanzado con EngineArgs: su refresco (fijo / VRR)
             standbyReady = ready;
             standbyIpc = ipc;
             standbySince = DateTime.Now;
@@ -11179,6 +11228,61 @@ namespace ConsoleEnhancer
 
         // Si la sesion va con mpv + Magpie y no hay motor: uno arrancado ya en espera (standby=1), una vez por sesion, en el HOME a 4K nativo
         // (WatchLoop, con 3 s de HOME quieto: ahi el tiron de su arranque, ~3 s de Streamline, no se ve)
+        // 21-11 (1.0.9; el usuario: "intenta reducir los tiempos de carga de los perfiles"): cambiar de Smooth Motion a DLSS FG (o al reves)
+        // con L3, o un perfil que lo cambia, vuelve a abrir el motor: 4-5 s (3 de ellos de Streamline, slInit + slSetD3DDevice). Con el motor
+        // jugando 10 s sin cambios, uno de reserva escondido (en espera: sin capturadora ni pintar) con la OTRA generacion de este modo y su
+        // refresco; al cambiar, se despierta ese (~0,5 s). Uno por estado (no se repite si ya se probo con lo mismo)
+        DateTime reserveQuietSince = DateTime.MinValue;
+        string reserveKeyDone;
+        void MaybeReserveEngine(DateTime now)
+        {
+            if (!cfg.EngineReserve || standbyEngine != null || !ipcUp || !lsReady || homeBusy || passesBusy || relaunchEngine || relaunchSize != null ||
+                relevo != null || cfg.HomeNative || cfg.FgOff || cfg.Mode120 || userExit || !StandbyOn())
+            { reserveQuietSince = DateTime.MinValue; return; }
+            if (reserveQuietSince == DateTime.MinValue) { reserveQuietSince = now; return; }
+            if ((now - reserveQuietSince).TotalSeconds < 10) return;
+            int smRun = Config.EngineSmoothRunning;
+            if (smRun < 0 || NvProfiles.EngineSmoothBroken) return;
+            int altSm, altFixed;
+            if (smRun > 0) { altSm = 0; altFixed = (!cfg.CapMode && cfg.EngineFixed60Fg && cfg.CeRefrescoFijoAhora() && !NvProfiles.EngineFixedBroken) ? 1 : 0; }
+            else { altSm = cfg.CapMode ? (Pantalla.Hz() >= 100 ? 2 : 1) : (Pantalla.Hz() >= 100 ? 1 : 0); altFixed = 0; }
+            if (altSm == smRun) return;
+            string key = smRun + ">" + altSm + "|" + altFixed + "|" + cfg.CaptureNow + "|" + (cfg.CapMode ? 30 : 60);
+            if (key == reserveKeyDone) return;
+            reserveKeyDone = key;
+            int sm = altSm, fx = altFixed;
+            Thread t = new Thread(delegate () { PrestartReserve(sm, fx); });
+            t.IsBackground = true;
+            t.Name = "Motor de reserva";
+            t.Start();
+        }
+
+        void PrestartReserve(int sm, int fixedRefresh)
+        {
+            try
+            {
+                string ipc = MpvConst.StandbyIpcName();
+                PrepareCfg();
+                ProcessStartInfo psi = new ProcessStartInfo(cfg.EnginePath, EngineArgs(cfg, ipc, sm, fixedRefresh) + " standby=1");
+                psi.UseShellExecute = false;
+                psi.WorkingDirectory = Path.GetDirectoryName(cfg.EnginePath);
+                Log.Write("Motor de reserva: se arranca uno escondido con " + (sm > 0 ? "Smooth Motion" : "DLSS FG" + (fixedRefresh > 0 ? " y refresco fijo" : "")) +
+                          " (el otro tipo de generacion de este modo: cambiar a el sera despertarlo, ~0,5 s)");
+                Process e = Process.Start(psi);
+                if (userExit) { try { e.Kill(); } catch { } return; }
+                SetStandby(e, ipc, false);
+                Stopwatch sw = Stopwatch.StartNew();
+                bool fgSaid = false;
+                while (!userExit && standbyEngine == e && !e.HasExited && sw.ElapsedMilliseconds < 25000 && (!standbyReady || sw.ElapsedMilliseconds < 4000))
+                {
+                    Thread.Sleep(100);
+                    if (!fgSaid) fgSaid = StandbyFgBack(e);
+                }
+                if (e.HasExited) { Log.Write("Motor de reserva: se ha cerrado al arrancar (codigo " + e.ExitCode + ")"); KillStandby("cerrado al arrancar"); }
+            }
+            catch (Exception ex) { Log.Error("Motor de reserva: arrancandolo", ex); }
+        }
+
         void MaybePrestartStandby()
         {
             if (standbyPrestarted || standbyEngine != null || Config.EngineActive || !StandbyOn()) return;
@@ -11305,8 +11409,25 @@ namespace ConsoleEnhancer
             fixedDiffSince = DateTime.MinValue;
             Log.Write("Refresco del motor: " + (want > 0 ? "fijo (modo 60 con DLSS FG: sin el tope de 116 de Reflex con VRR)" : "VRR (" + (cfg.CapMode ? "modo 30" : cfg.FgOff ? "sin generacion" : "otra generacion") + ")") +
                       ": el driver solo lo mira al abrirlo, se vuelve a abrir el motor");
-            ReabrirMotorSmooth(cfg.EngineSmoothMode, cfg.FgOff ? "Generación de fotogramas desactivada" : "Generación de fotogramas activada",
-                               cfg.FgOff ? "sin generación" : want > 0 ? "DLSS FG · ritmo fijo de la tele" : "DLSS FG");
+            ReabrirMotorSmooth(cfg.EngineSmoothMode, null, null);
+        }
+
+        // 21-11 (1.0.9): el motor que hace la imagen se abrio con FSR 3 FG y ya no toca (u otra al reves): se vuelve a abrir (su cadena de
+        // presentacion es la de FidelityFX y no se cambia en marcha). Medio segundo seguido distinto, como Smooth Motion
+        DateTime ffxDiffSince = DateTime.MinValue;
+        void CheckEngineFfx(DateTime now)
+        {
+            int have = Config.EngineFfxOf(mpv);
+            if (have < 0 || !ipcUp || !lsReady || homeBusy || passesBusy || relaunchEngine || relaunchSize != null || relevo != null)
+            { ffxDiffSince = DateTime.MinValue; return; }
+            PrepareCfg();
+            int want = cfg.EngineFfxWanted ? 1 : 0;
+            if (want == have || cfg.EngineSmoothMode != Config.EngineSmoothRunning) { ffxDiffSince = DateTime.MinValue; return; }
+            if (ffxDiffSince == DateTime.MinValue) { ffxDiffSince = now; return; }
+            if ((now - ffxDiffSince).TotalSeconds < 0.5) return;
+            ffxDiffSince = DateTime.MinValue;
+            Log.Write("Generacion del motor: " + (want > 0 ? "FSR 3 FG (FidelityFX)" : "sin FSR 3 FG") + ": su cadena de presentacion se elige al abrirlo, se vuelve a abrir el motor");
+            ReabrirMotorSmooth(cfg.EngineSmoothMode, null, null);
         }
 
         DateTime smoothDiffSince = DateTime.MinValue;
@@ -11334,8 +11455,14 @@ namespace ConsoleEnhancer
             // 17-11 17:00 (el usuario: "al activar o desactivar el smooth motion la imagen se pone negra"): sin telon, como DLSS 5 apagado: uno
             // nuevo en espera con el Smooth Motion que toca arranca escondido (~3-4 s) mientras el de ahora sigue jugando, se despierta detras y
             // se pone delante en cuanto da imagen; el de antes se cierra debajo
-            string stTitle = title ?? (want > 0 ? "Generación de fotogramas activada" : "Generación de fotogramas desactivada");
-            string stSub = subtitle ?? (want > 0 ? "Smooth Motion" : "sin generación");
+            // 21-11 (el usuario: "al cambiar de fg sale que se desactiva y activa sin tocarlo"): el aviso decia "desactivada" con want=0, que
+            // solo es SIN SMOOTH MOTION (p. ej. de Smooth Motion a DLSS FG, o el cambio de refresco del 60 con DLSS FG), y "activada" al
+            // reves. Ahora dice lo que hay de verdad: el tipo de generacion de ahora, o desactivada solo si esta apagada
+            string genNow = GenCurrent();
+            bool genOff = genNow == "no" || cfg.FgOff;
+            string stTitle = title ?? (genOff ? "Generación de fotogramas desactivada" : "Generación: " + GenLabel(genNow, true));
+            string stSub = subtitle ?? (genOff ? "Solo las imágenes reales de la consola" : GenDetail(genNow, true) +
+                                        (want == 0 && cfg.EngineFixedWanted ? " · ritmo fijo de la tele" : ""));
             if (cfg.Dlss5Seamless && StandbyOn() && EngineKnowsSinTelon() && signalOn && mpv != null)
             {
                 Log.Write("Smooth Motion del motor: sin telon (otro motor detras con el ajuste nuevo; el de ahora sigue jugando)");
@@ -11428,18 +11555,23 @@ namespace ConsoleEnhancer
                    " dlss5_dir=" + Paths.MagpieDir;
         }
 
-        static string EngineArgs(Config cfg, string ipc)
+        static string EngineArgs(Config cfg, string ipc) { return EngineArgs(cfg, ipc, -1, -1); }
+
+        // smOverride / fixedOverride >= 0 (21-11, 1.0.9, motor de reserva): el Smooth Motion y el refresco con los que se abre, en vez de los de
+        // la config de ahora (la "otra" generacion del modo, para que cambiarla con L3 sea despertar un motor ya abierto: ~0,5 s, no 4-5)
+        static string EngineArgs(Config cfg, string ipc, int smOverride, int fixedOverride)
         {
             // 17-11 16:55 (motor_generacion_60=smooth): Smooth Motion en el perfil de ConsoleEnhancerEngine.exe justo antes de abrirlo (el driver lo
             // mira al abrir el proceso); quitado si no toca (o si lo dejo puesto otra sesion)
-            int sm = cfg.EngineSmoothMode;
-            if (cfg.EngineSmoothAny || NvProfiles.EngineSmoothOn) { if (!NvProfiles.SetEngineSmooth(sm)) sm = 0; }
+            int sm = smOverride >= 0 ? smOverride : cfg.EngineSmoothMode;
+            if (cfg.EngineSmoothAny || NvProfiles.EngineSmoothOn || smOverride > 0) { if (!NvProfiles.SetEngineSmooth(sm)) sm = 0; }
             else sm = 0;
             Config.EngineSmoothLaunched = sm;
             // 20-11 (LATENCIA5): refresco fijo en el perfil del motor en el 60 con DLSS FG (motor_60fg_refresco_fijo); quitado si no toca
-            bool fixedRefresh = sm == 0 && cfg.EngineFixedWanted;
+            bool fixedRefresh = fixedOverride >= 0 ? (fixedOverride > 0 && sm == 0) : (sm == 0 && cfg.EngineFixedWanted);
             if (fixedRefresh || NvProfiles.EngineFixedOn) { if (!NvProfiles.SetEngineFixed(fixedRefresh)) fixedRefresh = false; }
             Config.EngineFixedLaunched = fixedRefresh ? 1 : 0;
+            Config.EngineFfxLaunched = cfg.EngineFfxWanted ? 1 : 0;   // 21-11 (1.0.9): FSR 3 FG en el motor
             List<string> a = new List<string>();
             a.Add("ipc=" + ipc);
             a.Add("flag=" + Paths.FlagFile);
@@ -11462,7 +11594,8 @@ namespace ConsoleEnhancer
             a.Add("nosig_hold_launch_ms=" + ((int)(cfg.NoSignalHoldLaunchSecs * 1000)).ToString(CultureInfo.InvariantCulture));
             // 20-11 (LATENCIA4): tele con VRR (motor_vrr=1; un motor de antes solo dice "Ajuste desconocido: vrr=1")
             if (cfg.EngineVrr > 0) { a.Add("vrr=1"); if (cfg.EngineVrrFgVsync >= 0) a.Add("vrr_fg_vsync=" + cfg.EngineVrrFgVsync.ToString(CultureInfo.InvariantCulture)); }
-            if (fixedRefresh) a.Add("refresco_fijo=1");   // 20-11 (LATENCIA5: para su registro; uno de antes solo dice "Ajuste desconocido")
+            if (fixedRefresh) a.Add("refresco_fijo=1");
+            if (Config.EngineFfxLaunched > 0) a.Add("fg_tipo=fsr3");   // 21-11 (1.0.9, EngineFgFfx.cs del motor)   // 20-11 (LATENCIA5: para su registro; uno de antes solo dice "Ajuste desconocido")
             if (cfg.EngineExtra.Length > 0) a.AddRange(cfg.EngineExtra.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries));
             return JoinArgs(a);
         }
@@ -12497,6 +12630,7 @@ namespace ConsoleEnhancer
                     }
                     else if (line.Contains("\"request_id\":79")) CierresCaptura(line); // (20-11, CIERRES: switch2-captura-ms del motor)
                     else if (line.Contains("\"client-message\"") && CierresEvent(line)) { } // (20-11, CIERRES: switch2-gpu del motor)
+                    else if (line.Contains("\"client-message\"") && FpsEvent(line)) { } // (21-11: switch2-fps del motor, src\Lanzador\FpsBajo.cs)
                     else if (line.Contains("\"client-message\"") && line.Contains("\"args\":[\"switch2-pad\""))
                     {
                         // Lo mismo que el mando, por la tuberia de mpv (para probar sin mando)
@@ -13226,6 +13360,10 @@ namespace ConsoleEnhancer
                     if (eng && adopted == null && standbyEngine != null && Config.EngineFixedOf(standbyEngine) >= 0 &&
                         Config.EngineFixedOf(standbyEngine) != (cfg.EngineSmoothMode == 0 && cfg.EngineFixedWanted ? 1 : 0))
                         KillStandby("refresco: el motor en espera se abrio " + (Config.EngineFixedOf(standbyEngine) > 0 ? "con el refresco fijo" : "con VRR"));
+                    // 21-11 (1.0.9): y uno abierto con otra generacion de motor (FSR 3 FG / la de siempre): la cadena no se cambia en marcha
+                    if (eng && adopted == null && standbyEngine != null && Config.EngineFfxOf(standbyEngine) >= 0 &&
+                        Config.EngineFfxOf(standbyEngine) != (cfg.EngineFfxWanted ? 1 : 0))
+                        KillStandby("generacion: el motor en espera se abrio " + (Config.EngineFfxOf(standbyEngine) > 0 ? "con FSR 3 FG" : "sin FSR 3 FG"));
                     Process woke = adopted ?? (eng ? StandbyForWake() : null);
                     if (eng && woke == null) KillStandby("se abre otro motor");
                     if (woke != null) ipc = adopted != null ? adoptIpc : standbyIpc;
@@ -13275,7 +13413,7 @@ namespace ConsoleEnhancer
                     {
                         p = Process.Start(psi);
                         mpv = p;
-                        if (eng) Config.NoteEngineFixed(p);   // 20-11 (LATENCIA5)
+                        if (eng) { Config.NoteEngineFixed(p); Config.NoteEngineFfx(p); }   // 20-11 (LATENCIA5)
                         if (eng) Config.EngineSmoothRunning = Config.EngineSmoothLaunched;   // 17-11 16:55 (17:15: con mpv se queda el del ultimo motor: el que pasa a espera tras el puente lo necesita; antes -1 y al motor de Smooth Motion se le mandaba fg=1)
                     }
                     imageStart = DateTime.Now;
