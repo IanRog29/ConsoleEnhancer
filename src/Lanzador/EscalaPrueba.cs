@@ -66,8 +66,12 @@ namespace ConsoleEnhancer
         static string P3(CadenaEscala c) { return Pct(c, 1) + " / " + Pct(c, 2) + " / " + Pct(c, 3); }
         static int R(int p) { return p < 0 ? 0 : p; }   // (-1 = no cabe: lo mas bajo)
 
-        public static int Run(string informe)
+        public static int Run(string arg)
         {
+            // --test-escala=<informe>[;<magpie.log de una sesion de verdad>]
+            string informe = arg, logMagpie = null;
+            if (arg != null && arg.IndexOf(';') >= 0) { informe = arg.Substring(0, arg.IndexOf(';')); logMagpie = arg.Substring(arg.IndexOf(';') + 1); }
+            if (informe != null && informe.Length == 0) informe = null;
             sb = new StringBuilder();
             fallos = pruebas = 0;
             string tmp = Path.Combine(Path.GetTempPath(), "ce_test_escala_" + DateTime.Now.ToString("HHmmssfff", CultureInfo.InvariantCulture) + ".txt");
@@ -90,6 +94,7 @@ namespace ConsoleEnhancer
                 Decisiones(ti);
                 ConfigMagpie(ti, r4090);
                 ConTuIni();
+                if (!string.IsNullOrEmpty(logMagpie)) ConLogDeMagpie(logMagpie, ti);
             }
             catch (Exception ex) { fallos++; sb.AppendLine("EXCEPCION: " + ex); }
             finally
@@ -383,6 +388,72 @@ namespace ConsoleEnhancer
             finally { Config.Window1080 = w1080; Forzar("dlss5State", 0); Forzar("dlssgState", 0); try { File.Delete(Path.Combine(Path.GetTempPath(), "ce_test_escala_ini.txt")); } catch { } }
             sb.AppendLine();
         }
+
+        // ------------------------------------------------------------------ 5) una sesion de verdad: el log de Magpie (solo se lee)
+        // Sus resumenes "Output cadence" (como ReadLsStats: nuevas / tiempo) en ventanas de 5 s, cada apertura de Magpie con DLSS 5 por
+        // separado (su % de "DLSSNR STATUS" y su ritmo de "Frame sync effective base target"), desde los 25 s, por Decidir: lo que habria hecho
+        static void ConLogDeMagpie(string ruta, G ti)
+        {
+            sb.AppendLine("== 5) El log de Magpie de una sesion de verdad (" + ruta + ", solo lectura) ==");
+            if (!File.Exists(ruta)) { sb.AppendLine("  (no esta)"); return; }
+            string[] ls;
+            using (FileStream fs = new FileStream(ruta, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+            using (StreamReader rd = new StreamReader(fs, Encoding.UTF8)) ls = rd.ReadToEnd().Split('\n');
+            System.Text.RegularExpressions.Regex rOc = new System.Text.RegularExpressions.Regex(@"^(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d\.\d{3})\|.*Output cadence .*?captureFps=([0-9.]+).*?newCapture=(\d+).*?generated=(\d+)");
+            System.Text.RegularExpressions.Regex rSt = new System.Text.RegularExpressions.Regex(@"DLSSNR STATUS: .*?sourceSize=(\d+)x(\d+).*?inputResolutionPercent=(\d+)");
+            System.Text.RegularExpressions.Regex rTg = new System.Text.RegularExpressions.Regex(@"^(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d\.\d{3})\|.*Frame sync effective base target: ([0-9.]+) FPS");
+            int sesiones = 0;
+            double objetivo = 0; int pct = 0, venH = 0, venW = 0; DateTime inicio = DateTime.MinValue, ventana = DateTime.MinValue;
+            double nuevas = 0, tiempo = 0, gen = 0; int resumenes = 0;
+            EscalaAuto.Seguimiento s = new EscalaAuto.Seguimiento();
+            bool decidido = false;
+            List<string> linea = new List<string>();
+            foreach (string raw in ls)
+            {
+                string l = raw.TrimEnd('\r');
+                System.Text.RegularExpressions.Match m;
+                if ((m = rTg.Match(l)).Success)
+                {
+                    // otra apertura de Magpie
+                    objetivo = double.Parse(m.Groups[2].Value, CultureInfo.InvariantCulture);
+                    inicio = DateTime.ParseExact(m.Groups[1].Value, "yyyy-MM-dd HH:mm:ss.fff", CultureInfo.InvariantCulture);
+                    pct = 0; ventana = DateTime.MinValue; nuevas = tiempo = gen = 0; resumenes = 0; s = new EscalaAuto.Seguimiento(); decidido = false;
+                    continue;
+                }
+                if ((m = rSt.Match(l)).Success) { venW = int.Parse(m.Groups[1].Value); venH = int.Parse(m.Groups[2].Value); pct = int.Parse(m.Groups[3].Value); sesiones++; continue; }
+                if (pct <= 0 || decidido || !(m = rOc.Match(l)).Success) continue;
+                DateTime ts = DateTime.ParseExact(m.Groups[1].Value, "yyyy-MM-dd HH:mm:ss.fff", CultureInfo.InvariantCulture);
+                if ((ts - inicio).TotalSeconds < 25) continue;
+                double cf = double.Parse(m.Groups[2].Value, CultureInfo.InvariantCulture);
+                int nc = int.Parse(m.Groups[3].Value), gn = int.Parse(m.Groups[4].Value);
+                if (cf <= 0.5 || nc <= 0) continue;
+                if (ventana == DateTime.MinValue) ventana = ts;
+                nuevas += nc; gen += gn; tiempo += nc / cf; resumenes++;
+                if ((ts - ventana).TotalSeconds < 5) continue;
+                // una ventana de 5 s, como CheckLsPacing
+                int modo = objetivo > 100 ? 120 : objetivo > 40 ? 60 : 30;
+                string capt = venH >= 2000 ? "3840x2160" : venH >= 1400 ? "2560x1440" : "1920x1080";
+                CadenaEscala c = Cadena(ti, modo, capt, capt, gen > 0 ? "dlss" : "", "dlss", 5, modo != 30, 3840, 2160);
+                EscalaAuto.Opciones o = new EscalaAuto.Opciones(); o.Pct = pct; o.Pasadas = 1;
+                EscalaAuto.Medida md = M(nuevas / tiempo, modo == 120 ? 120 : objetivo, modo == 120 ? 120 : objetivo, -1);
+                EscalaAuto.Decision d = EscalaAuto.Decidir(c, md, s, o);
+                linea.Add(F(md.Real));
+                if (d.Tipo != "nada")
+                {
+                    sb.AppendLine("  " + inicio.ToString("HH:mm:ss", CultureInfo.InvariantCulture) + " modo " + modo + ", " + capt + ", DLSS 5 al " + pct + " %: reales por ventana " +
+                                  string.Join(" ", linea.ToArray()) + " -> " + d.Tipo + (d.Tipo == "bajar" ? " al " + d.Pct + " %" : "") + " (" + d.Motivo + ")");
+                    decidido = true;
+                    if (modo == 120) Ok(d.Tipo == "bajar" || d.Tipo == "escalera", "la sesion de 120 fps al " + pct + " % del log: se habria bajado (" + d.Tipo + ")");
+                }
+                ventana = ts; nuevas = tiempo = gen = 0; resumenes = 0;
+                if (linea.Count > 40) { sb.AppendLine("  " + inicio.ToString("HH:mm:ss", CultureInfo.InvariantCulture) + " modo " + modo + " al " + pct + " %: 40 ventanas sin decidir nada (" + d.Motivo + ")"); decidido = true; }
+                if (decidido) linea.Clear();
+            }
+            sb.AppendLine("  " + sesiones + " apertura(s) de Magpie con DLSS 5 en el log");
+            sb.AppendLine();
+        }
+
+        static string F(double v) { return v.ToString("0.0", CultureInfo.InvariantCulture); }
 
         // ------------------------------------------------------------------ 3) la config de Magpie
         static void Forzar(string campo, int v)
