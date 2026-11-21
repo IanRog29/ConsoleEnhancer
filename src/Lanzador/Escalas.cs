@@ -13,6 +13,10 @@
 //     15 s seguidos, la escala de ese modo baja 10 puntos para la proxima apertura (y al 25 %, una pasada menos); tras 10 min sin
 //     perder nada sube 5 (si no se sabe ya que mas no cabe). Se guarda en data\scales_magpie.txt por grafica + driver y se aplica
 //     al arrancar (Config.Dlss5PctTable).
+//     21-11 (1.2.1): con dlss5_escala_auto=1 (de serie) el % de DLSS 5 por Magpie ya no sale de estas tablas sino de la cadena entera
+//     (src\Lanzador\EscalaAuto.cs: captura, ventana, salida, modo 30/60/120, generacion, modelo de DLSS SR, pasadas y grafica) y se baja
+//     en caliente si no se llega a los fps; 3) queda solo con dlss5_escala_auto=0. El plan escribe ademas escala_gpu_indice /
+//     escala_gpu_familia / escala_gpu_vram (la grafica para ese modelo).
 // Claves: escalas_adaptables=1 (0 = lo del ini fijo, como Prisma), escalas_modelo_max=auto|pedido|L|M|K|E (hasta donde puede subir el
 // motor el modelo de DLSS SR; auto lo escribe el plan: L con modelos transformer, E sin ellos).
 using System;
@@ -36,7 +40,7 @@ namespace ConsoleEnhancer
                 case "escalas_adaptables": { string v = val.Trim().ToLowerInvariant(); CeEscalas = !(v == "0" || v == "no" || v == "false" || v == "off"); return true; }
                 case "escalas_modelo_max": CeModeloMax = val.Trim().ToUpperInvariant(); return true;
             }
-            return false;
+            return CeParseEscalaAuto(key, val);   // 21-11 (1.2.1): dlss5_escala_auto, dlss5_escala_uso, escala_gpu_* (src\Lanzador\EscalaAuto.cs)
         }
 
         // La clave de la tabla de DLSS 5 de ahora (PctKey es privada de Config: aqui se puede por ser la misma clase)
@@ -135,6 +139,12 @@ namespace ConsoleEnhancer
                 for (int i = 0; i < v.Length; i++) sb.Append(i > 0 ? "," : "").Append(v[i].ToString(CultureInfo.InvariantCulture));
                 sb.AppendLine();
             }
+            // 21-11 (1.2.1): la grafica para la escala de DLSS 5 automatica (EscalaAuto.cs; sin estas lineas la lee de data\hardware.txt)
+            string fam = g.Familia == FamiliaGpu.NvidiaRtx20 ? "rtx20" : g.Familia == FamiliaGpu.NvidiaRtx30 ? "rtx30" : g.Familia == FamiliaGpu.NvidiaRtx40 ? "rtx40" :
+                         g.Familia == FamiliaGpu.NvidiaRtx50 ? "rtx50" : "otra";
+            sb.AppendLine("escala_gpu_indice=" + g.Indice.ToString("0.##", CultureInfo.InvariantCulture));
+            sb.AppendLine("escala_gpu_familia=" + fam);
+            sb.AppendLine("escala_gpu_vram=" + g.VramGb.ToString("0.#", CultureInfo.InvariantCulture));
             sb.AppendLine("motor_dlss5_entrada_30=" + Lista(RefMotor30, r, 1.0, p.Dlss5PasadasMax));
             sb.AppendLine("motor_dlss5_entrada_30_4k=" + Lista(RefMotor30_4k, r, 1.0, p.Dlss5PasadasMax));
             // motor con DLSS-G en el modo 60: el modelo del plan para el 60 con generacion (en la Ti la grafica sobraba con M)
@@ -240,6 +250,9 @@ namespace ConsoleEnhancer
         // Al arrancar (tras leer el ini): lo aprendido de esta grafica a Config.Dlss5PctTable
         public static void Aplicar(Config cfg)
         {
+            // (1.2.1) la escala de DLSS 5 por Magpie: automatica por la cadena entera (EscalaAuto.cs) o las tablas de aqui
+            Log.Write("Escala de DLSS 5 por Magpie: " + (cfg.Dlss5AutoAhora ? "automatica por la cadena (dlss5_escala_auto=1, " + EscalaAuto.Fichero + "; uso de la grafica " +
+                      Math.Round(EscalaAuto.Uso * 100) + " %)" : cfg.Dlss5InputPct != 0 ? "fija (dlss5_entrada)" : "las tablas tabla_dlss5_* (dlss5_escala_auto=0)"));
             if (!cfg.CeEscalas) return;
             Cargar();
             string g = GpuClave + "|";
@@ -312,6 +325,7 @@ namespace ConsoleEnhancer
         // CheckLsPacing (cada 5 s con Magpie): con DLSS 5 por Magpie, si llega a ritmo
         void CeEscalasMagpie(LsStats st)
         {
+            if (cfg.Dlss5AutoAhora) return;   // (1.2.1: con la escala automatica lo aprende y lo cambia EscalaAuto.cs, tambien en caliente)
             try
             {
                 bool juzgar = st.Captured > 0 && cfg.D5Tuned && !Config.EngineActive && !cfg.HomeNative && MagpieLive.RunningFor() > 20 &&

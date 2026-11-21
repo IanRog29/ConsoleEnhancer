@@ -418,6 +418,7 @@ namespace ConsoleEnhancer
             get
             {
                 int want = Math.Max(1, Math.Min(3, Passes30));
+                if (Dlss5AutoAhora) return AutoPasadas(want);   // 21-11 (1.2.1): la escala automatica, por la cadena entera (src\Lanzador\EscalaAuto.cs)
                 int[] p;
                 if (Dlss5InputPct != 0 || !Dlss5PctTable.TryGetValue(PctKey, out p)) return want;
                 for (int n = want; n >= 1; n--) if (p[n - 1] >= 0) return n;
@@ -432,6 +433,7 @@ namespace ConsoleEnhancer
             get
             {
                 if (Dlss5InputPct != 0) return Math.Max(0, Dlss5InputPct);
+                if (Dlss5AutoAhora) return AutoPctAhora();   // 21-11 (1.2.1): EscalaAuto.cs
                 int[] p;
                 if (!Dlss5PctTable.TryGetValue(PctKey, out p)) return 0;
                 return Math.Max(0, p[Math.Max(1, Dlss5PassesNow) - 1]);
@@ -536,6 +538,7 @@ namespace ConsoleEnhancer
         public bool PassesFitWithoutFg(int n)
         {
             int[] p;
+            if (Dlss5AutoAhora) return AutoCabeSinFg(n);   // (1.2.1: EscalaAuto.cs)
             return n >= 1 && n <= 3 && Dlss5PctTable.TryGetValue((CapMode ? "30" : "60") + (Win4k ? "_4k" : ""), out p) && p[n - 1] >= 0;
         }
         // 16-11 (G1): lo que se quita con estas pasadas (para el aviso: Dlss5PassText), "" si nada
@@ -1105,7 +1108,8 @@ namespace ConsoleEnhancer
             if (g.Length > 0 && ((cs.Length > 0 && ModelTable.TryGetValue(g + cs, out m)) || ModelTable.TryGetValue(g, out m))) return true;
             return ModelTable.TryGetValue(ModeKey + cs, out m) || ModelTable.TryGetValue(ModeKey, out m);
         }
-        public int DlssModelNow { get { string pk = DlssPick; if (pk.Length > 0) return DlssPickNum(pk); /* (1.0.12: menu de ajustes) */ if (CapMode && DlssModel30 > 0) return DlssModel30; if (DlssModel > 0) return DlssModel; int[] m; return ModelGet(out m) ? (Dlss5Off || !Dlss5FitsNow ? m[0] : m.Length >= 4 ? m[Math.Max(1, Math.Min(3, Dlss5PassesNow))] : m[1]) : 5; } }
+        public int DlssModelNow { get { return AutoModelo(DlssModelBase); } }   // 21-11 (1.2.1): con el tope que pone la vigilancia de la escala (EscalaAuto.cs)
+        int DlssModelBase { get { string pk = DlssPick; if (pk.Length > 0) return DlssPickNum(pk); /* (1.0.12: menu de ajustes) */ if (CapMode && DlssModel30 > 0) return DlssModel30; if (DlssModel > 0) return DlssModel; int[] m; return ModelGet(out m) ? (Dlss5Off || !Dlss5FitsNow ? m[0] : m.Length >= 4 ? m[Math.Max(1, Math.Min(3, Dlss5PassesNow))] : m[1]) : 5; } }
         // Con la captura de 4K (ventana de 4K) no hay nada que escalar
         // (1.2.02) "ninguno" (sin reescalado, del menu) tambien estira la imagen a la pantalla: antes por Magpie quedaba la ventana de mpv
         // en una esquina; Magpie estira con bicubico y el motor con Catmull-Rom (Ce.EngineUpscaler)
@@ -1962,6 +1966,7 @@ namespace ConsoleEnhancer
         public static List<string> Patch(Config cfg, bool write, bool keepSharpen = false)
         {
             List<string> changes = new List<string>();
+            if (write) EscalaAuto.AlAbrirMagpie(); // (1.2.1: Magpie se (re)abre: las subidas pendientes de la escala de DLSS 5 valen ya, EscalaAuto.cs)
             string from;
             Dictionary<string, object> root = LoadRoot(out from);
             if (from != Paths.MagpieConfig) changes.Add("Magpie: config nueva a partir de " + from);
@@ -7558,6 +7563,10 @@ namespace ConsoleEnhancer
             // y cuantos con un pico de la grafica (la espera de su ultima imagen, fenceMaxMs, > 2 veces la media y 15 ms mas)
             public int Windows, Gaps, GpuSpikes, GapsWithSpike;
             public double FenceMax, FenceAvg;
+            // 21-11 (1.2.1, EscalaAuto.cs): TODOS los resumenes de esta lectura (a 120 son 4-5 en 5 s; antes solo contaba el primero):
+            // imagenes nuevas e inventadas y el tiempo que cubren (nuevas / captureFps), y el peor captureFps
+            public int CapN, NewSum, GenSum;
+            public double CapTime, CapMin;
         }
 
         LsStats ReadLsStats()
@@ -7589,6 +7598,16 @@ namespace ConsoleEnhancer
                         else if ((m = System.Text.RegularExpressions.Regex.Match(line, @"Output cadence .*?captureFps=([0-9.]+).*?captureIntervalP95Ms=([0-9.]+).*?captureIntervalMaxMs=([0-9.]+)")).Success)
                         {
                             if (st.Captured <= 0) st.Captured = double.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture);
+                            {   // (1.2.1, EscalaAuto.cs) todos los resumenes: nuevas, inventadas y el tiempo que cubren
+                                double cf = double.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture);
+                                System.Text.RegularExpressions.Match mn = System.Text.RegularExpressions.Regex.Match(line, @"newCapture=(\d+).*?generated=(\d+)");
+                                int nc = mn.Success ? int.Parse(mn.Groups[1].Value, CultureInfo.InvariantCulture) : 0;
+                                if (cf > 0.5 && nc > 0)
+                                {
+                                    st.CapN++; st.NewSum += nc; st.GenSum += int.Parse(mn.Groups[2].Value, CultureInfo.InvariantCulture); st.CapTime += nc / cf;
+                                    st.CapMin = st.CapN == 1 ? cf : Math.Min(st.CapMin, cf);
+                                }
+                            }
                             st.CapP95 = double.Parse(m.Groups[2].Value, CultureInfo.InvariantCulture);
                             double mx = double.Parse(m.Groups[3].Value, CultureInfo.InvariantCulture);
                             st.CapMax = Math.Max(st.CapMax, mx);
@@ -10518,6 +10537,7 @@ namespace ConsoleEnhancer
             cfg.Dlss5Off = !dlss5Shown;
             cfg.AltScalerOn = !dlssScalerOn;
             cfg.ScalerPick = scalerPick;
+            EscalaAuto.Juego = curGame; // (1.2.1: la escala de DLSS 5 aprendida va por juego, EscalaAuto.cs)
         }
 
         // Cuantos cambios obligan a reabrir Magpie con lo elegido ahora (sin escribir). El enfoque de otra captura no cuenta
@@ -11765,7 +11785,9 @@ namespace ConsoleEnhancer
             DateTime now = DateTime.Now;
             PasadasWatch(now); // (18-11, PASADAS: src\Pasadas.cs)
             CeEscalasMagpie(st); // (ConsoleEnhancer: la escala de DLSS 5 por Magpie que cabe en este PC, src\Escalas.cs)
-            if (pid > 0) FpsMagpieVigila(st.Captured); // (1.2.01: Magpie no llega a los fps del modo -> se baja un paso, src\FpsBajo.cs)
+            // (1.2.01: Magpie no llega a los fps del modo -> se baja un paso, src\FpsBajo.cs; 1.2.1: con DLSS 5 por Magpie lo vigila la escala
+            // automatica, src\EscalaAuto.cs: primero el % de DLSS 5, en caliente)
+            if (pid > 0 && !EscalaVigila(st)) FpsMagpieVigila(st.Captured);
             if (st.Errors > 0 && (now - lastErrLog).TotalSeconds >= 30)
             {
                 lastErrLog = now;
@@ -12930,6 +12952,7 @@ namespace ConsoleEnhancer
                         System.Text.RegularExpressions.Match m = System.Text.RegularExpressions.Regex.Match(
                             line, "\"switch2-diag\",\"([^\"]*)\"");
                         if (m.Success && lsReady && !cfg.HomeNative) Log.Write("mpv: " + m.Groups[1].Value);
+                        if (m.Success) EscalaNotaDiag(m.Groups[1].Value); // (1.2.1: las imagenes que da mpv de verdad, EscalaAuto.cs)
                     }
                     else if (line.Contains("\"client-message\"") && line.Contains("\"args\":[\"switch2-signal\""))
                     {
@@ -14118,6 +14141,8 @@ namespace ConsoleEnhancer
                 // 19-11 (DETECCION): el menu de la consola con imagenes y escenas, antes y ahora (src\PruebaDeteccion.cs):
                 // --test-deteccion=<carpeta>[;<informe>] (games\test_deteccion) o --test-deteccion=listar;<carpeta>;<informe.tsv>
                 if (arg.StartsWith("--test-deteccion=")) return PruebaDeteccion.Run(arg.Substring(17));
+                // 21-11 (1.2.1): la escala de DLSS 5 automatica (modelo, decisiones, la config de Magpie) sin consola: --test-escala[=<informe>]
+                if (arg == "--test-escala" || arg.StartsWith("--test-escala=")) return EscalaPrueba.Run(arg.Length > 14 ? arg.Substring(14) : null);
                 if (arg.StartsWith("--ui-preview=")) return PrismaPreview.Run(arg.Substring(13));
                 // 18-11 (MANDOS): --test-mandos=<segundos>;<archivo>: mandos detectados, botones pulsados y el modo PC (sin mandar nada)
                 if (arg.StartsWith("--test-mandos=")) return PadTest.Run(arg.Substring(14), args);
