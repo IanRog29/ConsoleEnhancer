@@ -678,6 +678,7 @@ namespace ConsoleEnhancer
             int apoyo, enFoco;
             JuegoConsola.LecturaFoco foco = JuegoConsola.FocoAlSalir(f.Lecturas, PerfilExiste(c), out apoyo, out enFoco);
             string nombre = foco != null ? foco.Nombre : null;
+            bool fiable = foco == null || foco.Fiable;
             double[] icono = foco != null && foco.Icono != null ? foco.Icono : f.Ultimo;
             double d;
             string p = IconosConsola.Busca(icono, out d);
@@ -688,7 +689,18 @@ namespace ConsoleEnhancer
                 if (p2 != null) { p = p2; d = d2; }
             }
             string dd = d < 900 ? d.ToString("0.0", CultureInfo.InvariantCulture) : "-";
-            string leido = nombre != null ? "; leido \"" + nombre + "\" (" + apoyo + " de " + enFoco + " lecturas del foco)" : "";
+            string leido = nombre != null ? "; leido \"" + nombre + "\" (" + apoyo + " de " + enFoco + " lecturas del foco" + (fiable ? "" : ", icono sin confirmar") + ")" : "";
+            // 1.2.1: el icono conocido es de OTRO juego que el leido (nombres sin relacion): si el icono es el del foco de antes (la etiqueta
+            // nueva con el icono aun del juego anterior, Desfasada) o la lectura esta confirmada (el icono guardado era de un fundido), manda
+            // el nombre; si no (una sola lectura, quiza con erratas), el icono como siempre
+            if (p != null && nombre != null && !JuegoConsola.Relacionado(JuegoConsola.SinTag(p), nombre) && (foco.Desfasada || foco.Fiable))
+            {
+                leido += "; el icono se parece al de \"" + p + "\" (distancia " + dd + ") pero se lee otro juego" +
+                         (foco.Desfasada ? " con el icono aun del foco de antes" : "") + ": manda el nombre";
+                p = null;
+                d = 999;
+                dd = "-";
+            }
             if (p != null)
             {
                 info = "por su icono, distancia " + dd + leido;
@@ -717,8 +729,11 @@ namespace ConsoleEnhancer
                     if (!IconosConsola.Tiene(q) && !GameProfiles.ExisteNombre(q)) perfil = q;
                 }
             }
-            IconosConsola.Guarda(perfil, icono);
-            info = "icono nuevo memorizado (la mas parecida a " + dd + ")" + (nombre == null ? ", sin nombre leido aun" : leido);
+            // (1.2.1: solo un icono confirmado: el de una etiqueta a medio cambiar o fundiendose se quedaria como el de este juego y, al
+            // guardarlo, quitaria el suyo al juego de antes si se parece)
+            if (fiable) IconosConsola.Guarda(perfil, icono);
+            info = (fiable ? "icono nuevo memorizado" : "icono sin confirmar, no se memoriza") + " (la mas parecida a " + dd + ")" +
+                   (nombre == null ? ", sin nombre leido aun" : leido);
             return perfil;
         }
 
@@ -1055,6 +1070,7 @@ namespace ConsoleEnhancer
                 ps5UltimaVista = l.Vista;
                 int d0 = menuMaq.Decision;
                 menuMaq.PrudenteHasta = PrudenteTrasApagado();
+                menuMaq.Silencio = audioNow == "silent";
                 int d = menuMaq.Observa(l, now, inMenu);
                 // 1.2.1 (SALIDA PRUDENTE, src\DetectorMenu.cs): sin el menu visto desde que se abrio la app o tras su menu de apagado, lo que
                 // no es el menu solo saca con una imagen de juego clara y seguida (una vez por cada motivo, al log)
@@ -1249,7 +1265,8 @@ namespace ConsoleEnhancer
                 // 1.2.1: sin icono y sin la etiqueta del inicio leida en esta visita, el nombre reconocido son 2 lecturas iguales de otra
                 // cosa (el centro de control: "ácil de usar" de su tarjeta "Fácil de usar"): sin un perfil con ese nombre no se crea uno
                 // nuevo ni se cambia el juego en marcha
-                if (pi == null && !fuerteVisita && !string.IsNullOrEmpty(juego) && GameProfiles.Find(JuegoConsola.NombrePerfil(c, juego)) == null)
+                if (pi == null && !fuerteVisita && !string.IsNullOrEmpty(juego) && !JuegoConsola.EsAppSistema(juego) &&
+                    GameProfiles.Find(JuegoConsola.NombrePerfil(c, juego)) == null)
                 {
                     string enM = ps5JuegoAntesMenu != null && JuegoConsola.TagConsola(ps5JuegoAntesMenu) != null ? ps5JuegoAntesMenu : null;
                     Log.Write("Fuera del menu de la consola: \"" + juego + "\" no se leyo en la etiqueta del juego en foco (2 lecturas de otra cosa) y no hay " +

@@ -456,7 +456,7 @@ namespace ConsoleEnhancer
             "entrar en modo de reposo", "apagar la ps5", "reiniciar la ps5", "entrara en modo de reposo", "opciones de alimentacion",
             "elige un usuario", "pulsa el boton ps", "quien va a usar", "anadir usuario", "ajustar area de visualizacion",
             // 21-11 (1.2.1): la Bienvenida y elegir usuario al encenderla, y la pantalla de apagado / reposo (19:08:48 se tomo por un juego)
-            "te damos la bienvenida", "bienvenida de nuevo", "quien esta usando", "selecciona un usuario", "entrando en modo de reposo",
+            "te damos la bienvenida", "de nuevo a playstation", "quien esta usando", "selecciona un usuario", "entrando en modo de reposo",
             "se esta apagando", "preparando para apagar", "preparandose para apagar", "cable de alimentacion", "indicador de alimentacion",
             "indicador de encendido", "comprobar estado de sincronizacion",
             // En ingles
@@ -464,7 +464,7 @@ namespace ConsoleEnhancer
             "enter rest mode", "turn off ps5", "restart ps5", "downloading", "installing", "ready to play", "wishlist", "add to cart",
             "who's using", "choose a user", "press the ps button",
             // (1.2.1)
-            "welcome back", "whos using", "select a user", "entering rest mode", "preparing to turn off", "ac power cord", "power indicator",
+            "back to playstation", "whos using", "select a user", "entering rest mode", "preparing to turn off", "ac power cord", "power indicator",
             "check for update" };
         static readonly Regex JugadoRx = new Regex(@"\b(jugado|played)\s*\d+\s*(h|min|horas?|hours?)\b|\b(ps4|ps5)\s*[|]|\|\s*(ps4|ps5)\b", RegexOptions.CultureInvariant);
 
@@ -595,6 +595,9 @@ namespace ConsoleEnhancer
         public int PrudenteCon = 4;
         public double PrudenteMaxS = 60.0;
         public DateTime PrudenteHasta = DateTime.MinValue;
+        // (la app: el audio de la consola en silencio. Tras el menu de apagado, una imagen clara en silencio tampoco cuenta: 19:08:47 el
+        // audio paso a "silent" justo al salir la pantalla de apagarse; un juego que arranca suena. Sin medidor de audio, false)
+        public bool Silencio;
         DateTime menuReal = DateTime.MinValue;   // la ultima captura con el menu de verdad (VistaMenu.Menu)
         DateTime juegoDesde = DateTime.MinValue; // (prudente) capturas de juego seguidas, claras u oscuras, desde
         DateTime ultimaT = DateTime.MinValue;
@@ -669,7 +672,7 @@ namespace ConsoleEnhancer
                     {
                         // 1.2.1 (SALIDA PRUDENTE): solo la imagen clara cuenta; una oscura vuelve a empezar
                         if (juegoDesde == DateTime.MinValue) juegoDesde = t;
-                        if (l.Tenue) outs = 0;
+                        if (l.Tenue || (Silencio && t < PrudenteHasta)) outs = 0;
                         else { if (outs == 0) PrimeraAt = t; outs++; }
                         double dClara = outs > 0 ? (t - PrimeraAt).TotalSeconds : 0, dJuego = (t - juegoDesde).TotalSeconds;
                         if (outs >= PrudenteCon && dClara >= PrudenteS)

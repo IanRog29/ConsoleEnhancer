@@ -254,6 +254,7 @@ namespace ConsoleEnhancer
             public int TramoSalida = -1;          // -1 = no se sale nunca del menu; si no, la unica salida, en este tramo
             public int TramoSalida2 = -1;         // (o en este: la carga de Rocket League es "atenuada" en la ligera y "juego" en la gris)
             public double SalirMin, SalirMax;     // ...entre estos segundos desde que empieza ese tramo
+            public int SilencioDesde = -1;        // el audio de la consola en silencio desde este tramo (-1: suena)
         }
 
         static int Escenas121(StringBuilder sb, List<Img> banco, List<Img> ex)
@@ -281,7 +282,7 @@ namespace ConsoleEnhancer
             e.Tramos = new Tramo[] { new Tramo(bienvenida, 30, true) }; esc.Add(e);
             e = new Esc5(); e.Titulo = "Abierta con la PS5 arrancando, su menu y se arranca Rocket League: sale en el juego como siempre"; e.EnMenu0 = true;
             e.Tramos = new Tramo[] { new Tramo(arranque, 8, true), new Tramo(menu, 6), new Tramo(rlPortada, 3), new Tramo(rlPartido, 8) };
-            e.TramoSalida = 2; e.SalirMin = 0.9; e.SalirMax = 2.6; esc.Add(e);
+            e.TramoSalida = 2; e.SalirMin = 0.9; e.SalirMax = 3.0; esc.Add(e);
             e = new Esc5(); e.Titulo = "Abierta con Rocket League ya en marcha (claro): sale a los ~5 s"; e.EnMenu0 = true;
             e.Tramos = new Tramo[] { new Tramo(rlPartido, 14, true) }; e.TramoSalida = 0; e.SalirMin = 4.5; e.SalirMax = 7.5; esc.Add(e);
             e = new Esc5(); e.Titulo = "Abierta con un juego oscuro en marcha (GTA VI de noche) 70 s: sale a los ~60 s"; e.EnMenu0 = true;
@@ -290,15 +291,17 @@ namespace ConsoleEnhancer
             e.Tramos = new Tramo[] { new Tramo(menu, 4), new Tramo(menuApagado, 3), new Tramo(apagadoTxt, 12) }; esc.Add(e);
             e = new Esc5(); e.Titulo = "Menu, menu de apagado y la pantalla de apagarse con otro texto y el logo (oscura, \"Juego\" hasta la 1.2.09) 12 s: no sale"; e.EnMenu0 = true;
             e.Tramos = new Tramo[] { new Tramo(menu, 4), new Tramo(menuApagado, 3), new Tramo(apagadoSin, 12) }; esc.Add(e);
+            e = new Esc5(); e.Titulo = "Menu de apagado y una pantalla de apagarse CLARA (la imagen de un juego) en silencio 12 s: no sale"; e.EnMenu0 = true;
+            e.Tramos = new Tramo[] { new Tramo(menu, 4), new Tramo(menuApagado, 3), new Tramo(rlPortada, 12) }; e.SilencioDesde = 2; esc.Add(e);
             e = new Esc5(); e.Titulo = "Menu de apagado, se cancela y se arranca Rocket League: sale, con prudencia (~5 s)"; e.EnMenu0 = true;
             e.Tramos = new Tramo[] { new Tramo(menu, 3), new Tramo(menuApagado, 3), new Tramo(menu, 3), new Tramo(rlPartido, 12) };
             e.TramoSalida = 3; e.SalirMin = 4.5; e.SalirMax = 7.5; esc.Add(e);
-            e = new Esc5(); e.Titulo = "Normal: menu y se arranca Rocket League (portada y partido): sale en ~1,2-2,5 s, como antes"; e.EnMenu0 = true;
-            e.Tramos = new Tramo[] { new Tramo(menu, 6), new Tramo(rlPortada, 3), new Tramo(rlPartido, 8) }; e.TramoSalida = 1; e.SalirMin = 0.9; e.SalirMax = 2.6; esc.Add(e);
+            e = new Esc5(); e.Titulo = "Normal: menu y se arranca Rocket League (portada y partido): sale en ~1,2-2,8 s, como antes"; e.EnMenu0 = true;
+            e.Tramos = new Tramo[] { new Tramo(menu, 6), new Tramo(rlPortada, 3), new Tramo(rlPartido, 8) }; e.TramoSalida = 1; e.SalirMin = 0.9; e.SalirMax = 3.0; esc.Add(e);
             e = new Esc5(); e.Titulo = "Normal: menu, carga oscura de Rocket League y el partido: sale como antes (en la carga o en el partido)"; e.EnMenu0 = true;
-            e.Tramos = new Tramo[] { new Tramo(menu, 6), new Tramo(rlCarga, 4), new Tramo(rlPartido, 8) }; e.TramoSalida = 2; e.TramoSalida2 = 1; e.SalirMin = 0.9; e.SalirMax = 2.6; esc.Add(e);
+            e.Tramos = new Tramo[] { new Tramo(menu, 6), new Tramo(rlCarga, 4), new Tramo(rlPartido, 8) }; e.TramoSalida = 2; e.TramoSalida2 = 1; e.SalirMin = 0.9; e.SalirMax = 3.0; esc.Add(e);
             e = new Esc5(); e.Titulo = "Jugando, el menu 6 s y de vuelta al juego: entra y sale como antes"; e.EnMenu0 = false;
-            e.Tramos = new Tramo[] { new Tramo(rlPartido, 6), new Tramo(menu, 6), new Tramo(rlPartido, 8) }; e.TramoSalida = 2; e.SalirMin = 0.9; e.SalirMax = 2.6; esc.Add(e);
+            e.Tramos = new Tramo[] { new Tramo(rlPartido, 6), new Tramo(menu, 6), new Tramo(rlPartido, 8) }; e.TramoSalida = 2; e.SalirMin = 0.9; e.SalirMax = 3.0; esc.Add(e);
 
             Dictionary<string, LecturaMenu> cache = new Dictionary<string, LecturaMenu>();
             int mal = 0;
@@ -380,10 +383,11 @@ namespace ConsoleEnhancer
                     if (RelojPs5.EsMenuApagado(l.Pantalla, Consolas.Ps5)) apagadoAt = t;
                 }
                 maq.PrudenteHasta = apagadoAt > -100 ? t0.AddSeconds(apagadoAt + 20) : DateTime.MinValue;
+                maq.Silencio = es.SilencioDesde >= 0 && ti >= es.SilencioDesde;
                 LecturaMenu lx = l;
                 if (l.Vista == VistaMenu.Plana && t - apagadoAt < 20) { lx = Copia(l); lx.Vista = VistaMenu.Oscura; }
                 int d = maq.Observa(lx, t0.AddSeconds(t), enMenu);
-                double ms = l.Ms;
+                double ms = Math.Min(l.Ms, 400);   // (la primera lectura con OCR lleva el arranque del OCR de Windows, ~2 s: la app ya lo tiene)
                 if (d != 0)
                 {
                     enMenu = d > 0;

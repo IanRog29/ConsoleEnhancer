@@ -373,13 +373,28 @@ namespace ConsoleEnhancer
             public double[] Icono;
             public DateTime At;
             public bool Quieto;   // el icono igual que en la lectura anterior (el foco quieto, no a mitad de moverse ni fundiendose)
+            public bool Fiable;   // (FocoAlSalir) el icono es de una lectura confirmada: etiqueta e icono van juntos (Confirmada)
+            public bool Desfasada; // (FocoAlSalir) su icono es casi el de la lectura de antes, de OTRO juego: el icono aun del foco anterior
+        }
+
+        // ¿La lectura i va con su icono? Una de al lado (la de antes o la de despues) dice el mismo juego (Relacionado) con el mismo icono
+        // (< IconoQuieto). Si no, puede ser la etiqueta nueva con el icono del juego de antes mientras se mueve la fila (el icono de
+        // "PS5: PLAYÑOOM" del usuario, 18:57:24, es casi el de GTA VI: 29,0, con las mismas filas) o el fundido al arrancarlo / apagarla
+        // (el segundo icono de GTA VI, 19:08:44: oscuro arriba y claro abajo)
+        static bool Confirmada(List<LecturaFoco> l, int i)
+        {
+            for (int j = i - 1; j <= i + 1; j += 2)
+                if (j >= 0 && j < l.Count && l[j].Icono != null && l[i].Icono != null && Relacionado(l[i].Nombre, l[j].Nombre) &&
+                    DistHuella(l[i].Icono, l[j].Icono) < IconoQuieto) return true;
+            return false;
         }
 
         // Al salir del menu: el juego en foco que se arranca, de las lecturas de esta visita (en orden). La ULTIMA lectura que no sea a medias
         // de la de antes (la etiqueta fundiendose al arrancar: "Rocket" tras "Rocket agu" tras "Rocket League") o basura con el mismo icono
         // marca el foco; con ella, las de justo antes del mismo nombre (entero, a medias o con erratas) y las de despues. Su nombre:
-        // MejorNombre; su icono: el de la ultima lectura con ese nombre y el foco quieto (si no hay, la ultima con ese nombre): una captura
-        // con la etiqueta entera, no la del fundido. apoyo = lecturas que explica el nombre; enFoco = lecturas del foco. null sin lecturas
+        // MejorNombre; su icono: el de la ultima lectura CONFIRMADA (Confirmada) con ese nombre (o con uno del mismo juego); si no hay
+        // ninguna, el de la ultima con ese nombre, sin Fiable (no se memoriza ni manda sobre el nombre). apoyo = lecturas que explica el
+        // nombre; enFoco = lecturas del foco. null sin lecturas
         public static LecturaFoco FocoAlSalir(List<LecturaFoco> l, Func<string, bool> conocido, out int apoyo, out int enFoco)
         {
             apoyo = enFoco = 0;
@@ -399,12 +414,17 @@ namespace ConsoleEnhancer
             string mejor = MejorNombre(nombres, conocido, out apoyo);
             if (mejor == null) return null;
             string km = GameNames.Key(mejor);
-            LecturaFoco r = null;
-            for (int i = l.Count - 1; i >= ini && r == null; i--) if (l[i].Quieto && GameNames.Key(l[i].Nombre) == km) r = l[i];
-            for (int i = l.Count - 1; i >= ini && r == null; i--) if (GameNames.Key(l[i].Nombre) == km) r = l[i];
-            if (r == null) r = l[ancla];
+            int ri = -1;
+            bool fiable = true;
+            for (int i = l.Count - 1; i >= ini && ri < 0; i--) if (GameNames.Key(l[i].Nombre) == km && Confirmada(l, i)) ri = i;
+            for (int i = l.Count - 1; i >= ini && ri < 0; i--) if (Relacionado(l[i].Nombre, mejor) && Confirmada(l, i)) ri = i;
+            if (ri < 0) fiable = false;
+            for (int i = l.Count - 1; i >= ini && ri < 0; i--) if (GameNames.Key(l[i].Nombre) == km) ri = i;
+            if (ri < 0) ri = ancla;
+            LecturaFoco r = l[ri];
             LecturaFoco res = new LecturaFoco();
-            res.Nombre = mejor; res.Icono = r.Icono; res.At = l[l.Count - 1].At; res.Quieto = r.Quieto;
+            res.Nombre = mejor; res.Icono = r.Icono; res.At = l[l.Count - 1].At; res.Quieto = r.Quieto; res.Fiable = fiable;
+            res.Desfasada = !fiable && ri > 0 && !Relacionado(l[ri - 1].Nombre, r.Nombre) && DistHuella(l[ri - 1].Icono, r.Icono) < MismoIcono;
             return res;
         }
 
@@ -1114,6 +1134,26 @@ namespace ConsoleEnhancer
             l = new List<LecturaFoco> { Lf("Buscar actualización", gta, t, true), Lf("Theft Auto VI", gta, t.AddSeconds(0.4), true), Lf("Grand Theft Auto VI", gta, t.AddSeconds(0.8), true),
                                         Lf("Theft Auto VI", gta, t.AddSeconds(1.2), true) };
             FocoSale(sb, "19:08:34-40 del usuario: Buscar actualización, Theft Auto VI, GTA VI, Theft Auto VI", l, "Grand Theft Auto VI", gta);
+            // 18:57:23-24 del usuario: la etiqueta ya dice el juego nuevo y el icono aun es el de GTA VI (la fila moviendose): ni se fia ni se guarda
+            double[] gtaCasi = Normaliza(Ruido(gta, 3));
+            l = new List<LecturaFoco> { Lf("Grand Theft Auto VI", gta, t, true), Lf("PLAYÑOOM", gtaCasi, t.AddSeconds(0.4), true) };
+            {
+                int ap, en;
+                LecturaFoco f = FocoAlSalir(l, null, out ap, out en);
+                bool ok = f != null && f.Nombre == "PLAYÑOOM" && !f.Fiable && f.Desfasada;
+                sb.Append("  al salir (18:57:24: \"PLAYÑOOM\" con el icono aun de GTA VI): \"").Append(f != null ? f.Nombre : "-").Append("\", fiable ")
+                  .Append(f != null && f.Fiable ? "si" : "no").Append(", icono del foco de antes ").Append(f != null && f.Desfasada ? "si" : "no").Append(' ')
+                  .Append(ok ? "OK" : "FALLO").Append("\r\n");
+            }
+            l = new List<LecturaFoco> { Lf("Grand Theft Auto VI", gta, t, true), Lf("PLAYÑOOM", gtaCasi, t.AddSeconds(0.4), true),
+                                        Lf("PLAYÑOOM", rl, t.AddSeconds(0.8), false), Lf("PLAYÑOOM", rl, t.AddSeconds(1.2), true) };
+            {
+                int ap, en;
+                LecturaFoco f = FocoAlSalir(l, null, out ap, out en);
+                bool ok = f != null && f.Nombre == "PLAYÑOOM" && f.Fiable && f.Icono == rl;
+                sb.Append("  al salir (lo mismo y luego su icono de verdad 2 veces): fiable ").Append(f != null && f.Fiable ? "si" : "no").Append(", icono ")
+                  .Append(f != null && f.Icono == rl ? "el suyo" : "OTRO").Append(' ').Append(ok ? "OK" : "FALLO").Append("\r\n");
+            }
             // Cuando se renombra un perfil (el nombre leido con su mismo icono)
             object[][] ren = {
                 new object[] { "PS5: Rocket", "Rocket League", 1, false, true }, new object[] { "PS5: Rocket League", "Rocket", 3, false, false },
@@ -1172,6 +1212,15 @@ namespace ConsoleEnhancer
             double[] s = new double[IcoN * IcoN];
             for (int i = 0; i < s.Length; i++) s[i] = rnd.Next(0, 256);
             return Normaliza(s);
+        }
+
+        // El mismo icono con algo de ruido (otra captura del mismo dibujo)
+        static double[] Ruido(double[] ic, int semilla)
+        {
+            Random rnd = new Random(semilla);
+            double[] s = new double[ic.Length];
+            for (int i = 0; i < s.Length; i++) s[i] = ic[i] + rnd.Next(-6, 7);
+            return s;
         }
 
         // El mismo icono con un degradado oscuro de arriba abajo (la pantalla fundiendose al arrancar el juego o al apagar)
