@@ -310,7 +310,11 @@ namespace ConsoleEnhancer.Motor
             QFrameBegin();
             // Solo si alguien los usa: DLSS (captura mas pequeña que la salida) o la generacion. En el HOME a 4K nativo, nada
             // (18-11, MOTOR-CE: con fsr1 / catrom sin generacion no los usa nadie: tampoco)
-            bool on = s.Motion && newFrame && ((inW != outW || inH != outH) && scalerNow == "dlss" || fgApplied || (s.MvNativeNr && s.Nr && s.Mode == 30));   // (1.0.5: mv_nativo_dlss5, DLSS 5 a 4K nativo sin FG)
+            // 22-11 (1.2.1, artefactos): tambien con XeSS y FSR 3.1 / 4 (EngineSr.cs, temporales como DLSS SR) y con FSR 3 FG (EngineFgFfx.cs). Antes
+            // solo con DLSS o DLSS-G: XeSS y FSR reescalaban con los vectores a 0 (medido: el volcado de mvec, todo 0 en un paneo) y lo que se
+            // mueve dejaba rastro y se emborronaba; FSR 3 FG generaba sin vectores. mvsr_xess_ffx=0 = como antes
+            bool srTemporal = (inW != outW || inH != outH) && (scalerNow == "dlss" || (s.MvXessFfx && (scalerNow == "xess" || scalerNow == "ffx")));
+            bool on = s.Motion && newFrame && (srTemporal || fgApplied || (s.MvXessFfx && ffxFgOn) || (s.MvNativeNr && s.Nr && s.Mode == 30));   // (1.0.5: mv_nativo_dlss5, DLSS 5 a 4K nativo sin FG)
             bool quality = on && QualityMotion;
             if (quality) EnsureQualityPsos();
             bool info = quality;    // el nivel fino escribe blockInfo (para las mascaras y la interfaz)

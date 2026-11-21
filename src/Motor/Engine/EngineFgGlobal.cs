@@ -33,6 +33,8 @@ namespace ConsoleEnhancer.Motor
         public bool FgQuiet = true;                 // fg_quieto=1: lo quieto con textura a 0 (interfaz, lo que sigue la camara)
         public bool FgQuietDepth = true;            // fg_quieto_prof=1: profundidad por capas para DLSS-G (con fg_profundidad > 0)
         public double FgQuietTex = 6, FgQuietStill = 2, FgQuietRel = 0.5;   // fg_quieto_textura / _quieto (niveles) / _rel
+        // 22-11 (1.2.1) mvsr_xess_ffx=1: vectores de movimiento tambien para XeSS / FSR 3.1-4 de escalador y para FSR 3 FG (antes a 0: EngineMotion.cs RecordMotion)
+        public bool MvXessFfx = true;
 
         bool ApplyFgGlobal(string key, string val)
         {
@@ -47,6 +49,7 @@ namespace ConsoleEnhancer.Motor
                 case "fg_quieto_textura": FgQuietTex = Math.Max(0, Dv(val)); return true;
                 case "fg_quieto_quieto": FgQuietStill = Math.Max(0, Dv(val)); return true;
                 case "fg_quieto_rel": FgQuietRel = Math.Max(0.05, Math.Min(1, Dv(val))); return true;
+                case "mvsr_xess_ffx": MvXessFfx = Bv(val); return true;
             }
             return false;
         }
@@ -66,6 +69,8 @@ namespace ConsoleEnhancer.Motor
         bool gSaid;
 
         bool FgGlobalNow { get { return s.FgGlobal && s.FgVec == 3 && Levels >= 4; } }
+        // 22-11 (1.2.1): FSR 3 FG (EngineFgFfx.cs, sin Streamline) recibe los mismos vectores que recibiria DLSS-G (antes, los de mvec, a 0)
+        bool FfxFgVecNow { get { return s.MvXessFfx && ffxFgOn && !fgApplied; } }
         // (la profundidad por capas sustituye a la de los bordes de fg_profundidad: EngineRejas.cs RecordFgDepth)
         bool FgLayerDepthNow { get { return s.FgQuiet && s.FgQuietDepth && s.FgDepth > 0 && FgGlobalNow && fgApplied; } }
 
