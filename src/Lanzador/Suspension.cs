@@ -179,10 +179,7 @@ namespace ConsoleEnhancer
             CeCubierta.Pausa(true); // (el telon y la app, delante de la cubierta)
             try
             {
-                ProcessStartInfo psi = new ProcessStartInfo(Exe, CeInicio.ArgumentosInicio() + " --tras-suspension --desde-espera");
-                psi.UseShellExecute = false;
-                psi.WorkingDirectory = Path.GetDirectoryName(Exe);
-                Process.Start(psi);
+                using (CeCubierta.Lanzar(Exe, CeInicio.ArgumentosInicio() + " --tras-suspension --desde-espera", false)) { } // (1.2.1: sin el cursor de "iniciando")
             }
             catch (Exception ex) { Log.Error("Suspension: no se pudo abrir la app al despertar", ex); }
             if (telon != null) { if (CeCubierta.Puesta) telon.WaitOne(5000); telon.Dispose(); }

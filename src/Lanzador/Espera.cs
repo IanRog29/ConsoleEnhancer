@@ -22,16 +22,22 @@
 //  - La espera en un proceso suyo (--espera), pequeno: antes seguia en el de la app tras "Fin ConsoleEnhancer" y con el seguian sus
 //    hilos (el bucle del mando cada 50 ms, el modo PC del mando, que con el stick movia el raton y encendia la pantalla, la copia de
 //    seguridad cada 2 min...). El de la app espera a que la nueva tenga su cubierta puesta y se cierra. Si no arranca, como antes.
+//    Medido (prueba sin consola, pantalla encendida por otros programas): 0,3-0,8 % de un nucleo, ~38 MB, 16 hilos; con la pantalla
+//    apagada la cubierta no despierta nada.
 //  - La sonda sin los scripts de serie de mpv ni terminal y sin subir la resolucion del temporizador de Windows: mpv la pone a 1 ms
 //    (timeBeginPeriod) para todo el PC mientras esta abierto (medido: 15,6 ms -> 1 ms); con PROCESS_POWER_THROTTLING_IGNORE_TIMER_RESOLUTION
 //    (Windows 11) se queda en 15,6 ms. Medido con una fuente falsa a 59,94: 158 -> 109 Mciclos/s y 425 -> 189 cambios de contexto/s.
+//    La consola se ve antes: la segunda mirada a los 0,4 s (ce_standby.lua) y el cierre de la sonda avisa al momento (Process.Exited).
 //  - Plan de energia propio mientras dura: copia del Economizador con el procesador a espera_cpu_max % (50 de serie: el P-state mas bajo
-//    en un Ryzen 5 2600), sin turbo, el disco apagado a los 3 min y la pantalla a 1 min (por si algo la enciende). Se borra al despertar
-//    (y al abrir la app si se quedo). Sin poder crearlo, el Economizador como antes.
-//  - La pantalla encendida sin que nadie toque nada (otro programa pide pantalla, ES_DISPLAY_REQUIRED): otra vez apagada a los 2 s.
-//  - Las teclas de verdad en espera se las queda la app (despiertan, pero la Windows no abre Inicio ni Alt+F4 el "Apagar Windows").
-//  - Al despertar: la pantalla lo primero (la tele tarda en encenderse; delante, negro), el plan de antes antes de abrir la app (la app
-//    apunta el plan que hay para devolverlo al salir) y el --inicio con su telon antes de que se cierre esta.
+//    en un Ryzen 5 2600; medido "% rendimiento del procesador" 110 % -> 45 %), sin turbo, el disco apagado a los 3 min y la pantalla a
+//    1 min (por si algo la enciende). Se borra al despertar (y al abrir la app si se quedo). Sin poder crearlo, el Economizador como antes.
+//    Volver al plan de antes tarda 0,8-1,5 s (el Economizador tal cual, 0,9-1,1 s): se hace antes de abrir la app, que apunta el plan
+//    que hay para devolverlo al salir, y el plan propio se borra (0,2-0,3 s) ya abierta.
+//  - La pantalla encendida sin que nadie toque nada (otro programa pide pantalla, ES_DISPLAY_REQUIRED): otra vez apagada a los 2 s, y si
+//    vuelve una y otra vez, cada vez mas tarde (10, 30 s, 2 y 5 min).
+//  - Las teclas de verdad en espera se las queda la app (despiertan, pero Windows no abre Inicio ni Alt+F4 el "Apagar Windows").
+//  - Al despertar: la pantalla lo primero (la tele tarda en encenderse; delante, negro), el plan de antes antes de abrir la app y el
+//    --inicio con su telon antes de que se cierre esta.
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -199,15 +205,16 @@ namespace ConsoleEnhancer
                 using (EventWaitHandle lista = new EventWaitHandle(false, EventResetMode.ManualReset, EventoLista))
                 {
                     lista.Reset();
-                    ProcessStartInfo psi = new ProcessStartInfo(Exe, "--espera" + (Simulada > 0 ? " --prueba-simulada=" + Simulada : "") + ArgsDatos());
-                    psi.UseShellExecute = false;
-                    psi.WorkingDirectory = Path.GetDirectoryName(Exe);
                     Stopwatch sw = Stopwatch.StartNew();
-                    p = Process.Start(psi);
+                    p = CeCubierta.Lanzar(Exe, "--espera" + (Simulada > 0 ? " --prueba-simulada=" + Simulada : "") + ArgsDatos(), false);
+                    if (p == null) throw new InvalidOperationException("el proceso de la espera no ha arrancado");
                     try { AllowSetForegroundWindow(p.Id); } catch { }
                     if (lista.WaitOne(8000))
                     {
                         Log.Write("Espera: en su propio proceso (pid " + p.Id + ", lista en " + sw.ElapsedMilliseconds + " ms); este se cierra");
+                        // (la suya ya esta encima: la de este fuera, por si este proceso tardara en terminar y le tapara luego la app)
+                        CeCubierta.Pausa(true);
+                        CeCubierta.Quitar("la espera sigue en su proceso");
                         return true;
                     }
                     Log.Write("Espera: el proceso nuevo (pid " + p.Id + ") no ha contestado en 8 s: se queda en este, como antes");
@@ -314,10 +321,8 @@ namespace ConsoleEnhancer
             CeCubierta.Pausa(true); // (ya no se vuelve a poner encima: el telon de --inicio y la pantalla de carga de la app, delante)
             try
             {
-                ProcessStartInfo psi = new ProcessStartInfo(Exe, CeInicio.ArgumentosInicio() + " --tras-suspension --desde-espera" + (prueba ? " --prueba-app=6" : ""));
-                psi.UseShellExecute = false;
-                psi.WorkingDirectory = Path.GetDirectoryName(Exe);
-                using (Process p = Process.Start(psi)) { try { AllowSetForegroundWindow(p.Id); } catch { } }
+                using (Process p = CeCubierta.Lanzar(Exe, CeInicio.ArgumentosInicio() + " --tras-suspension --desde-espera" + (prueba ? " --prueba-app=6" : ""), false))
+                    if (p != null) try { AllowSetForegroundWindow(p.Id); } catch { }
                 Log.Write("Espera: despierto por " + porque + ": abriendo la app" + (prueba ? " (PRUEBA: la app de mentira)" : "") + " (plan de antes en " + plan + " ms)");
             }
             catch (Exception ex) { Log.Error("Espera: no se pudo abrir la app", ex); }
@@ -399,7 +404,11 @@ namespace ConsoleEnhancer
                 CeCubierta.AlCambiarPantalla = delegate (int v) { try { BeginInvoke((MethodInvoker)delegate { PantallaCambia(v); }); } catch { } };
                 if (fuente != null) Lanzar();
                 timer.Start();
-                Log.Write("Espera: vigilando (" + mandosAntes + " mandos conectados" + (hKbd != IntPtr.Zero ? ", teclado" : "") + ", sonda " + (sonda != null ? "pid " + sonda.Id : "sin abrir") + ")");
+#pragma warning disable 618
+                int hilo = AppDomain.GetCurrentThreadId();
+#pragma warning restore 618
+                Log.Write("Espera: vigilando (" + mandosAntes + " mandos conectados" + (hKbd != IntPtr.Zero ? ", teclado" : "") + ", sonda " + (sonda != null ? "pid " + sonda.Id : "sin abrir") +
+                          "; hilos: vigia " + hilo + ", cubierta " + CeCubierta.Hilo + ")");
             }
 
             void AlApagarWindows(object s, Microsoft.Win32.SessionEndingEventArgs e) { Fin("windows"); }
@@ -752,21 +761,26 @@ namespace ConsoleEnhancer
             Log.Write("PRUEBA: la app de mentira (pid " + Process.GetCurrentProcess().Id + (DesdeEspera ? ", desde la espera" : "") + ")");
             CeBarra.AlAbrir(DesdeEspera);
             Application.EnableVisualStyles();
+            // (con su bucle de mensajes, como la app: con DoEvents la pantalla de carga a 4K y la CPU ocupada no lo soltaban)
             SplashForm carga = new SplashForm();
+            Form img = Imagen("PRUEBA · la consola otra vez", System.Drawing.Color.FromArgb(30, 110, 60));
+            ApplicationContext ctx = new ApplicationContext();
+            Stopwatch sw = Stopwatch.StartNew();
+            int paso = 0;
+            System.Windows.Forms.Timer t = new System.Windows.Forms.Timer();
+            t.Interval = 100;
+            t.Tick += delegate
+            {
+                long ms = sw.ElapsedMilliseconds;
+                if (paso == 0 && ms >= 2500) { paso = 1; img.Show(); img.Activate(); }
+                else if (paso == 1 && ms >= 2800) { paso = 2; carga.Close(); }
+                else if (paso == 2 && ms >= 3800) { paso = 3; CeBarra.Mostrar("PRUEBA: la imagen de la consola ya esta delante"); }
+                else if (paso == 3 && ms >= 3800 + Math.Max(1, s - 1) * 1000) { paso = 4; t.Stop(); img.Close(); ctx.ExitThread(); }
+            };
             carga.Show();
             carga.Activate();
-            Bombear(2500);
-            using (Form img = Imagen("PRUEBA · la consola otra vez", System.Drawing.Color.FromArgb(30, 110, 60)))
-            {
-                img.Show();
-                img.Activate();
-                Bombear(300);
-                carga.Close();
-                carga.Dispose();
-                Bombear(1000);
-                CeBarra.Mostrar("PRUEBA: la imagen de la consola ya esta delante");
-                Bombear(Math.Max(1, s - 1) * 1000);
-            }
+            t.Start();
+            Application.Run(ctx);
             AlCerrarApp(false);
             Log.Write("PRUEBA: la app de mentira se cierra");
             return 0;

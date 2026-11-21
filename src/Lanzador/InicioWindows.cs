@@ -446,10 +446,8 @@ namespace ConsoleEnhancer
             Process p;
             try
             {
-                ProcessStartInfo psi = new ProcessStartInfo(Exe, resto.ToString());
-                psi.UseShellExecute = false;
-                psi.WorkingDirectory = Path.GetDirectoryName(Exe);
-                p = Process.Start(psi);
+                p = CeCubierta.Lanzar(Exe, resto.ToString(), false); // (1.2.1: sin el cursor de "iniciando" encima del telon)
+                if (p == null) throw new InvalidOperationException("la app no ha arrancado");
                 try { AllowSetForegroundWindow(p.Id); } catch { }
                 try { p.PriorityClass = ProcessPriorityClass.AboveNormal; } catch { }
                 LogI("Lanzada la app (pid " + p.Id + (resto.Length > 0 ? ", " + resto : "") + ", " + reloj.ElapsedMilliseconds + " ms)");
@@ -465,8 +463,12 @@ namespace ConsoleEnhancer
             t.Interval = 50;
             DateTime fin = DateTime.UtcNow.AddSeconds(30);
             DateTime grande = DateTime.MinValue, otra = DateTime.MinValue;
+            bool reocultar = tras && CeBarra.Oculta;
             t.Tick += delegate
             {
+                // (1.2.1) el Explorador vuelve a mostrar la barra sola cuando se va la ventana a pantalla completa de delante (medido: 0,11 s
+                // despues): la de la espera se cierra al ver este telon, que no coge el primer plano -> otra vez oculta mientras esta
+                if (reocultar) try { CeBarra.Reocultar(); } catch { }
                 string porque = null;
                 int v = 0;
                 try { p.Refresh(); if (p.HasExited) porque = "la app se ha cerrado (codigo " + p.ExitCode + ")"; else v = Ventanas(p.Id); }
@@ -506,6 +508,8 @@ namespace ConsoleEnhancer
             l.Add(new Telon(prueba, Screen.PrimaryScreen.Bounds));
             if (!prueba) foreach (Screen sc in Screen.AllScreens) if (!sc.Primary) l.Add(new Telon(false, sc.Bounds));
             foreach (Telon tl in l) { tl.Show(); tl.Refresh(); }
+            // (sin cursor ya: hasta Application.Run este hilo no atiende los WM_SETCURSOR y se veia un instante el cursor de "ocupado")
+            if (!prueba) { SetCursor(IntPtr.Zero); Application.DoEvents(); }
             return l;
         }
 
@@ -1016,15 +1020,16 @@ namespace ConsoleEnhancer
             if (!CeBarra.Oculta) return;
             int seguidas = 0;
             barraReloj = new System.Windows.Forms.Timer();
-            barraReloj.Interval = 500;
+            barraReloj.Interval = 250;
             barraReloj.Tick += delegate
             {
                 try
                 {
                     if (!CeBarra.Oculta || userExit || PowerOffClock != null) { barraReloj.Stop(); return; }
+                    CeBarra.Reocultar(); // (el Explorador la vuelve a mostrar sola si cambia la ventana a pantalla completa de delante)
                     bool delante = consoleSeen && splash == null && curtain == null;
                     seguidas = delante ? seguidas + 1 : 0;
-                    if (seguidas < 2) return;
+                    if (seguidas < 4) return;
                     barraReloj.Stop();
                     CeBarra.Mostrar("la imagen de la consola ya esta delante");
                 }

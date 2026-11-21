@@ -4,9 +4,11 @@
 // Por que se veia la barra (consoleenhancer.log del 21-11 19:08:58): PowerOffNow mataba mpv / Magpie / el motor (la imagen a pantalla
 // completa) sin nada delante, y la pantalla no se apagaba hasta ~1,2 s despues (fin de la app, "Fin ConsoleEnhancer", la espera arrancando
 // la sonda y los mandos). En ese hueco se veia el escritorio negro... y la barra de tareas: en ocultacion automatica (escritorio_negro) se
-// despliega en cuanto Windows le da el primer plano al cerrarse la ventana de delante o si el cursor se quedo en el borde de abajo (medido
-// aqui: con el cursor en y=2159 la barra pasa de [0,2157] a [0,2016] en 0,7 s). Y el cursor, que mpv solo escondia sobre su ventana. Al
-// despertar, el telon de --inicio esperaba a que la app vieja soltara el mutex: otro hueco con la pantalla ya encendida.
+// despliega en cuanto se va la ventana a pantalla completa de delante (medido aqui con el cursor en el centro: de [0,2157] a [0,2016] al
+// pasar el primer plano de una ventana a pantalla completa a otra) y se queda desplegada si el cursor esta en el borde de abajo (con el
+// cursor en y=2159, 0,3 s despues de cerrarse la ultima). Y el cursor, que mpv solo escondia sobre su ventana. Al despertar, el telon de
+// --inicio esperaba a que la app vieja soltara el mutex (otro hueco con la pantalla ya encendida) y se quitaba con la pantalla de carga aun
+// transparente (empieza con Opacity 0): el escritorio y el cursor ~0,3 s.
 //
 //  - La cubierta (CeCubierta): ventanas negras encima de todo, una por pantalla (EnumDisplayMonitors), sin cursor (WM_SETCURSOR sin
 //    cursor y ShowCursor) y que no se cierran con Alt+F4, en su propio hilo: sigue puesta aunque termine el Application.Run de la app
@@ -18,8 +20,10 @@
 //    (nunca en el modo de PC normal) y espera_ocultar_barra=1 (de serie). Vuelve siempre: al volver la imagen de la consola, al cerrar la
 //    app, al pasar a "como un PC normal", al desinstalar y, si la app muere, la "guarda": un proceso pequeno (--ce-guarda-barra, sin
 //    ventanas ni temporizadores) que espera a que termine el proceso dueno de la marca data\taskbar_hidden.txt y, si nadie la ha cogido
-//    (la espera, el --inicio y la app se la pasan: pid= de la marca), la vuelve a mostrar. Ademas, al abrir la app con la marca de un
-//    proceso que ya no esta, se muestra (si no viene de la espera). Ocultar no se guarda en Windows: reiniciado el Explorador, vuelve.
+//    (la espera, el --inicio y la app se la pasan: pid= de la marca), la vuelve a mostrar (y el plan de energia de antes). Ademas, al abrir
+//    la app con la marca de un proceso que ya no esta, se muestra (si no viene de la espera). Ocultar no se guarda en Windows: reiniciado el
+//    Explorador, vuelve. Y el Explorador la vuelve a mostrar el solo cuando se va la ventana a pantalla completa de delante (medido: 0,11 s
+//    despues): la cubierta (con la pantalla encendida), el telon de --inicio y la app (hasta ver la consola) la vuelven a ocultar.
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -49,6 +53,7 @@ namespace ConsoleEnhancer
 
         public static bool Puesta { get { return puesta; } }
         public static int Pantalla { get { return pantalla; } }
+        public static volatile int Hilo;   // (el id de su hilo de Windows, para medir lo que despierta en espera)
         public static IntPtr Handle { get { Cubre r = raiz; return r != null && r.IsHandleCreated ? r.Handle : IntPtr.Zero; } }
 
         // El hilo y la ventana (oculta) de antemano: en el apagado Poner es inmediato (nada que crear ni compilar)
@@ -72,6 +77,9 @@ namespace ConsoleEnhancer
         {
             try
             {
+#pragma warning disable 618
+                Hilo = AppDomain.GetCurrentThreadId();
+#pragma warning restore 618
                 raiz = new Cubre(true);
                 IntPtr h = raiz.Handle;   // (crea la ventana, sin mostrarla)
                 Guid g = GuidPantalla;
@@ -171,13 +179,19 @@ namespace ConsoleEnhancer
             return l;
         }
 
-        // Encima de todo otra vez (y la barra, si ha vuelto, otra vez oculta)
+        // Encima de todo otra vez (y la barra, si ha vuelto, otra vez oculta). Solo si algo se le ha puesto encima (lo que hay en su
+        // centro no es ella): sin mover nada, nada que componer
         static void Subir(bool activar)
         {
             if (!puesta) return;
             if (!pausada)
                 foreach (Cubre c in Todas())
-                    SetWindowPos(c.Handle, new IntPtr(-1), 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010); // HWND_TOPMOST, SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE
+                {
+                    Rectangle b = c.Bounds;
+                    POINT p = new POINT(); p.X = b.X + b.Width / 2; p.Y = b.Y + b.Height / 2;
+                    if (activar || GetAncestor(WindowFromPoint(p), 2) != c.Handle)
+                        SetWindowPos(c.Handle, new IntPtr(-1), 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010); // HWND_TOPMOST, SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE
+                }
             CeBarra.Reocultar();
             if (activar && raiz != null && GetForegroundWindow() != raiz.Handle)
             {
@@ -307,8 +321,52 @@ namespace ConsoleEnhancer
             }
         }
 
+        // (1.2.1) Abrir otro proceso de la app sin el cursor de "iniciando" (la flecha con el reloj que Windows pone hasta 5 s al lanzar un
+        // programa: visto un instante encima del telon al despertar). CreateProcess con STARTF_FORCEOFFFEEDBACK; si falla, Process.Start
+        public static Process Lanzar(string exe, string args, bool sinVentana)
+        {
+            try
+            {
+                STARTUPINFO si = new STARTUPINFO();
+                si.cb = Marshal.SizeOf(typeof(STARTUPINFO));
+                si.dwFlags = 0x80; // STARTF_FORCEOFFFEEDBACK
+                PROCESS_INFORMATION pi;
+                StringBuilder cmd = new StringBuilder("\"" + exe + "\" " + args);
+                if (CreateProcess(exe, cmd, IntPtr.Zero, IntPtr.Zero, false, sinVentana ? 0x08000000u : 0u, IntPtr.Zero, Path.GetDirectoryName(exe), ref si, out pi)) // CREATE_NO_WINDOW
+                {
+                    CloseHandle(pi.hThread);
+                    try { return Process.GetProcessById(pi.dwProcessId); }
+                    catch { return null; }
+                    finally { CloseHandle(pi.hProcess); }
+                }
+            }
+            catch { }
+            ProcessStartInfo psi = new ProcessStartInfo(exe, args);
+            psi.UseShellExecute = false;
+            psi.CreateNoWindow = sinVentana;
+            psi.WorkingDirectory = Path.GetDirectoryName(exe);
+            return Process.Start(psi);
+        }
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        struct STARTUPINFO
+        {
+            public int cb;
+            public string lpReserved, lpDesktop, lpTitle;
+            public int dwX, dwY, dwXSize, dwYSize, dwXCountChars, dwYCountChars, dwFillAttribute, dwFlags;
+            public short wShowWindow, cbReserved2;
+            public IntPtr lpReserved2, hStdInput, hStdOutput, hStdError;
+        }
+        [StructLayout(LayoutKind.Sequential)] struct PROCESS_INFORMATION { public IntPtr hProcess, hThread; public int dwProcessId, dwThreadId; }
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        static extern bool CreateProcess(string app, StringBuilder cmd, IntPtr pa, IntPtr ta, bool inherit, uint flags, IntPtr env, string dir, ref STARTUPINFO si, out PROCESS_INFORMATION pi);
+        [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr h);
+
         static readonly Guid GuidPantalla = new Guid("6FE69556-704A-47A0-8F24-C28D936FDA47"); // GUID_CONSOLE_DISPLAY_STATE
         [StructLayout(LayoutKind.Sequential)] struct RECT { public int Left, Top, Right, Bottom; }
+        [StructLayout(LayoutKind.Sequential)] struct POINT { public int X, Y; }
+        [DllImport("user32.dll")] static extern IntPtr WindowFromPoint(POINT p);
+        [DllImport("user32.dll")] static extern IntPtr GetAncestor(IntPtr h, uint flags);
         delegate bool MonitorEnumProc(IntPtr m, IntPtr dc, ref RECT rc, IntPtr d);
         [DllImport("user32.dll")] static extern bool EnumDisplayMonitors(IntPtr dc, IntPtr clip, MonitorEnumProc f, IntPtr d);
         [DllImport("user32.dll")] static extern IntPtr RegisterPowerSettingNotification(IntPtr h, ref Guid g, int flags);
@@ -470,11 +528,7 @@ namespace ConsoleEnhancer
             {
                 Mutex m;
                 if (Mutex.TryOpenExisting(MutexGuarda, out m)) { m.Dispose(); return; }
-                ProcessStartInfo psi = new ProcessStartInfo(Exe, "--ce-guarda-barra \"--datos=" + Paths.Datos + "\"");
-                psi.UseShellExecute = false;
-                psi.CreateNoWindow = true;
-                psi.WorkingDirectory = Path.GetDirectoryName(Exe);
-                using (Process p = Process.Start(psi)) { }
+                using (CeCubierta.Lanzar(Exe, "--ce-guarda-barra \"--datos=" + Paths.Datos + "\"", true)) { }
             }
             catch (Exception ex) { Log.Error("Barra de tareas: la guarda", ex); }
         }
@@ -502,6 +556,8 @@ namespace ConsoleEnhancer
                             if (Dueno() != pid) continue; // (otro proceso de la app la ha cogido)
                             if (GetSystemMetrics(0x2000) != 0) return 0;
                             Mostrar("la guarda: el proceso " + pid + " de la app ha terminado sin volver a mostrarla");
+                            // (si era la espera, tampoco ha vuelto al plan de energia de antes: el procesador seguiria al 50 %)
+                            CeEspera.PlanDeAntes("la guarda: la espera termino sin volver al plan de antes");
                             return 0;
                         }
                         if (pid != vigilado) { vigilado = pid; Log.Write("Barra de tareas: la guarda (pid " + Process.GetCurrentProcess().Id + ") vigila el proceso " + pid); }
