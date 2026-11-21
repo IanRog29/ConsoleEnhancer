@@ -676,7 +676,14 @@ namespace ConsoleEnhancer.Motor.Capture
             {
                 MfHr.Check(sc.GetStreamCaps(best.CapsIndex, out pmt, scc), "GetStreamCaps");
                 AM_MEDIA_TYPE mt = (AM_MEDIA_TYPE)Marshal.PtrToStructure(pmt, typeof(AM_MEDIA_TYPE));
-                long interval = (want >= best.MinInterval - 2 && want <= best.MaxInterval + 2) ? want : best.DefaultInterval;
+                // 21-11 (1.2.1): fuera del margen de ese formato (p. ej. 120 fps a 4K en la GC573, que a 4K da 24-60), lo mas cercano que da
+                // (su minimo o su maximo) en vez del de serie del formato
+                long interval = (want >= best.MinInterval - 2 && want <= best.MaxInterval + 2) ? want :
+                                best.MinInterval > 0 && want < best.MinInterval ? best.MinInterval :
+                                best.MaxInterval > 0 && want > best.MaxInterval ? best.MaxInterval : best.DefaultInterval;
+                if (interval != want && want > 0 && interval > 0)
+                    Raise(CaptureEvent.Opening, "no " + opt.Width + "x" + opt.Height + " @ " + (10000000.0 / want).ToString("0.##", CultureInfo.InvariantCulture) +
+                          " fps: the closest it offers, " + best.Info.Width + "x" + best.Info.Height + " @ " + (10000000.0 / interval).ToString("0.##", CultureInfo.InvariantCulture));
                 if (mt.pbFormat != IntPtr.Zero && mt.cbFormat >= 48) Marshal.WriteInt64(mt.pbFormat, 40, interval);   // AvgTimePerFrame (VIH and VIH2)
                 MfHr.Check(sc.SetFormat(pmt), "IAMStreamConfig.SetFormat(" + best.Info.SubtypeName + " " + best.Info.Width + "x" + best.Info.Height + ")");
 
@@ -786,21 +793,54 @@ namespace ConsoleEnhancer.Motor.Capture
 
         DsType Choose(List<DsType> types, long want)
         {
+            LastSizeSwap = null;
             foreach (CaptureFormat f in opt.Preference)
             {
-                DsType inRange = null, closest = null;
-                long bestDiff = long.MaxValue;
+                DsType t = ChooseAt(types, f, opt.Width, opt.Height, want);
+                if (t != null) return t;
+            }
+            // 21-11 (1.2.1): ese tamaño no lo da la capturadora (antes: "no WxH capability", el motor sin imagen y el lanzador lo cerraba a
+            // los 30 s contandolo como fallo): el tamaño mas parecido que da (el mismo aspecto antes que otro; luego el area mas cercana), con
+            // el formato de la preferencia y la velocidad mas cercana
+            foreach (CaptureFormat f in opt.Preference)
+            {
+                DsType near = null;
+                long bestScore = long.MaxValue;
+                long wantArea = (long)opt.Width * opt.Height;
                 foreach (DsType t in types)
                 {
-                    if (t.Info.Format != f || t.Info.Width != opt.Width || t.Info.Height != opt.Height) continue;
-                    if (inRange == null && want >= t.MinInterval - 2 && want <= t.MaxInterval + 2) inRange = t;
-                    long d = Math.Abs(t.DefaultInterval - want);
-                    if (d < bestDiff) { bestDiff = d; closest = t; }
+                    if (t.Info.Format != f || t.Info.Width <= 0 || t.Info.Height <= 0) continue;
+                    long aspect = Math.Abs((long)t.Info.Width * opt.Height - (long)t.Info.Height * opt.Width) > wantArea / 50 ? 1L << 40 : 0;
+                    long score = aspect + Math.Abs((long)t.Info.Width * t.Info.Height - wantArea);
+                    if (score < bestScore) { bestScore = score; near = t; }
                 }
-                if (inRange != null) return inRange;
-                if (closest != null) return closest;
+                if (near == null) continue;
+                DsType r = ChooseAt(types, f, near.Info.Width, near.Info.Height, want);
+                if (r == null) continue;
+                LastSizeSwap = opt.Width + "x" + opt.Height + ">" + r.Info.Width + "x" + r.Info.Height;
+                Raise(CaptureEvent.Opening, "no " + opt.Width + "x" + opt.Height + " " + f + " capability: the closest one offered, " + r.Info.Width + "x" + r.Info.Height);
+                return r;
             }
             return null;
+        }
+
+        // 21-11 (1.2.1): el ultimo cambio de tamaño por no darlo la capturadora ("pedido>elegido"; null = ninguno). El motor lo usa para dar
+        // por hecho un cambio de captura cuyas imagenes llegan con el tamaño elegido (EngineMpv.cs, FrameHook)
+        public static volatile string LastSizeSwap;
+
+        // En ese tamaño y formato: el que admite esa velocidad o, si ninguno, el de velocidad de serie mas cercana
+        static DsType ChooseAt(List<DsType> types, CaptureFormat f, int w, int h, long want)
+        {
+            DsType inRange = null, closest = null;
+            long bestDiff = long.MaxValue;
+            foreach (DsType t in types)
+            {
+                if (t.Info.Format != f || t.Info.Width != w || t.Info.Height != h) continue;
+                if (inRange == null && want >= t.MinInterval - 2 && want <= t.MaxInterval + 2) inRange = t;
+                long d = Math.Abs(t.DefaultInterval - want);
+                if (d < bestDiff) { bestDiff = d; closest = t; }
+            }
+            return inRange ?? closest;
         }
 
         // Offset QPC(100 ns) - reference clock, taken at a clock tick edge (best of a few edges, <= ~60 ms)

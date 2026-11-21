@@ -751,6 +751,15 @@ namespace ConsoleEnhancer
         // La que va en su lugar: XeSS FG (no a 1080p), Smooth Motion, FSR 3 FG; si no hay ninguna, DLSS FG (y el aviso de Magpie)
         string FgSinDlssMagpie()
         {
+            // 21-11 (1.2.1, pendiente de la revision del 21-11: "FgSinDlssMagpie ignora GenList"): primero las del selector de este modo
+            // (generacion_lista_60 / _30: las que el plan ofrece en ESTE PC, en su orden; p. ej. XeSS FG no va bien en el 60 y no esta en su
+            // lista); si ninguna sirve, el orden de antes
+            foreach (string g in CapMode ? GenList30 : GenList60)
+            {
+                if (g == "xess" && File.Exists(Path.Combine(Paths.MagpieDir, "libxess_fg.dll")) && WindowFor(VideoSize) != "1920x1080") return "xess";
+                if (g == "smooth" && !NvProfiles.SmoothBroken && !Pantalla.Is119) return "smooth";
+                if (g == "fsr3" && File.Exists(Path.Combine(Paths.MagpieDir, "amd_fidelityfx_framegeneration_dx12.dll"))) return "fsr3";
+            }
             if (File.Exists(Path.Combine(Paths.MagpieDir, "libxess_fg.dll")) && WindowFor(VideoSize) != "1920x1080") return "xess";
             if (!NvProfiles.SmoothBroken && !Pantalla.Is119) return "smooth";
             if (File.Exists(Path.Combine(Paths.MagpieDir, "amd_fidelityfx_framegeneration_dx12.dll"))) return "fsr3";
@@ -1408,7 +1417,7 @@ namespace ConsoleEnhancer
                         case "motor_extra": c.EngineExtra = val.Trim(); break;
                         case "motor_generacion_60": c.EngineSmooth60 = val.Trim().ToLowerInvariant() == "smooth"; break;   // 17-11 16:55
                         case "motor_generacion_30": c.EngineSmooth30 = val.Trim().ToLowerInvariant() == "smooth"; break;   // 17-11 17:50
-                        case "puente_ligero": c.BridgeLight = ParseBool(val); break;   // 17-11 17:00
+                        case "puente_ligero": c.BridgeLight = ParseBool(val) || val.Trim() == "2"; c.BridgeLightLevel = val.Trim() == "2" ? 2 : 1; break;   // 17-11 17:00 (21-11, 1.2.1: 2 = FSR 1 siempre, src\SinTelon.cs)
                         case "pasadas_vigilancia": c.D5Watch = ParseInt(val); break;   // 18-11 (PASADAS)
                         case "pasadas_vigilancia_reinicios": c.D5WatchResets = Math.Max(3, ParseInt(val)); break;
                         case "pasadas_vigilancia_prueba": c.D5WatchTestLog = val.Trim(); break;
@@ -1489,6 +1498,7 @@ namespace ConsoleEnhancer
                             if (c.ParseD5Opt(key, val)) break; // (escalador_<modo>_dlss5 y demas: ver Config.D5ScalerTable)
                             if (c.ParseCierres(key, val)) break; // (20-11, CIERRES: apagado_confirmar y demas, src\Cierres.cs)
                             if (c.ParseSonidoDoble(key, val)) break; // (21-11: sonido_doble, src\SonidoDoble.cs)
+                            if (c.ParseCapturaSegura(key, val)) break; // (21-11, 1.2.1: captura_segura, src\Lanzador\CapturaSegura.cs)
                             if (key.StartsWith("mando_") && PadOptions.Parse(key, val)) break; // (18-11, MANDOS: modo PC, src\Mandos.cs)
                             Log.Write("Aviso: clave desconocida en ini: " + key); break;
                     }
@@ -7971,6 +7981,7 @@ namespace ConsoleEnhancer
         // El script Lua dice que ya hay imagen de la captura nueva
         void SwitchDone(string what)
         {
+            CapCambioHecho(); // 21-11 (1.2.1): el formato nuevo da imagen (CapturaSegura.cs)
             if (homeSwitching) { homeSwitchOk = true; homeSwitchEvt.Set(); return; } // HOME <-> juego
             if (relaunchSize == null || switchUntil == DateTime.MinValue) return;
             relaunchSize = null;
@@ -7985,6 +7996,7 @@ namespace ConsoleEnhancer
         // No se pudo sin cerrar mpv: se reabre (relaunchSize ya es la captura nueva; la ventana es la misma)
         void SwitchFallback()
         {
+            capEnSitioFallo = true; // 21-11 (1.2.1): la reapertura se vigila con menos tiempo (CapturaSegura.cs)
             if (homeSwitching) { homeSwitchOk = false; homeSwitchEvt.Set(); return; } // lo reabre StartHomeSwitch
             if (relaunchSize == null) return;
             switchUntil = DateTime.MinValue;
@@ -10562,6 +10574,7 @@ namespace ConsoleEnhancer
             {
                 Stopwatch sw = Stopwatch.StartNew();
                 bool relaunched = false, curtainOff = false;
+                Bandera finEntrada = new Bandera(); // 21-11 (1.2.1): para el puente tardio (src\SinTelon.cs)
                 // (si se esta reabriendo Magpie por un boton, se espera a que acabe)
                 bool gate = false;
                 for (int gi = 0; gi < 400 && !(gate = TryGate()); gi++) Thread.Sleep(50);
@@ -10672,6 +10685,8 @@ namespace ConsoleEnhancer
                     {
                         brAfter = BridgeWake(title, subtitle, "entrada en " + title);
                         if (brAfter != null) BridgeUpAsync(brAfter, cfg.Dlss5SeamlessWaitMs);
+                        // 21-11 (1.2.1): sin motor en espera listo pero arrancandose: el puente en cuanto lo este (src\SinTelon.cs)
+                        else PuenteTardio(title, subtitle, "entrada en " + title, p, finEntrada);
                     }
                     if (lsStart != null) lsStart.Join();
                     // (el puente, si sigue tras Magpie: no llego a presentar)
@@ -10692,6 +10707,7 @@ namespace ConsoleEnhancer
                     }
                     if (!switched)
                     {
+                        capEnSitioFallo = true; // 21-11 (1.2.1): la reapertura se vigila con menos tiempo (CapturaSegura.cs)
                         Log.Write("mpv no ha podido cambiar sin cerrarse: se reabre" + (toHome ? "" : " (y Magpie)"));
                         // (16-11, velocidad: con el puente ya encima, fuera y el telon de siempre mientras se reabre)
                         if (bridgeFirst)
@@ -10716,6 +10732,10 @@ namespace ConsoleEnhancer
                 catch (Exception ex) { Log.Error("Cambiando entre el HOME y el juego", ex); }
                 finally
                 {
+                    // 21-11 (1.2.1): el cambio ha terminado: el puente tardio ya no se pone, y si se puso y Magpie no llego a presentar, fuera
+                    finEntrada.Hecho = true;
+                    if (!toHome && !relaunched && RelevoToMagpieActive())
+                        FinishRelevoToMagpie("Magpie no llego a presentar (entrada en " + title + "): se quita igualmente");
                     if (!relaunched)
                     {
                         lsReady = true;
@@ -10974,11 +10994,31 @@ namespace ConsoleEnhancer
                 return;
             }
             if (fpsChange && !Config.EngineActive && ipcUp && cfg.TestSource.Length == 0)
+            {
+                // 21-11 (1.2.1): como un cambio de captura sin cerrar mpv (RequestCapture): con switch2-switching (sin el, si la capturadora no
+                // abria la velocidad nueva, el script de mpv tomaba el fin de la captura por la consola apagada -con apagar_pc=1, el PC
+                // apagado-) y relaunchSize, para que si no llega imagen nueva mpv se vuelva a abrir (SwitchFallback; luego CapturaSegura.cs)
+                string size = cfg.VideoSize;
+                relaunchSize = size;
+                switchUntil = DateTime.Now.AddSeconds(SwitchSecs);
                 lock (cmdQueue)
                 {
+                    cmdQueue.Add(JsonCmd("script-message", "switch2-switching", SwitchSecs.ToString(CultureInfo.InvariantCulture)));
                     cmdQueue.Add(JsonCmd("set", "demuxer-lavf-o", LavfOptions(cfg)));
                     cmdQueue.Add(JsonCmd("loadfile", SourceUrl(cfg), "replace"));
                 }
+                Thread guard = new Thread(delegate ()
+                {
+                    Thread.Sleep(SwitchSecs * 1000);
+                    if (relaunchSize == size && switchUntil != DateTime.MinValue)
+                    {
+                        Log.Write("La captura a " + cfg.FramerateNow + " fps no ha llegado en " + SwitchSecs + " s: se reabre mpv");
+                        SwitchFallback();
+                    }
+                });
+                guard.IsBackground = true;
+                guard.Start();
+            }
             RestartLs(ModoTexto(fps),
                       (m120 ? "captura a " + cfg.FramerateNow + " · baja latencia" :
                        fgWanted ? (cap ? "30 → " + 30 * cfg.FgMultNow : "60 → " + 60 * cfg.FgMultNow) + " fps · " + ScalerText() :
@@ -11086,6 +11126,7 @@ namespace ConsoleEnhancer
             {
                 Stopwatch sw = Stopwatch.StartNew();
                 bool shown = false, bridged = false;
+                Bandera finReapertura = new Bandera(); // 21-11 (1.2.1): para el puente tardio (src\SinTelon.cs)
                 try
                 {
                     lock (lsModeSync)
@@ -11122,6 +11163,8 @@ namespace ConsoleEnhancer
                             ShowPadCurtain(subtitle, title, true);
                             shown = true;
                         }
+                        // 21-11 (1.2.1): sin motor en espera listo pero arrancandose: el puente en cuanto lo este (src\SinTelon.cs)
+                        if (!bridged && br == null) PuenteTardio(title, subtitle, "reapertura de Magpie: " + title, p, finReapertura);
                         lsReady = false;
                         // 16-11: matado sin esperar a que salga (~0,45 s: NVIDIA soltando sus modelos); mientras sale, su config y el perfil de
                         // NVIDIA (Smooth Motion, ~0,2 s) ya para el nuevo (matado no guarda nada encima) y luego se espera a que no quede.
@@ -11139,14 +11182,16 @@ namespace ConsoleEnhancer
                         EnsureLossless();
                         if (cfg.PerformanceBoost) ThreadPool.QueueUserWorkItem(delegate { Perf.BoostByName(MagpieLive.ProcName); }); // (en paralelo: no retrasa el arranque)
                         if (!p.HasExited && !userExit && MagpieConfig.Needed(cfg) && EnsureScaled(p, logStart)) FinishLsStart(p, logStart);
-                        // (el puente, si sigue: Magpie no llego a presentar)
-                        if (bridged) FinishRelevoToMagpie("Magpie no llego a presentar (" + title + "): se quita igualmente");
+                        // (el puente, si sigue: Magpie no llego a presentar. 21-11, 1.2.1: tambien el tardio)
+                        finReapertura.Hecho = true;
+                        if (bridged || RelevoToMagpieActive()) FinishRelevoToMagpie("Magpie no llego a presentar (" + title + "): se quita igualmente");
                         lsReady = true;
                     }
                 }
                 catch (Exception ex) { Log.Error("Reabriendo Magpie (" + title + ")", ex); }
                 finally
                 {
+                    finReapertura.Hecho = true;
                     lsReady = true;
                     passesBusy = false;
                     ReleaseGate();
@@ -11281,6 +11326,49 @@ namespace ConsoleEnhancer
             catch (Exception ex) { Log.Error("Cerrando el motor en espera", ex); }
         }
 
+        // 21-11 (1.2.1, log del usuario 19:09:27.393 y .394): dos motores en espera arrancados a la vez (el del HOME quieto, WatchLoop, y el
+        // del puente que no lo encontro, BridgeWake): SetStandby del segundo cerro el primero ("otro motor pasa a espera") y el hilo del
+        // primero, al verlo cerrado, hacia KillStandby... del SEGUNDO ("se ha cerrado al arrancar (codigo -1)" dos veces): la entrada en
+        // Rocket League a las 19:09:49 sin puente, 8,6 s en negro. Ahora: un solo arranque a la vez (StandbyLaunchBegin / End: los demas no
+        // arrancan otro, o esperan a ese) y cada hilo solo cierra SU motor (KillStandbyIf)
+        readonly object standbyLaunchSync = new object();
+        volatile bool standbyLaunchBusy;
+        DateTime standbyLaunchAt = DateTime.MinValue;
+        int standbyLaunchFails;             // arranques seguidos que se cerraron solos antes de estar listos (para no insistir)
+
+        bool StandbyLaunchBegin(string who)
+        {
+            lock (standbyLaunchSync)
+            {
+                // (uno colgado mas de 30 s no bloquea los siguientes)
+                if (standbyLaunchBusy && (DateTime.Now - standbyLaunchAt).TotalSeconds < 30)
+                {
+                    Log.Write("Motor en espera (" + who + "): ya se esta arrancando otro: no se arranca un segundo");
+                    return false;
+                }
+                if (standbyEngine != null) return false; // (ya hay uno: nada que arrancar)
+                standbyLaunchBusy = true;
+                standbyLaunchAt = DateTime.Now;
+                return true;
+            }
+        }
+
+        void StandbyLaunchEnd() { lock (standbyLaunchSync) standbyLaunchBusy = false; }
+
+        // El de espera fuera solo si sigue siendo ESTE (el hilo que lo arranco); si ya es otro, no se toca
+        void KillStandbyIf(Process e, string why)
+        {
+            if (e == null || standbyEngine != e) return;
+            KillStandby(why);
+        }
+
+        // Si otro hilo esta arrancando uno, se le espera (hasta que se apunta como motor en espera: ~0,1-1 s) en vez de arrancar otro
+        void WaitStandbyLaunch(int maxMs)
+        {
+            Stopwatch sw = Stopwatch.StartNew();
+            while (standbyLaunchBusy && standbyEngine == null && !userExit && sw.ElapsedMilliseconds < maxMs) Thread.Sleep(20);
+        }
+
         void CloseStandbyPipe()
         {
             NamedPipeClientStream sp = standbyPipe;
@@ -11374,12 +11462,13 @@ namespace ConsoleEnhancer
         // (17-11 16:55: smooth = el motor que se despierta se abrio con Smooth Motion: la generacion del 60 la hace el driver, fg=0)
         static string EngineSessionSet(Config cfg, bool smooth)
         {
-            return "capture=" + cfg.CaptureNow + " fps=" + cfg.FramerateNow + " format=" + EngineFormat(cfg) + (cfg.TestSource.Length > 0 ? " test=barras" : "") + " " + EngineLive(cfg, smooth);
+            CapFmt ef = CapturaSegura.Efectivo(cfg);   // 21-11 (1.2.1): lo que se abre de verdad (src\Lanzador\CapturaSegura.cs)
+            return "capture=" + ef.Size + " fps=" + ef.Fps + " format=" + EngineFormat(cfg) + (cfg.TestSource.Length > 0 ? " test=barras" : "") + " " + EngineLive(cfg, smooth);
         }
 
         static string EngineFormat(Config cfg)
         {
-            string pf = cfg.PixelFormatNow;
+            string pf = CapturaSegura.Efectivo(cfg).Pix;   // (21-11, 1.2.1: el de lo que se abre de verdad; sin repuesto, PixelFormatNow)
             return pf == "bgr24" ? "rgb24" : pf == "yuyv422" ? "yuy2" : pf == "nv12" ? "nv12" : "auto";
         }
 
@@ -11416,6 +11505,7 @@ namespace ConsoleEnhancer
 
         void PrestartReserve(int sm, int fixedRefresh)
         {
+            if (!StandbyLaunchBegin("de reserva")) return; // (21-11, 1.2.1: uno solo a la vez)
             try
             {
                 string ipc = MpvConst.StandbyIpcName();
@@ -11423,11 +11513,20 @@ namespace ConsoleEnhancer
                 ProcessStartInfo psi = new ProcessStartInfo(cfg.EnginePath, EngineArgs(cfg, ipc, sm, fixedRefresh) + " standby=1");
                 psi.UseShellExecute = false;
                 psi.WorkingDirectory = Path.GetDirectoryName(cfg.EnginePath);
+                // 21-11 (1.2.1, log 1.2.07 18:31:55: el de reserva arranco justo cuando el modo 30 pasaba del motor a mpv + Magpie; arrancando a
+                // la vez que Magpie y con el motor jugando encima, Magpie tardo 14,7 s y luego el de reserva se cerro al pasar el otro a la espera).
+                // EngineArgs tarda (perfil de NVIDIA): si mientras tanto ha empezado un cambio, no se arranca
+                if (!Config.EngineActive || relevo != null || relaunchEngine || relaunchSize != null || homeBusy || passesBusy || !lsReady || cfg.HomeNative || userExit)
+                {
+                    Log.Write("Motor de reserva: no se arranca (ha empezado un cambio de imagen mientras se preparaba)");
+                    return;
+                }
                 Log.Write("Motor de reserva: se arranca uno escondido con " + (sm > 0 ? "Smooth Motion" : "DLSS FG" + (fixedRefresh > 0 ? " y refresco fijo" : "")) +
                           " (el otro tipo de generacion de este modo: cambiar a el sera despertarlo, ~0,5 s)");
                 Process e = Process.Start(psi);
                 if (userExit) { try { e.Kill(); } catch { } return; }
                 SetStandby(e, ipc, false);
+                StandbyLaunchEnd(); // (ya es el motor en espera: los demas lo ven)
                 Stopwatch sw = Stopwatch.StartNew();
                 bool fgSaid = false;
                 while (!userExit && standbyEngine == e && !e.HasExited && sw.ElapsedMilliseconds < 25000 && (!standbyReady || sw.ElapsedMilliseconds < 4000))
@@ -11435,15 +11534,24 @@ namespace ConsoleEnhancer
                     Thread.Sleep(100);
                     if (!fgSaid) fgSaid = StandbyFgBack(e);
                 }
-                if (e.HasExited) { Log.Write("Motor de reserva: se ha cerrado al arrancar (codigo " + e.ExitCode + ")"); KillStandby("cerrado al arrancar"); }
+                // (21-11, 1.2.1: solo si se ha cerrado solo siendo aun el de espera; cerrado por la app -otro paso a espera, se desperto- no)
+                if (e.HasExited && standbyEngine == e) { Log.Write("Motor de reserva: se ha cerrado al arrancar (codigo " + e.ExitCode + ")"); KillStandbyIf(e, "cerrado al arrancar"); }
             }
             catch (Exception ex) { Log.Error("Motor de reserva: arrancandolo", ex); }
+            finally { StandbyLaunchEnd(); }
         }
 
+        // 21-11 (1.2.1): no solo una vez por sesion: cada vez que falte en el HOME (cerrado por otro Smooth Motion, la grafica reiniciada, uno
+        // que se cerro al arrancar...), como mucho uno cada 60 s y no despues de 3 que se cierran solos al arrancar. Para que el puente (el motor
+        // en espera jugando encima mientras Magpie prepara) este casi siempre
+        DateTime standbyPrestartAt = DateTime.MinValue;
         void MaybePrestartStandby()
         {
-            if (standbyPrestarted || standbyEngine != null || Config.EngineActive || !StandbyOn()) return;
+            if (standbyEngine != null || standbyLaunchBusy || bridgePrestarting || Config.EngineActive || !StandbyOn()) return;
+            if (standbyPrestarted && (DateTime.Now - standbyPrestartAt).TotalSeconds < 60) return;
+            if (standbyLaunchFails >= 3) return;
             standbyPrestarted = true;
+            standbyPrestartAt = DateTime.Now;
             Thread t = new Thread(PrestartStandby);
             t.IsBackground = true;
             t.Name = "Motor en espera (arranque)";
@@ -11452,6 +11560,7 @@ namespace ConsoleEnhancer
 
         void PrestartStandby()
         {
+            if (!StandbyLaunchBegin("en el HOME")) return; // (21-11, 1.2.1: uno solo a la vez)
             try
             {
                 string ipc = MpvConst.StandbyIpcName();
@@ -11463,6 +11572,7 @@ namespace ConsoleEnhancer
                 Process e = Process.Start(psi);
                 if (userExit) { try { e.Kill(); } catch { } return; }
                 SetStandby(e, ipc, false);
+                StandbyLaunchEnd(); // (ya es el motor en espera: los demas lo ven)
                 // Escondido no deberia quedarse el primer plano; si lo coge, vuelve a mpv (el mando solo va con mpv delante)
                 Stopwatch sw = Stopwatch.StartNew();
                 bool fgSaid = false;
@@ -11471,10 +11581,18 @@ namespace ConsoleEnhancer
                     Thread.Sleep(100);
                     if (!fgSaid) fgSaid = StandbyFgBack(e);
                 }
-                if (e.HasExited) { Log.Write("Motor en espera: se ha cerrado al arrancar (codigo " + e.ExitCode + "): se sigue sin el"); KillStandby("cerrado al arrancar"); }
+                // (21-11, 1.2.1: solo si se ha cerrado solo siendo aun el de espera; y solo se cierra ESE)
+                if (e.HasExited && standbyEngine == e)
+                {
+                    standbyLaunchFails++;
+                    Log.Write("Motor en espera: se ha cerrado al arrancar (codigo " + e.ExitCode + "): se sigue sin el" + (standbyLaunchFails >= 3 ? " (3 seguidos: no se arrancan mas en el HOME)" : ""));
+                    KillStandbyIf(e, "cerrado al arrancar");
+                }
+                else if (standbyEngine == e && standbyReady) standbyLaunchFails = 0;
                 else if (standbyEngine == e && !standbyReady) Log.Write("Motor en espera: sin aviso de listo en 25 s (sigue abierto: se despertara igual)");
             }
             catch (Exception ex) { Log.Error("Motor en espera: arrancandolo", ex); }
+            finally { StandbyLaunchEnd(); }
         }
 
         // El primer plano lo tiene el motor escondido: a mpv otra vez. true = lo tenia
@@ -11736,8 +11854,9 @@ namespace ConsoleEnhancer
             a.Add("topmost=0"); // como la ventana de mpv: la pantalla de carga y el telon del lanzador quedan por encima
             a.Add("device=" + cfg.Device);
             a.AddRange(Ce.EngineArgsExtra(cfg)); // (ConsoleEnhancer: device_path, streamline, adapter_luid, datos)
-            a.Add("capture=" + cfg.CaptureNow);
-            a.Add("fps=" + cfg.FramerateNow);
+            CapFmt capEf = CapturaSegura.Efectivo(cfg);   // 21-11 (1.2.1): lo que se abre de verdad (src\Lanzador\CapturaSegura.cs)
+            a.Add("capture=" + capEf.Size);
+            a.Add("fps=" + capEf.Fps);
             a.Add("format=" + EngineFormat(cfg));
             if (cfg.TestSource.Length > 0) a.Add("test=barras");
             a.Add("dedupe=" + (DedupeOn(cfg, !cfg.FgOff) ? "1" : "0"));
@@ -11832,6 +11951,30 @@ namespace ConsoleEnhancer
         {
             try { Process.Start("notepad.exe", "\"" + Paths.IniFile + "\""); }
             catch (Exception ex) { Log.Error("No se pudo abrir la config", ex); }
+        }
+
+        // 21-11 (1.2.1, pendiente de la revision del 21-11: "SendScaleHotkey apaga un escalado que Magpie ya empezo (~20 s de mas al primer
+        // arranque)"): el atajo alterna, y a los 8 s sin escalar se pulsaba aunque Magpie siguiera arrancando (el primer arranque lee cientos de
+        // efectos, su log no para de crecer) y su escalado automatico saltaba justo despues: el atajo lo paraba, y luego "Reiniciando Magpie".
+        // true = Magpie quieto (su log sin crecer 1,5 s, como mucho 6 s de espera) y sin escalar ni empezando: entonces si se puede pulsar
+        bool MagpieQuieto()
+        {
+            try
+            {
+                Stopwatch sw = Stopwatch.StartNew(), still = Stopwatch.StartNew();
+                long last = LogLength(Paths.MagpieLog);
+                while (sw.ElapsedMilliseconds < 6000 && !userExit)
+                {
+                    if (MagpieLive.IsScaling() || MagpieLive.ScalingPhase() == MagpieLive.Phase.Starting) return false;
+                    Thread.Sleep(100);
+                    long now = LogLength(Paths.MagpieLog);
+                    if (now != last) { last = now; still.Restart(); }
+                    else if (still.ElapsedMilliseconds >= 1500) return true;
+                }
+                if (sw.ElapsedMilliseconds >= 6000) Log.Write("Magpie sigue escribiendo en su log (aun arrancando): se le espera antes de pulsar su atajo");
+                return false;
+            }
+            catch { return true; }
         }
 
         // El atajo "escalar" de Magpie (el de su config; de serie Alt+Mayus+A) con mpv delante. Alterna: con Magpie escalando lo para
@@ -12616,6 +12759,7 @@ namespace ConsoleEnhancer
                             if (state != lastLogged) Log.Write("Audio de la consola: " + state);
                             ConsolaAudio(state); // (18-11: para el aviso de HDCP, ConsolasApp.cs)
                             CierresAudio(state); // (20-11, CIERRES: la consola sonando con la imagen parada no esta apagada)
+                            CapNotaAudio(state); // (21-11, 1.2.1: la consola sonando sin imagen tras cambiar de formato, CapturaSegura.cs)
                             lastLogged = state;
                             // Con la consola apagada no hay sonido: si lo hay, esta encendida
                             if (state == "sound")
@@ -12751,6 +12895,7 @@ namespace ConsoleEnhancer
 
                     // --- Vigilancia de fotogramas ---
                     if (CheckStall(p)) return;
+                    if (mpv == p) CapNotaConsola(DateTime.Now); // (21-11, 1.2.1: cuando se vio la consola por ultima vez, CapturaSegura.cs)
                 }
             }
             catch (InvalidOperationException) { } // ese mpv ya se cerro y se relanzo (Process liberado)
@@ -13062,9 +13207,17 @@ namespace ConsoleEnhancer
                     try { p.Kill(); } catch { }
                     return false;
                 }
+                // 21-11 (1.2.1, src\Lanzador\CapturaSegura.cs): sin imagen tras cambiar el formato de la capturadora con la consola encendida:
+                // ese formato no lo da; se cierra y RunMpv lo vuelve a abrir al momento con otro (antes: "esperando a que se encienda" para siempre)
+                if (CapSinImagen(p))
+                {
+                    try { p.Kill(); } catch { }
+                    return false;
+                }
                 // Margen de 3 s para no mostrar el aviso si la consola ya esta encendida
                 // (el motor propio tarda ~4 s en dar su primera imagen: NVIDIA prepara DLSS y la generacion)
-                if (!waitAsked && (DateTime.Now - waitStart).TotalSeconds >= (Config.EngineActive ? 6 : 3))
+                // (21-11, 1.2.1: mientras se vigila un formato nuevo con la consola encendida, no: no es que este apagada)
+                if (!waitAsked && capVigilado == null && (DateTime.Now - waitStart).TotalSeconds >= (Config.EngineActive ? 6 : 3))
                 {
                     waitAsked = true;
                     Log.Write("Sin senal de la consola: esperando a que se encienda");
@@ -13315,6 +13468,8 @@ namespace ConsoleEnhancer
                     if (WaitForScaling(p, logStart, 8)) return true;
                     continue;
                 }
+                // 21-11 (1.2.1): Magpie aun cargando: se le espera en vez de pulsar el atajo (alterna: lo pararia a punto de empezar)
+                if (!MagpieQuieto()) { if (WaitForScaling(p, logStart, 8)) return true; continue; }
                 Log.Write("Magpie no ha escalado solo: se pulsa su atajo");
                 SendScaleHotkey();
                 if (WaitForScaling(p, logStart, 5)) return true;
@@ -13532,6 +13687,7 @@ namespace ConsoleEnhancer
                     Process woke = adopted ?? (eng ? StandbyForWake() : null);
                     if (eng && woke == null) KillStandby("se abre otro motor");
                     if (woke != null) ipc = adopted != null ? adoptIpc : standbyIpc;
+                    CapLanzamiento(eng, woke != null); // 21-11 (1.2.1): ¿formato nuevo con la consola encendida? se vigila (CapturaSegura.cs)
                     ProcessStartInfo psi = null;
                     if (woke == null)
                     {
@@ -13610,6 +13766,7 @@ namespace ConsoleEnhancer
                     {
                         if (eng) engineFails = 0;
                         if (wakeSw != null) Log.Write("Motor en espera: despierto en " + wakeSw.ElapsedMilliseconds + " ms (pid " + p.Id + ")");
+                        CapImagen(); // 21-11 (1.2.1): este formato da imagen (si era un repuesto, se queda; CapturaSegura.cs)
                         break;
                     }
                     // (1.2.02) sin tope: un mpv / motor colgado en el driver de la capturadora o de la grafica dejaba el hilo parado para siempre
@@ -13624,6 +13781,9 @@ namespace ConsoleEnhancer
                     // 16-11 (dlss5_sin_telon): el mpv nuevo se ha cerrado sin imagen con el motor del relevo aun encima: deja paso, con el telon
                     // de siempre mientras se sigue
                     if (!eng && RelevoToMagpieActive()) { ShowCurtain(); FinishRelevoToMagpie("mpv se ha cerrado sin dar imagen"); }
+                    // 21-11 (1.2.1, src\Lanzador\CapturaSegura.cs): sin imagen por el formato de la capturadora (cerrado aqui o solo, con 2): otra
+                    // vez ya con el repuesto, sin contarlo como fallo ni esperar
+                    if (CapFallo(eng, woke != null, salida)) continue;
                     // 16-11 (motor_en_espera): el despertado no da imagen a tiempo: otro como siempre (sin contarlo como fallo ni esperar 2 s)
                     if (woke != null)
                     {
@@ -13665,6 +13825,7 @@ namespace ConsoleEnhancer
                 mpvFails = 0;
                 // La prioridad de GPU solo se puede poner cuando mpv ya ha abierto la GPU
                 if (cfg.PerformanceBoost) Perf.Boost(p, "mpv");
+                bool relanzado = !first; // 21-11 (1.2.1): para el puente al reabrir mpv y Magpie (src\SinTelon.cs)
                 first = false;
                 Process watched = p;
                 Thread watch = new Thread(delegate () { WatchLoop(watched); });
@@ -13690,7 +13851,15 @@ namespace ConsoleEnhancer
                 else
                 lock (lsModeSync)
                 {
+                    // 21-11 (1.2.1): reabiertos mpv y Magpie (otra captura con otra ventana, un cambio de motor con el telon...): el motor en
+                    // espera jugando encima mientras Magpie prepara, como en las demas reaperturas (src\SinTelon.cs)
+                    Bandera finRun = null;
+                    if (relanzado && relevo == null) { finRun = new Bandera(); PuenteAlReabrir(p, finRun); }
                     bool scaled = WaitForScaling(p, logStart, 8);
+                    // 21-11 (1.2.1): Magpie aun cargando (su log crece: el primer arranque lee cientos de efectos): mas tiempo antes de pulsar su
+                    // atajo (alterna: con el escalado a punto de empezar lo paraba) o de reiniciarlo (ver MagpieQuieto)
+                    if (!scaled && !p.HasExited && !userExit && MagpieLive.Running && !MagpieQuieto())
+                        scaled = WaitForScaling(p, logStart, 10);
                     if (!scaled && !p.HasExited && !userExit && MagpieLive.Running && !MagpieLive.NeedsRestart(logStart) &&
                         MagpieLive.ScalingPhase() != MagpieLive.Phase.Starting && MagpieLive.ScalingPhase() != MagpieLive.Phase.Shown)
                     {
@@ -13714,12 +13883,14 @@ namespace ConsoleEnhancer
                     }
                     // Con la pantalla de carga (o el telon) aun puesta
                     if (scaled && !p.HasExited && !userExit) FinishLsStart(p, logStart);
+                    if (finRun != null) finRun.Hecho = true;
                 }
                 // (16-11, dlss5_sin_telon: si el motor del relevo sigue encima -Magpie no llego a escalar-, deja paso igualmente)
                 FinishRelevoToMagpie("Magpie no llego a presentar: se quita igualmente");
                 lsReady = true;
                 HideCurtain(); // si mpv se relanzo en plena partida para cambiar la captura
                 ShowPendingWarn();
+                CapMostrarAviso(); // 21-11 (1.2.1): "La capturadora no da ... · se usa ..." si hizo falta un repuesto (CapturaSegura.cs)
                 Stopwatch cs = captureSw;
                 if (cs != null)
                 {
@@ -13932,7 +14103,10 @@ namespace ConsoleEnhancer
         {
             if (cfg.TestSource.Length > 0)
             {
-                string[] tw = cfg.CaptureNow.Split('x');
+                // 21-11 (1.2.1): el tamaño que se abre de verdad (CapturaSegura) y, solo pruebas, los formatos que "no da" (test_captura_mala)
+                CapFmt ef = CapturaSegura.Efectivo(cfg);
+                if (CapturaSegura.TestMala(cfg, ef)) return cfg.TestCapturaMalaUrl;
+                string[] tw = ef.Size.Split('x');
                 string ts = !cfg.HomeNative && cfg.TestSourceGame.Length > 0 ? cfg.TestSourceGame : cfg.TestSource;
                 return ts.Replace("{w}", tw[0]).Replace("{h}", tw[1]);
             }
@@ -13946,11 +14120,13 @@ namespace ConsoleEnhancer
         {
             // Búfer de captura de ~3 fotogramas: si mpv se retrasa (p. ej. al abrir el
             // audio) se descartan fotogramas en vez de acumular retraso permanente.
-            string[] wh = cfg.CaptureNow.Split('x');
+            // 21-11 (1.2.1): lo que se abre de verdad (CapturaSegura.Efectivo: lo pedido o, si la capturadora no lo da, su repuesto)
+            CapFmt ef = CapturaSegura.Efectivo(cfg);
+            string[] wh = ef.Size.Split('x');
             long rtbuf = long.Parse(wh[0], CultureInfo.InvariantCulture) *
                          long.Parse(wh[1], CultureInfo.InvariantCulture) * 3 * 3;
-            string lavf = "video_size=" + cfg.CaptureNow + ",framerate=" + cfg.FramerateNow +
-                          (cfg.PixelFormatNow.Length > 0 ? ",pixel_format=" + cfg.PixelFormatNow : "") + // (ConsoleEnhancer: sin formato, el de la capturadora)
+            string lavf = "video_size=" + ef.Size + ",framerate=" + ef.Fps +
+                          (ef.Pix.Length > 0 ? ",pixel_format=" + ef.Pix : "") + // (ConsoleEnhancer: sin formato, el de la capturadora)
                           ",rtbufsize=" + rtbuf + ",fflags=+nobuffer";
             if (cfg.CaptureAudio) lavf += ",audio_buffer_size=30"; // ms; el valor por defecto (~500 ms) retrasa el audio
             return lavf;

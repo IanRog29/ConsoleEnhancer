@@ -990,6 +990,7 @@ namespace ConsoleEnhancer.Motor.Capture
                     "]; offered at that size: " + (sb.Length > 0 ? sb.ToString() : "none") + " (" + types.Count + " types in total)");
             }
             streamIndex = (uint)best.Stream;
+            chosenW = best.Width; chosenH = best.Height;   // (21-11, 1.2.1: puede no ser el pedido si no lo da: ChooseType)
             MfHr.Check(reader.SetStreamSelection(MfApi.ALL_STREAMS, 0), "SetStreamSelection(all,false)");
             MfHr.Check(reader.SetStreamSelection(streamIndex, 1), "SetStreamSelection(video,true)");
             IMFMediaType mt = null;
@@ -1025,6 +1026,22 @@ namespace ConsoleEnhancer.Motor.Capture
                 }
                 if (best != null) return best;
             }
+            // 21-11 (1.2.1): ese tamaño no lo da (como DsCapture.Choose): el mas parecido (el mismo aspecto antes; luego el area mas cercana)
+            // y en el la velocidad mas cercana. Acceptable() sigue pidiendo el tamaño pedido: un cambio de tipo en marcha reabre
+            long wantArea = (long)o.Width * o.Height;
+            foreach (CaptureFormat f in o.Preference)
+            {
+                CaptureMediaType best = null;
+                double bestScore = double.MaxValue;
+                foreach (CaptureMediaType t in types)
+                {
+                    if (t.Format != f || t.Width <= 0 || t.Height <= 0) continue;
+                    double aspect = Math.Abs((long)t.Width * o.Height - (long)t.Height * o.Width) > wantArea / 50 ? 1e15 : 0;
+                    double score = aspect + Math.Abs((long)t.Width * t.Height - wantArea) * 1000.0 + Math.Abs(t.Fps - want);
+                    if (score < bestScore - 1e-6) { best = t; bestScore = score; }
+                }
+                if (best != null) return best;
+            }
             return null;
         }
 
@@ -1041,9 +1058,11 @@ namespace ConsoleEnhancer.Motor.Capture
             finally { MfApi.Release(mt); }
         }
 
+        int chosenW, chosenH;   // 21-11 (1.2.1): el tamaño elegido al abrir (el pedido o, si no lo da, el mas parecido)
+
         bool Acceptable(CaptureMediaType t)
         {
-            if (t == null || t.Width != opt.Width || t.Height != opt.Height) return false;
+            if (t == null || !((t.Width == opt.Width && t.Height == opt.Height) || (t.Width == chosenW && t.Height == chosenH))) return false;
             return Array.IndexOf(opt.Preference, t.Format) >= 0;
         }
 
