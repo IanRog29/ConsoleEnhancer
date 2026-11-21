@@ -108,8 +108,9 @@ namespace ConsoleEnhancer.Motor
             uint pc;
             if (latPcMine != 0 && swap.GetLastPresentCount(out pc) >= 0 && pc != latPcMine)
             {
+                // (con una generacion de imagenes, las que presenta ella no son de fuera: no se cuentan)
                 int extra = (int)(pc - latPcMine);
-                if (extra > 0 && extra < 64) latOwed = Math.Min(8, latOwed + extra);
+                if (extra > 0 && extra < 64 && !fgApplied) latOwed = Math.Min(8, latOwed + extra);
                 latPcMine = pc;
             }
             if (!latHeld)
@@ -132,24 +133,27 @@ namespace ConsoleEnhancer.Motor
         }
 
         // Tras cada Present del bucle de pintado: el sitio se gasta si la presentacion entro en la cola (si no, p. ej. un Present que falla,
-        // se guarda para la siguiente)
+        // se guarda para la siguiente; 3 seguidas sin que cambie la cuenta de DXGI = no se fia de ella y se gasta igual, como antes)
+        int latPcSame;
         void LatQueuePresent()
         {
             if (latWaitable == IntPtr.Zero || !s.QueueCount) return;
             uint pc;
             if (swap.GetLastPresentCount(out pc) >= 0)
             {
-                if (pc != latPcMine) latHeld = false;
+                if (pc != latPcMine || ++latPcSame >= 3) { latHeld = false; latPcSame = 0; }
                 latPcMine = pc;
             }
             else latHeld = false;
         }
 
-        // ---- 21-11 (1.2.1) mmcss=1: los dos hilos por los que pasa cada imagen, en MMCSS (el planificador multimedia de Windows: por encima
-        // de los hilos normales de cualquier proceso, con el 20 % de cada nucleo reservado para lo demas). El que entrega la captura (OnFrame:
-        // el hilo del controlador de DirectShow, o el de la fuente de prueba) como "Capture" y el de pintado (Run) como "Games". La
-        // prioridad alta del proceso (la pone el lanzador) no basta: los hilos normales de otro proceso en alta, o los que Windows sube un
-        // momento, se turnaban con ellos. mmcss=0 = como antes
+        // ---- 21-11 (1.2.1) mmcss=1 (de serie 0, prueba): los dos hilos por los que pasa cada imagen, en MMCSS (el planificador multimedia de
+        // Windows: por encima de los hilos normales de cualquier proceso, con el 20 % de cada nucleo reservado para lo demas). El que entrega
+        // la captura (OnFrame: el hilo del controlador de DirectShow, o el de la fuente de prueba) como "Capture" y el de pintado (Run) como
+        // "Games". Medido el 21-11 (motor en prioridad alta como lo deja el lanzador, fuente de prueba 4K YUY2 a 59,94, Ryzen 5 2600) con 12
+        // hilos de carga en prioridad normal, en alta y en alta a rafagas (2 ms si, 1 ms no): sin diferencia (de la llegada al fin de la
+        // grafica 6,5 ms, p99 7,0, copia p99 2,6-2,9 con y sin MMCSS): al despertar, Windows ya les sube la prioridad a los dos hilos. Se
+        // queda apagado; con o sin el, el log dice una vez la prioridad del hilo que entrega la captura (el de DirectShow es del controlador)
         [DllImport("avrt.dll", CharSet = CharSet.Unicode, SetLastError = true)] static extern IntPtr AvSetMmThreadCharacteristicsW(string task, ref uint index);
         [DllImport("avrt.dll")] static extern bool AvRevertMmThreadCharacteristics(IntPtr h);
         [DllImport("kernel32.dll")] static extern int GetThreadPriority(IntPtr thread);
@@ -184,7 +188,12 @@ namespace ConsoleEnhancer.Motor
         {
             if (mmcssCaptureSeen) return;
             mmcssCaptureSeen = true;
-            MmcssOn("Capture", "de la captura", Interlocked.Increment(ref mmcssCaptureThreads) <= 10);
+            bool log = Interlocked.Increment(ref mmcssCaptureThreads) <= 10;
+            if (s.Mmcss > 0) { MmcssOn("Capture", "de la captura", log); return; }
+            if (!log) return;
+            int p = 0;
+            try { p = GetThreadPriority(GetCurrentThread()); } catch { }
+            Log.Write("Captura: el hilo que entrega las imagenes va a prioridad relativa " + p + " (sin MMCSS: mmcss=0)");
         }
 
         // Antes de pintar una imagen real: true = no se pinta (se suelta la ranura). test_paron (una vez) y cola_tirar_ms
@@ -214,6 +223,7 @@ namespace ConsoleEnhancer.Motor
             bool real = slot >= 0;
             if (real) { latLastReal = ret; if (latFirstReal == 0) latFirstReal = ret; }
             if (real && latPickup != 0) { double d = Clock.Ms(latPickup, submit); if (d > 0 && d < 50) latPickSubEma = latPickSubEma <= 0 ? d : latPickSubEma * 0.9 + d * 0.1; }
+            if (real && latPickup != 0) LatReflexWatch(Clock.Ms(arrival, latPickup));   // 21-11 (1.2.1)
             QueueModelPresented(submit);
             if (stats.Recording && real && s.SmoothMode > 0) latBQX.Add(latQX);
             bool csv = s.LatCsv.Length > 0;
@@ -265,6 +275,30 @@ namespace ConsoleEnhancer.Motor
         }
 
         void LatDropCheck(long now, double dispMs) { }
+
+        // 21-11 (1.2.1): jugando (no solo en el banco), si Reflex duerme mucho y la imagen de la captura, ya llegada, espera a que acabe: es su
+        // tope de imagenes con G-SYNC por debajo del ritmo de la captura (p. ej. el 60 + DLSS FG con VRR en una pantalla de 119,88 Hz, donde
+        // no va el refresco fijo de motor_60fg_refresco_fijo=auto). Medido el 21-11 con la fuente de prueba a 59,94 (1440p, DLSS K, VRR a
+        // 120 Hz, sin el refresco fijo): Reflex 14,0 ms por imagen, la imagen esperando 7,5 ms de media (p95 16,2) y 58,3 reales de 59,9.
+        // Una linea cada minuto como mucho, para verlo en los registros de los usuarios
+        double latRxSleepSum, latRxPickSum, latRxPickMax;
+        int latRxN, latRxSaid;
+        long latRxSaidAt;
+        void LatReflexWatch(double pickMs)
+        {
+            if (pickMs < 0 || pickMs > 1000) return;
+            latRxSleepSum += latSleepMs; latRxPickSum += pickMs; latRxN++;
+            if (pickMs > latRxPickMax) latRxPickMax = pickMs;
+            if (latRxN < 600) return;
+            double sl = latRxSleepSum / latRxN, pk = latRxPickSum / latRxN, mx = latRxPickMax;
+            latRxSleepSum = latRxPickSum = latRxPickMax = 0; latRxN = 0;
+            if (sl < 3 || pk < 3 || latRxSaid >= 30) return;
+            if (latRxSaidAt != 0 && Clock.SinceMs(latRxSaidAt) < 60000) return;
+            latRxSaidAt = Clock.Now; latRxSaid++;
+            Log.Write(string.Format(CultureInfo.InvariantCulture,
+                "Reflex: duerme {0:0.0} ms de media por imagen y la imagen de la captura, ya llegada, espera {1:0.0} ms (max {2:0.0}): el tope de imagenes de Reflex no deja pasar las de la captura (+{1:0.0} ms de retraso{3})",
+                sl, pk, mx, fgApplied ? "; con la generacion y VRR lo quitan motor_60fg_refresco_fijo=1 o motor_vrr_fg_vsync=0 en el ini" : ""));
+        }
 
         // ---- La cola de la tele con Smooth Motion (sm=1|2). Medido (18-11, fuente de prueba a 59,94, modo 30, tele a 120,000 Hz,
         // PresentMon): cada imagen del motor sale como inventada + real, 2 refrescos cada una (4 refrescos = 33,333 ms por imagen), y
@@ -509,7 +543,7 @@ namespace ConsoleEnhancer.Motor
     partial class Settings
     {
         public bool QueueCount = true;      // cola_cuenta=0: la espera de la cadena como antes (Engine.LatQueueWait)
-        public int Mmcss = 1;               // mmcss=0: los hilos de la captura y de pintado sin MMCSS (como antes)
+        public int Mmcss = 0;               // mmcss=1 (prueba): los hilos de la captura y de pintado en MMCSS (de serie no: sin diferencia medida)
 
         bool ApplyLatencia(string key, string val)
         {
