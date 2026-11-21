@@ -123,6 +123,25 @@ namespace ConsoleEnhancer
 
         static int Letras(string s) { int n = 0; foreach (char ch in s ?? "") if (char.IsLetter(ch)) n++; return n; }
 
+        // 1.0.12 (el usuario: "sigue dejando abrir el menu de ajustes estando en el menu"): las DOS pestañas del inicio de la PS5 ("Juegos" y
+        // "Contenido multimedia" / "Games" y "Media"), para decir "es el menu" cuando la hora no se lee (fondo claro junto a la hora: "algo a
+        // la derecha de la hora", 12:49:14 con GTA VI; OCR "12147"). Mas estricto que EsInicio: con una sola palabra un juego podria colar
+        public static bool PestanasInicio(Bitmap full, out string leido)
+        {
+            bool juegos = false, media = false;
+            StringBuilder sb = new StringBuilder();
+            foreach (Ocr.Linea l in LineasZona(full, 0.0, 0.015, 0.55, 0.11))
+            {
+                string n = DetectorMenu.Normal(Limpia(l.Texto));
+                sb.Append(n).Append(" | ");
+                if (n == "juegos" || n == "games" || n.StartsWith("juegos ") || n.StartsWith("games ")) juegos = true;
+                // (cortada por una notificacion de la PS5 encima: "Contenido multime", o pegada a ella con erratas: "contenldo tu ps5 entrara...")
+                if (n.Contains("contenido multi") || n.StartsWith("conten") || n.Contains(" conten") || n == "media" || n.EndsWith(" media")) media = true;
+            }
+            leido = sb.ToString();
+            return juegos && media;
+        }
+
         // ¿La pantalla de inicio de la PS5? (arriba a la izquierda las pestañas "Juegos" / "Contenido multimedia")
         public static bool EsInicio(Bitmap full)
         {
@@ -522,7 +541,10 @@ namespace ConsoleEnhancer
         static readonly string[] PantallasSistema = {
             "bienvenida", "welcome", "quien esta usando", "who's using", "whos using", "selecciona un usuario", "elige un usuario",
             "choose a user", "select a user", "pulsa el boton", "press the ps button", "press the button", "iniciar sesion", "sign in",
-            "actualizacion del sistema", "system update", "modo de reposo", "rest mode", "apagando", "turning off" };
+            "actualizacion del sistema", "system update", "modo de reposo", "rest mode", "apagando", "turning off",
+            // (1.0.12: rotulos de la galeria y de la app de PlayStation: "Escanea el codigo QR para descargar PS App" se tomo por un juego)
+            "codigo qr", "qr code", "escanea el", "scan the", "ps app", "playstation app", "descargar", "download the", "tus capturas",
+            "your captures", "inicio para tus", "home for your", "galeria", "gallery" };
         static readonly string[] FrasesTarjeta = {
             "reanudar", "resume game", "continua donde", "continue where", "pick up where", "videoclip", "video clip", "captura de pantalla",
             "screenshot", "de reciente creacion", "recently created", "historias de tus juegos", "noticias destacadas", "featured news",
@@ -552,6 +574,57 @@ namespace ConsoleEnhancer
             double best = 999; int bj = -1;
             for (int j = 0; j < fs.Count; j++) if (j != i) { double d = PortadasConsola.DistNorm(fs[i], fs[j]); if (d < best) { best = d; bj = j; } }
             return (bj >= 0 ? Path.GetFileName(files[bj]) : "-") + " a " + best.ToString("0.0", CultureInfo.InvariantCulture);
+        }
+
+        // 1.0.12 (el usuario: "tambien piensa que he entrado a un juego al entrar a remoteplay, galeria, etc. arregla esas cosas, en todas las
+        // consolas"): las apps de la consola (y de video) que estan en la fila de juegos del inicio: abrirlas no es entrar en un juego. Dentro
+        // (una captura de la galeria a pantalla completa, Remote Play, un video) la imagen no se distingue de un juego: lo que manda es la app
+        // en foco al salir del menu (MenuPs5Salir). Minusculas sin tildes; las de una palabra, exactas; las de varias, contenidas
+        static readonly string[] AppsSistema = {
+            // PS5
+            "remote play", "ps remote play", "galeria de contenido multimedia", "galeria multimedia", "galeria", "media gallery", "gallery",
+            "playstation store", "ps store", "playstation plus", "ps plus", "explorar", "explore", "biblioteca de juegos", "game library",
+            "biblioteca", "library", "ajustes", "settings", "tv y video", "tv & video", "tv and video", "share factory", "sharefactory",
+            "sharefactory studio", "share factory studio", "consejos de ps5", "ps5 tips", "ayuda de juego", "game help", "game base",
+            "playstation vr2", "ps vr2", "playstation app", "notificaciones", "notifications", "musica", "music",
+            // Xbox
+            "microsoft store", "tienda", "store", "game pass", "xbox game pass", "configuracion", "capturas", "captures", "mis juegos y aplicaciones",
+            "my games & apps", "my games and apps", "biblioteca completa", "full library", "microsoft edge", "edge", "reproductor multimedia",
+            "media player", "accesorios de xbox", "xbox accessories", "consejos de xbox", "xbox tips",
+            // Video y musica (en cualquier consola)
+            "netflix", "youtube", "spotify", "prime video", "amazon prime video", "disney+", "disney plus", "twitch", "apple tv", "apple tv+",
+            "hbo max", "max", "movistar plus+", "movistar+", "dazn", "crunchyroll", "plex", "rtve play", "atresplayer", "mitele", "skyshowtime",
+            "filmin", "pluto tv", "tidal", "deezer", "apple music" };
+
+        // 1.0.12: la frase de una pantalla de la consola (DetectorMenu.EsPantallaConsola) -> la app en la que se esta (lo que se vea dentro
+        // de ella, p. ej. una captura a pantalla completa en la galeria, no es un juego). null = una pantalla del menu, no de una app
+        public static string AppDeFrase(string frase)
+        {
+            string f = frase ?? "";
+            if (f.Contains("galeria") || f.Contains("media gallery") || f.Contains("capturas de pantalla y videoclips") || f.Contains("screenshots and video")) return "Galería de contenido multimedia";
+            if (f.Contains("remote play")) return "Remote Play";
+            if (f == "playstation store" || f == "lista de deseos" || f == "anadir al carrito" || f == "comprar ahora" || f == "cambiar pestanas" ||
+                f.StartsWith("colecciones") || f.StartsWith("descuentos") || f == "wishlist" || f == "add to cart" || f == "buy now" || f == "change tabs") return "PlayStation Store";
+            if (f == "playstation plus" || f == "juegos mensuales" || f == "catalogo de juegos") return "PlayStation Plus";
+            if (f == "biblioteca de juegos" || f == "tu coleccion" || f == "game library" || f == "your collection") return "Biblioteca de juegos";
+            if (f == "microsoft store") return "Microsoft Store";
+            if (f == "game pass") return "Game Pass";
+            if (f.StartsWith("capturas y clips") || f.StartsWith("captures & clips")) return "Capturas";
+            if (f == "reproductor multimedia" || f == "media player") return "Reproductor multimedia";
+            return null;
+        }
+
+        // ¿Es una app de la consola (no un juego)? nombre = el del perfil sin "PS5: " (o con: se quita)
+        public static bool EsAppSistema(string nombre)
+        {
+            if (string.IsNullOrEmpty(nombre)) return false;
+            string n = DetectorMenu.Normal(SinTag(nombre)).Trim().TrimEnd('.', ':', '|', '>', '»');
+            foreach (string a in AppsSistema)
+            {
+                if (n == a) return true;
+                if (a.IndexOf(' ') > 0 && n.Contains(a)) return true;
+            }
+            return false;
         }
 
         // ¿Esa linea del OCR puede ser el nombre de un juego? Se descarta lo que seguro no lo es

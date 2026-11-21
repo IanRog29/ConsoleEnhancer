@@ -86,6 +86,25 @@ namespace ConsoleEnhancer
                 l.Fuerte = fuerte;
                 l.Hora = hora;
             }
+            // 1.0.12: PS5 con algo como la hora arriba que no se ha podido leer (fondo claro a su lado, OCR "12147"): las dos pestañas del
+            // inicio ("Juegos" / "Contenido multimedia") tambien dicen "menu". Solo entonces (no en cada captura de un juego: OCR de 20-40 ms)
+            // y sin repetir la lectura de una zona igual que ya fallo
+            else if (c.Familia == "playstation" && (parecio || (porque != null && porque.StartsWith("algo a la derecha"))))
+            {
+                Rectangle zt = Rectangle.FromLTRB(0, (int)(full.Height * 0.015), (int)(full.Width * 0.55), (int)(full.Height * 0.11));
+                if (!ZonaRepetida(full, zt, now))
+                {
+                    string leido;
+                    if (JuegoConsola.PestanasInicio(full, out leido))
+                    {
+                        l.Vista = VistaMenu.Menu;
+                        l.Hora = "pestañas";
+                        porque = null;
+                        l.Frase = "pestañas Juegos / Contenido multimedia";
+                    }
+                    else { ZonaFallida(full, zt, now, leido); porque = (porque ?? "") + "; pestañas: \"" + Corto(leido) + "\""; }
+                }
+            }
             // Sin la hora, en el menu: ¿otra pantalla de la consola? (OCR de la pantalla entera, 60-150 ms)
             if (enMenu && (!reloj || leerPantalla))
             {
@@ -153,7 +172,7 @@ namespace ConsoleEnhancer
             if (ZonaRepetida(full, z, now)) { porque = "lo de arriba a la derecha no ha cambiado"; return false; }
             ocr = LeerZona(full, z, 2);
             bool exacta;
-            if (!HoraEnTexto(ocr, now, out hora, out exacta)) { porque = "sin la hora del PC (OCR \"" + Corto(ocr) + "\")"; ZonaFallida(full, z, now, ocr); return false; }
+            if (!HoraEnTexto(ocr, now, out hora, out exacta, true)) { porque = "sin la hora del PC (OCR \"" + Corto(ocr) + "\")"; ZonaFallida(full, z, now, ocr); return false; }
             return true;
         }
 
@@ -164,10 +183,18 @@ namespace ConsoleEnhancer
         // "3C) 2:42"; algo a su derecha; un fundido). Asi se cambio a la Xbox el 20-11 a las 04:33 y 04:35. Ante la duda, de la puesta: null
         public static string PistaReloj(Bitmap full, DateTime now, ConsolaPerfil actual, out string hora, out bool miro)
         {
-            string ocr, porque;
+            string ocr, porque = null;
+            hora = null;
             bool fuerte, parecio = false;
             miro = false;
             if (actual.Familia != "playstation" && BuscaReloj(full, now, Consolas.Ps5, out hora, out ocr, out fuerte, out porque, out parecio)) { miro = true; return "ps5"; }
+            // 1.0.12: la hora de la PS5 sin leer (fondo claro a su lado) pero con las pestañas de su inicio: es la PS5, no la Xbox (cuyo lector,
+            // en toda la franja, si leia esa hora: 14 fallos de consola=auto con las capturas de GTA VI del 21-11)
+            if (actual.Familia != "playstation" && (parecio || (porque != null && porque.StartsWith("algo a la derecha"))))
+            {
+                string leido;
+                if (JuegoConsola.PestanasInicio(full, out leido)) { miro = true; hora = "pestañas"; return "ps5"; }
+            }
             miro = parecio;
             if (RelojSwitch(full, now, out hora, out ocr, out porque)) { miro = true; return "switch"; }
             if (actual.Familia == "playstation" || actual.Familia == "xbox") return null;
@@ -323,7 +350,11 @@ namespace ConsoleEnhancer
 
         // ¿Esta la hora del PC (+-1 min; 12 o 24 h) entre lo leido? exacta = la del minuto de ahora
         static readonly Regex HoraSuelta = new Regex(@"(?<![\d])(\d{1,2})\s?[:.;]\s?(\d{2})(?![\d])", RegexOptions.CultureInvariant);
-        public static bool HoraEnTexto(string ocr, DateTime now, out string hora, out bool exacta)
+        public static bool HoraEnTexto(string ocr, DateTime now, out string hora, out bool exacta) { return HoraEnTexto(ocr, now, out hora, out exacta, false); }
+
+        // sinPuntos (1.0.12): tambien la hora sin sus dos puntos en la ultima palabra de cada linea. Solo la Switch (su zona es pequeña y
+        // fija); NO la Xbox: su franja incluye el sitio de la hora de la PS5 y la tomaba por la suya (3 fallos de consola=auto en la prueba)
+        public static bool HoraEnTexto(string ocr, DateTime now, out string hora, out bool exacta, bool sinPuntos)
         {
             hora = null; exacta = false;
             if (string.IsNullOrEmpty(ocr)) return false;
@@ -342,6 +373,29 @@ namespace ConsoleEnhancer
                         hora = hh + ":" + m.Groups[2].Value;
                         exacta = d == 0;
                         return true;
+                    }
+                }
+            }
+            // 1.0.12 (todas las consolas): la hora sin sus dos puntos ("1232") o con ellos leidos como cifra ("12147"). Solo la ULTIMA palabra
+            // de cada linea (la hora va a la derecha: Xbox y Switch): un numero del HUD de un juego en medio de la franja no cuenta
+            if (sinPuntos)
+            foreach (string linea in s.Split('\n'))
+            {
+                string[] pal = linea.Trim().Split(new[] { ' ', '\t', '\r' }, StringSplitOptions.RemoveEmptyEntries);
+                if (pal.Length == 0) continue;
+                string ult = pal[pal.Length - 1].ToLowerInvariant().Replace('l', '1').Replace('i', '1').Replace('|', '1');
+                foreach (string v in RelojPs5.HoraVariantes(ult))
+                {
+                    Match m = HoraSuelta.Match(v);
+                    if (!m.Success) continue;
+                    int hh = int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture), mm = int.Parse(m.Groups[2].Value, CultureInfo.InvariantCulture);
+                    if (hh > 23 || mm > 59) continue;
+                    for (int d = -1; d <= 1; d++)
+                    {
+                        DateTime t = now.AddMinutes(d);
+                        if (t.Minute != mm) continue;
+                        int h12 = t.Hour % 12 == 0 ? 12 : t.Hour % 12;
+                        if (hh == t.Hour || hh == h12) { hora = hh + ":" + m.Groups[2].Value; exacta = d == 0; return true; }
                     }
                 }
             }
@@ -366,6 +420,11 @@ namespace ConsoleEnhancer
             // Biblioteca, tienda, PS Plus
             "biblioteca de juegos", "tu coleccion", "playstation store", "playstation plus", "lista de deseos", "anadir al carrito",
             "anadir a la biblioteca", "juegos mensuales", "catalogo de juegos",
+            // (1.0.12: la PlayStation Store por dentro, del OCR del 21-11: "Comprar ahora", "L1 / R1 Cambiar pestañas", sus pestañas)
+            "comprar ahora", "cambiar pestanas", "colecciones descuentos", "descuentos suscripciones", "buy now", "change tabs",
+            // (1.0.12: las apps de la consola por dentro: la galeria y Remote Play)
+            "galeria de contenido multimedia", "media gallery", "capturas de pantalla y videoclips", "screenshots and video clips",
+            "ps remote play", "remote play",
             // La pantalla de un juego (debajo de su icono en el inicio) y el centro de control
             "game base", "lista de amigos", "descargas/copias", "centro de control", "informacion del juego", "progreso del juego",
             "trofeos", "descargando", "instalando", "copiando", "en cola", "listo para jugar", "buscar actualizaciones",
@@ -384,7 +443,9 @@ namespace ConsoleEnhancer
             "microsoft store", "game pass", "opciones de tv y pantalla", "tv & display options", "dispositivos y conexiones",
             "devices & connections", "capturar y compartir", "capture & share", "anadir a inicio", "add to home",
             "apagar la consola", "reiniciar la consola", "turn off console", "restart console", "centro de energia", "power center",
-            "jugado recientemente", "recently played", "logros", "achievements" };
+            "jugado recientemente", "recently played", "logros", "achievements",
+            // (1.0.12: apps de la consola por dentro)
+            "capturas y clips", "captures & clips", "remote play", "reproductor multimedia", "media player" };
 
         public static bool EsPantallaConsola(string ocr, ConsolaPerfil c, out string frase)
         {
@@ -476,6 +537,15 @@ namespace ConsoleEnhancer
         public int EntrarCon = 2;          // capturas con la hora (no exacta) para entrar al menu
         public int SalirCon = 2;           // capturas Juego seguidas para salir
         public int SalirConDudosa = 3;     // las mismas, tras volver al menu enseguida de salir
+        // 1.0.12 (el usuario: "al entrar a la store a ver juegos se aplican perfiles, tiene que ir igual que en el menu, en todas las
+        // consolas"): ademas, esas capturas sin el menu tienen que durar esto. 13:06:29 y 13:07:13: 2 capturas de la transicion a la Store
+        // (393 y 335 ms) bastaban para salir, se creaba un juego falso ("PS5: STANDARD") y se le apuntaba una portada de la Store
+        public double SalirMinS = 2.5;
+        // 1.0.12 (el usuario: "mejora un poco lo que tarda en detectar el juego al abrirlo"): si lo ultimo visto era el menu de verdad (la hora
+        // o las pestañas del inicio: se arranca el juego en foco) basta con esto; las apps de la consola de esa fila (Store, galeria...) ya
+        // las para su nombre (MenuPs5Salir). Los 2,5 s quedan para salir desde otra pantalla de la consola (dentro de la Store, ajustes...)
+        public double SalirMinMenuS = 1.2;
+        bool ultimoFueTexto;               // lo ultimo de la consola visto fue una pantalla sin la hora (MenuTexto), no el menu
         public double NegroSalirS = 2.0;   // negro tras el menu (arrancando un juego): se sale pasado esto
         public double NegroTrasMenuS = 30; // ...si el menu se vio hace menos de esto
         public double VueltaDudosaS = 15;  // volver al menu antes de esto tras salir = la salida era dudosa
@@ -501,7 +571,7 @@ namespace ConsoleEnhancer
         public int Observa(LecturaMenu l, DateTime t, bool enMenu)
         {
             VistaMenu v = l.Vista;
-            if (v == VistaMenu.Menu || v == VistaMenu.MenuTexto) ultimoMenu = t;
+            if (v == VistaMenu.Menu || v == VistaMenu.MenuTexto) { ultimoMenu = t; ultimoFueTexto = v == VistaMenu.MenuTexto; }
             if (v != VistaMenu.Plana) planaDesde = DateTime.MinValue;
             else if (planaDesde == DateTime.MinValue) planaDesde = t;
             if (!enMenu)
@@ -535,10 +605,12 @@ namespace ConsoleEnhancer
                     if (outs == 0) PrimeraAt = t;
                     outs++;
                     int need = t < dudosaHasta ? SalirConDudosa : SalirCon;
-                    if (outs >= need)
+                    double dura = (t - PrimeraAt).TotalSeconds;
+                    if (outs >= need && dura >= (ultimoFueTexto ? SalirMinS : SalirMinMenuS))
                     {
                         Decision = -1;
-                        Porque = outs + " capturas seguidas sin la hora ni una pantalla de la consola" + (need > SalirCon ? " (vuelta reciente al menu: una mas)" : "");
+                        Porque = outs + " capturas seguidas sin la hora ni una pantalla de la consola en " + dura.ToString("0.0", CultureInfo.InvariantCulture) + " s" +
+                                 (need > SalirCon ? " (vuelta reciente al menu: una mas)" : "");
                     }
                     break;
                 case VistaMenu.Plana:

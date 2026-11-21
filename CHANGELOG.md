@@ -5,6 +5,40 @@ publicada es una etiqueta `vX.Y.Z` de git; GitHub Actions monta su zip y copia a
 
 ## [Sin publicar]
 
+## [1.0.12] - 2026-11-21
+
+### Arreglado
+- **Cambiar a una generación que hace Magpie (XeSS FG, FSR 3 FG) dejaba la app sin imagen** desde la 1.0.11 ("No se pudo lanzar
+  mpv"): Magpie se abría solo (con un aviso de administrador) y el botón central ya no abría el menú. Lo causaba la comprobación del
+  cierre desde la barra de tareas. *Switching to a Magpie frame generation broke the image in 1.0.11.*
+- **Atajos de teclado que dejaban de funcionar** (Ctrl+O, Ctrl+G, Ctrl+F...) y la tecla Windows rara: Windows se quedaba con Alt
+  "pulsado" porque el bloqueo de Joyxoff se tragaba el Alt que suelta el motor al recuperar el foco. Ya no se traga nunca un soltar
+  tecla y las pulsaciones de la app van marcadas. Además, si Windows quita los ganchos de teclado por lentos, se vuelven a poner solos.
+  *Keyboard shortcuts stopped working because Alt got stuck.*
+
+- **El menú de ajustes se abría encima del menú de la consola** y nada más abrir la app, porque la app tomaba el menú de la PS5 por
+  un juego: con un fondo claro junto a la hora (GTA VI) no la leía, y el OCR a veces la leía sin los dos puntos ("1232") o con ellos
+  como un 1 ("12147"). Ahora el inicio de la PS5 se reconoce también por sus pestañas "Juegos / Contenido multimedia" (aunque una
+  notificación las tape a medias), la hora sin separador vale en la PS5 y la Switch, y con `consola=auto` esas pantallas ya no se
+  toman por la Xbox. En todas las consolas el menú de ajustes espera unos segundos al abrirse la imagen y al salir de su menú.
+  Prueba de detección: 107 capturas, 0 fallos (antes, con las nuevas de GTA VI, 10 de PS5, 10 escenas y 16 de consola=auto).
+  *Settings menu no longer opens over the console's home menu or right at startup.*
+
+- **Entrar en la Store, Remote Play, la galería y otras apps de la consola aplicaba un perfil de juego** (y creaba juegos falsos como
+  "PS5: STANDARD" o "PS5: Remote Play", con una "portada" que era una página de la Store). Ahora:
+  - salir del menú pide un tiempo seguido sin verlo: 1,2 s desde el inicio de la consola (un juego se reconoce en ~1,8 s) y 2,5 s
+    desde otras pantallas suyas (antes bastaban 2 capturas en medio segundo: la transición a la Store);
+  - las apps de la consola en la fila de juegos (Remote Play, Galería, Store, PS Plus, Ajustes, Share Factory; en la Xbox Microsoft
+    Store, Game Pass, Configuración, Capturas...; y Netflix, YouTube, Spotify, Twitch...) se tratan como el menú: 4K nativo, sin perfil
+    ni generación, hasta volver al menú de la consola (o al juego de antes, si su imagen vuelve);
+  - más frases de pantallas de la consola (la Store por dentro, la galería, Remote Play) y ninguna pantalla de la consola se guarda
+    como portada de un juego.
+  *Store, Remote Play, the media gallery and other console apps no longer count as entering a game.*
+
+### Cambiado
+- Menú de ajustes: **el escalador ofrece cada modelo de DLSS** (automático, M, L, K, J, E) además del alternativo; se guarda para
+  todos los juegos. Fuera la fila del filtro de tramado. *Settings menu: pick the DLSS model; dither row removed.*
+
 ## [1.0.11] - 2026-11-21
 
 ### Nuevo

@@ -971,7 +971,7 @@ namespace ConsoleEnhancer
         public Dictionary<string, string> EngineInByCap = new Dictionary<string, string>();
         // (19-11, GENERACION: primero con el tipo de generacion del motor, motor_modelo_60_sm_1440= / motor_modelo_30_dlssg=...: EngineGet)
         public string EngineInNow { get { string v = HomeNative ? null : EngineGet(EngineInByCap); return v ?? "0"; } }
-        public string EnginePresetNow { get { string p = EngineGet(EnginePresetByCap); if (p != null) return p; return CapMode ? (FgOff ? EnginePreset30 : EnginePreset30Fg) : (FgOff ? EnginePreset60 : EnginePreset60Fg); } }
+        public string EnginePresetNow { get { string pk = DlssPick; if (pk.Length > 0) return pk; /* (1.0.12: el modelo elegido en el menu de ajustes) */ string p = EngineGet(EnginePresetByCap); if (p != null) return p; return CapMode ? (FgOff ? EnginePreset30 : EnginePreset30Fg) : (FgOff ? EnginePreset60 : EnginePreset60Fg); } }
 
         // Quitar las imagenes repetidas: un juego a 30 fps llega a 60 con cada imagen 2 veces. Sin esto la
         // generacion inventa imagenes entre dos iguales y el movimiento va a saltos (se ve como 40 fps)
@@ -1068,7 +1068,7 @@ namespace ConsoleEnhancer
             if (g.Length > 0 && ((cs.Length > 0 && ModelTable.TryGetValue(g + cs, out m)) || ModelTable.TryGetValue(g, out m))) return true;
             return ModelTable.TryGetValue(ModeKey + cs, out m) || ModelTable.TryGetValue(ModeKey, out m);
         }
-        public int DlssModelNow { get { if (CapMode && DlssModel30 > 0) return DlssModel30; if (DlssModel > 0) return DlssModel; int[] m; return ModelGet(out m) ? (Dlss5Off || !Dlss5FitsNow ? m[0] : m.Length >= 4 ? m[Math.Max(1, Math.Min(3, Dlss5PassesNow))] : m[1]) : 5; } }
+        public int DlssModelNow { get { string pk = DlssPick; if (pk.Length > 0) return DlssPickNum(pk); /* (1.0.12: menu de ajustes) */ if (CapMode && DlssModel30 > 0) return DlssModel30; if (DlssModel > 0) return DlssModel; int[] m; return ModelGet(out m) ? (Dlss5Off || !Dlss5FitsNow ? m[0] : m.Length >= 4 ? m[Math.Max(1, Math.Min(3, Dlss5PassesNow))] : m[1]) : 5; } }
         // Con la captura de 4K (ventana de 4K) no hay nada que escalar
         public bool UpscaleOn { get { return WindowFor(VideoSize) != "3840x2160" && ScalerNow != "ninguno"; } }
 
@@ -3320,9 +3320,9 @@ namespace ConsoleEnhancer
                 if (attached) AttachThreadInput(me, fgThread, false);
                 if (GetForegroundWindow() != h)
                 {
-                    keybd_event(0x12, 0, 0, UIntPtr.Zero);
+                    keybd_event(0x12, 0, 0, (UIntPtr)0x50434D44u);
                     SetForegroundWindow(h);
-                    keybd_event(0x12, 0, 2, UIntPtr.Zero); // KEYEVENTF_KEYUP
+                    keybd_event(0x12, 0, 2, (UIntPtr)0x50434D44u); // KEYEVENTF_KEYUP (1.0.12: con la marca de la app)
                 }
                 Log.Write("Playnite delante y activo al cerrar la app" + (GetForegroundWindow() == h ? "" : " (Windows no lo dejo)"));
             }
@@ -6664,9 +6664,10 @@ namespace ConsoleEnhancer
         static void ForceForeground(IntPtr h)
         {
             if (h == IntPtr.Zero) return;
-            keybd_event(VK_MENU, 0, 0, UIntPtr.Zero);
+            // (1.0.12: con la marca de la app, como el 0xE8 del GameSir: el bloqueo de Joyxoff no se las traga)
+            keybd_event(VK_MENU, 0, 0, FillerMark);
             SetForegroundWindow(h);
-            keybd_event(VK_MENU, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+            keybd_event(VK_MENU, 0, KEYEVENTF_KEYUP, FillerMark);
         }
 
         // Telon (pantalla de carga) mientras se reinicia LS o se relanza mpv en plena
@@ -8028,6 +8029,7 @@ namespace ConsoleEnhancer
 
         IntPtr KeyHook(int nCode, IntPtr wParam, IntPtr lParam)
         {
+            ganchoUlt = Environment.TickCount;   // (1.0.12: vigilante de los ganchos, MenuJuego.cs GanchosVigila)
             try
             {
                 if (nCode >= 0)
@@ -8035,9 +8037,12 @@ namespace ConsoleEnhancer
                     KbdLL k = (KbdLL)Marshal.PtrToStructure(lParam, typeof(KbdLL));
                     // (inyectadas con la marca 0x5332 en dwExtraInfo cuentan como del mando: para probarlo sin el)
                     bool up = (k.Flags & 0x80) != 0, injected = (k.Flags & 0x10) != 0 && k.Extra != (IntPtr)0x5332;
+                    if (TeclasLog && !up) { uint vk0 = k.Vk, fl0 = k.Flags; long ex0 = k.Extra.ToInt64(); bool c0 = (GetAsyncKeyState(0x11) & 0x8000) != 0; ThreadPool.QueueUserWorkItem(delegate { Log.Write("Tecla 0x" + vk0.ToString("X2") + " flags 0x" + fl0.ToString("X") + " extra 0x" + ex0.ToString("X") + " ctrl " + c0 + " delante " + FgOwner()); }); }
                     // 18-11 (MANDOS, mando_bloquear_joyxoff): con la imagen de la consola delante, las teclas INYECTADAS que no sean de la app
                     // (las de Joyxoff) se tragan aqui. Las fisicas (y el boton del GameSir, que es un teclado de verdad) no llevan 0x10: pasan
-                    if (ShouldSwallowInjected((k.Flags & 0x10) != 0, k.Extra)) return (IntPtr)1;
+                    // (1.0.12: nunca un "soltar": tragarse el Alt arriba del truco del primer plano del motor -keybd_event sin marca, otro proceso-
+                    // dejaba Alt PULSADO para Windows: sin Ctrl+O / G / F..., la tecla Windows rara. Soltar una tecla no hace nada que bloquear)
+                    if (!up && ShouldSwallowInjected((k.Flags & 0x10) != 0, k.Extra)) return (IntPtr)1;
                     // 19-11 (el usuario: "permite que si hago alt f4 con el teclado se cierre la app"): Alt+F4 sobre la imagen de la consola (el
                     // motor, mpv, Magpie escalando) o sobre la pantalla de carga / el telon cierra la app entera, como "Salir" de la bandeja. Antes
                     // cerraba solo la ventana del motor y la app lo volvia a abrir ("mpv se ha cerrado solo", 19-11 02:37:24). LLKHF_ALTDOWN = 0x20
@@ -8086,11 +8091,16 @@ namespace ConsoleEnhancer
                     }
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                // (1.0.12: antes catch vacio: un fallo aqui dejaba los atajos sin hacer nada y sin rastro)
+                if ((DateTime.Now - keyHookErrAt).TotalSeconds > 5) { keyHookErrAt = DateTime.Now; Exception e2 = ex; ThreadPool.QueueUserWorkItem(delegate { Log.Error("Gancho del teclado", e2); }); }
+            }
             return CallNextHookEx(keyHook, nCode, wParam, lParam);
         }
 
         bool altF4Pedido;
+        DateTime keyHookErrAt = DateTime.MinValue;
 
         // 19-11: ¿la ventana es de la app? (la suya: pantalla de carga, telon, avisos; el motor o mpv que dan la imagen, el motor en espera o del
         // relevo; Magpie escalando). Lo que no sea de la app (Playnite, el navegador...) sigue cerrandose con Alt+F4 como siempre
@@ -10299,6 +10309,7 @@ namespace ConsoleEnhancer
 
         void LeaveHome(string name, double[] icon)
         {
+            salioMenuEn = DateTime.Now;   // (1.0.12: el menu de ajustes espera unos segundos tras salir del menu de la consola)
             GameProfile p = EntryProfile(name, icon);
             bool guess = enterGuess;
             enterGuess = false;
@@ -10338,6 +10349,7 @@ namespace ConsoleEnhancer
         // la captura sin cerrar mpv (otra ventana: mpv y Magpie se reabren con todo) y una sola reapertura de Magpie
         void LeaveHomeGrace(string name, double[] icon)
         {
+            salioMenuEn = DateTime.Now;
             GameProfile p = EntryProfile(name, icon);
             bool guess = enterGuess;
             enterGuess = false;
@@ -11725,11 +11737,11 @@ namespace ConsoleEnhancer
                 if ((sc & 0x200) != 0) mods.Add(VK_CONTROL);
                 if ((sc & 0x400) != 0) mods.Add(VK_MENU);
                 if ((sc & 0x800) != 0) mods.Add(0x10); // Mayus
-                foreach (byte m in mods) keybd_event(m, 0, 0, UIntPtr.Zero);
-                keybd_event(key, 0, 0, UIntPtr.Zero);
+                foreach (byte m in mods) keybd_event(m, 0, 0, (UIntPtr)0x50434D44u);   // (1.0.12: con la marca de la app)
+                keybd_event(key, 0, 0, (UIntPtr)0x50434D44u);
                 Thread.Sleep(50);
-                keybd_event(key, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
-                for (int i = mods.Count - 1; i >= 0; i--) keybd_event(mods[i], 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+                keybd_event(key, 0, KEYEVENTF_KEYUP, (UIntPtr)0x50434D44u);
+                for (int i = mods.Count - 1; i >= 0; i--) keybd_event(mods[i], 0, KEYEVENTF_KEYUP, (UIntPtr)0x50434D44u);
                 Log.Write("Enviado el atajo de escalar de Magpie (0x" + sc.ToString("X") + ")");
             }
             catch (Exception ex) { Log.Error("Fallo al enviar el atajo de Magpie", ex); }
@@ -13624,7 +13636,9 @@ namespace ConsoleEnhancer
                 // 21-11 (1.0.11, el usuario: "si cierro la app desde la barra de tareas no se cierra"): la ventana de la imagen cerrada por el
                 // usuario (barra de tareas, su X, el administrador de tareas: el motor sale con 77, mpv tambien por scripts\ce_power.lua) = Salir.
                 // Antes se tomaba por un corte de la señal y se volvia a abrir. Las reaperturas de la app van por la tuberia, no por cerrar la ventana
-                if (!userExit && !hung && p.ExitCode == MpvConst.ClosedByUserExitCode)
+                // (1.0.12: SOLO si ha salido de verdad. En el relevo sin telon y al pasar a espera el motor sigue vivo a proposito: leer su
+                // ExitCode lanzaba InvalidOperationException -> "FATAL: No se pudo lanzar mpv", Magpie sin mpv y el boton central sin imagen)
+                if (!userExit && !hung && p.HasExited && p.ExitCode == MpvConst.ClosedByUserExitCode)
                 {
                     Log.Write("Ventana de la imagen cerrada por el usuario (barra de tareas o su X): se cierra la app");
                     userExit = true;   // (ya: que nada de abajo lo tome por la consola apagada ni apague el PC)

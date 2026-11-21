@@ -60,9 +60,11 @@ namespace ConsoleEnhancer.Motor
                 // Windows solo deja pasar el foco tras una pulsacion: ALT suelto (no hace nada en ningun programa). 17-11 (REJAS, de
                 // VELOCIDAD): Alt abajo -> SetForegroundWindow -> Alt arriba, como ForceForeground de la app (antes Alt abajo y arriba y
                 // despues SetForegroundWindow: keybd_event no espera y el log alternaba "bien / no se pudo")
-                keybd_event(0x12, 0, 0, UIntPtr.Zero);
+                // (1.0.12: con la marca de la app, 0x50434D44 "PCMD": el bloqueo de Joyxoff del lanzador se tragaba el Alt arriba y Windows
+                // se quedaba con Alt pulsado: ni Ctrl+O ni los demas atajos, la tecla Windows rara)
+                keybd_event(0x12, 0, 0, (UIntPtr)0x50434D44u);
                 SetForegroundWindow(Handle);
-                keybd_event(0x12, 0, 2, UIntPtr.Zero);
+                keybd_event(0x12, 0, 2, (UIntPtr)0x50434D44u);
             }
             return GetForegroundWindow() == Handle;
         }

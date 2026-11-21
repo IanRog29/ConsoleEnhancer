@@ -124,9 +124,14 @@ namespace ConsoleEnhancer
             }
             int hh, mm;
             string hora;
-            if (Hora(t, out hh, out mm, out hora)) return t;
+            if (Hora(t, out hh, out mm, out hora, false)) return t;
             string t2 = LeerBinaria(full, z);
-            return Hora(t2, out hh, out mm, out hora) ? t2 : (string.IsNullOrEmpty(t) ? t2 : t);
+            if (Hora(t2, out hh, out mm, out hora, false)) return t2;
+            // (1.0.12: solo si ninguna de las dos tiene una hora bien escrita, la que la tenga sin sus dos puntos; antes de eso una lectura
+            // basura de la primera, "2541", desplazaba a la buena de la segunda: 3 fallos de consola=auto en la prueba)
+            if (Hora(t, out hh, out mm, out hora, true)) return t;
+            if (Hora(t2, out hh, out mm, out hora, true)) return t2;
+            return string.IsNullOrEmpty(t) ? t2 : t;
         }
 
         static string LeerBinaria(Bitmap full, Rectangle z)
@@ -202,6 +207,18 @@ namespace ConsoleEnhancer
         }
 
         static readonly Regex HoraRx = new Regex(@"^(\d{1,2})[:.](\d{2})(am|pm)?$", RegexOptions.CultureInvariant);
+        // (1.0.12) Una hora sin sus dos puntos: "1232" -> "12:32"; "12147" / "9147" -> "12:47" / "9:47" (los dos puntos leidos como 1 o 7).
+        // Tambien para la Xbox y la Switch (DetectorMenu.HoraEnTexto)
+        public static List<string> HoraVariantes(string s)
+        {
+            List<string> r = new List<string>();
+            string suf = "";
+            if (s.EndsWith("am") || s.EndsWith("pm")) { suf = s.Substring(s.Length - 2); s = s.Substring(0, s.Length - 2); }
+            foreach (char ch in s) if (!char.IsDigit(ch)) return r;
+            if (s.Length == 3 || s.Length == 4) r.Add(s.Substring(0, s.Length - 2) + ":" + s.Substring(s.Length - 2) + suf);
+            if (s.Length == 4 || s.Length == 5) r.Add(s.Substring(0, s.Length - 3) + ":" + s.Substring(s.Length - 2) + suf);
+            return r;
+        }
 
         // ¿Lo leido es la hora del PC (ahora +-1 min; 24 h o 12 h, con o sin a. m. / p. m.)? hora = lo leido, limpio
         public static bool EsHora(string ocr, DateTime now, out string hora)
@@ -232,16 +249,17 @@ namespace ConsoleEnhancer
         // avatar (y los iconos de ajustes y buscar) van pegados a la izquierda de la hora, dentro de la zona: el OCR los lee como una letra
         // ("O 14:42", "3C) 2:42") y no casaba (se tomaba por un juego y, con consola=auto, la hora la encontraba el lector de la Xbox). Si
         // lo de delante es corto (un icono, no texto), vale la ultima palabra
-        static bool Hora(string ocr, out int hh, out int mm, out string hora)
+        static bool Hora(string ocr, out int hh, out int mm, out string hora) { return Hora(ocr, out hh, out mm, out hora, true); }
+        static bool Hora(string ocr, out int hh, out int mm, out string hora, bool sinPuntos)
         {
-            if (HoraSola(ocr, out hh, out mm, out hora)) return true;
+            if (HoraSola(ocr, out hh, out mm, out hora, sinPuntos)) return true;
             string s = (ocr ?? "").Trim();
             int sp = s.LastIndexOfAny(new char[] { ' ', '\t', '\r', '\n' });
             if (sp <= 0 || s.Substring(0, sp).Trim().Length > 4) return false;
-            return HoraSola(s.Substring(sp + 1), out hh, out mm, out hora);
+            return HoraSola(s.Substring(sp + 1), out hh, out mm, out hora, sinPuntos);
         }
 
-        static bool HoraSola(string ocr, out int hh, out int mm, out string hora)
+        static bool HoraSola(string ocr, out int hh, out int mm, out string hora, bool sinPuntos)
         {
             hora = null; hh = mm = -1;
             if (string.IsNullOrEmpty(ocr)) return false;
@@ -267,6 +285,16 @@ namespace ConsoleEnhancer
             }
             s = sb.ToString();
             Match m = HoraRx.Match(s);
+            // 21-11 (1.0.12, el usuario: "desde el menu de consola tambien deja abrir el menu de ajustes"): el OCR se come a veces los dos
+            // puntos ("1232" a las 12:32) o los lee como una cifra ("12147" a las 12:47): no era la hora -> se tomaba el menu por un juego.
+            // Solo cifras: con los dos puntos puestos antes de los minutos o en vez de la cifra que hay antes de ellos (EsHora / EsHoraExacta
+            // lo comparan con la hora del PC, +-1 minuto: un numero cualquiera no casa)
+            if (!m.Success && sinPuntos)
+                foreach (string v in HoraVariantes(s))
+                {
+                    Match mv = HoraRx.Match(v);
+                    if (mv.Success && int.Parse(mv.Groups[1].Value, CultureInfo.InvariantCulture) <= 23) { m = mv; break; }
+                }
             if (!m.Success) return false;
             hh = int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture);
             mm = int.Parse(m.Groups[2].Value, CultureInfo.InvariantCulture);
@@ -605,6 +633,8 @@ namespace ConsoleEnhancer
             return perfil;
         }
 
+        DateTime ps5PortadaNoLog = DateTime.MinValue;
+
         void PortadaObserva(Bitmap full, DateTime now, ConsolaPerfil c)
         {
             if (now > ps5PortadaHasta || !RecoJuegosActivo(c)) return;
@@ -617,6 +647,17 @@ namespace ConsoleEnhancer
                 return;
             }
             if ((now - ps5PortadaQuietaDesde).TotalSeconds < 1.2) return;   // quieta 1,2 s o mas: la portada
+            // 1.0.12: una pantalla de la consola quieta (la Store, PS Plus, ajustes: el 21-11 13:06 una pagina de la Store quedo como la
+            // "portada" de "PS5: STANDARD" y otra como la de Rocket League) no es una portada: se sigue mirando
+            {
+                string txt = HomeLabel.ScreenText(full), frase;
+                if (DetectorMenu.EsPantallaConsola(txt, c, out frase))
+                {
+                    ps5PortadaPrev = null; ps5PortadaQuietaDesde = DateTime.MinValue;
+                    if ((now - ps5PortadaNoLog).TotalSeconds > 10) { ps5PortadaNoLog = now; Log.Write("Portada del juego: lo quieto es una pantalla de la consola (\"" + frase + "\"): no es una portada"); }
+                    return;
+                }
+            }
             ps5PortadaHasta = DateTime.MinValue;                            // (una por arranque)
             ps5PortadaPrev = null;
             double dist;
@@ -786,6 +827,37 @@ namespace ConsoleEnhancer
             // Con consola=auto (cada 5 s): su menu visto refuerza la puesta (la PS5; con la Xbox, se mira si es la hora de la PS5 en su sitio);
             // sin el, los menus de las otras consolas (20-11, CONSOLA: PistasMenu, src\DetectorMenu.cs)
             if (!Consolas.Fija) MenuPs5Pista(full, false, l);
+            // 1.0.12: dentro de una app de la consola (Remote Play, la galeria...): se acaba al volver a ver su menu (la hora / las pestañas
+            // del inicio, o el centro de control); si la imagen es la del juego que se jugaba antes de abrir el menu, se ha vuelto a el
+            // 1.0.12 (el usuario: "al entrar a una captura de pantalla sigue confundiendose"): una pantalla de una app de la consola (la galeria,
+            // Remote Play, la Store...) dice en que app se esta, aunque no se viera abrirla (13:21: la app se abrio con la galeria ya delante y
+            // una captura a pantalla completa, sin texto, se tomo por un juego)
+            if (inMenu && l.Vista == VistaMenu.MenuTexto && l.Frase != null)
+            {
+                string a = JuegoConsola.AppDeFrase(l.Frase);
+                if (a != null && a != ps5AppSistema)
+                {
+                    ps5AppSistema = a;
+                    ps5AppVuelta = ps5JuegoAntesMenu != null && !JuegoConsola.EsAppSistema(ps5JuegoAntesMenu) ? ps5JuegoAntesMenu : null;
+                    Log.Write("Menu de la consola: dentro de \"" + a + "\" (\"" + l.Frase + "\"): lo que se vea dentro no es un juego hasta volver a su menu");
+                }
+            }
+            if (ps5AppSistema != null)
+            {
+                if (l.Vista == VistaMenu.Menu || (l.Vista == VistaMenu.MenuTexto && l.Frase == "centro de control"))
+                {
+                    Log.Write("De vuelta en el menu de la consola desde \"" + ps5AppSistema + "\"");
+                    ps5AppSistema = null; ps5AppVuelta = null;
+                }
+                else if (inMenu && ps5AppVuelta != null && ps5FirmaAntesMenu != null && l.Vista == VistaMenu.Juego &&
+                         PortadasConsola.Dist(PortadasConsola.Firma(full), ps5FirmaAntesMenu) < MismaEscena)
+                {
+                    string vuelta = ps5AppVuelta;
+                    Log.Write("Desde \"" + ps5AppSistema + "\": la imagen es la de \"" + vuelta + "\" de antes del menu: se ha vuelto a ese juego");
+                    ps5AppSistema = null; ps5AppVuelta = null;
+                    ps5VueltaForzada = vuelta;
+                }
+            }
             lock (homeSync)
             {
                 VistaMenu antes = ps5UltimaVista;
@@ -899,9 +971,24 @@ namespace ConsoleEnhancer
         }
 
         // Del menu de la PS5 al juego: los ajustes de toda la consola (su perfil, "Consola")
+        // 1.0.12: la app de la consola abierta desde el menu (Remote Play, la galeria, la Store, Netflix...): se sigue como en el menu
+        string ps5AppSistema, ps5AppVuelta, ps5VueltaForzada;
+
         void MenuPs5Salir()
         {
             if (!cfg.HomeNative || homeBusy || passesBusy || relaunchSize != null) return;
+            // (dentro de una app de la consola: nada de juego hasta volver a su menu o al juego de antes; salvo el negro de arrancar un juego,
+            // que sale como siempre: "Jugar" en la biblioteca o en la Store)
+            bool salidaNegroApp = false;
+            if (ps5AppSistema != null)
+            {
+                string pq;
+                lock (homeSync) pq = menuMaq.Porque ?? "";
+                if (!pq.StartsWith("negro")) { lock (homeSync) menuMaq.Reiniciar(); return; }
+                Log.Write("Desde \"" + ps5AppSistema + "\": " + pq + ": se arranca un juego");
+                salidaNegroApp = true;
+                ps5AppSistema = null; ps5AppVuelta = null;
+            }
             ConsolaPerfil c = Consolas.Actual;
             // 20-11 (PS5JUEGO): el perfil del juego reconocido ("PS5: <juego>" / "Xbox Series: <juego>"); si no se reconocio nada (o la clave
             // del ini esta apagada), el perfil unico de toda la consola ("Consola"), como hasta ahora
@@ -961,6 +1048,33 @@ namespace ConsoleEnhancer
                     lock (homeSync) recoJuego.Pon(juego);
                     ps5SalidaPorIcono = true;
                 }
+            }
+            // 1.0.12: vuelta al juego de antes desde una app de la consola (su imagen otra vez): ese juego
+            if (ps5VueltaForzada != null)
+            {
+                perfil = ps5VueltaForzada;
+                juego = JuegoConsola.SinTag(perfil);
+                lock (homeSync) recoJuego.Pon(juego);
+                ps5Candidato = null;
+                ps5SalidaPorIcono = true;
+                infoIcono = "vuelta desde una app de la consola: su imagen de antes del menu";
+                ps5VueltaForzada = null;
+            }
+            // 1.0.12 (el usuario: "piensa que he entrado a un juego al entrar a remoteplay, galeria, etc."): lo que se abre es una app de la
+            // consola, no un juego: ni perfil, ni Magpie, ni generacion; a 4K nativo como en el menu hasta volver a el
+            string app = JuegoConsola.EsAppSistema(perfil) ? perfil : JuegoConsola.EsAppSistema(juego) ? juego :
+                         (ps5Candidato != null && JuegoConsola.EsAppSistema(ps5Candidato)) ? ps5Candidato : null;
+            if (app != null && !salidaNegroApp)
+            {
+                bool cand = ps5Candidato != null && app == ps5Candidato;
+                ps5AppSistema = JuegoConsola.SinTag(app);
+                // (si se jugaba algo, su imagen de antes del menu dice si en realidad se ha vuelto a el con el foco en la app)
+                ps5AppVuelta = cand ? perfil : (ps5JuegoAntesMenu != null && !JuegoConsola.EsAppSistema(ps5JuegoAntesMenu) ? ps5JuegoAntesMenu : null);
+                ps5Candidato = null;
+                lock (homeSync) { menuMaq.Reiniciar(); ps5PortadaHasta = DateTime.MinValue; ps5PortadaPrev = null; }
+                Log.Write("Fuera del menu de la consola: \"" + ps5AppSistema + "\" es una app de la consola, no un juego: se sigue como en el menu " +
+                          "(4K nativo, sin perfil ni generacion) hasta volver a su menu" + (ps5AppVuelta != null ? " o a \"" + ps5AppVuelta + "\"" : "") + Ps5Tarda());
+                return;
             }
             if (!string.IsNullOrEmpty(juego)) ps5JuegoLog = juego;
             Log.Write("Fuera del menu de la consola: al juego \"" + perfil + "\"" +

@@ -2025,6 +2025,7 @@ namespace ConsoleEnhancer
 
         IntPtr MouseHook(int nCode, IntPtr wParam, IntPtr lParam)
         {
+            ganchoUlt = Environment.TickCount;   // (1.0.12: vigilante de los ganchos, MenuJuego.cs GanchosVigila)
             try
             {
                 if (nCode >= 0 && PadOptions.BlockJoyxoff)

@@ -11,6 +11,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows.Forms;
 using ConsoleEnhancer.Deteccion;
@@ -145,6 +146,47 @@ namespace ConsoleEnhancer
             };
             marcar();
             menu.Opening += delegate { marcar(); };
+
+            // 1.0.12: vigilante de los ganchos de teclado y raton (cada 2 s, hilo de la interfaz)
+            ganchoTimer = new System.Windows.Forms.Timer();
+            ganchoTimer.Interval = 2000;
+            ganchoTimer.Tick += delegate { GanchosVigila(); };
+            ganchoTimer.Start();
+        }
+
+        // ---- 1.0.12: Windows quita SIN AVISAR un gancho de teclado / raton de bajo nivel si su hilo tarda en contestar (LowLevelHooksTimeout:
+        // aqui el hilo de la interfaz, ocupado un momento al arrancar el motor de reserva, al reabrir Magpie...). Desde entonces no habia
+        // atajos (Ctrl+G / F / O..., Alt+F4 de la app) ni bloqueo de Joyxoff hasta reiniciar la app (21-11 12:33: Ctrl+I y Ctrl+O sin llegar).
+        // Si Windows ha visto entrada (GetLastInputInfo: teclado o raton) despues de la ultima llamada a los ganchos, se vuelven a poner
+        [StructLayout(LayoutKind.Sequential)] struct LastInput { public int Size; public int Time; }
+        [DllImport("user32.dll")] static extern bool GetLastInputInfo(ref LastInput li);
+        volatile int ganchoUlt = Environment.TickCount;
+        System.Windows.Forms.Timer ganchoTimer;
+        int ganchoPuestos;
+        DateTime ganchoSinRaton = DateTime.MinValue;
+
+        void GanchosVigila()
+        {
+            try
+            {
+                if (userExit || keyHook == IntPtr.Zero) return;
+                LastInput li = new LastInput(); li.Size = Marshal.SizeOf(typeof(LastInput));
+                if (!GetLastInputInfo(ref li)) return;
+                int now = Environment.TickCount;
+                if (unchecked(now - li.Time) > 15000) return;               // (nada reciente)
+                if (unchecked(li.Time - ganchoUlt) < 1500) return;          // los ganchos han visto lo ultimo
+                // (sin el gancho del raton, mover el raton tambien cuenta como entrada sin llamada: entonces como mucho cada 30 s)
+                if (mouseHook == IntPtr.Zero && (DateTime.Now - ganchoSinRaton).TotalSeconds < 30) return;
+                ganchoSinRaton = DateTime.Now;
+                ganchoPuestos++;
+                if (ganchoPuestos <= 5 || ganchoPuestos % 20 == 0)
+                    Log.Write("Ganchos de teclado y raton: Windows ha visto entrada " + unchecked(li.Time - ganchoUlt) + " ms despues de su ultima llamada " +
+                              (mouseHook != IntPtr.Zero ? "(los habra quitado por lentos)" : "(o es el raton, sin su gancho)") + ": se vuelven a poner (vez " + ganchoPuestos + ")");
+                ReinstallKeyHook();
+                if (mouseHook != IntPtr.Zero) ReinstallMouseHook();
+                ganchoUlt = Environment.TickCount;
+            }
+            catch (Exception ex) { Log.Error("Vigilando los ganchos", ex); }
         }
 
         ToolStripMenuItem ItemModo(int fps, string texto)
@@ -199,14 +241,26 @@ namespace ConsoleEnhancer
             });
         }
 
+        static readonly bool TeclasLog = Environment.GetEnvironmentVariable("CE_TECLAS_LOG") == "1";   // (pruebas: cada tecla al log)
+        DateTime teclaNoLog = DateTime.MinValue;
+        void TeclaNo(string tecla, string porque)
+        {
+            if ((DateTime.Now - teclaNoLog).TotalSeconds < 3) return;
+            teclaNoLog = DateTime.Now;
+            string t = tecla, p = porque;
+            ThreadPool.QueueUserWorkItem(delegate { Log.Write("Teclado: " + t + " no hace nada: " + p); });
+        }
+
         // Atajos de teclado sobre la imagen de la consola (desde KeyHook, tecla pulsada, fisica). true = es nuestra (no llega a la ventana)
         DateTime teclaCeUltima = DateTime.MinValue;
         bool TeclaCe(uint vk)
         {
+            if (TeclasLog) { uint v0 = vk; bool c0 = (GetAsyncKeyState(0x11) & 0x8000) != 0, a0 = (GetAsyncKeyState(0x12) & 0x8000) != 0, ab = ajustesAbierto; ThreadPool.QueueUserWorkItem(delegate { Log.Write("TeclaCe 0x" + v0.ToString("X2") + " ctrl " + c0 + " alt " + a0 + " menu abierto " + ab); }); }
             if ((GetAsyncKeyState(0x11) & 0x8000) == 0 || (GetAsyncKeyState(0x12) & 0x8000) != 0) return false;   // Ctrl sin Alt
             if (vk == 0x4F)   // Ctrl+O: el menu de ajustes (1.0.11, src\Lanzador\MenuAjustes.cs)
             {
-                if (userExit || (!AjPrueba && !EsVentanaDeLaApp(GetForegroundWindow()))) return false;
+                if (userExit) return false;
+                if (!AjPrueba && !EsVentanaDeLaApp(GetForegroundWindow())) { TeclaNo("Ctrl+O", "delante no esta la imagen: " + FgOwner()); return false; }
                 if (ajustesAbierto) AjustesCerrar("Ctrl+O");
                 else if (PuedeAbrirAjustes(true)) AjustesAbrir("Ctrl+O");
                 return true;
@@ -228,7 +282,8 @@ namespace ConsoleEnhancer
                 case 0x49: que = "estado"; a = delegate { Osd(StatusText()); }; break;                                     // I
                 default: return false;
             }
-            if (userExit || !EsVentanaDeLaApp(GetForegroundWindow())) return false;
+            if (userExit) return false;
+            if (!EsVentanaDeLaApp(GetForegroundWindow())) { TeclaNo("Ctrl+" + (char)vk, "delante no esta la imagen: " + FgOwner()); return false; }
             // (tecla mantenida = repeticiones: una orden cada 0,4 s, 2 s si reabre cosas, como con el mando)
             double since = (DateTime.Now - teclaCeUltima).TotalMilliseconds;
             if (since < 400 || (heavy && since < 2000)) return true;

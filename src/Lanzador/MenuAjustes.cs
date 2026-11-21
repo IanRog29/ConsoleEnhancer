@@ -45,6 +45,50 @@ namespace ConsoleEnhancer
         }
     }
 
+    // ---------------------------------------------------------------- el modelo de DLSS elegido (1.0.12)
+    // El usuario: "añade a las opciones de escalador diferentes dlss". "" = el de siempre (el de la tabla del modo / motor_modelo_*); si no,
+    // la letra (E, J, K, L, M) en el motor propio (preset=) y en Magpie (renderPreset: 5, 10, 11, 12, 13). Para todos los juegos, en
+    // datos\juegos\dlss_modelo_elegido.txt
+    partial class Config
+    {
+        static string dlssPick;
+        static readonly object dlssPickSync = new object();
+        static string DlssPickFile { get { return Path.Combine(Paths.Datos, @"juegos\dlss_modelo_elegido.txt"); } }
+        public static readonly string[] DlssPicks = { "M", "L", "K", "J", "E" };
+
+        public static string DlssPick
+        {
+            get
+            {
+                string p = dlssPick;
+                if (p != null) return p;
+                lock (dlssPickSync)
+                {
+                    if (dlssPick == null)
+                    {
+                        string v = "";
+                        try { if (File.Exists(DlssPickFile)) v = File.ReadAllText(DlssPickFile).Trim().ToUpperInvariant(); } catch { }
+                        dlssPick = Array.IndexOf(DlssPicks, v) >= 0 ? v : "";
+                        if (dlssPick.Length > 0) Log.Write("DLSS: modelo elegido en el menu de ajustes: " + EngineModelName(dlssPick));
+                    }
+                    return dlssPick;
+                }
+            }
+            set
+            {
+                string v = (value ?? "").Trim().ToUpperInvariant();
+                if (Array.IndexOf(DlssPicks, v) < 0) v = "";
+                lock (dlssPickSync) dlssPick = v;
+                try { File.WriteAllText(DlssPickFile, v); } catch (Exception ex) { Log.Error("Guardando el modelo de DLSS elegido", ex); }
+            }
+        }
+
+        public static int DlssPickNum(string l)
+        {
+            switch (l) { case "M": return 13; case "L": return 12; case "K": return 11; case "J": return 10; case "E": return 5; default: return 0; }
+        }
+    }
+
     // ---------------------------------------------------------------- la ventana
     sealed class VentanaAjustes : NativeWindow, IDisposable
     {
@@ -245,14 +289,27 @@ namespace ConsoleEnhancer
         bool PuedeAbrirAjustes(bool aviso)
         {
             if (AjPrueba && !userExit) return true;
-            if (userExit || !ImagenLista() || !EsVentanaDeLaApp(GetForegroundWindow())) return false;
-            if (InHome || homeBusy)
+            string no = null;
+            if (userExit) no = "saliendo";
+            else if (!ImagenLista()) { Process p = mpv; no = "sin imagen (" + (p == null ? "sin proceso" : !lsReady ? "aun preparandose" : "proceso cerrado") + ")"; }
+            else if (!EsVentanaDeLaApp(GetForegroundWindow())) no = "la imagen no esta delante (delante: " + FgOwner() + ")";
+            else if (InHome || homeBusy)
             {
                 if (aviso && !homeBusy) Osd(MenuTexto + " · " + Tx.T("los ajustes se cambian dentro de cada juego", "settings are changed inside each game"));
-                return false;
+                no = "en el menu de la consola";
             }
-            return !passesBusy && relaunchSize == null && !relaunchEngine;
+            // 1.0.12 (el usuario: "segun se abre la app ya deja darle al menu del home y desde el menu de consola tambien, no debe dejar"):
+            // nada de menu en los primeros segundos de una imagen ni justo al salir del menu de la consola (la deteccion aun decide)
+            else if ((DateTime.Now - imageStart).TotalSeconds < 6) no = "la imagen acaba de abrirse";
+            else if ((DateTime.Now - salioMenuEn).TotalSeconds < 4) no = "se acaba de salir del menu de la consola";
+            else if (passesBusy || relaunchSize != null || relaunchEngine)
+                no = "la imagen esta cambiando (" + (passesBusy ? "Magpie reabriendose" : relaunchSize != null ? "captura" : "cambio de motor") + ")";
+            if (no == null) return true;
+            if (aviso && (DateTime.Now - ajNoLog).TotalSeconds > 2) { ajNoLog = DateTime.Now; Log.Write("Menu de ajustes: no se abre: " + no); }
+            return false;
         }
+        DateTime ajNoLog = DateTime.MinValue;
+        DateTime salioMenuEn = DateTime.MinValue;   // (1.0.12) cuando se salio del menu de la consola (LeaveHome / LeaveHomeGrace)
 
         // ---------------- abrir / cerrar (hilo de la interfaz) ----------------
         void AjustesAbrir(string desde)
@@ -356,17 +413,23 @@ namespace ConsoleEnhancer
             pas.Poner(new List<string> { "1", "2", "3" }, new List<string> { "1", "2", "3" }, pv, pv);
             pas.Visible = Integrado.Dlss5Available;
 
+            // (1.0.12, el usuario: "añade a las opciones de escalador diferentes dlss"): con DLSS de escalador, cada modelo (M, L, K, J, E) y
+            // "DLSS auto" (el de siempre segun el modo), y el alternativo detras. (1.0.12: sin la fila del filtro de tramado, a peticion)
             FilaAjuste esc = new FilaAjuste { Id = "esc", Nombre = Tx.T("Escalador", "Upscaler") };
-            string en = dlssScalerOn ? "normal" : "alt";
-            esc.Poner(new List<string> { "normal", "alt" }, new List<string> { cfg.ScalerName(cfg.Scaler), cfg.ScalerName(cfg.AltScaler) }, en, en);
-            esc.Visible = cfg.Scaler != cfg.AltScaler;
+            List<string> ev = new List<string>(), et = new List<string>();
+            if (cfg.Scaler == "dlss" && !Ce.NoNvidia)
+            {
+                ev.Add("dlss:auto"); et.Add(Tx.T("DLSS automático", "DLSS auto"));
+                foreach (string l in Config.DlssPicks) { ev.Add("dlss:" + l); et.Add("DLSS " + Config.EngineModelName(l)); }
+            }
+            else { ev.Add("normal"); et.Add(cfg.ScalerName(cfg.Scaler)); }
+            if (cfg.AltScaler != cfg.Scaler) { ev.Add("alt"); et.Add(cfg.ScalerName(cfg.AltScaler)); }
+            string ea = !dlssScalerOn ? "alt" : ev[0] == "normal" ? "normal" : "dlss:" + (Config.DlssPick.Length > 0 ? Config.DlssPick : "auto");
+            esc.Poner(ev, et, ea, ea);
+            esc.Carrusel = ev.Count > 3;
+            esc.Visible = ev.Count > 1;
 
-            FilaAjuste tr = new FilaAjuste { Id = "tram", Nombre = Tx.T("Filtro de tramado", "Dither filter") };
-            string tv = cfg.StrongDitherOn ? "1" : "0";
-            tr.Poner(new List<string> { "1", "0" }, new List<string> { Tx.T("Nuevo", "New"), Tx.T("El de antes", "Classic") }, tv, tv);
-            tr.Visible = cfg.StrongDither > 0 && cfg.EdgeAa && cfg.Dedither && File.Exists(Paths.EdgeAaShaderStrong);
-
-            ajFilas.AddRange(new[] { cap, mo, fg, tipo, d5, niv, pas, esc, tr });
+            ajFilas.AddRange(new[] { cap, mo, fg, tipo, d5, niv, pas, esc });
             ajFilas.RemoveAll(delegate(FilaAjuste f) { return !f.Visible; });
             AjustesDepende(true);
         }
@@ -547,7 +610,11 @@ namespace ConsoleEnhancer
                     if (n != dlss5Passes) { dlss5Passes = n; SaveText(Paths.Dlss5PassesFile, v); }
                 }
                 if ((v = AjVal(e, "d5")) != null && (v == "1") != dlss5Shown) SetDlss5State(v == "1");
-                if ((v = AjVal(e, "esc")) != null) SetScalerChoice(v == "normal");
+                if ((v = AjVal(e, "esc")) != null)
+                {
+                    SetScalerChoice(v != "alt");
+                    if (v.StartsWith("dlss:")) { string l = v.Substring(5); Config.DlssPick = l == "auto" ? "" : l; }
+                }
                 if ((v = AjVal(e, "fg")) != null)
                 {
                     bool on = v == "1" && cfg.FgAvailable;
