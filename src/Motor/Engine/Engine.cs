@@ -540,6 +540,7 @@ namespace ConsoleEnhancer.Motor
 
         void OnFrame(IntPtr data, int pitch, int w, int h, int fmt, long arrival, long seq)
         {
+            MmcssCaptureThread();   // 21-11 (1.2.1, mmcss=1: EngineLatencia.cs)
             lastCapture = arrival;
             TirCapture(arrival);    // (16-11 tirones: huecos de la capturadora)
             int rowBytes = RowBytes(fmt, w);
@@ -1074,6 +1075,7 @@ namespace ConsoleEnhancer.Motor
 
             long lastShown = 0;
             int fi = 0;
+            IntPtr mmRender = MmcssOn("Games", "de pintado", true);   // 21-11 (1.2.1, mmcss=1: EngineLatencia.cs)
             while (!Program.Quit)
             {
                 // 16-11: ordenes switch2-standby / switch2-wake y, en espera, el bucle de espera (sin pintar)
@@ -1174,6 +1176,7 @@ namespace ConsoleEnhancer.Motor
                 long submitAt = Clock.Now;
                 int hr = s.NoPresent ? 0 : swap.Present(syncNow, (DXGI_PRESENT)flagsNow);   // (17-11 REJAS: presentar=0, pruebas con la tele apagada)
                 if (pclOk && token != IntPtr.Zero) Sl.PCLSetMarker(SlPCLMarker.ePresentEnd, token);
+                if (!s.NoPresent) LatQueuePresent();   // 21-11 (1.2.1, cola_cuenta=1: EngineLatencia.cs)
                 long now = Clock.Now;
                 if (hr < 0) { Log.Write("Present: " + Hr.Format(hr)); if (Hr.IsDeviceLost(hr)) { ExitCode = 3; break; } }
                 LatPresented(slot, arrival, submitAt, now, gpuMs);   // 18-11 (LATENCIA)
@@ -1188,6 +1191,7 @@ namespace ConsoleEnhancer.Motor
             WaitIdle();
             RejasDumpFinish();   // 17-11 (REJAS)
             LatFinish();         // 18-11 (LATENCIA)
+            MmcssOff(mmRender);  // 21-11 (1.2.1)
         }
 
         bool BenchDone()

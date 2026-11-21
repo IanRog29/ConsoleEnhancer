@@ -82,13 +82,109 @@ namespace ConsoleEnhancer.Motor
         }
 
         // Bucle de pintado, antes de coger la imagen: hasta que la cola tiene sitio (como mucho 100 ms)
+        // 21-11 (1.2.1, cola_cuenta=1): una espera por cada Present. El objeto de espera de DXGI es un semaforo: cada presentacion que sale
+        // de la cola devuelve un sitio. Antes (1) una vuelta que esperaba y no presentaba (la captura cambia de tamaño, cola_tirar_ms,
+        // presentar=0) dejaba a la siguiente sin sitio: 100 ms parada; y (2) las presentaciones hechas fuera de este bucle (la imagen negra
+        // al entrar en espera, EngineStandby.cs) devolvian sitios que nadie habia cogido: al despertar la espera ya no frenaba y la cola de
+        // la tele crecia hasta 3. Medido el 21-11 (streamline=0, fuente de prueba 1080p a 180/s, pantalla de 120 Hz): en cola 1,3 de media
+        // antes de la espera y 3,0 para siempre tras switch2-standby + switch2-wake (+2 refrescos de retraso, y la grafica ~5 ms mas por
+        // imagen esperando a la cadena). Ahora el sitio cogido se guarda hasta su Present (latHeld) y los sitios de mas se recogen sin
+        // esperar en cuanto vuelven (latOwed). Solo con la cadena con espera (sin Reflex: AMD, Intel, streamline=0). 0 = como antes
+        bool latHeld;          // un sitio de la cola cogido y aun sin su Present
+        int latOwed;           // presentaciones hechas sin sitio cogido (fuera del bucle): sitios de mas que la cola devolvera
+        uint latPcMine;        // GetLastPresentCount tras el ultimo Present del bucle (0 = aun ninguno)
+        int latTimeouts, latAbsorbed;
         void LatQueueWait()
         {
             latQueueWaitMs = 0;
             if (latWaitable == IntPtr.Zero) return;
-            long t = Clock.Now;
-            WaitForSingleObjectEx(latWaitable, 100, true);
-            latQueueWaitMs = Clock.SinceMs(t);
+            if (!s.QueueCount)
+            {
+                long t0 = Clock.Now;
+                WaitForSingleObjectEx(latWaitable, 100, true);
+                latQueueWaitMs = Clock.SinceMs(t0);
+                return;
+            }
+            uint pc;
+            if (latPcMine != 0 && swap.GetLastPresentCount(out pc) >= 0 && pc != latPcMine)
+            {
+                int extra = (int)(pc - latPcMine);
+                if (extra > 0 && extra < 64) latOwed = Math.Min(8, latOwed + extra);
+                latPcMine = pc;
+            }
+            if (!latHeld)
+            {
+                long t = Clock.Now;
+                uint r = WaitForSingleObjectEx(latWaitable, 100, true);
+                latQueueWaitMs = Clock.SinceMs(t);
+                latHeld = r == 0;   // WAIT_OBJECT_0
+                if (!latHeld && ++latTimeouts <= 5)
+                    Log.Write("Swapchain con espera: sin sitio en la cola en " + latQueueWaitMs.ToString("0", CultureInfo.InvariantCulture) + " ms (se presenta igual)" + (latTimeouts == 5 ? " (no se apunta mas)" : ""));
+            }
+            // Los sitios de mas que ya han vuelto, fuera sin esperar (con un sitio ya cogido solo queda otro libre si sobra)
+            int absorbed = 0;
+            while (latOwed > 0 && WaitForSingleObjectEx(latWaitable, 0, false) == 0) { latOwed--; absorbed++; }
+            if (absorbed > 0)
+            {
+                latAbsorbed += absorbed;
+                if (latAbsorbed <= 20) Log.Write("Swapchain con espera: " + absorbed + " sitio(s) de mas en la cola recogido(s) (presentaciones sin espera: la imagen negra de la espera)");
+            }
+        }
+
+        // Tras cada Present del bucle de pintado: el sitio se gasta si la presentacion entro en la cola (si no, p. ej. un Present que falla,
+        // se guarda para la siguiente)
+        void LatQueuePresent()
+        {
+            if (latWaitable == IntPtr.Zero || !s.QueueCount) return;
+            uint pc;
+            if (swap.GetLastPresentCount(out pc) >= 0)
+            {
+                if (pc != latPcMine) latHeld = false;
+                latPcMine = pc;
+            }
+            else latHeld = false;
+        }
+
+        // ---- 21-11 (1.2.1) mmcss=1: los dos hilos por los que pasa cada imagen, en MMCSS (el planificador multimedia de Windows: por encima
+        // de los hilos normales de cualquier proceso, con el 20 % de cada nucleo reservado para lo demas). El que entrega la captura (OnFrame:
+        // el hilo del controlador de DirectShow, o el de la fuente de prueba) como "Capture" y el de pintado (Run) como "Games". La
+        // prioridad alta del proceso (la pone el lanzador) no basta: los hilos normales de otro proceso en alta, o los que Windows sube un
+        // momento, se turnaban con ellos. mmcss=0 = como antes
+        [DllImport("avrt.dll", CharSet = CharSet.Unicode, SetLastError = true)] static extern IntPtr AvSetMmThreadCharacteristicsW(string task, ref uint index);
+        [DllImport("avrt.dll")] static extern bool AvRevertMmThreadCharacteristics(IntPtr h);
+        [DllImport("kernel32.dll")] static extern int GetThreadPriority(IntPtr thread);
+        [DllImport("kernel32.dll")] static extern IntPtr GetCurrentThread();
+        [ThreadStatic] static bool mmcssCaptureSeen;
+        static int mmcssCaptureThreads;
+
+        IntPtr MmcssOn(string task, string who, bool log)
+        {
+            if (s.Mmcss <= 0) return IntPtr.Zero;
+            try
+            {
+                int before = GetThreadPriority(GetCurrentThread());
+                uint idx = 0;
+                IntPtr h = AvSetMmThreadCharacteristicsW(task, ref idx);
+                int err = h == IntPtr.Zero ? Marshal.GetLastWin32Error() : 0;
+                if (log) Log.Write("MMCSS: hilo " + who + " (prioridad relativa antes " + before + ") en \"" + task + "\"" + (h != IntPtr.Zero ? "" : ": NO (error " + err + ")"));
+                return h;
+            }
+            catch (Exception ex) { if (log) Log.Write("MMCSS (" + who + "): " + ex.Message); return IntPtr.Zero; }
+        }
+
+        static void MmcssOff(IntPtr h)
+        {
+            if (h == IntPtr.Zero) return;
+            try { AvRevertMmThreadCharacteristics(h); } catch { }
+        }
+
+        // OnFrame, la primera vez en cada hilo que entrega imagenes (el de DirectShow es otro al volver a abrir la captura). No se revierte:
+        // el hilo es del controlador y MMCSS lo suelta cuando termina
+        void MmcssCaptureThread()
+        {
+            if (mmcssCaptureSeen) return;
+            mmcssCaptureSeen = true;
+            MmcssOn("Capture", "de la captura", Interlocked.Increment(ref mmcssCaptureThreads) <= 10);
         }
 
         // Antes de pintar una imagen real: true = no se pinta (se suelta la ranura). test_paron (una vez) y cola_tirar_ms
@@ -380,7 +476,10 @@ namespace ConsoleEnhancer.Motor
                 return string.Format(CultureInfo.InvariantCulture, "\tantes_copia={0:0.00}/{1:0.00}\tcopia={2:0.00}/{3:0.00}\tcopia_hilos={4}",
                     LAvg(latBPre), LPct(latBPre, 0.95), LAvg(latBCopy), LPct(latBCopy, 0.95), CopyThreadsSet > 0 ? CopyThreadsSet : CopyThreads) +
                     "\tcopia_bandas=" + capBandsUsed +   // 20-11 (LATENCIA7, EngineCopia.cs)
-                    string.Format(CultureInfo.InvariantCulture, "\tllegada_fin_grafica={0:0.00}/{1:0.00}", LAvg(latBGpuEnd), LPct(latBGpuEnd, 0.95));
+                    string.Format(CultureInfo.InvariantCulture, "\tllegada_fin_grafica={0:0.00}/{1:0.00}", LAvg(latBGpuEnd), LPct(latBGpuEnd, 0.95)) +
+                    // 21-11 (1.2.1): las colas largas (p99, peor) y lo de mmcss= / cola_cuenta=
+                    string.Format(CultureInfo.InvariantCulture, "\tllegada_fin_grafica_p99={0:0.00}/{1:0.00}\tcogida_p99={2:0.00}/{3:0.00}\tcopia_p99={4:0.00}\tmmcss={5}\tcola_sobras={6}\tcola_sin_sitio={7}",
+                        LPct(latBGpuEnd, 0.99), LPct(latBGpuEnd, 1.0), LPct(latBPick, 0.99), LPct(latBPick, 1.0), LPct(latBCopy, 0.99), s.Mmcss, latAbsorbed, latTimeouts);
         }
 
         // 20-11 (LATENCIA7): de la llegada de cada imagen real a que la grafica acaba su lista (la marca de tiempo del final pasada a la hora
@@ -403,6 +502,23 @@ namespace ConsoleEnhancer.Motor
             double end = latCalCpu + ((double)tEnd - latCalGpu) * System.Diagnostics.Stopwatch.Frequency / tsFreq;
             double ms = (end - a) * Clock.TickMs;
             if (ms > 0 && ms < 500) latBGpuEnd.Add(ms);
+        }
+    }
+
+    // 21-11 (1.2.1): claves de la latencia (Settings.Apply de Common.cs las pasa aqui)
+    partial class Settings
+    {
+        public bool QueueCount = true;      // cola_cuenta=0: la espera de la cadena como antes (Engine.LatQueueWait)
+        public int Mmcss = 1;               // mmcss=0: los hilos de la captura y de pintado sin MMCSS (como antes)
+
+        bool ApplyLatencia(string key, string val)
+        {
+            switch (key)
+            {
+                case "cola_cuenta": QueueCount = B(val); return true;
+                case "mmcss": Mmcss = B(val) ? 1 : 0; return true;
+            }
+            return false;
         }
     }
 }
