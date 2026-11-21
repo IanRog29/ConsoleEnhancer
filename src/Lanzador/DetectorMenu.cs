@@ -54,6 +54,15 @@ namespace ConsoleEnhancer
         public bool ParecioHora;   // la zona de la hora parecia texto (para el diagnostico)
         public int Brillo99;       // lo mas claro de la imagen (percentil 99,5 de la luma)
         public double Ms;          // lo que tardo
+        // 21-11 (1.2.1): la luma media (0-255) y la parte de la imagen con luma > 80 (0-1), para la salida prudente (MaquinaMenu)
+        public int Media = 128;
+        public double Claros = 1;
+        // 1.2.1: imagen oscura: no es seguro que sea un juego. Medido con las capturas de verdad: el arranque de la PS5 (19:09:24-26, sus
+        // particulas de la Bienvenida) media 11-39 y 0,4-3 % clara; la pantalla de carga de Rocket League 15 y 0,3 %; Rocket League jugando
+        // 80-98 y 49-56 %; su portada al arrancar 96 y 49 %; GTA VI de dia 59-104 y 26-66 % (de noche, 28-30 y 2-6 %: tenue)
+        public const int MediaClara = 45;
+        public const double ClarosClara = 0.08;
+        public bool Tenue { get { return Media < MediaClara || Claros < ClarosClara; } }
     }
 
     static class DetectorMenu
@@ -65,9 +74,12 @@ namespace ConsoleEnhancer
         {
             Stopwatch sw = Stopwatch.StartNew();
             LecturaMenu l = new LecturaMenu();
-            int p005, p50, p995;
-            Brillos(full, out p005, out p50, out p995);
+            int p005, p50, p995, media;
+            double claros;
+            Brillos(full, out p005, out p50, out p995, out media, out claros);
             l.Brillo99 = p995;
+            l.Media = media;
+            l.Claros = claros;
             if (p995 - p005 < 12)
             {
                 l.Vista = VistaMenu.Plana;
@@ -276,6 +288,14 @@ namespace ConsoleEnhancer
         // Percentiles 0,5 / 50 / 99,5 de la luma de toda la imagen (1 de cada 4x4 pixeles)
         public static void Brillos(Bitmap b, out int p005, out int p50, out int p995)
         {
+            int media;
+            double claros;
+            Brillos(b, out p005, out p50, out p995, out media, out claros);
+        }
+
+        // 21-11 (1.2.1): y la luma media y la parte con luma > 80 (LecturaMenu.Tenue), del mismo histograma
+        public static void Brillos(Bitmap b, out int p005, out int p50, out int p995, out int media, out double claros)
+        {
             int[] hi = new int[256];
             BitmapData d = b.LockBits(new Rectangle(0, 0, b.Width, b.Height), ImageLockMode.ReadOnly, PixelFormat.Format32bppRgb);
             try
@@ -293,6 +313,10 @@ namespace ConsoleEnhancer
             }
             finally { b.UnlockBits(d); }
             p005 = Pct(hi, 0.005); p50 = Pct(hi, 0.5); p995 = Pct(hi, 0.995);
+            long n = 0, suma = 0, altos = 0;
+            for (int v = 0; v < 256; v++) { n += hi[v]; suma += (long)v * hi[v]; if (v > 80) altos += hi[v]; }
+            media = n > 0 ? (int)(suma / n) : 0;
+            claros = n > 0 ? (double)altos / n : 0;
         }
 
         static int Pct(int[] hi, double p)
@@ -427,14 +451,21 @@ namespace ConsoleEnhancer
             "ps remote play", "remote play",
             // La pantalla de un juego (debajo de su icono en el inicio) y el centro de control
             "game base", "lista de amigos", "descargas/copias", "centro de control", "informacion del juego", "progreso del juego",
-            "trofeos", "descargando", "instalando", "copiando", "en cola", "listo para jugar", "buscar actualizaciones",
+            "trofeos", "descargando", "instalando", "copiando", "en cola", "listo para jugar", "buscar actualizacion",
             // Encendido, usuarios, avisos de la consola
             "entrar en modo de reposo", "apagar la ps5", "reiniciar la ps5", "entrara en modo de reposo", "opciones de alimentacion",
             "elige un usuario", "pulsa el boton ps", "quien va a usar", "anadir usuario", "ajustar area de visualizacion",
+            // 21-11 (1.2.1): la Bienvenida y elegir usuario al encenderla, y la pantalla de apagado / reposo (19:08:48 se tomo por un juego)
+            "te damos la bienvenida", "bienvenida de nuevo", "quien esta usando", "selecciona un usuario", "entrando en modo de reposo",
+            "se esta apagando", "preparando para apagar", "preparandose para apagar", "cable de alimentacion", "indicador de alimentacion",
+            "indicador de encendido", "comprobar estado de sincronizacion",
             // En ingles
             "screen and video", "users and accounts", "power saving", "game library", "your collection", "control center", "game help",
             "enter rest mode", "turn off ps5", "restart ps5", "downloading", "installing", "ready to play", "wishlist", "add to cart",
-            "who's using", "choose a user", "press the ps button" };
+            "who's using", "choose a user", "press the ps button",
+            // (1.2.1)
+            "welcome back", "whos using", "select a user", "entering rest mode", "preparing to turn off", "ac power cord", "power indicator",
+            "check for update" };
         static readonly Regex JugadoRx = new Regex(@"\b(jugado|played)\s*\d+\s*(h|min|horas?|hours?)\b|\b(ps4|ps5)\s*[|]|\|\s*(ps4|ps5)\b", RegexOptions.CultureInvariant);
 
         static readonly string[] FrasesXbox = {
@@ -551,6 +582,23 @@ namespace ConsoleEnhancer
         public double VueltaDudosaS = 15;  // volver al menu antes de esto tras salir = la salida era dudosa
         public double DudosaDuraS = 60;
 
+        // 21-11 (1.2.1, el usuario: "evita cualquier tipo de bug a la hora de cargar perfiles de juegos en las consolas"): SALIDA PRUDENTE.
+        // 19:09:20 la app se abrio desde la espera al encender la PS5: sus primeras imagenes (las particulas de la Bienvenida: oscuras, sin
+        // la hora) eran "Juego" y a los 1,5 s se salio del menu (el perfil "Consola" con Magpie: 7,8 s de telon negro) para volver a el 1 s
+        // despues. Y 19:08:48, tras el menu de apagado, la pantalla de apagarse saco del menu al perfil de GTA VI. Sin haber visto el menu de
+        // verdad (la hora o las pestañas del inicio) desde que se abrio la app (la consola puede estar arrancando: su logo, la Bienvenida,
+        // elegir usuario), o hasta PrudenteHasta (la app: tras su menu de apagado), solo saca del menu una imagen de juego DE VERDAD: clara
+        // (no LecturaMenu.Tenue) y seguida PrudenteS, con PrudenteCon capturas o mas; lo oscuro, el negro liso, la imagen atenuada, "No Signal"
+        // y las pantallas de la consola vuelven a empezar la cuenta. Un juego que no se ve nunca claro sale con PrudenteMaxS de imagen de
+        // juego seguida (oscura o no). Con el menu visto, todo como antes (al juego en ~1,8 s)
+        public double PrudenteS = 5.0;
+        public int PrudenteCon = 4;
+        public double PrudenteMaxS = 60.0;
+        public DateTime PrudenteHasta = DateTime.MinValue;
+        DateTime menuReal = DateTime.MinValue;   // la ultima captura con el menu de verdad (VistaMenu.Menu)
+        DateTime juegoDesde = DateTime.MinValue; // (prudente) capturas de juego seguidas, claras u oscuras, desde
+        DateTime ultimaT = DateTime.MinValue;
+
         int hits, outs;
         DateTime planaDesde = DateTime.MinValue;
         DateTime ultimoMenu = DateTime.MinValue;
@@ -560,18 +608,31 @@ namespace ConsoleEnhancer
         public string Porque;              // de la decision (log)
         public DateTime PrimeraAt = DateTime.MinValue; // la primera captura de la decision (log: cuanto tardo)
 
-        // ¿Pidiendo una captura enseguida para confirmar?
-        public bool Confirmando { get { return Decision == 0 && (hits > 0 || outs > 0); } }
+        // ¿Pidiendo una captura enseguida para confirmar? (1.2.1: saliendo con prudencia no: lo que pide es tiempo, no capturas; asi no se
+        // lee la pantalla entera cada 0,25 s)
+        public bool Confirmando { get { return Decision == 0 && (hits > 0 || (outs > 0 && !Prudente(ultimaT))); } }
         public int Hits { get { return hits; } }
         public int Outs { get { return outs; } }
 
-        public void Reiniciar() { hits = outs = 0; planaDesde = DateTime.MinValue; Decision = 0; Porque = null; PrimeraAt = DateTime.MinValue; }
+        // 1.2.1: ¿salida prudente ahora? (y por que, para el log)
+        public bool MenuVisto { get { return menuReal != DateTime.MinValue; } }
+        public bool SinPrudencia;   // (solo la prueba: como hasta la 1.2.09, para comparar)
+        public bool Prudente(DateTime t) { return !SinPrudencia && (menuReal == DateTime.MinValue || t < PrudenteHasta); }
+        public string PorQuePrudente(DateTime t)
+        {
+            if (menuReal == DateTime.MinValue) return "sin ver el menu de la consola desde que se abrio la app (puede estar arrancando)";
+            return t < PrudenteHasta ? "tras el menu de apagado de la consola" : null;
+        }
+
+        public void Reiniciar() { hits = outs = 0; planaDesde = DateTime.MinValue; juegoDesde = DateTime.MinValue; Decision = 0; Porque = null; PrimeraAt = DateTime.MinValue; }
 
         // Una captura. enMenu = la app en el menu ahora. Devuelve Decision
         public int Observa(LecturaMenu l, DateTime t, bool enMenu)
         {
             VistaMenu v = l.Vista;
+            ultimaT = t;
             if (v == VistaMenu.Menu || v == VistaMenu.MenuTexto) { ultimoMenu = t; ultimoFueTexto = v == VistaMenu.MenuTexto; }
+            if (v == VistaMenu.Menu) menuReal = t;
             if (v != VistaMenu.Plana) planaDesde = DateTime.MinValue;
             else if (planaDesde == DateTime.MinValue) planaDesde = t;
             if (!enMenu)
@@ -594,6 +655,8 @@ namespace ConsoleEnhancer
             }
             hits = 0;
             if (Decision > 0) Decision = 0;
+            bool prud = Prudente(t);
+            if (v != VistaMenu.Juego) juegoDesde = DateTime.MinValue;
             switch (v)
             {
                 case VistaMenu.Menu:
@@ -602,6 +665,27 @@ namespace ConsoleEnhancer
                     if (Decision < 0) Decision = 0;
                     break;
                 case VistaMenu.Juego:
+                    if (prud)
+                    {
+                        // 1.2.1 (SALIDA PRUDENTE): solo la imagen clara cuenta; una oscura vuelve a empezar
+                        if (juegoDesde == DateTime.MinValue) juegoDesde = t;
+                        if (l.Tenue) outs = 0;
+                        else { if (outs == 0) PrimeraAt = t; outs++; }
+                        double dClara = outs > 0 ? (t - PrimeraAt).TotalSeconds : 0, dJuego = (t - juegoDesde).TotalSeconds;
+                        if (outs >= PrudenteCon && dClara >= PrudenteS)
+                        {
+                            Decision = -1;
+                            Porque = outs + " capturas seguidas con imagen de juego clara en " + dClara.ToString("0.0", CultureInfo.InvariantCulture) +
+                                     " s; salida prudente: " + PorQuePrudente(t);
+                        }
+                        else if (dJuego >= PrudenteMaxS)
+                        {
+                            Decision = -1;
+                            PrimeraAt = juegoDesde;
+                            Porque = "imagen de juego seguida " + dJuego.ToString("0.0", CultureInfo.InvariantCulture) + " s (oscura); salida prudente: " + PorQuePrudente(t);
+                        }
+                        break;
+                    }
                     if (outs == 0) PrimeraAt = t;
                     outs++;
                     int need = t < dudosaHasta ? SalirConDudosa : SalirCon;
@@ -618,6 +702,8 @@ namespace ConsoleEnhancer
                     }
                     break;
                 case VistaMenu.Plana:
+                    // (1.2.1: saliendo con prudencia el negro no saca: la consola apagandose o arrancando)
+                    if (prud) { outs = 0; break; }
                     // (al abrir la app con la consola despertando no se ha visto el menu: el negro no saca de el)
                     if (ultimoMenu != DateTime.MinValue && (t - ultimoMenu).TotalSeconds <= NegroTrasMenuS + NegroSalirS &&
                         (t - planaDesde).TotalSeconds >= NegroSalirS)
@@ -627,7 +713,10 @@ namespace ConsoleEnhancer
                         Porque = "negro " + (t - planaDesde).TotalSeconds.ToString("0.0", CultureInfo.InvariantCulture) + " s tras el menu (arranca un juego)";
                     }
                     break;
-                // Oscura y SinSenal: ni salen ni se quedan
+                // Oscura y SinSenal: ni salen ni se quedan (1.2.1: saliendo con prudencia, vuelven a empezar la cuenta)
+                default:
+                    if (prud) outs = 0;
+                    break;
             }
             return Decision;
         }

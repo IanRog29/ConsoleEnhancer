@@ -322,11 +322,15 @@ namespace ConsoleEnhancer
         }
 
         // El menu de apagado de la PS5 (centro de control > apagado), por su texto
+        // 21-11 (1.2.1): sin tildes (el OCR las pone o no) y sin el aviso de "Tu PS5 entrara en modo de reposo en 7 minutos debido a los ajustes
+        // de ahorro de energia" (sale en el inicio minutos antes: no es apagarla ahora; con el tomado por el menu de apagado, un "No Signal"
+        // de cambiar de modo de video al arrancar un juego en los 20 s siguientes cerraba la app y no salia nunca al juego hasta 4 s despues)
+        static readonly Regex AvisoReposoRx = new Regex(@"(entrara en modo de reposo|will enter rest mode|enter rest mode) (en|in) \d+", RegexOptions.CultureInvariant);
         public static bool EsMenuApagado(string ocr, ConsolaPerfil c)
         {
             if (string.IsNullOrEmpty(ocr) || c.TextosApagado == null) return false;
-            string n = Regex.Replace(ocr.ToLowerInvariant().Replace('\r', ' ').Replace('\n', ' '), " +", " ");
-            foreach (string t in c.TextosApagado) if (n.Contains(t)) return true;
+            string n = AvisoReposoRx.Replace(DetectorMenu.Normal(ocr), " ");
+            foreach (string t in c.TextosApagado) if (n.Contains(DetectorMenu.Normal(t))) return true;
             return false;
         }
 
@@ -454,8 +458,11 @@ namespace ConsoleEnhancer
         DateTime ps5FocoAt = DateTime.MinValue;
         bool ps5FocoQuieto;                             // visto igual en dos lecturas seguidas (no a mitad de moverse)
         double[] ps5FocoPrev;
-        readonly List<KeyValuePair<double[], string>> ps5Etiquetas = new List<KeyValuePair<double[], string>>(); // nombre leido con cada icono
+        // (1.2.1: cada lectura de la etiqueta con su icono, su hora y si el foco estaba quieto: JuegoConsola.FocoAlSalir elige el juego que
+        // se arranca, su nombre entero y el icono de una captura con la etiqueta entera; antes el nombre mas leido y, a igualdad, el ultimo)
+        readonly List<JuegoConsola.LecturaFoco> ps5Lecturas = new List<JuegoConsola.LecturaFoco>();
         bool ps5SalidaPorIcono;                         // la ultima salida al juego se decidio por el icono (manda sobre la portada)
+        string ps5PrudenteDicho;                        // 1.2.1: la salida prudente ya dicha en el log (su porque)
         // 21-11 (VUELTA; el usuario: "arregla lo del caso que todavia puede fallar"): con un juego en marcha, en el inicio se mueve el foco
         // a OTRO juego y se vuelve al de antes con el boton PS (sin arrancar el del foco). El icono diria el otro. Entonces se sigue con
         // el que se jugaba y el del icono queda de CANDIDATO: solo si en los segundos siguientes se ve el arranque de un juego (la
@@ -533,6 +540,25 @@ namespace ConsoleEnhancer
             return gp != null ? gp.Name : nom;
         }
 
+        // 1.2.1: lo que se sabe del foco al salir del menu, copiado con homeSync (la decision, que lee y escribe ficheros, va fuera de el)
+        sealed class FotoFoco
+        {
+            public double[] Ultimo;                      // el ultimo icono en foco visto
+            public DateTime At = DateTime.MinValue;
+            public bool Quieto;
+            public List<JuegoConsola.LecturaFoco> Lecturas;
+        }
+
+        // (con homeSync) la foto del foco y se olvida para la siguiente visita
+        FotoFoco TomaFoco()
+        {
+            FotoFoco f = new FotoFoco();
+            f.Ultimo = ps5Foco; f.At = ps5FocoAt; f.Quieto = ps5FocoQuieto;
+            f.Lecturas = new List<JuegoConsola.LecturaFoco>(ps5Lecturas);
+            ps5Foco = ps5FocoPrev = null; ps5FocoQuieto = false; ps5Lecturas.Clear();
+            return f;
+        }
+
         // VISITA CIEGA terminada (ya no se ve el menu y la app esta libre): como salir del menu con el icono en foco
         void SalidaCiega(DateTime now, ConsolaPerfil c)
         {
@@ -540,12 +566,13 @@ namespace ConsoleEnhancer
             ps5CiegoDesde = DateTime.MinValue;
             if (!RecoJuegosActivo(c)) return;
             string info, pi, cur;
+            FotoFoco foto;
             lock (homeSync)
             {
-                pi = PerfilPorIcono(c, now, out info, 30);
-                ps5Foco = ps5FocoPrev = null; ps5FocoQuieto = false; ps5Etiquetas.Clear();
+                foto = TomaFoco();
                 ps5PrimerFoco = null; ps5PrimerFocoIcono = null; ps5PrimerMenuAt = DateTime.MinValue;
             }
+            pi = PerfilPorIcono(c, now, DateTime.MinValue, foto, out info, 30);
             lock (profileSync) cur = curGame;
             string vis = "Menu de la consola visto " + s.ToString("0.0", CultureInfo.InvariantCulture) + " s mientras la app cambiaba de motor o de captura";
             if (pi == null) { Log.Write(vis + ": sin icono en foco fiable: sigue \"" + (cur ?? "ninguno") + "\""); return; }
@@ -609,9 +636,9 @@ namespace ConsoleEnhancer
             else ps5NegroDesde = DateTime.MinValue;
         }
 
-        void FocoObserva(Bitmap full, DateTime now, string nombreFuerte, ConsolaPerfil c)
+        // (con homeSync) ic = el icono en foco de esta captura (JuegoConsola.IconoFoco, calculado antes, fuera del lock)
+        void FocoObserva(double[] ic, DateTime now, string nombreFuerte)
         {
-            double[] ic = JuegoConsola.IconoFoco(full, c);   // (21-11: PS5 su sitio fijo; Xbox la tarjeta en foco del Inicio)
             if (ic == null) return;
             bool quieto = ps5FocoPrev != null && JuegoConsola.DistHuella(ps5FocoPrev, ic) < JuegoConsola.IconoQuieto;
             ps5FocoPrev = ic;
@@ -619,66 +646,66 @@ namespace ConsoleEnhancer
             ps5Foco = ic;
             ps5FocoAt = now;
             if (quieto || !string.IsNullOrEmpty(nombreFuerte)) ps5FocoQuieto = true;   // (con la etiqueta legible el foco no se esta moviendo)
-            if (!string.IsNullOrEmpty(nombreFuerte)) ps5Etiquetas.Add(new KeyValuePair<double[], string>(ic, nombreFuerte));
-        }
-
-        // El nombre mas leido con este icono en la visita (a igualdad, el mas limpio y el ultimo)
-        string MejorEtiqueta(double[] ic)
-        {
-            Dictionary<string, int> n = new Dictionary<string, int>();
-            string best = null; int bn = 0;
-            for (int i = 0; i < ps5Etiquetas.Count; i++)
+            if (!string.IsNullOrEmpty(nombreFuerte))
             {
-                if (JuegoConsola.DistHuella(ps5Etiquetas[i].Key, ic) >= JuegoConsola.MismoIcono) continue;
-                string nm = ps5Etiquetas[i].Value, k = GameNames.Key(nm);
-                int c; n.TryGetValue(k, out c); n[k] = ++c;
-                bool limpio = System.Text.RegularExpressions.Regex.IsMatch(nm, @"^[\p{L}\p{N} :&!.,'’\-]+$");
-                if (best == null || c > bn || (c == bn && limpio)) { best = nm; bn = c; }
+                JuegoConsola.LecturaFoco lf = new JuegoConsola.LecturaFoco();
+                lf.Nombre = nombreFuerte; lf.Icono = ic; lf.At = now; lf.Quieto = quieto;
+                ps5Lecturas.Add(lf);
+                if (ps5Lecturas.Count > 300) ps5Lecturas.RemoveRange(0, ps5Lecturas.Count - 300);   // (horas en el menu: las ultimas)
             }
-            return best;
         }
 
-        static bool NombreProvisional(string perfil)
+        static bool NombreProvisional(string perfil) { return JuegoConsola.Provisional(perfil); }
+
+        // 1.2.1: ¿ese nombre es el de un perfil de esta consola que ya existe? (MejorNombre: desempate)
+        static Func<string, bool> PerfilExiste(ConsolaPerfil c)
         {
-            string j = JuegoConsola.SinTag(perfil ?? "");
-            return j.StartsWith("Juego ") || !System.Text.RegularExpressions.Regex.IsMatch(j, @"^[\p{L}\p{N} :&!.,'’\-]+$");
+            return delegate (string n) { return GameProfiles.ExisteNombre(JuegoConsola.NombrePerfil(c, n)); };
         }
 
         // Al salir del menu al juego: el perfil del icono en foco (el que se arranca). Conocido: ese, aunque el nombre no se leyera. Nuevo
         // (y quieto): con el nombre leido con el (o un perfil que ya hubiera con ese nombre); sin nombre, "PS5: Juego N" (se renombra
         // cuando se lea). null: sin icono fiable (se decide como antes: nombre, histeresis, portada)
-        string PerfilPorIcono(ConsolaPerfil c, DateTime now, out string info) { return PerfilPorIcono(c, now, out info, 4); }
-
-        string PerfilPorIcono(ConsolaPerfil c, DateTime now, out string info, double maxS)
+        // 1.2.1: el juego, su nombre y su icono los elige JuegoConsola.FocoAlSalir (no gana una lectura a medias ni el icono del fundido de
+        // arrancarlo); con el nombre leido entero, un perfil con el nombre a medias o provisional se renombra (MejorNombrePerfil). La edad del
+        // foco se mide desde la primera captura sin el menu (primeraFuera), no desde la decision: salir tarda 1,2-2,9 s mas. Sin homeSync
+        string PerfilPorIcono(ConsolaPerfil c, DateTime now, DateTime primeraFuera, FotoFoco f, out string info, double maxS)
         {
             info = null;
-            if (ps5Foco == null || (now - ps5FocoAt).TotalSeconds > maxS) return null;
+            if (f == null || f.Ultimo == null) return null;
+            DateTime refT = primeraFuera != DateTime.MinValue && primeraFuera >= f.At && primeraFuera <= now ? primeraFuera : now;
+            if ((refT - f.At).TotalSeconds > maxS) return null;
+            int apoyo, enFoco;
+            JuegoConsola.LecturaFoco foco = JuegoConsola.FocoAlSalir(f.Lecturas, PerfilExiste(c), out apoyo, out enFoco);
+            string nombre = foco != null ? foco.Nombre : null;
+            double[] icono = foco != null && foco.Icono != null ? foco.Icono : f.Ultimo;
             double d;
-            string p = IconosConsola.Busca(ps5Foco, out d);
-            string nombre = MejorEtiqueta(ps5Foco);
+            string p = IconosConsola.Busca(icono, out d);
+            if (p == null && icono != f.Ultimo)
+            {
+                double d2;
+                string p2 = IconosConsola.Busca(f.Ultimo, out d2);
+                if (p2 != null) { p = p2; d = d2; }
+            }
             string dd = d < 900 ? d.ToString("0.0", CultureInfo.InvariantCulture) : "-";
+            string leido = nombre != null ? "; leido \"" + nombre + "\" (" + apoyo + " de " + enFoco + " lecturas del foco)" : "";
             if (p != null)
             {
-                info = "por su icono, distancia " + dd;
-                if (nombre != null && NombreProvisional(p))
-                {
-                    string nuevo = JuegoConsola.NombrePerfil(c, nombre);
-                    if (!NombreProvisional(nuevo) && GameProfiles.Renombra(p, nuevo))
-                    {
-                        IconosConsola.Renombra(p, nuevo); PortadasConsola.Renombra(p, nuevo);
-                        lock (profileSync) { if (curGame == p) curGame = nuevo; }
-                        info += "; antes se llamaba \"" + p + "\"";
-                        p = nuevo;
-                    }
-                }
+                info = "por su icono, distancia " + dd + leido;
+                string nuevo = MejorNombrePerfil(c, p, nombre, apoyo, f.Lecturas);
+                if (nuevo != null) { info += "; antes se llamaba \"" + p + "\""; p = nuevo; }
                 return p;
             }
-            if (!ps5FocoQuieto) { info = "icono nuevo pero sin ver quieto (la mas parecida a " + dd + ")"; return null; }
+            if (!f.Quieto) { info = "icono nuevo pero sin ver quieto (la mas parecida a " + dd + ")"; return null; }
             string perfil;
             if (nombre != null)
             {
-                GameProfile gp = GameProfiles.Find(JuegoConsola.NombrePerfil(c, nombre));
-                perfil = gp != null ? gp.Name : JuegoConsola.NombrePerfil(c, nombre);
+                string np = JuegoConsola.NombrePerfil(c, nombre);
+                GameProfile gp = GameProfiles.Find(np);
+                perfil = gp != null ? gp.Name : np;
+                // (1.2.1: el perfil de ese juego con el nombre a medias, "PS5: Rocket" con "Rocket League" leido: se renombra)
+                string nuevo = gp != null ? MejorNombrePerfil(c, gp.Name, nombre, apoyo, f.Lecturas) : null;
+                if (nuevo != null) { leido += "; antes se llamaba \"" + perfil + "\""; perfil = nuevo; }
             }
             else
             {
@@ -690,9 +717,35 @@ namespace ConsoleEnhancer
                     if (!IconosConsola.Tiene(q) && !GameProfiles.ExisteNombre(q)) perfil = q;
                 }
             }
-            IconosConsola.Guarda(perfil, ps5Foco);
-            info = "icono nuevo memorizado (la mas parecida a " + dd + ")" + (nombre == null ? ", sin nombre leido aun" : "");
+            IconosConsola.Guarda(perfil, icono);
+            info = "icono nuevo memorizado (la mas parecida a " + dd + ")" + (nombre == null ? ", sin nombre leido aun" : leido);
             return perfil;
+        }
+
+        // 1.2.1: si el nombre leido es mejor que el del perfil (JuegoConsola.MejorNombreQue: provisional, a medias o con erratas), el perfil
+        // pasa a llamarse asi, con sus iconos y portadas, el juego en marcha y last_game.txt. El nombre nuevo, o null si no se cambia
+        string MejorNombrePerfil(ConsolaPerfil c, string viejo, string nombre, int apoyo, List<JuegoConsola.LecturaFoco> lecturas)
+        {
+            if (string.IsNullOrEmpty(nombre) || string.IsNullOrEmpty(viejo) || JuegoConsola.TagConsola(viejo) == null) return null;
+            string kv = GameNames.Key(JuegoConsola.SinTag(viejo));
+            bool viejoLeido = false;
+            if (lecturas != null) foreach (JuegoConsola.LecturaFoco x in lecturas) if (GameNames.Key(x.Nombre) == kv) { viejoLeido = true; break; }
+            if (!JuegoConsola.MejorNombreQue(viejo, nombre, apoyo, viejoLeido)) return null;
+            string nuevo = JuegoConsola.NombrePerfil(c, nombre);
+            string porque = JuegoConsola.Provisional(viejo) ? "era provisional" : JuegoConsola.Parcial(JuegoConsola.SinTag(viejo), nombre) ?
+                            "era una lectura a medias" : "era una lectura con erratas (" + apoyo + " lecturas del nombre nuevo)";
+            if (!GameProfiles.Renombra(viejo, nuevo))
+            {
+                Log.Write("Perfil \"" + viejo + "\": leido \"" + nombre + "\" (" + porque + "), pero ya hay un perfil \"" + nuevo + "\" o no se ha podido cambiar: se deja");
+                return null;
+            }
+            IconosConsola.Renombra(viejo, nuevo);
+            PortadasConsola.Renombra(viejo, nuevo);
+            lock (profileSync) { if (curGame == viejo) curGame = nuevo; }
+            try { if (LoadText(Paths.LastGameFile) == viejo) SaveText(Paths.LastGameFile, nuevo); } catch { }
+            if (ps5JuegoAntesMenu == viejo) ps5JuegoAntesMenu = nuevo;
+            Log.Write("Perfil \"" + viejo + "\" -> \"" + nuevo + "\" (el nombre de la etiqueta leido entero; el de antes " + porque + ")");
+            return nuevo;
         }
 
         DateTime ps5PortadaNoLog = DateTime.MinValue;
@@ -770,20 +823,55 @@ namespace ConsoleEnhancer
         // ¿Reconocer los juegos uno a uno con esta consola? (clave del ini ps5_reconocer_juegos / xbox_reconocer_juegos)
         bool RecoJuegosActivo(ConsolaPerfil c) { return JuegoConsola.Activo(c, cfg); }
 
+        // 1.2.1 (SALIDA PRUDENTE): hasta cuando, tras el menu de apagado de la consola (lo de despues es la consola apagandose)
+        DateTime PrudenteTrasApagado()
+        {
+            DateTime pm = powerMenuAt;
+            return pm == DateTime.MinValue ? DateTime.MinValue : pm.AddSeconds(PowerMenuSecs);
+        }
+
+        static string PctClaros(LecturaMenu l) { return (l.Claros * 100).ToString("0.#", CultureInfo.InvariantCulture) + " %"; }
+
         int ps5DiagsSesion;
         int ps5DiagsSalida;             // 1.2.0: capturas guardadas al salir del menu (como mucho 3 por sesion)
+        static readonly object diagSync = new object();
+        static readonly HashSet<string> diagPendientes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         // La captura en la que no se leyo la hora (games\debug\ps5, las 8 mas nuevas), para ajustar el lector
+        // 21-11 (1.2.1, revision 1.2.03: "captura PS5 en homeSync"): la de la salida del menu se guardaba con homeSync cogido (PNG de 1280x720,
+        // ~100-200 ms) y las demas en el hilo de la captura: la entrada en el juego esperaba a que acabara (los "184-305 ms tras decidirlo" del
+        // log). Ahora se copia la imagen (~2 ms) y el PNG se escribe en segundo plano; el nombre se sabe ya (para el log). Dos en el mismo
+        // segundo ya no se pisan (la segunda lleva "-2")
         static string GuardarDiagPs5(Bitmap full, string ocr)
         {
             try
             {
                 string dir = Path.Combine(Paths.Datos, @"games\debug\ps5");
                 Directory.CreateDirectory(dir);
-                string f = Path.Combine(dir, DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture) + "_" + full.Width + "x" + full.Height + ".png");
-                full.Save(f, ImageFormat.Png);
-                FileInfo[] all = new DirectoryInfo(dir).GetFiles("*.png");
-                Array.Sort(all, delegate (FileInfo a, FileInfo b) { return b.LastWriteTimeUtc.CompareTo(a.LastWriteTimeUtc); });
-                for (int i = 8; i < all.Length; i++) { try { all[i].Delete(); } catch { } }
+                string sello = DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture), tam = "_" + full.Width + "x" + full.Height + ".png";
+                string f = null;
+                lock (diagSync)
+                {
+                    for (int n = 1; f == null; n++)
+                    {
+                        string q = Path.Combine(dir, sello + (n > 1 ? "-" + n : "") + tam);
+                        if (!diagPendientes.Contains(q) && (n > 9 || !File.Exists(q))) f = q;
+                    }
+                    diagPendientes.Add(f);
+                }
+                Bitmap copia = full.Clone(new Rectangle(0, 0, full.Width, full.Height), full.PixelFormat);
+                string destino = f;
+                System.Threading.ThreadPool.QueueUserWorkItem(delegate
+                {
+                    try
+                    {
+                        using (copia) copia.Save(destino, ImageFormat.Png);
+                        FileInfo[] all = new DirectoryInfo(dir).GetFiles("*.png");
+                        Array.Sort(all, delegate (FileInfo a, FileInfo b) { return b.LastWriteTimeUtc.CompareTo(a.LastWriteTimeUtc); });
+                        for (int i = 8; i < all.Length; i++) { try { all[i].Delete(); } catch { } }
+                    }
+                    catch (Exception ex) { Log.Error("Menu de la PS5: guardando la captura", ex); }
+                    finally { lock (diagSync) diagPendientes.Remove(destino); }
+                });
                 return f;
             }
             catch (Exception ex) { Log.Error("Menu de la PS5: guardando la captura", ex); return null; }
@@ -818,7 +906,7 @@ namespace ConsoleEnhancer
             {
                 LecturaMenu ns = new LecturaMenu();
                 ns.Vista = VistaMenu.SinSenal;
-                lock (homeSync) { menuMaq.Observa(ns, now, inMenu); ps5MenuHits = menuMaq.Hits; ps5OutHits = menuMaq.Outs; }
+                lock (homeSync) { menuMaq.PrudenteHasta = PrudenteTrasApagado(); menuMaq.Observa(ns, now, inMenu); ps5MenuHits = menuMaq.Hits; ps5OutHits = menuMaq.Outs; }
                 return;
             }
             // En el menu: la pantalla entera cada segundo aunque se vea la hora (el menu de apagado); sin la hora, siempre
@@ -863,6 +951,7 @@ namespace ConsoleEnhancer
             {
                 ps5DiagsSesion++;
                 string diag = GuardarDiagPs5(full, null);
+                if (l.Vista == VistaMenu.Juego) l.Porque = (l.Porque != null ? l.Porque + "; " : "") + "media " + l.Media + ", " + PctClaros(l) + " clara";
                 Log.Write("Menu de la consola: sin la hora arriba (" + (l.Porque ?? "?") + ", " + l.Vista + (l.Frase != null ? ": \"" + l.Frase + "\"" : "") +
                           ", captura de " + full.Width + "x" + full.Height + ", " + l.Ms.ToString("0", CultureInfo.InvariantCulture) + " ms)" + (diag != null ? " -> " + diag : ""));
             }
@@ -898,14 +987,16 @@ namespace ConsoleEnhancer
                     lock (homeSync) reco = recoJuego.Observa(nombre, fuerte, huella, now);
                     // 21-11 (quinta vuelta): en el inicio de la PS5, el icono del juego en foco (lo que manda al entrar)
                     // (el icono solo con la etiqueta del nombre legible en la misma captura: el menu quieto, no a mitad de una animacion)
-                    if ((c.Familia == "playstation" || c.Familia == "xbox") && fuerte)
-                        lock (homeSync) FocoObserva(full, now, nombre, c);
+                    // (1.2.1: el icono se calcula fuera de homeSync: con la Xbox busca la tarjeta en la imagen entera)
+                    double[] icFoco = (c.Familia == "playstation" || c.Familia == "xbox") && fuerte ? JuegoConsola.IconoFoco(full, c) : null;
+                    if (icFoco != null)
+                        lock (homeSync) FocoObserva(icFoco, now, nombre);
                     // 1.2.05: el primer juego en foco al abrir el menu desde un juego (el que esta en marcha), si se lee en 1,5 s
                     if (!inMenu && fuerte && !string.IsNullOrEmpty(nombre) && ps5PrimerFoco == null && ps5CiegoDesde == DateTime.MinValue &&
                         ps5PrimerMenuAt != DateTime.MinValue && (now - ps5PrimerMenuAt).TotalSeconds <= 1.5)
                     {
                         ps5PrimerFoco = nombre;
-                        ps5PrimerFocoIcono = JuegoConsola.IconoFoco(full, c);
+                        ps5PrimerFocoIcono = icFoco ?? JuegoConsola.IconoFoco(full, c);
                     }
                     // 21-11: cada lectura nueva al log (para ver que lee en el menu)
                     string lect = (nombre ?? "") + (fuerte ? "/f" : "");
@@ -963,7 +1054,22 @@ namespace ConsoleEnhancer
                 VistaMenu antes = ps5UltimaVista;
                 ps5UltimaVista = l.Vista;
                 int d0 = menuMaq.Decision;
+                menuMaq.PrudenteHasta = PrudenteTrasApagado();
                 int d = menuMaq.Observa(l, now, inMenu);
+                // 1.2.1 (SALIDA PRUDENTE, src\DetectorMenu.cs): sin el menu visto desde que se abrio la app o tras su menu de apagado, lo que
+                // no es el menu solo saca con una imagen de juego clara y seguida (una vez por cada motivo, al log)
+                if (!inMenu || !menuMaq.Prudente(now)) ps5PrudenteDicho = null;
+                else if (d == 0 && l.Vista == VistaMenu.Juego)
+                {
+                    string pq = menuMaq.PorQuePrudente(now);
+                    if (pq != ps5PrudenteDicho)
+                    {
+                        ps5PrudenteDicho = pq;
+                        Log.Write("Menu de la consola: sin la hora y " + pq + ": salida prudente, solo saca del menu una imagen de juego clara y seguida " +
+                                  menuMaq.PrudenteS.ToString("0.#", CultureInfo.InvariantCulture) + " s (esta: " + (l.Tenue ? "oscura" : "clara") + ", media " +
+                                  l.Media + ", " + PctClaros(l) + " clara)");
+                    }
+                }
                 if (l.Hora != null) ps5Hora = l.Hora;
                 if (l.Vista == VistaMenu.Menu || l.Vista == VistaMenu.MenuTexto) homeSeen = now;
                 if (!inMenu && l.Vista == VistaMenu.Menu && menuMaq.Hits == 1 && d == 0)
@@ -1054,7 +1160,7 @@ namespace ConsoleEnhancer
                 homeSeen = homeArrivedAt = now;
                 noLabel = 0; homeGame = null; labelNoName = false; homeInUse = false; homeDock = true;
                 ps5OutHits = ps5MenuHits = 0;
-                ps5Foco = ps5FocoPrev = null; ps5FocoQuieto = false; ps5Etiquetas.Clear();
+                ps5Foco = ps5FocoPrev = null; ps5FocoQuieto = false; ps5Lecturas.Clear();
                 ps5Candidato = null;
                 ps5PortadaVista = null; ps5RapidaPrev = null;
                 menuMaq.Hecho(now, true);
@@ -1115,11 +1221,14 @@ namespace ConsoleEnhancer
             // 20-11 (PS5JUEGO): el perfil del juego reconocido ("PS5: <juego>" / "Xbox Series: <juego>"); si no se reconocio nada (o la clave
             // del ini esta apagada), el perfil unico de toda la consola ("Consola"), como hasta ahora
             string juego;
-            bool porUltima = false;
+            bool porUltima = false, fuerteVisita = false;
+            DateTime primeraFuera;
             lock (homeSync)
             {
                 ps5CiegoDesde = DateTime.MinValue;
+                primeraFuera = menuMaq.PrimeraAt;   // (1.2.1: la primera captura sin el menu: la edad del foco se mide desde ahi)
                 menuMaq.Hecho(DateTime.Now, false); ps5OutHits = ps5MenuHits = 0; juego = RecoJuegosActivo(c) ? recoJuego.AlSalir(DateTime.Now, out porUltima) : null;
+                fuerteVisita = recoJuego.FuerteEnVisita;
                 // 21-11 (PORTADA): 15 s para ver la portada del juego si arranca
                 ps5PortadaFresco = recoJuego.ConfirmadoEnVisita;
                 ps5PortadaHasta = DateTime.Now.AddSeconds(15);
@@ -1134,10 +1243,20 @@ namespace ConsoleEnhancer
             if (RecoJuegosActivo(c))
             {
                 string pi;
-                lock (homeSync)
+                FotoFoco foto;
+                lock (homeSync) foto = TomaFoco();
+                pi = PerfilPorIcono(c, DateTime.Now, primeraFuera, foto, out infoIcono, 4);
+                // 1.2.1: sin icono y sin la etiqueta del inicio leida en esta visita, el nombre reconocido son 2 lecturas iguales de otra
+                // cosa (el centro de control: "ácil de usar" de su tarjeta "Fácil de usar"): sin un perfil con ese nombre no se crea uno
+                // nuevo ni se cambia el juego en marcha
+                if (pi == null && !fuerteVisita && !string.IsNullOrEmpty(juego) && GameProfiles.Find(JuegoConsola.NombrePerfil(c, juego)) == null)
                 {
-                    pi = PerfilPorIcono(c, DateTime.Now, out infoIcono);
-                    ps5Foco = ps5FocoPrev = null; ps5FocoQuieto = false; ps5Etiquetas.Clear();
+                    string enM = ps5JuegoAntesMenu != null && JuegoConsola.TagConsola(ps5JuegoAntesMenu) != null ? ps5JuegoAntesMenu : null;
+                    Log.Write("Fuera del menu de la consola: \"" + juego + "\" no se leyo en la etiqueta del juego en foco (2 lecturas de otra cosa) y no hay " +
+                              "perfil con ese nombre: no se crea; " + (enM != null ? "sigue \"" + enM + "\"" : "el perfil de la consola"));
+                    juego = enM != null ? JuegoConsola.SinTag(enM) : null;
+                    perfil = enM ?? c.PerfilConsola;
+                    lock (homeSync) { if (enM != null) recoJuego.Pon(juego); else recoJuego.Reiniciar(); }
                 }
                 ps5Candidato = null;
                 ps5SalidaAt = DateTime.Now;

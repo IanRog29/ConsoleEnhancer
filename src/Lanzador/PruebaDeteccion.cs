@@ -45,7 +45,11 @@ namespace ConsoleEnhancer
             if (p[0] == "listar")
                 return Listar(p[1], p.Length > 2 ? p[2] : Path.Combine(p[1], "listado.tsv"), p.Length > 3 ? (Consolas.Buscar(p[3]) ?? Consolas.Ps5) : Consolas.Ps5);
             string dir = p[0], rep = p.Length > 1 ? p[1] : Path.Combine(dir, "prueba_deteccion.txt");
-            return Informe(dir, rep);
+            // 21-11 (1.2.1): --test-deteccion=<carpeta>;<informe>;<carpeta de escenas 1.2.1> (seccion 5: arranque, apagado; sin las imagenes
+            // del banco, solo la seccion 5: --test-deteccion=-;<informe>;<carpeta de escenas> con las del banco en la de escenas)
+            string extra = p.Length > 2 && p[2].Length > 0 ? p[2] : null;
+            if (dir == "-") return SoloEscenas121(rep, extra);
+            return Informe(dir, rep, extra);
         }
 
         static List<Img> Cargar(string dir, bool gris)
@@ -120,7 +124,9 @@ namespace ConsoleEnhancer
         static bool EsMenu(string et) { return et == "menu" || et == "menutexto" || et == "oscuro"; }
         static bool EsJuego(string et) { return et == "juego" || et == "pc"; }
 
-        static int Informe(string dir, string rep)
+        static int Informe(string dir, string rep) { return Informe(dir, rep, null); }
+
+        static int Informe(string dir, string rep, string extra)
         {
             StringBuilder sb = new StringBuilder();
             List<Img> imgs = Cargar(dir, true);
@@ -211,11 +217,197 @@ namespace ConsoleEnhancer
             }
             int otras = OtrasConsolas(sb, imgs);
             int auto = Auto(sb, imgs); // (20-11, CONSOLA)
+            int e121 = 0;
+            if (extra != null) e121 = Escenas121(sb, imgs, Cargar(extra, true)); // (21-11, 1.2.1)
             sb.Insert(0, "Prueba de la deteccion del menu (src\\DetectorMenu.cs): " + fallos + " fallos por imagen (PS5), " + escFallos + " escenas mal (ahora), " +
-                         otras + " fallos de Xbox / Switch 2 / consola=auto, " + auto + " escenas de consola=auto mal (seccion 4); " + imgs.Count + " imagenes de " + dir + "\r\n\r\n");
-            fallos += otras + auto;
+                         otras + " fallos de Xbox / Switch 2 / consola=auto, " + auto + " escenas de consola=auto mal (seccion 4)" +
+                         (extra != null ? ", " + e121 + " escenas 1.2.1 mal (seccion 5)" : "") + "; " + imgs.Count + " imagenes de " + dir + "\r\n\r\n");
+            fallos += otras + auto + e121;
             File.WriteAllText(rep, sb.ToString(), new UTF8Encoding(false));
             return fallos + escFallos;
+        }
+
+        // Solo la seccion 5 (rapida: sin el OCR de todo el banco). Las imagenes del menu y de un juego oscuro, de la misma carpeta de escenas
+        // (menu_*, juego_gta_* ...) o del banco si se le copian
+        static int SoloEscenas121(string rep, string extra)
+        {
+            StringBuilder sb = new StringBuilder();
+            List<Img> ex = extra != null ? Cargar(extra, true) : new List<Img>();
+            int mal = Escenas121(sb, ex, ex);
+            sb.Insert(0, "Prueba 1.2.1 (seccion 5): " + mal + " escenas mal; " + ex.Count + " imagenes de " + extra + "\r\n\r\n");
+            File.WriteAllText(rep, sb.ToString(), new UTF8Encoding(false));
+            return mal;
+        }
+
+        // ---------------- 5. (21-11, 1.2.1) Arranque y apagado de la consola: ningun perfil de juego ----------------
+        // El log del usuario del 21-11: 19:09:20 la app abierta desde la espera al encender la PS5 salio del menu con las particulas de la
+        // Bienvenida (perfil "Consola" con Magpie, 7,8 s de telon negro); 19:08:48, tras el menu de apagado, la pantalla de apagarse saco al
+        // perfil de GTA VI. Escenas con lo que hace la app (MenuPs5Captura): Clasifica con el texto de la pantalla en el menu cada 1 s, el menu
+        // de apagado (RelojPs5.EsMenuApagado) pone la salida prudente 20 s y su negro cuenta como atenuado; MaquinaMenu decide. Etiquetas de la
+        // carpeta de escenas: arranque (logo, Bienvenida), apagado (pantalla de apagarse), menuapagado (el inicio con el menu de apagado),
+        // juego, juegooscuro; del banco: menu y juego (GTA VI de noche: juego_gta_145233)
+        sealed class Esc5
+        {
+            public string Titulo;
+            public bool EnMenu0;
+            public Tramo[] Tramos;
+            public int TramoSalida = -1;          // -1 = no se sale nunca del menu; si no, la unica salida, en este tramo
+            public int TramoSalida2 = -1;         // (o en este: la carga de Rocket League es "atenuada" en la ligera y "juego" en la gris)
+            public double SalirMin, SalirMax;     // ...entre estos segundos desde que empieza ese tramo
+        }
+
+        static int Escenas121(StringBuilder sb, List<Img> banco, List<Img> ex)
+        {
+            sb.Append("== 5. (1.2.1) Arranque y apagado de la consola: ningun perfil de juego; los juegos de verdad, como antes ==\r\n");
+            sb.Append("Salida prudente (MaquinaMenu): sin el menu visto desde que se abrio la app, o 20 s tras su menu de apagado, solo una imagen de\r\n");
+            sb.Append("juego clara y seguida 5 s saca del menu (o 60 s de imagen de juego oscura). Con el menu visto, a ~1,2-2,5 s como siempre.\r\n\r\n");
+            Func<string, string, List<Img>> de = delegate (string et, string trozo)
+            {
+                List<Img> r = new List<Img>();
+                foreach (Img im in ex) if (im.Etiqueta == et && (trozo == null || Path.GetFileName(im.File).Contains(trozo))) r.Add(im);
+                if (r.Count == 0) foreach (Img im in banco) if (im.Etiqueta == et && (trozo == null || Path.GetFileName(im.File).Contains(trozo))) r.Add(im);
+                return r;
+            };
+            List<Img> menu = new List<Img>();
+            foreach (Img im in banco) if (im.Etiqueta == "menu" && Path.GetFileName(im.File).Contains("pestanas")) menu.Add(im);
+            if (menu.Count == 0) menu = de("menu", null);
+            List<Img> arranque = de("arranque", null), bienvenida = de("arranque", "bienvenida"), apagadoTxt = de("apagado", "texto"),
+                      apagadoSin = de("apagado", "otrotexto"), menuApagado = de("menuapagado", null), rlPortada = de("juego", "rl-portada"),
+                      rlPartido = de("juego", "rl-partido"), rlCarga = de("juegooscuro", null), gtaNoche = de("juego", "gta_145233");
+            List<Esc5> esc = new List<Esc5>();
+            Esc5 e = new Esc5(); e.Titulo = "Abierta desde la espera con la PS5 arrancando (logo y Bienvenida 14 s) y su menu: no sale"; e.EnMenu0 = true;
+            e.Tramos = new Tramo[] { new Tramo(arranque, 14, true), new Tramo(menu, 8) }; esc.Add(e);
+            e = new Esc5(); e.Titulo = "Abierta con la PS5 arrancando: solo la Bienvenida (la del 21-11 19:09:24-26) 30 s: no sale"; e.EnMenu0 = true;
+            e.Tramos = new Tramo[] { new Tramo(bienvenida, 30, true) }; esc.Add(e);
+            e = new Esc5(); e.Titulo = "Abierta con la PS5 arrancando, su menu y se arranca Rocket League: sale en el juego como siempre"; e.EnMenu0 = true;
+            e.Tramos = new Tramo[] { new Tramo(arranque, 8, true), new Tramo(menu, 6), new Tramo(rlPortada, 3), new Tramo(rlPartido, 8) };
+            e.TramoSalida = 2; e.SalirMin = 0.9; e.SalirMax = 2.6; esc.Add(e);
+            e = new Esc5(); e.Titulo = "Abierta con Rocket League ya en marcha (claro): sale a los ~5 s"; e.EnMenu0 = true;
+            e.Tramos = new Tramo[] { new Tramo(rlPartido, 14, true) }; e.TramoSalida = 0; e.SalirMin = 4.5; e.SalirMax = 7.5; esc.Add(e);
+            e = new Esc5(); e.Titulo = "Abierta con un juego oscuro en marcha (GTA VI de noche) 70 s: sale a los ~60 s"; e.EnMenu0 = true;
+            e.Tramos = new Tramo[] { new Tramo(gtaNoche, 70, true) }; e.TramoSalida = 0; e.SalirMin = 58; e.SalirMax = 63; esc.Add(e);
+            e = new Esc5(); e.Titulo = "Menu, menu de apagado y la pantalla de apagarse con su texto 12 s: no sale"; e.EnMenu0 = true;
+            e.Tramos = new Tramo[] { new Tramo(menu, 4), new Tramo(menuApagado, 3), new Tramo(apagadoTxt, 12) }; esc.Add(e);
+            e = new Esc5(); e.Titulo = "Menu, menu de apagado y la pantalla de apagarse con otro texto y el logo (oscura, \"Juego\" hasta la 1.2.09) 12 s: no sale"; e.EnMenu0 = true;
+            e.Tramos = new Tramo[] { new Tramo(menu, 4), new Tramo(menuApagado, 3), new Tramo(apagadoSin, 12) }; esc.Add(e);
+            e = new Esc5(); e.Titulo = "Menu de apagado, se cancela y se arranca Rocket League: sale, con prudencia (~5 s)"; e.EnMenu0 = true;
+            e.Tramos = new Tramo[] { new Tramo(menu, 3), new Tramo(menuApagado, 3), new Tramo(menu, 3), new Tramo(rlPartido, 12) };
+            e.TramoSalida = 3; e.SalirMin = 4.5; e.SalirMax = 7.5; esc.Add(e);
+            e = new Esc5(); e.Titulo = "Normal: menu y se arranca Rocket League (portada y partido): sale en ~1,2-2,5 s, como antes"; e.EnMenu0 = true;
+            e.Tramos = new Tramo[] { new Tramo(menu, 6), new Tramo(rlPortada, 3), new Tramo(rlPartido, 8) }; e.TramoSalida = 1; e.SalirMin = 0.9; e.SalirMax = 2.6; esc.Add(e);
+            e = new Esc5(); e.Titulo = "Normal: menu, carga oscura de Rocket League y el partido: sale como antes (en la carga o en el partido)"; e.EnMenu0 = true;
+            e.Tramos = new Tramo[] { new Tramo(menu, 6), new Tramo(rlCarga, 4), new Tramo(rlPartido, 8) }; e.TramoSalida = 2; e.TramoSalida2 = 1; e.SalirMin = 0.9; e.SalirMax = 2.6; esc.Add(e);
+            e = new Esc5(); e.Titulo = "Jugando, el menu 6 s y de vuelta al juego: entra y sale como antes"; e.EnMenu0 = false;
+            e.Tramos = new Tramo[] { new Tramo(rlPartido, 6), new Tramo(menu, 6), new Tramo(rlPartido, 8) }; e.TramoSalida = 2; e.SalirMin = 0.9; e.SalirMax = 2.6; esc.Add(e);
+
+            Dictionary<string, LecturaMenu> cache = new Dictionary<string, LecturaMenu>();
+            int mal = 0;
+            foreach (string var in new[] { "ligera", "gris" })
+            {
+                sb.Append("-- captura ").Append(var).Append(" --\r\n");
+                foreach (Esc5 es in esc)
+                {
+                    bool vacia = false;
+                    foreach (Tramo tr in es.Tramos) if (tr.Imgs.Count == 0) vacia = true;
+                    if (vacia) { sb.Append("  (sin imagenes) ").Append(es.Titulo).Append("\r\n"); continue; }
+                    string primera = null, porque = null, antes = null;
+                    int malas = 0, malasAntes = 0;
+                    const int Runs = 6;
+                    for (int k = 0; k < Runs; k++)
+                    {
+                        string ev, pq;
+                        bool ok = SimulaApp(es, var, 0.17 * k, cache, false, out ev, out pq);
+                        if (!ok) malas++;
+                        if (primera == null || (!ok && malas == 1)) { primera = ev; porque = pq; }
+                        // (como hasta la 1.2.09: sin la salida prudente)
+                        bool okA = SimulaApp(es, var, 0.17 * k, cache, true, out ev, out pq);
+                        if (!okA) malasAntes++;
+                        if (antes == null || (!okA && malasAntes == 1)) antes = ev;
+                    }
+                    if (malas > 0) mal++;
+                    sb.Append(malas == 0 ? "  OK  " : "  MAL ").Append(es.Titulo).Append("\r\n      ahora: ").Append(primera)
+                      .Append(porque != null ? " [" + porque + "]" : "").Append(malas > 0 ? " (MAL en " + malas + " de " + Runs + ")" : "")
+                      .Append("\r\n      antes: ").Append(antes).Append(malasAntes > 0 ? " (MAL en " + malasAntes + " de " + Runs + ")" : " (bien)").Append("\r\n");
+                }
+                sb.Append("\r\n");
+            }
+            return mal;
+        }
+
+        static LecturaMenu Copia(LecturaMenu l)
+        {
+            LecturaMenu c = new LecturaMenu();
+            c.Vista = l.Vista; c.Fuerte = l.Fuerte; c.Hora = l.Hora; c.Ocr = l.Ocr; c.Pantalla = l.Pantalla; c.Frase = l.Frase; c.Porque = l.Porque;
+            c.ParecioHora = l.ParecioHora; c.Brillo99 = l.Brillo99; c.Ms = l.Ms; c.Media = l.Media; c.Claros = l.Claros;
+            return c;
+        }
+
+        // Una escena como la app: capturas cada 0,5 s en el menu (0,25 confirmando), 1 s jugando; el texto de la pantalla en el menu cada 1 s
+        // (como MenuPs5Captura); el menu de apagado: salida prudente 20 s y su negro, atenuado. true = lo que pide la escena
+        static bool SimulaApp(Esc5 es, string var, double desfase, Dictionary<string, LecturaMenu> cache, bool comoAntes, out string ev, out string porque)
+        {
+            MaquinaMenu maq = new MaquinaMenu();
+            maq.SinPrudencia = comoAntes;
+            DateTime t0 = new DateTime(2026, 11, 19, 12, 0, 0);
+            bool enMenu = es.EnMenu0;
+            double total = 0;
+            foreach (Tramo tr in es.Tramos) total += tr.Secs;
+            double t = 0.05 + desfase, textoAt = -10, apagadoAt = -1000, busy = 0;
+            StringBuilder sb = new StringBuilder();
+            porque = null;
+            int salidas = 0, entradas = 0;
+            bool ok = true;
+            while (t < total)
+            {
+                double acc = 0; int ti = 0;
+                while (ti < es.Tramos.Length - 1 && t >= acc + es.Tramos[ti].Secs) { acc += es.Tramos[ti].Secs; ti++; }
+                Tramo tramo = es.Tramos[ti];
+                double dentro = t - acc;
+                Img im = tramo.Imgs[Math.Min(tramo.Imgs.Count - 1, (int)(dentro / 1.5) % tramo.Imgs.Count)];
+                Bitmap b = var == "gris" ? im.Gris : im.Ligera;
+                bool leer = enMenu && t - textoAt >= 1.0;
+                string k = im.File + "|" + var + "|" + enMenu + "|" + leer;
+                LecturaMenu l;
+                if (!cache.TryGetValue(k, out l))
+                {
+                    DetectorMenu.OlvidaZonas();
+                    l = DetectorMenu.Clasifica(b, im.Now, Consolas.Ps5, enMenu, leer);
+                    cache[k] = l;
+                }
+                if (l.Pantalla != null)
+                {
+                    textoAt = t;
+                    if (RelojPs5.EsMenuApagado(l.Pantalla, Consolas.Ps5)) apagadoAt = t;
+                }
+                maq.PrudenteHasta = apagadoAt > -100 ? t0.AddSeconds(apagadoAt + 20) : DateTime.MinValue;
+                LecturaMenu lx = l;
+                if (l.Vista == VistaMenu.Plana && t - apagadoAt < 20) { lx = Copia(l); lx.Vista = VistaMenu.Oscura; }
+                int d = maq.Observa(lx, t0.AddSeconds(t), enMenu);
+                double ms = l.Ms;
+                if (d != 0)
+                {
+                    enMenu = d > 0;
+                    maq.Hecho(t0.AddSeconds(t), enMenu);
+                    if (d < 0) salidas++; else entradas++;
+                    sb.Append(d > 0 ? "al menu" : "al juego").Append(" a los ").Append(dentro.ToString("0.00", CultureInfo.InvariantCulture))
+                      .Append(" s de \"").Append(tramo.Imgs[0].Etiqueta).Append("\" (tramo ").Append(ti + 1).Append(")");
+                    if (d < 0)
+                    {
+                        if (porque == null) porque = maq.Porque;
+                        bool bien = (es.TramoSalida == ti || es.TramoSalida2 == ti) && salidas == 1 && dentro >= es.SalirMin && dentro <= es.SalirMax;
+                        if (!bien) { ok = false; sb.Append(" MAL"); }
+                    }
+                    sb.Append("; ");
+                    busy = t + 1.0;
+                }
+                double cad = enMenu ? (maq.Confirmando ? 0.25 : 0.5) : (maq.Confirmando ? 0.25 : 1.0);
+                double sig = Math.Max(t + 0.03 + ms / 1000.0, t + cad);
+                if (sig < busy) sig = busy;
+                t = sig;
+            }
+            if (es.TramoSalida >= 0 && salidas == 0) { ok = false; sb.Append("sin salir al juego MAL; "); }
+            ev = sb.Length == 0 ? "ningun cambio" : sb.ToString();
+            return ok;
         }
 
         static List<Img> Get(Dictionary<string, List<Img>> d, string k) { List<Img> l; return d.TryGetValue(k, out l) ? l : new List<Img>(); }
