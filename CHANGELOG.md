@@ -5,6 +5,17 @@ publicada es una etiqueta `vX.Y.Z` de git; GitHub Actions monta su zip y copia a
 
 ## [Sin publicar]
 
+## [1.2.09] - 2026-11-21
+
+### Fixed / Arreglado
+- **DLSS FG with DLSS 5 still not starting ("Frame generation did not start") with your own dlssg_sm86**: Magpie 0.6.12 checks
+  every file of `runtimes\dlssg_sm86` against its `build-manifest.json` (SHA-256) and only accepts dlssg_for_sm86 **v0.4.0**. A
+  different version placed next to the DLSS 5 DLL was copied as it was, so Magpie refused it and never scaled. The app now checks
+  the version: another one is not copied (and an existing wrong copy in `extras\` or `magpie\` is removed), and the official v0.4.0
+  is used instead (from your PC or downloaded from its release, as in 1.2.07). Nothing to do: open the new version and it fixes itself.
+  *DLSS FG con DLSS 5 no arrancaba con un dlssg_sm86 de otra versión: Magpie solo valida la 0.4.0. Ahora la app comprueba la versión,
+  quita la que no vale y pone la oficial sola.*
+
 ## [1.2.08] - 2026-11-21
 
 ### Fixed / Arreglado

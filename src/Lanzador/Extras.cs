@@ -46,7 +46,8 @@ namespace ConsoleEnhancer
         public static string Dir { get { return Path.Combine(Paths.AppDir, "extras"); } }
         public static string Dll { get { return Path.Combine(Dir, Integrado.Dlss5Dll); } }
         public static string Sm86 { get { return Path.Combine(Dir, @"runtimes\dlssg_sm86"); } }
-        static string Sm86Viejo { get { return Path.Combine(Dir, "dlssg_sm86"); } }
+        public static string Sm86Viejo { get { return Path.Combine(Dir, "dlssg_sm86"); } }
+        public static string Sm86Puesto { get { return Directory.Exists(Sm86) ? Sm86 : Sm86Viejo; } }
         public static string PrismaNr { get { return Path.Combine(Paths.AppDir, @"engine\PrismaNr.dll"); } }
         public static bool HayDlss5 { get { return File.Exists(Dll); } }
         public static bool HaySm86 { get { return Directory.Exists(Sm86) || Directory.Exists(Sm86Viejo); } }
@@ -186,6 +187,9 @@ namespace ConsoleEnhancer
                 string m = MirarDll(d);
                 if (m != null) { Log.Write("dlssg_sm86 junto a la DLL no vale (" + Path.GetFileName(d) + ": " + m + "): no se copia"); return; }
             }
+            // (1.2.08) otra version de dlssg_for_sm86: Magpie no la valida (DLSS FG no arranca) -> no se copia; la app pone la oficial
+            string otra = Componentes.Sm86Distinto(de);
+            if (otra != null) { Log.Write("dlssg_sm86 junto a la DLL (" + de + ") no es la version que espera Magpie (" + otra + "): no se copia; la app usa la oficial"); return; }
             try
             {
                 if (Path.GetFullPath(de).TrimEnd('\\').Equals(Path.GetFullPath(Sm86).TrimEnd('\\'), StringComparison.OrdinalIgnoreCase)) return;

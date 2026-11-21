@@ -190,8 +190,9 @@ namespace ConsoleEnhancer
                 string ex = Path.Combine(Paths.AppDir, @"extras\runtimes\dlssg_sm86");
                 if (!Directory.Exists(ex)) ex = Path.Combine(Paths.AppDir, @"extras\dlssg_sm86");
                 string dst = Path.Combine(Paths.MagpieDir, @"runtimes\dlssg_sm86"), marca = dst + ".de_extras";
-                // (1.2.02: tambien si una copia anterior quedo a medias, sin version.dll)
-                if (Directory.Exists(ex) && Directory.Exists(Paths.MagpieDir) && !File.Exists(Path.Combine(dst, "version.dll")))
+                // (1.2.02: tambien si una copia anterior quedo a medias, sin version.dll). (1.2.08) Solo si es la version que valida Magpie
+                // (si no, DLSS FG no arranca: Componentes.AsegurarSm86 la quita y pone la oficial)
+                if (Directory.Exists(ex) && Directory.Exists(Paths.MagpieDir) && !File.Exists(Path.Combine(dst, "version.dll")) && Componentes.Sm86Distinto(ex) == null)
                 {
                     int n = CopiarCarpeta(ex, dst);
                     File.WriteAllText(marca, ex);

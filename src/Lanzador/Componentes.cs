@@ -320,8 +320,13 @@ namespace ConsoleEnhancer
                 if (Ce.NoNvidia || !Extras.HayDlss5 || sm86Intentado) return;
                 // (puesto a mano o de una version anterior sin los .ini de Magpie: se ponen)
                 string mag = Path.Combine(Paths.MagpieDir, @"runtimes\dlssg_sm86");
-                if (File.Exists(Path.Combine(mag, "version.dll"))) { PonerIniMagpie(mag); return; }
-                if (Extras.HaySm86) return;   // (en extras\ y aun no en magpie\: lo copia Ce.PrepararExtras)
+                // (1.2.08) otra version de dlssg_for_sm86 (puesta a mano): Magpie no la valida -> fuera, y la oficial
+                string malMag = Directory.Exists(mag) ? Sm86Distinto(mag) : null;
+                if (malMag != null) { if (!QuitarSm86Distinto(mag, malMag)) return; }
+                else if (File.Exists(Path.Combine(mag, "version.dll"))) { PonerIniMagpie(mag); return; }
+                string malEx = Extras.HaySm86 ? Sm86Distinto(Extras.Sm86Puesto) : null;
+                if (malEx != null) { if (!QuitarSm86Distinto(Extras.Sm86Puesto, malEx)) return; }
+                else if (Extras.HaySm86) { if (malMag != null) Ce.PrepararExtras(); return; }   // (en extras\ y aun no en magpie\: lo copia Ce.PrepararExtras)
                 if (Interlocked.Exchange(ref sm86Corriendo, 1) == 1) return;
             }
             catch { return; }
@@ -381,7 +386,98 @@ namespace ConsoleEnhancer
         {
             return Directory.Exists(d) && File.Exists(Path.Combine(d, "version.dll")) &&
                    File.Exists(Path.Combine(d, @"dlssg_sm86\runtime\nvngx_dlssg.dll")) && File.Exists(Path.Combine(d, @"dlssg_sm86\backend\sm86_backend.dll")) &&
-                   File.Exists(Path.Combine(d, @"dlssg_sm86\kernels\fg_kernels.dll"));
+                   File.Exists(Path.Combine(d, @"dlssg_sm86\kernels\fg_kernels.dll")) && Sm86Distinto(d) == null;
+        }
+
+        // (1.2.08, un usuario de Reddit con RTX 3060 Ti: "sigue sin funcionarle lo del fg") Magpie 0.6.12 comprueba runtimes\dlssg_sm86
+        // con su build-manifest.json (SHA-256 de cada fichero): con otra version de dlssg_for_sm86 (la suya traia 30 ficheros) sale
+        // "Frame generation did not start ... validation failed" y Magpie no escala. Lo que pide el manifiesto (sin los .ini, que pone
+        // PonerIniMagpie). Vacio = no hay manifiesto: no se comprueba
+        static Dictionary<string, string> sm86Esperado;
+        static Dictionary<string, string> Sm86Esperado()
+        {
+            Dictionary<string, string> r = sm86Esperado;
+            if (r != null) return r;
+            r = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            try
+            {
+                string mf = Path.Combine(Paths.MagpieDir, "build-manifest.json");
+                if (!File.Exists(mf)) return r;
+                JavaScriptSerializer js = new JavaScriptSerializer();
+                js.MaxJsonLength = int.MaxValue;
+                Dictionary<string, object> root = js.DeserializeObject(File.ReadAllText(mf, Encoding.UTF8)) as Dictionary<string, object>;
+                object fo;
+                if (root == null || !root.TryGetValue("files", out fo) || !(fo is object[])) return r;
+                const string pre = "runtimes/dlssg_sm86/";
+                foreach (object o in (object[])fo)
+                {
+                    Dictionary<string, object> e = o as Dictionary<string, object>;
+                    if (e == null || !(e.ContainsKey("path") && e["path"] is string) || !e.ContainsKey("sha256") || !(e["sha256"] is string)) continue;
+                    string p = (string)e["path"];
+                    if (!p.StartsWith(pre, StringComparison.OrdinalIgnoreCase) || p.EndsWith(".ini", StringComparison.OrdinalIgnoreCase)) continue;
+                    r[p.Substring(pre.Length).Replace('/', '\\')] = (string)e["sha256"];
+                }
+                if (r.Count > 0) sm86Esperado = r;
+            }
+            catch (Exception ex) { Log.Write("dlssg_sm86: no se pudo leer el build-manifest.json de Magpie (" + ex.Message + ")"); }
+            return r;
+        }
+
+        // null = es la version que espera este Magpie (o no se puede saber); si no, que fichero no cuadra
+        public static string Sm86Distinto(string d)
+        {
+            Dictionary<string, string> esp = Sm86Esperado();
+            if (esp.Count == 0 || !Directory.Exists(d)) return null;
+            // (unos 30 MB de SHA-256: una vez por carpeta mientras no cambien sus ficheros)
+            string firma = "";
+            foreach (string k in esp.Keys)
+            {
+                FileInfo fi = new FileInfo(Path.Combine(d, k));
+                firma += fi.Exists ? fi.Length + ":" + fi.LastWriteTimeUtc.Ticks + ";" : "-;";
+            }
+            string clave = Path.GetFullPath(d).TrimEnd('\\').ToLowerInvariant() + "|" + firma;
+            lock (sm86Visto) { string r; if (sm86Visto.TryGetValue(clave, out r)) return r; }
+            string res = Sm86DistintoAhora(d, esp);
+            lock (sm86Visto) sm86Visto[clave] = res;
+            return res;
+        }
+        static readonly Dictionary<string, string> sm86Visto = new Dictionary<string, string>();
+
+        static string Sm86DistintoAhora(string d, Dictionary<string, string> esp)
+        {
+            foreach (KeyValuePair<string, string> kv in esp)
+            {
+                string f = Path.Combine(d, kv.Key);
+                if (!File.Exists(f)) return kv.Key + " falta";
+                try
+                {
+                    using (FileStream s = File.OpenRead(f))
+                    using (SHA256 h = SHA256.Create())
+                        if (!BitConverter.ToString(h.ComputeHash(s)).Replace("-", "").Equals(kv.Value, StringComparison.OrdinalIgnoreCase))
+                            return kv.Key + " es de otra version";
+                }
+                catch (Exception ex) { return kv.Key + ": " + ex.Message; }
+            }
+            return null;
+        }
+
+        // Fuera una copia que no es la que espera Magpie (y su marca .de_extras); false = no se pudo (Magpie abierto)
+        static bool QuitarSm86Distinto(string d, string por)
+        {
+            try
+            {
+                if (Directory.Exists(d)) Directory.Delete(d, true);
+                if (File.Exists(d.TrimEnd('\\') + ".de_extras")) File.Delete(d.TrimEnd('\\') + ".de_extras");
+                Log.Write("dlssg_sm86: " + d + " no es la version que espera este Magpie (" + por + "): quitado; se usa la oficial " + Sm86VersionOficial());
+                return true;
+            }
+            catch (Exception ex) { Log.Write("dlssg_sm86: " + d + " no es la version que espera Magpie (" + por + ") y no se pudo quitar: " + ex.Message); return false; }
+        }
+
+        static string Sm86VersionOficial()
+        {
+            try { foreach (Componente x in Leer(Tabla)) if (x.Nombre == "dlssg_sm86") return x.Version; } catch { }
+            return "";
         }
 
         static string Sm86EnElPc()
