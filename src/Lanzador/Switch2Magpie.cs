@@ -12537,9 +12537,10 @@ namespace ConsoleEnhancer
         {
             List<string> a = new List<string>();
             a.Add("av://dshow:audio=" + (cfg.AudioDevice.Length > 0 ? cfg.AudioDevice : cfg.Device)); // (ConsoleEnhancer: audio_dispositivo)
-            // Trozos de 20 ms de la capturadora (por defecto ~500 ms)
+            // Trozos de 20 ms de la capturadora (por defecto ~500 ms) (21-11, 1.2.1: audio_bloque_ms, de serie 20; src\Lanzador\Latencia.cs)
             a.Add("--demuxer-lavf-o=" + (cfg.AudioPins ? "audio_pin_name=" + pin.ToString(CultureInfo.InvariantCulture) + "," : "") + // (ConsoleEnhancer: audio_pines)
-                  "sample_rate=48000,sample_size=16,channels=" + (surround ? "8" : "2") + ",audio_buffer_size=20");
+                  "sample_rate=48000,sample_size=16,channels=" + (surround ? "8" : "2") + ",audio_buffer_size=" + cfg.AudioBlockMs.ToString(CultureInfo.InvariantCulture));
+            AudioQueueLog.Block = cfg.AudioBlockMs; AudioQueueLog.High = cfg.AudioQueueHighS; AudioQueueLog.Low = cfg.AudioQueueLowS;
             if (surround) a.Add(AudioDownmix);
             a.Add("--profile=low-latency");
             a.Add("--no-video");
@@ -12611,12 +12612,14 @@ namespace ConsoleEnhancer
                     // que no se nota. Con trozos de 20 ms lo normal es 0-40 ms en cola
                     if (q >= 0)
                     {
-                        bool want = fast ? q >= 0.03 : q > 0.07;
+                        // (21-11, 1.2.1: los umbrales con audio_cola_alta_ms / audio_cola_baja_ms, de serie 70 / 30; y la cola al log cada 5 min)
+                        bool want = fast ? q >= cfg.AudioQueueLowS : q > cfg.AudioQueueHighS;
                         if (want != fast)
                         {
                             fast = want;
                             w.WriteLine("{\"command\":[\"set_property\",\"speed\"," + (fast ? "1.004" : "1") + "]}");
                         }
+                        if (audioHeard) AudioQueueLog.Add(q, fast);
                     }
 
                     // Pin sin confirmar: en cuanto se oye se guarda. Si con la consola a la vista no se oye
@@ -14210,6 +14213,9 @@ namespace ConsoleEnhancer
             a.Add("--priority=high");
             a.Add("--framedrop=no");
             a.Add("--cache=no");
+            // 21-11 (1.2.1, mpv_cola_ms=N; de serie 0 = el de mpv): lo que mpv puede leer por delante de la imagen (src\Lanzador\Latencia.cs).
+            // No con el sonido en este mismo mpv (capture_audio): con la imagen atascada dejaria de leer tambien el sonido
+            if (cfg.MpvQueueMs > 0 && !cfg.CaptureAudio) a.Add("--demuxer-readahead-secs=" + (cfg.MpvQueueMs / 1000.0).ToString("0.###", CultureInfo.InvariantCulture));
             a.Add("--gpu-api=d3d11");
             a.Add("--vo=gpu-next");
             a.Add("--no-border");
