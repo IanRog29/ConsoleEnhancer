@@ -47,14 +47,11 @@ namespace ConsoleEnhancer
         static System.Windows.Forms.Timer arriba;
         static volatile bool puesta, pausada, cursorOculto;
         static volatile int pantalla = -1;                  // GUID_CONSOLE_DISPLAY_STATE: 0 apagada, 1 encendida, 2 atenuada (-1 sin saber)
-        static DateTime pantallaDesde = DateTime.UtcNow;
-        static string porque = "";
         public static volatile Action<int> AlCambiarPantalla;  // (la espera: la pantalla encendida sin que nadie toque nada -> otra vez apagada)
 
         public static bool Puesta { get { return puesta; } }
         public static int Pantalla { get { return pantalla; } }
         public static volatile int Hilo;   // (el id de su hilo de Windows, para medir lo que despierta en espera)
-        public static IntPtr Handle { get { Cubre r = raiz; return r != null && r.IsHandleCreated ? r.Handle : IntPtr.Zero; } }
 
         // El hilo y la ventana (oculta) de antemano: en el apagado Poner es inmediato (nada que crear ni compilar)
         public static void Preparar()
@@ -116,7 +113,6 @@ namespace ConsoleEnhancer
             }
             catch (Exception ex) { Log.Error("Cubierta negra: poniendola", ex); return false; }
             bool ok = hecho.WaitOne(1000);
-            porque = por;
             if (!ya) Log.Write("Cubierta negra puesta (" + por + "): " + (otras.Count + 1) + " pantalla" + (otras.Count > 0 ? "s" : "") + ", sin cursor, en " +
                                sw.ElapsedMilliseconds + " ms" + (ok ? "" : " (sin confirmar)") + (activar ? "; delante: " + delante : ""));
             return ok;
@@ -271,7 +267,6 @@ namespace ConsoleEnhancer
                     if (v == pantalla) return;
                     bool primera = pantalla < 0;
                     pantalla = v;
-                    pantallaDesde = DateTime.UtcNow;
                     if (!primera && puesta) Log.Write("Cubierta negra: pantalla " + (v == 0 ? "apagada" : v == 1 ? "encendida" : "atenuada"));
                     Reloj();
                     if (v != 0) Subir(false);   // (encendida: lo primero, encima otra vez y la barra oculta)
