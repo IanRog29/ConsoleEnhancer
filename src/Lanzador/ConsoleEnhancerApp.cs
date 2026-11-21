@@ -34,6 +34,7 @@ namespace ConsoleEnhancer
         // Claves de ConsoleEnhancer (Config.Load las prueba antes que las de siempre)
         public bool CeParse(string key, string val)
         {
+            if (CeParseSuspension(key, val)) return true; // (apagar_pc_modo: src\Suspension.cs)
             if (CeParseInicio(key, val)) return true; // (iniciar_con_windows, apagar_pc_aviso_s: src\InicioWindows.cs)
             if (BotonesCe.Parse(key, val)) return true; // (20-11: mando_botones, src\BotonesCe.cs)
             if (CeParseImagen(key, val)) return true;   // (20-11: hdr, rtx_hdr*, vrr, nvidia_latencia..., src\ImagenCe.cs)
@@ -348,7 +349,7 @@ namespace ConsoleEnhancer
         // inicio / apagar: lo elegido en el ultimo paso del asistente (iniciar_con_windows, apagar_pc); null = lo que hubiera en el ini
         public static void EscribirIni(PlanImagen plan, Hardware hw, string consola, string idioma, AudioEntrada audioElegido, bool? inicio = null, bool? apagar = null, bool? escritorio = null, OpcionesImagen imagen = null)
         {
-            string iniAntes = IniLeer("iniciar_con_windows"), apagarAntes = IniLeer("apagar_pc"), avisoAntes = IniLeer("apagar_pc_aviso_s"), escAntes = IniLeer("escritorio_negro");
+            string iniAntes = IniLeer("iniciar_con_windows"), apagarAntes = IniLeer("apagar_pc"), avisoAntes = IniLeer("apagar_pc_aviso_s"), modoAntes = IniLeer("apagar_pc_modo"), escAntes = IniLeer("escritorio_negro");
             StringBuilder sb = new StringBuilder();
             sb.AppendLine("# ConsoleEnhancer - ajustes (clave=valor; '#' = comentario). Lo de abajo del todo lo escribe el asistente segun tu hardware;");
             sb.AppendLine("# puedes cambiar cualquier clave (la ultima linea de cada clave es la que vale). Asistente otra vez: menu de la bandeja.");
@@ -367,6 +368,7 @@ namespace ConsoleEnhancer
             sb.AppendLine("iniciar_con_windows=" + (inicio.HasValue ? (inicio.Value ? "1" : "0") : iniAntes == "1" ? "1" : "0"));
             sb.AppendLine("apagar_pc=" + (apagar.HasValue ? (apagar.Value ? "1" : "0") : apagarAntes == "1" ? "1" : "0"));
             if (!string.IsNullOrEmpty(avisoAntes)) sb.AppendLine("apagar_pc_aviso_s=" + avisoAntes);
+            if (!string.IsNullOrEmpty(modoAntes)) sb.AppendLine("apagar_pc_modo=" + modoAntes);
             sb.AppendLine("escritorio_negro=" + (escritorio.HasValue ? (escritorio.Value ? "1" : "0") : escAntes == "1" ? "1" : "0"));
             Directory.CreateDirectory(Path.GetDirectoryName(Paths.IniFile));
             if (File.Exists(Paths.IniFile))

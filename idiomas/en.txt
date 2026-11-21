@@ -128,3 +128,14 @@ DLSS 5 con 	DLSS 5 with
 botón de captura	capture button
 solo caben sin generación	only fit without frame generation
 La imagen se ha parado	The picture has stopped
+# 1.0.14 (src\Lanzador\Suspension.cs): suspender en vez de apagar
+Suspender en vez de apagar (un mando o una tecla lo encienden)	Sleep instead of shutting down (a controller or a key wakes it)
+Suspensión del PC cancelada	PC sleep cancelled
+El PC se suspenderá en unos segundos (un mando o una tecla lo vuelven a encender)	The PC will go to sleep in a few seconds (a controller or a key wakes it up)
+Al apagar la consola, ConsoleEnhancer se cerrará y suspenderá el PC; un mando o una tecla lo encienden y vuelve a abrirse.	When the console is turned off, ConsoleEnhancer will close and put the PC to sleep; a controller or a key wakes it and the app opens again.
+Al apagar la consola, el PC	When the console is turned off, the PC
+En espera (la consola, un mando o una tecla lo encienden)	Goes to standby (the console, a controller or a key wakes it)
+Suspendido (solo un teclado lo enciende; gasta casi nada)	Sleeps (only a keyboard wakes it; uses almost no power)
+Apagado	Shuts down
+El PC se quedará en espera en unos segundos (la consola, un mando o una tecla lo vuelven a encender)	The PC will go to standby in a few seconds (the console, a controller or a key wakes it up)
+Al apagar la consola, ConsoleEnhancer se cerrará y dejará el PC en espera; al encender la consola, un mando o una tecla vuelve a abrirse.	When the console is turned off, ConsoleEnhancer will close and put the PC on standby; turning on the console or a controller, or pressing a key, opens it again.

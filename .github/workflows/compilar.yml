@@ -109,11 +109,11 @@ jobs:
           }
           if ($notas.Count -eq 0) { $notas.Add("ConsoleEnhancer $tag") }
           $notas.Add('')
-          $notas.Add('**Descarga / Download:** `ConsoleEnhancer-' + $tag + '.zip` (abajo / below). Descomprime y abre `ConsoleEnhancer.exe`: la primera vez baja mpv y Magpie de sus paginas oficiales y luego sale el asistente. / Unzip and open `ConsoleEnhancer.exe`: on first start it downloads mpv and Magpie from their official pages, then the wizard runs.')
+          $notas.Add('**Download / Descarga:** `ConsoleEnhancer-' + $tag + '.zip` (below / abajo). Unzip and open `ConsoleEnhancer.exe`: on first start it downloads mpv and Magpie from their official pages, then the wizard runs. / Descomprime y abre `ConsoleEnhancer.exe`: la primera vez baja mpv y Magpie de sus paginas oficiales y luego sale el asistente.')
           $notas.Add('')
           $notas.Add('SHA-256: `' + ((Get-Content "dist/ConsoleEnhancer-$tag.zip.sha256" -Raw).Split(' ')[0]) + '`')
           $notas.Add('')
-          $notas.Add('Licencia GPL-3.0 (+ LICENSE-EXCEPTION.txt). Incluye NVIDIA Streamline / DLSS / Reflex sin cambios (licencias\). No incluye "DLSS 5" ni nada no oficial.')
+          $notas.Add('License GPL-3.0 (+ LICENSE-EXCEPTION.txt). Includes unmodified NVIDIA Streamline / DLSS / Reflex (licencias\). Does not include "DLSS 5" or anything unofficial. / Licencia GPL-3.0 (+ LICENSE-EXCEPTION.txt). Incluye NVIDIA Streamline / DLSS / Reflex sin cambios (licencias\). No incluye "DLSS 5" ni nada no oficial.')
           Set-Content -LiteralPath notas.md -Value $notas -Encoding UTF8
 
       - name: Crear la Release

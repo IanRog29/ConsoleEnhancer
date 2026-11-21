@@ -76,7 +76,7 @@ Texto "$Destino\portable.txt" @(
     'ConsoleEnhancer portable: con este fichero los datos (ajustes, log, juegos, calibracion) van en la carpeta datos\ de aqui al lado.',
     'Borralo para guardarlos en %LOCALAPPDATA%\ConsoleEnhancer (p. ej. si la carpeta de la app no se puede escribir).',
     'ConsoleEnhancer portable: with this file the data (settings, log, games, calibration) is kept in the datos\ folder next to it.')
-foreach ($f in @('ce_power.lua', 'ce_diag.lua', 's2_aa.glsl', 's2_aa_fuerte.glsl', 'componentes.json', 'inicio_y_apagado.ps1')) { Poner "$Raiz\scripts\$f" "$Destino\scripts\$f" }
+foreach ($f in @('ce_power.lua', 'ce_diag.lua', 'ce_espera.lua', 's2_aa.glsl', 's2_aa_fuerte.glsl', 'componentes.json', 'inicio_y_apagado.ps1')) { Poner "$Raiz\scripts\$f" "$Destino\scripts\$f" }
 Poner "$Raiz\recursos\base.ini" "$Destino\recursos\base.ini"
 # (1.0.13) cambiar el inicio con Windows y el apagado del PC sin abrir la app
 Poner "$Raiz\recursos\Inicio y apagado.bat" "$Destino\Inicio y apagado.bat"

@@ -318,9 +318,25 @@ namespace ConsoleEnhancer
             CheckBox ce = Casilla(Tx.T("Escritorio de Windows en negro mientras está abierta (el normal vuelve al cerrarla)",
                                        "Black Windows desktop while it is open (the normal one comes back when you close it)"), 320, escritorioNegro);
             ce.CheckedChanged += delegate { escritorioNegro = ce.Checked; };
-            CheckBox ca = Casilla(Tx.T("Apagar el PC al apagar la consola (antes, un aviso de " + AvisoS + " s que se cancela con el mando, una tecla o el ratón)",
-                                       "Shut down the PC when the console is turned off (after a " + AvisoS + " s notice you can cancel with the controller, a key or the mouse)"), 354, apagarPc);
-            ca.CheckedChanged += delegate { apagarPc = ca.Checked; };
+            // 1.0.14: que hace el PC al apagar la consola: nada, la espera (de serie), suspender o apagar; con lo que hace y gasta cada uno
+            Label la = new Label(); la.Text = Tx.T("Al apagar la consola:", "When the console is turned off:"); la.ForeColor = Texto; la.BackColor = Panel_;
+            la.AutoSize = false; la.TextAlign = ContentAlignment.MiddleLeft; la.SetBounds(S(16), S(354), S(190), S(30)); la.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
+            cuerpo.Controls.Add(la);
+            ComboBox cm = new ComboBox(); cm.DropDownStyle = ComboBoxStyle.DropDownList; cm.FlatStyle = FlatStyle.Flat; cm.BackColor = Fondo; cm.ForeColor = Texto;
+            cm.SetBounds(S(210), S(354), S(420), S(30)); cm.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
+            string[] modos = { "nada", "espera", "suspender", "apagar" };
+            foreach (string m in modos) cm.Items.Add(CeEspera.Nombre(m));
+            cm.SelectedIndex = !apagarPc ? 0 : Array.IndexOf(modos, modoApagado) > 0 ? Array.IndexOf(modos, modoApagado) : 1;
+            cm.SelectedIndexChanged += delegate
+            {
+                apagarPc = cm.SelectedIndex > 0;
+                if (apagarPc) modoApagado = modos[cm.SelectedIndex];
+            };
+            cuerpo.Controls.Add(cm);
+            Button cq = new Button(); cq.Text = Tx.T("¿Cómo funciona y cuánto gasta?", "How it works / power use"); cq.SetBounds(S(640), S(352), S(260), S(34));
+            cq.FlatStyle = FlatStyle.Flat; cq.FlatAppearance.BorderColor = Acento; cq.BackColor = Fondo; cq.ForeColor = Texto; cq.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
+            cq.Click += delegate { MessageBox.Show(this, CeEspera.Explicacion(), "ConsoleEnhancer", MessageBoxButtons.OK, MessageBoxIcon.Information); };
+            cuerpo.Controls.Add(cq);
             // (20-11, PUBLICAR) DLSS 5 con el archivo del usuario (solo GeForce RTX; Extras.cs) y, una vez y sin insistir, el enlace de apoyo
             GpuInfo g = p.Gpu;
             int xLink = 16;
@@ -371,6 +387,7 @@ namespace ConsoleEnhancer
 
         // (19-11) las opciones del final: de partida, lo que ya hay (la tarea de inicio de esta copia, apagar_pc y escritorio_negro del ini)
         bool inicioWin, apagarPc, escritorioNegro, opcionesLeidas;
+        string modoApagado = "espera";   // (1.0.14: apagar_pc_modo)
         static int AvisoS { get { int s; string v = Ce.IniLeer("apagar_pc_aviso_s"); return v != null && int.TryParse(v, out s) ? Math.Max(0, s) : 15; } }
 
         void LeerOpciones()
@@ -378,6 +395,7 @@ namespace ConsoleEnhancer
             if (opcionesLeidas) return;
             opcionesLeidas = true;
             apagarPc = Ce.IniLeer("apagar_pc") == "1";
+            modoApagado = CeSuspension.Normaliza(Ce.IniLeer("apagar_pc_modo"));
             escritorioNegro = Ce.IniLeer("escritorio_negro") == "1";
             if (soloVer) return;
             string exe;
@@ -412,6 +430,7 @@ namespace ConsoleEnhancer
                 PlanImagen p = plan ?? Plan();
                 LeerOpciones();
                 Ce.EscribirIni(p, hw, consola, idioma, sinAudio ? null : p.Audio, inicioWin, apagarPc, escritorioNegro, Imagen());
+                if (apagarPc) Ce.IniPoner("apagar_pc_modo", modoApagado);
                 if (sinAudio) Log.Write("Asistente: sin sonido de la consola");
                 GuardarImagen();   // (20-11: RTX HDR: el permiso de administrador de una vez, AsistenteImagen.cs)
                 if (motorDlss5 && Extras.HayDlss5 && Extras.MotorPuede) { Ce.IniPoner("motor_dlss5", "1"); Log.Write("Asistente: DLSS 5 en el motor propio (motor_dlss5=1)"); }
@@ -427,7 +446,7 @@ namespace ConsoleEnhancer
                         Log.Write("Asistente: iniciar con Windows " + (inicioWin ? "si" : "no") + ": " + det);
                         if (!ok) MessageBox.Show(this, Tx.T("No se pudo cambiar el inicio con Windows: ", "Could not change the start with Windows: ") + det, "ConsoleEnhancer", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     }
-                    Log.Write("Asistente: apagar el PC al apagar la consola " + (apagarPc ? "si" : "no"));
+                    Log.Write("Asistente: al apagar la consola, " + (apagarPc ? "apagar_pc=1, apagar_pc_modo=" + modoApagado : "nada (apagar_pc=0)"));
                 }
                 catch (Exception ex) { Log.Error("Asistente: iniciar con Windows", ex); }
                 guardado = true;

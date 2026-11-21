@@ -6591,6 +6591,7 @@ namespace ConsoleEnhancer
             menu.Items.Add(Idioma.T("Abrir config"), null, delegate { OpenConfig(); });
             menu.Items.Add(Idioma.T("Asistente de configuración"), null, delegate { AbrirAsistente(); }); // (ConsoleEnhancer: Asistente.cs)
             MenuCe(menu); // (ConsoleEnhancer: iniciar con Windows y apagar el PC, src\InicioWindows.cs)
+            VolverAEsperaSinConsola(); // (1.0.14: abierta desde la espera y sin consola -> otra vez en espera, src\Lanzador\Espera.cs)
             MenuAcercaDe(menu); // (ConsoleEnhancer, GITHUB: licencias y avisos legales, src\Lanzador\Componentes.cs)
             MenuExtras(menu); // (ConsoleEnhancer, PUBLICAR: componentes, anadir / quitar DLSS 5 y apoyar el proyecto, src\Lanzador\Extras.cs)
             menu.Items.Add(new ToolStripSeparator());
@@ -14195,6 +14196,7 @@ namespace ConsoleEnhancer
                 catch { }
                 Log.Write("===== Inicio ConsoleEnhancer =====");
                 CeInicio.Sincronizar(cfg); // (ConsoleEnhancer: iniciar_con_windows, src\InicioWindows.cs)
+                CeSuspension.AlAbrir(cfg); // (1.0.14: que los mandos y teclados nuevos despierten el PC, src\Suspension.cs)
                 CeImagen.AlAbrir(cfg); // (ConsoleEnhancer: escalas aprendidas, VRR, HDR / RTX HDR / Auto HDR; src\ImagenCe.cs)
                 if (!string.Equals(Paths.IniFile, Paths.Datos + @"\consoleenhancer.ini", StringComparison.OrdinalIgnoreCase)) Log.Write("Ini de prueba: " + Paths.IniFile);
                 Escritorio.AlAbrir(cfg.BlackDesktop); // 19-11 (ESCRITORIO): el negro mientras esta abierta (en otro hilo)

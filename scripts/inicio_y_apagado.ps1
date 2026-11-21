@@ -3,6 +3,7 @@
 #   iniciar_con_windows  (la tarea "ConsoleEnhancer - inicio": la pone o la quita ConsoleEnhancer.exe --iniciar-con-windows=1|0)
 #   apagar_pc            apagar el PC al apagar la consola
 #   apagar_pc_aviso_s    segundos del aviso antes de apagar (0 = sin aviso)
+#   apagar_pc_modo       que hace el PC: espera (de serie) | suspender | apagar (1.0.14)
 #   escritorio_negro     escritorio de Windows negro con la app abierta
 # Escribe en datos\consoleenhancer.ini (con portable.txt) o en %LOCALAPPDATA%\ConsoleEnhancer\consoleenhancer.ini: cambia la ultima
 # linea de cada clave (la que vale) o la pone al final, como la app. Con la app abierta, vale al volver a abrirla.
@@ -60,6 +61,7 @@ while ($true) {
     $apagar = Leer 'apagar_pc'
     $aviso = Leer 'apagar_pc_aviso_s'; if (-not $aviso) { $aviso = '15' }
     $negro = Leer 'escritorio_negro'
+    $modo = Leer 'apagar_pc_modo'; if (-not $modo) { $modo = 'espera' }
     Write-Host ''
     Write-Host '  ConsoleEnhancer - inicio con Windows y apagado' -ForegroundColor Cyan
     Write-Host "  Ajustes: $ini" -ForegroundColor DarkGray
@@ -70,6 +72,8 @@ while ($true) {
     Write-Host ("  3. Aviso antes de apagar el PC ..................... " + $(if ($aviso -eq '0') { 'sin aviso' } else { "$aviso s" }))
     Write-Host ("  4. Escritorio negro con la app abierta ............. " + (SiNo $negro))
     Write-Host  '  5. Probar el aviso de apagado (no apaga nada)'
+    Write-Host ("  6. Al apagar la consola, el PC queda ............... " + $(switch ($modo) { 'suspender' { 'suspendido (solo un teclado lo enciende)' } 'apagar' { 'apagado' } default { 'en espera (la consola, un mando o una tecla lo encienden)' } }))
+    Write-Host  '  7. Probar la espera (apaga la pantalla; enciende la consola o un mando, o pulsa una tecla)'
     Write-Host  '  0. Salir'
     Write-Host ''
     $o = Read-Host '  Elige'
@@ -95,6 +99,8 @@ while ($true) {
             Write-Host $(if ($p.ExitCode -eq 0) { '  Llego a 0 (de verdad se habria apagado el PC).' } else { '  Cancelado.' })
             Read-Host '  Enter para seguir' | Out-Null
         }
+        '6' { Poner 'apagar_pc_modo' $(switch ($modo) { 'espera' { 'suspender' } 'suspender' { 'apagar' } default { 'espera' } }) }
+        '7' { Start-Process -FilePath $exe -ArgumentList '--prueba-espera' | Out-Null; exit 0 }
         '0' { exit 0 }
         '' { exit 0 }
     }

@@ -5,6 +5,19 @@ publicada es una etiqueta `vX.Y.Z` de git; GitHub Actions monta su zip y copia a
 
 ## [Sin publicar]
 
+## [1.1.0] - 2026-11-21
+
+### Added / Añadido
+- **The PC behaves like a console in standby** when the console is turned off (with "Shut down the PC when the console is turned
+  off"): with no countdown, the screen goes off, Windows switches to its Power saver plan and almost nothing runs (a tiny watcher,
+  under 1% CPU; the graphics card idles at ~12 W on an RTX 4060 Ti); turning the console on (seen by the capture card), turning on a controller
+  or pressing a key brings the screen back and reopens ConsoleEnhancer. `apagar_pc_modo=espera` (default) | `suspender` (real
+  sleep, only keyboards/controllers Windows allows can wake it) | `apagar` (as before). Tray: "When the console is turned off, the
+  PC" (with "How does each one work and how much power?") and the last step of the setup wizard. If it wakes up and the console is not
+  turned on within 90 s (`espera_volver_sin_consola_s`), it goes back to standby. `Inicio y apagado.bat` options 6 and 7 (test it).
+  *El PC hace como una consola en reposo al apagar la consola: pantalla apagada y casi sin gasto; al encender la consola, un mando o
+  pulsar una tecla vuelve la pantalla y se abre ConsoleEnhancer. `apagar_pc_modo=espera` (de serie) | `suspender` | `apagar`.*
+
 ## [1.0.13] - 2026-11-21
 
 ### Arreglado

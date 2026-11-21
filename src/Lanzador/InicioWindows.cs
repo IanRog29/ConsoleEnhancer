@@ -59,10 +59,11 @@ namespace ConsoleEnhancer
         // 19-11 (Prisma): consola apagada -> PC apagado. En ConsoleEnhancer, antes, el aviso con la cuenta atras (apagar_pc_aviso_s)
         static void ApagarPc()
         {
-            int s = CeInicio.AvisoApagadoS;
+            // 1.0.14: en modo espera sin cuenta atras (como una consola: se apaga y ya); la consola, un mando o una tecla lo devuelven
+            int s = CeSuspension.Modo == "espera" ? 0 : CeInicio.AvisoApagadoS;
             if (s > 0)
             {
-                Log.Write("Consola apagada: aviso de " + s + " s antes de apagar el PC (apagar_pc=1)");
+                Log.Write("Consola apagada: aviso de " + s + " s antes de " + (CeSuspension.Modo == "espera" ? "dejar en espera" : CeSuspension.Modo == "suspender" ? "suspender" : "apagar") + " el PC (apagar_pc=1)");
                 string porque;
                 if (!AvisoApagado.Mostrar(s, false, false, out porque))
                 {
@@ -71,11 +72,13 @@ namespace ConsoleEnhancer
                     return;
                 }
             }
+            // 1.0.14 (src\Suspension.cs): suspender y, al despertar con el mando o el teclado, volver a abrir la app; si no puede, apagar
+            if (CeSuspension.NoApaga && CeSuspension.Dormir()) return;
             CeInicio.ApagarPcYa(false);
         }
     }
 
-    static class CeInicio
+    static partial class CeInicio
     {
         public const string TaskName = "ConsoleEnhancer - inicio";
         const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
@@ -87,6 +90,7 @@ namespace ConsoleEnhancer
         // Lo que mira Program.Main al principio de cada argumento: int.MinValue = no es mio, seguir
         public static int Argumento(string arg, string[] args)
         {
+            { int su = CeSuspension.Argumento(arg); if (su != int.MinValue) return su; } // (1.0.14: src\Suspension.cs)
             if (arg == "--inicio") return Lanzar(args);
             if (arg.StartsWith("--iniciar-con-windows="))
             {
@@ -240,6 +244,8 @@ namespace ConsoleEnhancer
             catch { return false; }
         }
 
+        public static string ArgumentosInicio() { return Argumentos(); }
+
         // --inicio y, si la app se abrio con --datos=, el mismo (asi la tarea abre los mismos datos)
         static string Argumentos()
         {
@@ -368,6 +374,15 @@ namespace ConsoleEnhancer
         {
             reloj.Start();
             bool prueba = Array.IndexOf(args, "--inicio-prueba") >= 0;
+            // 1.0.14: al despertar de la suspension, la app que suspendio el PC aun tiene el mutex unos instantes: esperar a que lo suelte
+            if (Array.IndexOf(args, "--tras-suspension") >= 0)
+                for (int i = 0; i < 100; i++)
+                {
+                    Mutex w;
+                    if (!Mutex.TryOpenExisting("Local\\ConsoleEnhancer_SingleInstance", out w)) break;
+                    w.Dispose();
+                    Thread.Sleep(100);
+                }
             // Ya abierta (o arrancando): nada
             Mutex o;
             if (Mutex.TryOpenExisting("Local\\ConsoleEnhancer_SingleInstance", out o)) { o.Dispose(); return 0; }
@@ -387,7 +402,7 @@ namespace ConsoleEnhancer
             StringBuilder resto = new StringBuilder();
             foreach (string a in args)
             {
-                if (a == "--inicio" || a == "--inicio-prueba") continue;
+                if (a == "--inicio" || a == "--inicio-prueba" || a == "--tras-suspension") continue;
                 if (resto.Length > 0) resto.Append(' ');
                 resto.Append(a.IndexOf(' ') >= 0 ? "\"" + a + "\"" : a);
             }
@@ -722,10 +737,12 @@ namespace ConsoleEnhancer
             float u = r.Height / 1080f;
             float cx = r.X + r.Width / 2f, cy = r.Y + r.Height / 2f;
             int quedan = Math.Max(0, (int)Math.Ceiling(total - t));
-            string titulo = cancelado ? Idioma.T("Apagado del PC cancelado") : Idioma.T("La consola se ha apagado");
+            string modo = CeSuspension.Modo;
+            string titulo = cancelado ? Idioma.T(modo == "apagar" ? "Apagado del PC cancelado" : "Suspensión del PC cancelada") : Idioma.T("La consola se ha apagado");
             string grande = cancelado ? "" : quedan.ToString();
             string linea = cancelado ? Idioma.T("El PC sigue encendido. Puedes volver a abrir ConsoleEnhancer cuando quieras.")
-                                     : Idioma.T("El PC se apagará en unos segundos") + (simulado ? " (" + Idioma.T("prueba: no se apaga") + ")" : "");
+                                     : Idioma.T(modo == "espera" ? "El PC se quedará en espera en unos segundos (la consola, un mando o una tecla lo vuelven a encender)"
+                                                        : modo == "suspender" ? "El PC se suspenderá en unos segundos (un mando o una tecla lo vuelven a encender)" : "El PC se apagará en unos segundos") + (simulado ? " (" + Idioma.T("prueba: no se apaga") + ")" : "");
             string ayuda = cancelado ? "" : Idioma.T("Pulsa cualquier botón del mando o una tecla, o mueve el ratón, para cancelar");
             using (StringFormat c = new StringFormat())
             using (Font ft = PrismaUi.TitleFont(54 * u))
@@ -788,7 +805,7 @@ namespace ConsoleEnhancer
     // ------------------------------------------------------------------ menu de la bandeja
     partial class TrayApp
     {
-        ToolStripMenuItem ceInicioItem, ceApagarItem, ceEscritorioItem;
+        ToolStripMenuItem ceInicioItem, ceApagarItem, ceEscritorioItem, ceSuspenderItem;
 
         // (una linea en el constructor del menu, tras "Asistente de configuracion")
         void MenuCe(ContextMenuStrip menu)
@@ -799,6 +816,25 @@ namespace ConsoleEnhancer
             menu.Items.Add(ceInicioItem);
             menu.Items.Add(ceEscritorioItem);
             menu.Items.Add(ceApagarItem);
+            // 1.0.14: suspender en vez de apagar; un mando o un teclado lo encienden y vuelve la app (src\Suspension.cs)
+            ceSuspenderItem = new ToolStripMenuItem(Idioma.T("Al apagar la consola, el PC"));
+            ToolStripMenuItem mEsp = new ToolStripMenuItem(Idioma.T("En espera (la consola, un mando o una tecla lo encienden)"), null, delegate { CambiarModo("espera"); });
+            ToolStripMenuItem mSus = new ToolStripMenuItem(Idioma.T("Suspendido (solo un teclado lo enciende; gasta casi nada)"), null, delegate { CambiarModo("suspender"); });
+            ToolStripMenuItem mApa = new ToolStripMenuItem(Idioma.T("Apagado"), null, delegate { CambiarModo("apagar"); });
+            ToolStripMenuItem mQue = new ToolStripMenuItem(Deteccion.Tx.T("¿Cómo funciona cada uno y cuánto gasta?", "How does each one work and how much power?"), null, delegate
+            {
+                MessageBox.Show(CeEspera.Explicacion(), PrismaUi.AppName, MessageBoxButtons.OK, MessageBoxIcon.Information);
+            });
+            ceSuspenderItem.DropDownItems.Add(mEsp); ceSuspenderItem.DropDownItems.Add(mSus); ceSuspenderItem.DropDownItems.Add(mApa);
+            ceSuspenderItem.DropDownItems.Add(new ToolStripSeparator()); ceSuspenderItem.DropDownItems.Add(mQue);
+            menu.Items.Add(ceSuspenderItem);
+            MethodInvoker marcar = delegate
+            {
+                mEsp.Checked = cfg.ShutdownMode == "espera"; mSus.Checked = cfg.ShutdownMode == "suspender"; mApa.Checked = cfg.ShutdownMode == "apagar";
+                ceSuspenderItem.Enabled = cfg.ShutdownPc;
+            };
+            marcar();
+            menu.Opening += delegate { marcar(); };
             ceApagarItem.Checked = cfg.ShutdownPc;
             ceEscritorioItem.Checked = cfg.BlackDesktop;
             menu.Opening += delegate { ceApagarItem.Checked = cfg.ShutdownPc; ceEscritorioItem.Checked = cfg.BlackDesktop; MirarInicio(); };
@@ -858,7 +894,8 @@ namespace ConsoleEnhancer
             if (on)
             {
                 int s = cfg.ShutdownWarnSecs;
-                string txt = Idioma.T("Al apagar la consola, ConsoleEnhancer se cerrará y apagará el PC.") + "\n\n" +
+                string txt = Idioma.T(cfg.ShutdownMode == "espera" ? "Al apagar la consola, ConsoleEnhancer se cerrará y dejará el PC en espera; al encender la consola, un mando o una tecla vuelve a abrirse." :
+                                       cfg.ShutdownMode == "suspender" ? "Al apagar la consola, ConsoleEnhancer se cerrará y suspenderá el PC; un mando o una tecla lo encienden y vuelve a abrirse." : "Al apagar la consola, ConsoleEnhancer se cerrará y apagará el PC.") + "\n\n" +
                              (s > 0 ? string.Format(Idioma.T("Antes sale un aviso de {0} s: cualquier botón del mando, tecla o el ratón lo cancela."), s)
                                     : Idioma.T("Sin aviso (apagar_pc_aviso_s=0): se apaga en cuanto se cierra.")) + "\n" +
                              Idioma.T("Cerrar la app a mano (Salir, Alt+F4) no apaga el PC. Guarda lo que tengas abierto en el PC: el apagado cierra los programas.") + "\n\n" +
@@ -869,6 +906,42 @@ namespace ConsoleEnhancer
             ceApagarItem.Checked = on;
             Ce.IniPoner("apagar_pc", on ? "1" : "0");
             Log.Write("Apagar el PC al apagar la consola " + (on ? "activado" : "desactivado") + " desde la bandeja");
+            if (on && cfg.ShutdownMode == "suspender") ThreadPool.QueueUserWorkItem(delegate { CeSuspension.PedirArmar(false); });
+        }
+
+        // 1.0.14: abierta al salir de la espera (--desde-espera): si la consola no se ve en espera_volver_sin_consola_s, se cierra como
+        // con la consola apagada (el aviso que se cancela y otra vez la espera)
+        System.Threading.Timer esperaReloj;
+        void VolverAEsperaSinConsola()
+        {
+            if (!CeEspera.DesdeEspera || !cfg.ShutdownPc || cfg.ShutdownMode == "apagar" || CeEspera.VolverSinConsolaS <= 0) return;
+            int s = CeEspera.VolverSinConsolaS;
+            Log.Write("Abierta desde la espera: si en " + s + " s no se ve la consola, vuelve a la espera");
+            esperaReloj = new System.Threading.Timer(delegate
+            {
+                try
+                {
+                    if (consoleSeen || userExit || PowerOffClock != null) { esperaReloj.Dispose(); return; }
+                    if (mpv == null) return; // (aun abriendo la imagen: en 10 s otra vez)
+                    esperaReloj.Dispose();
+                    Log.Write("Abierta desde la espera y la consola sigue apagada tras " + s + " s: otra vez en espera");
+                    PowerOffNow("sin-consola-tras-espera", null);
+                }
+                catch (Exception ex) { Log.Error("Volver a la espera", ex); }
+            }, null, s * 1000, 10000);
+        }
+
+        // 1.0.14: apagar_pc_modo=espera|suspender|apagar. Con suspender se arman los mandos y teclados (UAC). Antes, lo que hace y gasta
+        void CambiarModo(string modo)
+        {
+            if (modo != cfg.ShutdownMode &&
+                MessageBox.Show(CeEspera.Explicacion() + "\n\n" + Deteccion.Tx.T("¿Usar «", "Use \"") + CeEspera.Nombre(modo) + Deteccion.Tx.T("»?", "\"?"),
+                                PrismaUi.AppName, MessageBoxButtons.OKCancel, MessageBoxIcon.Question) != DialogResult.OK) return;
+            cfg.ShutdownMode = modo;
+            CeSuspension.Modo = modo;
+            Ce.IniPoner("apagar_pc_modo", modo);
+            Log.Write("Al apagar la consola: apagar_pc_modo=" + modo + " (desde la bandeja)");
+            if (modo == "suspender") ThreadPool.QueueUserWorkItem(delegate { CeSuspension.PedirArmar(true); });
         }
     }
 
