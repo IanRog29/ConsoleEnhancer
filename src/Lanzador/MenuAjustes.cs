@@ -402,8 +402,10 @@ namespace ConsoleEnhancer
             if (altas != altasAntes)
             {
                 // Otro numero de filas: otra ventana del tamaño nuevo, ya opaca
+                // (1.2.02: la nueva antes de quitar la vieja: si fallaba, el menu quedaba invisible quedandose el mando)
+                VentanaAjustes nueva = new VentanaAjustes(mpvWindow, altas);
                 try { ajVentana.Dispose(); } catch { }
-                ajVentana = new VentanaAjustes(mpvWindow, altas);
+                ajVentana = nueva;
             }
             List<FilaAjuste> nav = AjNavegables();
             if (ajPie < 0) { int k = idFoco == null ? -1 : nav.FindIndex(delegate(FilaAjuste f) { return f.Id == idFoco; }); ajFoco = k >= 0 ? k : 0; }
@@ -472,7 +474,8 @@ namespace ConsoleEnhancer
             FilaAjuste d5 = new FilaAjuste { Id = "d5", Nombre = "DLSS 5" };
             d5.Poner(SiNo(), SiNoTxt(), dlss5Shown ? "1" : "0", dlss5Shown ? "1" : "0");
             // (1.1.2) puesta a mano en extras\ con la app abierta: a magpie\ ya (Magpie la carga la proxima vez que se abre)
-            if (!Integrado.Dlss5Available && Extras.HayDlss5) { Ce.PrepararExtras(); Integrado.Dlss5Rever(); }
+            // (1.2.02: el modelo se rehace cada 0,5 s con el menu abierto: como mucho cada 10 s, por si la copia falla)
+            if (!Integrado.Dlss5Available && Extras.HayDlss5 && ExtrasToca()) { Ce.PrepararExtras(); Integrado.Dlss5Rever(); }
             d5.Visible = Integrado.Dlss5Available;
             // (1.1.2, el usuario: "si no he instalado el dlss 5 ponga que no esta instalado y que para instalarlo que meta el archivo en
             // donde haya que ponerlo"): con NVIDIA y sin la DLL, la fila dice "No instalado" y donde va. La app no dice de donde sacarla
@@ -485,7 +488,7 @@ namespace ConsoleEnhancer
 
             // (1.2.02, el usuario: "derepente no aparece el dlss fg"): con DLSS 5 por Magpie, DLSS FG necesita runtimes\dlssg_sm86 (tambien en
             // RTX 40) y sin el se quitaba de la lista sin decir nada. Ahora una fila dice que falta y donde va (se mira otra vez al abrir el menu)
-            if (!Integrado.MagpieDlssgOk && Extras.HaySm86) { Ce.PrepararExtras(); Integrado.Dlss5Rever(); }
+            if (!Integrado.MagpieDlssgOk && Extras.HaySm86 && ExtrasToca()) { Ce.PrepararExtras(); Integrado.Dlss5Rever(); }
             FilaAjuste fgno = new FilaAjuste { Id = "dlssginfo", Nombre = "DLSS FG", Activa = false, Nota = Tx.T("Falta dlssg_sm86", "dlssg_sm86 missing") };
             fgno.Visible = cfg.FgAvailable && !Ce.NoNvidia && cfg.DlssFgPorMagpieSinRuntime &&
                            (Array.IndexOf(cfg.GenList30, "dlss") >= 0 || Array.IndexOf(cfg.GenList60, "dlss") >= 0);
@@ -527,6 +530,14 @@ namespace ConsoleEnhancer
             ajFilas.AddRange(new[] { cap, mo, fg, tipo, fgno, d5, d5no, niv, pas, esc });
             ajFilas.RemoveAll(delegate(FilaAjuste f) { return !f.Visible; });
             AjustesDepende(true);
+        }
+
+        static DateTime extrasVisto = DateTime.MinValue;
+        static bool ExtrasToca()
+        {
+            if ((DateTime.Now - extrasVisto).TotalSeconds < 10) return false;
+            extrasVisto = DateTime.Now;
+            return true;
         }
 
         static List<string> SiNo() { return new List<string> { "1", "0" }; }
@@ -674,6 +685,9 @@ namespace ConsoleEnhancer
             {
                 if (!f.Activa) continue;
                 if (f.Id == "tipo" && !f.Cambiada && !modoCambia) continue;   // (sin tocarlo: lo elegido sigue como estaba, tambien "lo del ini")
+                // (1.2.02) el escalador solo si se ha tocado: con R3 en un alternativo que el menu no lista (FSR 1 de AMD / Intel / GTX),
+                // aplicar otra cosa lo devolvia al normal sin decir nada
+                if (f.Id == "esc" && !f.Cambiada) continue;
                 e[f.Id] = f.Val;
             }
             List<string> que = new List<string>();

@@ -718,6 +718,8 @@ namespace ConsoleEnhancer
                 {
                     t = CapMode ? FgType30 : FgType60;
                     if (string.IsNullOrEmpty(t) || t == "xess") t = FgType == "xess" ? "dlss" : FgType;
+                    // (1.2.02) sin NVIDIA (Intel Arc con captura de 1080p) "dlss" no hace nada: FSR 3 FG, que va en cualquier grafica
+                    if ((t == "dlss" || t == "smooth" || t == "xess") && Ce.NoNvidia) t = "fsr3";
                 }
                 // 17-11 (SM60, el usuario: "para los modos de DLSS 5 a 60 fps te dejo sustituir el DLSS FG por Smooth Motion"): en el 60 Smooth
                 // Motion solo con DLSS 5; sin el (DLSS 5 apagado, o mpv + Magpie porque el motor propio no arranca) DLSS FG, como antes. Asi
@@ -1088,7 +1090,10 @@ namespace ConsoleEnhancer
         }
         public int DlssModelNow { get { string pk = DlssPick; if (pk.Length > 0) return DlssPickNum(pk); /* (1.0.12: menu de ajustes) */ if (CapMode && DlssModel30 > 0) return DlssModel30; if (DlssModel > 0) return DlssModel; int[] m; return ModelGet(out m) ? (Dlss5Off || !Dlss5FitsNow ? m[0] : m.Length >= 4 ? m[Math.Max(1, Math.Min(3, Dlss5PassesNow))] : m[1]) : 5; } }
         // Con la captura de 4K (ventana de 4K) no hay nada que escalar
-        public bool UpscaleOn { get { return WindowFor(VideoSize) != "3840x2160" && ScalerNow != "ninguno"; } }
+        // (1.2.02) "ninguno" (sin reescalado, del menu) tambien estira la imagen a la pantalla: antes por Magpie quedaba la ventana de mpv
+        // en una esquina; Magpie estira con bicubico y el motor con Catmull-Rom (Ce.EngineUpscaler)
+        // (escalador=ninguno del ini = la captura ya es la pantalla: sin Magpie, como antes)
+        public bool UpscaleOn { get { return WindowFor(VideoSize) != "3840x2160" && (ScalerNow != "ninguno" || ScalerPick == "ninguno"); } }
 
         public double[] LevelNums(int level)
         {
@@ -1762,6 +1767,7 @@ namespace ConsoleEnhancer
                         fx.Add(Effect("Lanczos", true, Pars("ARStrength", 0.6)));
                         break;
                     case "bicubic":
+                    case "ninguno":   // (1.2.02: sin reescalado = estirado simple, sin enfoque)
                         fx.Add(Effect("Bicubic", true, null));
                         break;
                     case "cas":
@@ -1783,7 +1789,7 @@ namespace ConsoleEnhancer
                 }
                 // 3) Enfoque (CAS; con FSR 3 FG o FSR 1, RCAS: lo unico que FSR 3 FG admite en la cadena)
                 double sh = double.IsNaN(sharpen) ? cfg.SharpenNow : sharpen; // (16-11: o el del modo / pasadas: enfoque_<modo>[_pN]_dlss5)
-                if (sh > 0.001 && cfg.ScalerNow != "cas") // (CAS con escalado ya enfoca)
+                if (sh > 0.001 && cfg.ScalerNow != "cas" && cfg.ScalerNow != "ninguno") // (CAS con escalado ya enfoca)
                 {
                     if ((!cfg.FgOff && cfg.FgTypeNow == "fsr3") || cfg.ScalerNow == "fsr") fx.Add(Effect("FSR\\FSR_RCAS", false, Pars("sharpness", sh)));
                     else fx.Add(Effect("CAS\\CAS", false, Pars("sharpness", sh)));
@@ -8036,8 +8042,10 @@ namespace ConsoleEnhancer
                 if (!applying) Osd("Captura 4K · no hay escalado que cambiar");
                 return;
             }
-            dlssScalerOn = !dlssScalerOn;
-            cfg.AltScalerOn = !dlssScalerOn;
+            // (1.2.02) con FSR 1 / sin reescalado elegidos en el menu (o por el aviso de fps bajos) R3 no cambiaba nada: R3 los quita y va
+            // al escalador normal; despues alterna como siempre
+            if (scalerPick.Length > 0) SetScalerChoice(true);
+            else SetScalerChoice(!dlssScalerOn);
             Log.Write((applying ? "Perfil" : "Mando") + ": escalador " + ScalerText() + ReopenNote);
             SaveCurProfile();
             if (!applying) RestartLs("Escalador · " + ScalerText(), "Un momento…");
@@ -11446,6 +11454,7 @@ namespace ConsoleEnhancer
         volatile bool relaunchEngine;   // al cerrarse la imagen se abre la del otro motor (RunMpv)
         static string ReopenNote { get { return Config.EngineActive ? " (motor propio: al momento)" : " (se reabre Magpie)"; } }
         int engineFails;                // veces seguidas que el motor no llego a dar imagen
+        int mpvFails;                   // (1.2.02) veces seguidas que mpv se cerro sin imagen
         int engineCrashes;              // veces que el motor se cerro solo jugando
         volatile bool videoSignal;      // la imagen (mpv o el motor) ya ha dado su aviso de imagen (o el motor, imagenes por segundo)
         volatile bool signalHeard;      // 15-11: ha llegado su "switch2-signal" (solo entonces se le contesta: ver MpvLinkLoop)
@@ -11880,10 +11889,16 @@ namespace ConsoleEnhancer
             Log.Write("FATAL: " + msg);
             KillStandby("error de la app"); // (16-11: el motor en espera)
             KillRelevo("error de la app");
+            // (1.2.02) el aviso salia DEBAJO del telon y de Magpie (los dos siempre encima): pantalla negra sin salida con el mando. Antes de
+            // avisar: fuera la imagen (mpv / motor, audio, Magpie) y el telon; el aviso encima de todo
+            try { Process v = mpv; if (v != null && !v.HasExited) v.Kill(); } catch { }
+            try { CloseAudio(); } catch { }
+            try { MagpieLive.Kill(); } catch { }
             OnUi(delegate
             {
+                try { HideCurtain(0); } catch { }
                 CloseSplash();
-                MessageBox.Show(msg, PrismaUi.ShownName, MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(msg, PrismaUi.ShownName, MessageBoxButtons.OK, MessageBoxIcon.Error, MessageBoxDefaultButton.Button1, MessageBoxOptions.DefaultDesktopOnly);
                 ExitApp();
             });
         }
@@ -13544,8 +13559,15 @@ namespace ConsoleEnhancer
                         if (wakeSw != null) Log.Write("Motor en espera: despierto en " + wakeSw.ElapsedMilliseconds + " ms (pid " + p.Id + ")");
                         break;
                     }
-                    p.WaitForExit();
-                    if (userExit) return p.ExitCode;
+                    // (1.2.02) sin tope: un mpv / motor colgado en el driver de la capturadora o de la grafica dejaba el hilo parado para siempre
+                    if (!p.WaitForExit(8000))
+                    {
+                        try { p.Kill(); } catch { }
+                        if (!p.WaitForExit(5000)) Log.Write("La imagen (pid " + p.Id + ") no se cierra (colgada en el driver): se sigue sin esperarla");
+                    }
+                    int salida = -1;
+                    try { if (p.HasExited) salida = p.ExitCode; } catch { }
+                    if (userExit) return salida;
                     // 16-11 (dlss5_sin_telon): el mpv nuevo se ha cerrado sin imagen con el motor del relevo aun encima: deja paso, con el telon
                     // de siempre mientras se sigue
                     if (!eng && RelevoToMagpieActive()) { ShowCurtain(); FinishRelevoToMagpie("mpv se ha cerrado sin dar imagen"); }
@@ -13557,9 +13579,9 @@ namespace ConsoleEnhancer
                         continue;
                     }
                     // 15-11: el motor propio no llega a dar imagen 2 veces: el resto de la sesion, mpv + Magpie
-                    if (eng && p.ExitCode != 0 && ++engineFails >= 2)
+                    if (eng && salida != 0 && ++engineFails >= 2)
                     {
-                        Log.Write("El motor propio no arranca (codigo " + p.ExitCode + ", ver datos\\logs\\engine.log): mpv + Magpie el resto de la sesion");
+                        Log.Write("El motor propio no arranca (codigo " + salida + ", ver datos\\logs\\engine.log): mpv + Magpie el resto de la sesion");
                         cfg.Engine = "magpie";
                         Config.EngineActive = false;
                         lock (lsModeSync) EnsureLossless();
@@ -13567,12 +13589,27 @@ namespace ConsoleEnhancer
                     }
                     // Cerrado por el usuario (codigo 0): se sale como siempre. 20-11 (CIERRES): el motor con 0 sin que el usuario saliera
                     // (03:54:38, el relanzado tras un reinicio de la grafica) se vuelve a abrir (src\Cierres.cs, EngineZeroExitRetry)
-                    if (p.ExitCode == 0) { if (EngineZeroExitRetry(eng, p)) continue; return 0; }
-                    // Sin imagen mpv puede fallar al abrir la capturadora: se reintenta
-                    Log.Write("mpv fallo sin mostrar imagen (codigo " + p.ExitCode + "); se relanza en 2 s");
-                    Thread.Sleep(2000);
+                    if (salida == 0) { if (EngineZeroExitRetry(eng, p)) continue; return 0; }
+                    // Sin imagen mpv puede fallar al abrir la capturadora: se reintenta. (1.2.02) sin tope era un bucle cada 2 s para siempre
+                    // con la pantalla de carga (capturadora ocupada por OBS / RECentral, desenchufada...): a las 5 seguidas cada 10 s y a las 20
+                    // se avisa y se sale
+                    mpvFails++;
+                    string otros = mpvFails == 5 || mpvFails >= 20 ? ProgramasConCaptura() : "";
+                    if (mpvFails >= 20)
+                    {
+                        Fatal(Deteccion.Tx.T("No se puede abrir la capturadora (" + mpvFails + " intentos). " +
+                                             (otros.Length > 0 ? "Ciérralo y vuelve a abrir la app: " + otros + " puede estar usándola." : "¿Está conectada? ¿La usa otro programa?"),
+                                             "The capture card can't be opened (" + mpvFails + " tries). " +
+                                             (otros.Length > 0 ? "Close it and open the app again: " + otros + " may be using it." : "Is it connected? Is another program using it?")));
+                        return int.MinValue;
+                    }
+                    int pausa = mpvFails >= 5 ? 10000 : 2000;
+                    Log.Write("mpv fallo sin mostrar imagen (codigo " + salida + ", " + mpvFails + " seguidas); se relanza en " + pausa / 1000 + " s" +
+                              (otros.Length > 0 ? " (abiertos que pueden tener la capturadora: " + otros + ")" : ""));
+                    Thread.Sleep(pausa);
                     if (userExit) return int.MinValue;
                 }
+                mpvFails = 0;
                 // La prioridad de GPU solo se puede poner cuando mpv ya ha abierto la GPU
                 if (cfg.PerformanceBoost) Perf.Boost(p, "mpv");
                 first = false;

@@ -398,6 +398,8 @@ namespace ConsoleEnhancer.Deteccion
             p.CapOrigen = m != null ? Tx.T("catálogo (se confirma al abrirla)", "catalog (confirmed when opened)") : Tx.T("de serie (se confirma al abrirla)", "default (confirmed when opened)");
             int h = want;
             if (m != null && m.MaxH > 0 && m.MaxH < h) h = m.MaxH;
+            // (1.2.02) capturadora fuera del catalogo y sin formatos leidos: 1080p (casi todas la dan; 1440p con una USB de 1080p no abria)
+            if (m == null && h > 1080) h = 1080;
             if (m != null && m.SoloComprimido) { p.CapFormato = "mjpeg"; p.Avisos.Add(Tx.T("Capturadora USB 2.0: a 1080p solo MJPEG a 30 fps; mejor 720p60 sin comprimir o una USB 3.0", "USB 2.0 capture: 1080p MJPEG 30 only")); }
             p.CapH = h; p.CapW = h * 16 / 9;
         }
@@ -414,7 +416,8 @@ namespace ConsoleEnhancer.Deteccion
                 if (f.SmoothMotion.Si) p.GenAlternativa = "Smooth Motion x2";
                 p.GenDeSerie = true;
             }
-            else if (g.Familia == FamiliaGpu.NvidiaRtx40 && (f.SmoothMotion.Si || f.DlssG.Si))
+            // (1.2.02: tambien RTX 50 sin DLSS-G visto, p. ej. con HAGS apagado: Smooth Motion como en las RTX 40)
+            else if ((g.Familia == FamiliaGpu.NvidiaRtx40 || g.Familia == FamiliaGpu.NvidiaRtx50) && (f.SmoothMotion.Si || f.DlssG.Si))
             {
                 // 17-11 (app original): el usuario prefiere Smooth Motion (60 reales sin cortes; DLSS-G con Reflex y vsync perdia 2 por segundo).
                 // Con la tele a 119,88 la cola de la sincronizacion no se vacia con Smooth Motion: DLSS-G

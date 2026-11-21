@@ -432,9 +432,11 @@ namespace ConsoleEnhancer.Deteccion
         public static string LeerFormatos(CapturadoraInfo c, List<AudioEntrada> audios, int tope)
         {
             if (c == null || c.Simulada) return "";
-            if (!c.EnDirectShow) return Tx.T("no es de DirectShow", "not a DirectShow device");
+            // (1.2.02) si no se pueden leer, lista vacia (no null): el asistente volvia a abrirla sin parar (en bucle si no es de DirectShow)
+            if (!c.EnDirectShow) { if (c.Formatos == null) c.Formatos = new List<FormatoCaptura>(); return Tx.T("no es de DirectShow", "not a DirectShow device"); }
             try { Formatos(c, tope); c.FormatosError = ""; }
             catch (Exception ex) { c.FormatosError = ex.Message; }
+            if (c.Formatos == null) c.Formatos = new List<FormatoCaptura>();
             EmparejarAudio(c, audios);
             return c.FormatosError;
         }

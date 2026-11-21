@@ -163,6 +163,17 @@ namespace ConsoleEnhancer
         // ---- 3. otros programas con la capturadora ----
         static readonly string[] OtrosConCaptura = { "RECentral", "RECentral4", "obs64", "obs32", "obs", "Streamlabs OBS", "Streamlabs Desktop", "XSplit.Core", "XSplit.Broadcaster", "4KCapture", "GamingHub" };
 
+        // (1.2.02) los de la lista abiertos ahora (para decir quien puede tener la capturadora si no se abre)
+        static string ProgramasConCaptura()
+        {
+            List<string> l = new List<string>();
+            foreach (string nombre in OtrosConCaptura)
+            {
+                try { Process[] ps = Process.GetProcessesByName(nombre); if (ps.Length > 0 && !l.Contains(nombre)) l.Add(nombre); } catch { }
+            }
+            return string.Join(", ", l.ToArray());
+        }
+
         void VigilarOtrosProgramas()
         {
             vigilaOtros = true;

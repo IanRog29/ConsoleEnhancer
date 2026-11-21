@@ -182,6 +182,17 @@ namespace ConsoleEnhancer
             string cache = Path.Combine(dir, "descargas");
             Directory.CreateDirectory(cache);
             string zip = Path.Combine(cache, c.Archivo);
+            // (1.2.02) sin internet el usuario baja el enlace de la ventana, que se guarda con el nombre de la URL (Magpie-Experimental-x64.zip),
+            // no con c.Archivo: aceptar los dos
+            if (!File.Exists(zip))
+            {
+                try
+                {
+                    string deUrl = Path.Combine(cache, Path.GetFileName(new Uri(c.Url).LocalPath));
+                    if (File.Exists(deUrl)) zip = deUrl;
+                }
+                catch { }
+            }
             bool bajado = false;
             if (File.Exists(zip))
             {
@@ -445,6 +456,7 @@ namespace ConsoleEnhancer
             Parrafo(cuerpo, false, S(M), S(W), ref y); y += S(gap);
 
             // ---- sin internet: poner los zip a mano ----
+            try { Directory.CreateDirectory(Path.Combine(dir, "descargas")); } catch { }   // (1.2.02: que la carpeta exista ya)
             Parrafo(Tx.T("¿Sin internet en este PC? Baja estos ficheros en otro y ponlos en la carpeta \"descargas\" de la app:",
                          "No internet on this PC? Download these files elsewhere and put them in the app's \"descargas\" folder:"), true, S(M), S(W), ref y);
             y += S(4);

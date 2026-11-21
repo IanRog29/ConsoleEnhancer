@@ -80,6 +80,9 @@ namespace ConsoleEnhancer.Deteccion
             if (p != null)
             {
                 GpuInfo g = Gpus.Find(delegate(GpuInfo x) { return x.Luid == p.GpuLuid && !x.Software; });
+                // (1.2.02) portatil con dos graficas (Optimus) o pantalla en la placa base: la pantalla va por la integrada pero la imagen
+                // la hace la dedicada (Windows copia entre graficas); antes salia el plan de la integrada (sin DLSS ni Reflex)
+                if (g != null && g.Integrada && Gpus.Exists(delegate(GpuInfo x) { return !x.Software && !x.Integrada; })) g = null;
                 if (g != null) return g;
             }
             GpuInfo best = null;

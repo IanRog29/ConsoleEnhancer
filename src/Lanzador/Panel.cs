@@ -25,6 +25,8 @@ namespace ConsoleEnhancer
         public static int Run()
         {
             try { Application.EnableVisualStyles(); Application.SetCompatibleTextRenderingDefault(false); } catch (InvalidOperationException) { }
+            // (1.2.02) el idioma elegido en el asistente (idioma= del ini); antes el del Windows siempre
+            try { Idioma.Poner((Ce.IniLeer("idioma") ?? "").Trim().ToLowerInvariant()); } catch { }
             Log.Write("Panel de ajustes abierto (" + Paths.AppDir + ")");
             using (PanelAjustes f = new PanelAjustes()) Application.Run(f);
             return 0;
@@ -235,6 +237,10 @@ namespace ConsoleEnhancer
                                            "Installed (your " + Integrado.Dlss5Dll + " file in the extras folder). Not official from NVIDIA.")
                                     : Tx.T("No instalado. Para instalarlo, pon tu archivo " + Integrado.Dlss5Dll + " en " + Extras.Dir + " (o usa el botón de abajo).",
                                            "Not installed. To install it, put your " + Integrado.Dlss5Dll + " file in " + Extras.Dir + " (or use the button below).");
+                // (1.2.02) con DLSS 5 la generacion DLSS FG va por Magpie y necesita dlssg_sm86 (en cualquier RTX): decirlo aqui tambien
+                if (hay && !Extras.HaySm86 && !Integrado.MagpieDlssgOk)
+                    estadoD5.Text += Tx.T(" Para DLSS FG con DLSS 5 hace falta tu carpeta dlssg_sm86 en " + Extras.Sm86 + " (si no, va otra generación).",
+                                          " DLSS FG with DLSS 5 needs your dlssg_sm86 folder in " + Extras.Sm86 + " (otherwise another frame generation is used).");
                 bAnadirD5.Text = hay ? Tx.T("Cambiar el archivo…", "Change the file…") : Tx.T("Añadir DLSS 5 (tu propio archivo)…", "Add DLSS 5 (your own file)…");
                 bQuitarD5.Visible = hay || Directory.Exists(Extras.Sm86);
             }

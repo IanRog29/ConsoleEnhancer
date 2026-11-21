@@ -190,7 +190,8 @@ namespace ConsoleEnhancer
                 string ex = Path.Combine(Paths.AppDir, @"extras\runtimes\dlssg_sm86");
                 if (!Directory.Exists(ex)) ex = Path.Combine(Paths.AppDir, @"extras\dlssg_sm86");
                 string dst = Path.Combine(Paths.MagpieDir, @"runtimes\dlssg_sm86"), marca = dst + ".de_extras";
-                if (Directory.Exists(ex) && Directory.Exists(Paths.MagpieDir) && !Directory.Exists(dst))
+                // (1.2.02: tambien si una copia anterior quedo a medias, sin version.dll)
+                if (Directory.Exists(ex) && Directory.Exists(Paths.MagpieDir) && !File.Exists(Path.Combine(dst, "version.dll")))
                 {
                     int n = CopiarCarpeta(ex, dst);
                     File.WriteAllText(marca, ex);

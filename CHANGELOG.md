@@ -5,6 +5,37 @@ publicada es una etiqueta `vX.Y.Z` de git; GitHub Actions monta su zip y copia a
 
 ## [Sin publicar]
 
+## [1.2.03] - 2026-11-21
+
+### Fixed / Arreglado
+- **No more black screen with no way out when something fails badly**: the error message used to open *under* the picture and the
+  loading screen (both always on top), with mpv and Magpie still running. Now the picture, the sound and Magpie are closed first and the
+  message shows on top of everything. *Un error grave ya no deja la pantalla negra sin salida: el aviso sale encima de todo.*
+- **A capture card that can't be opened no longer leaves the loading screen up forever**: the app retried every 2 s endlessly. Now it
+  waits longer after 5 failures, writes in the log which open programs may be holding the card (OBS, RECentral, Streamlabs…), and after
+  20 tries tells you and closes. A picture process stuck in a driver no longer freezes the app either.
+  *La capturadora que no se abre ya no deja la carga para siempre: tras 20 intentos se avisa (y quién puede estar usándola).*
+- **Laptops with two GPUs (and monitors plugged into the motherboard)**: the plan was made for the integrated GPU (no DLSS, no Reflex,
+  no frame generation of NVIDIA). Now it uses the dedicated GPU. *Portátiles con dos gráficas: el plan es el de la dedicada.*
+- **Intel Arc with a 1080p capture**: frame generation became "DLSS FG" and did nothing. Now it uses FSR 3 FG.
+  *Intel Arc con captura de 1080p: FSR 3 FG en vez de un DLSS FG que no hacía nada.*
+- **RTX 50 without DLSS Frame Generation available** (for example with hardware-accelerated GPU scheduling off) now gets Smooth Motion,
+  like the RTX 40. *RTX 50 sin DLSS FG: Smooth Motion.*
+- **"No upscaling" (settings menu) through Magpie** showed the picture small in a corner; now it is stretched to the screen (bicubic, no
+  sharpening). *"Sin reescalado" por Magpie ya ocupa toda la pantalla.*
+- **R3 works again after choosing FSR 1 / No upscaling** for a game (or after the low-fps helper chose FSR 1): it goes back to the
+  normal upscaler, then toggles as always. Applying the settings menu no longer resets the R3 upscaler when you didn't touch that row.
+  *R3 vuelve a funcionar tras elegir FSR 1 / Sin reescalado; aplicar el menú no cambia el escalador si no lo tocas.*
+- **No internet on first run**: the Magpie zip downloaded by hand from the link in the window is now found (it has a different name than
+  the app expected), and the `descargas` folder is created for you. *Sin internet: el zip de Magpie bajado a mano ya se encuentra.*
+- **Setup wizard**: a capture device whose formats can't be read no longer makes the wizard try to open it again and again. A capture card
+  that isn't in the catalog and couldn't be opened gets 1080p instead of 1440p. *Asistente: sin bucle al leer los formatos; capturadora
+  desconocida a 1080p.*
+- **`Ajustes de ConsoleEnhancer.exe`** now uses the language chosen in the wizard, and also says when DLSS FG needs the `dlssg_sm86`
+  folder. *El panel de ajustes usa el idioma elegido y avisa de `dlssg_sm86`.*
+- A `dlssg_sm86` copy left half-done is copied again; the settings menu checks `extras\` at most every 10 s instead of twice a second.
+  *Una copia de `dlssg_sm86` a medias se repite.*
+
 ## [1.2.02] - 2026-11-21
 
 ### Fixed / Arreglado
