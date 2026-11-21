@@ -303,6 +303,8 @@ namespace ConsoleEnhancer
         static readonly Guid PlanEconomizador = new Guid("a1841308-3541-4fab-bc81-f71556f20b4a");
         static string PlanFile { get { return Path.Combine(Paths.Datos, "espera_plan.txt"); } }
 
+        public static void PlanDeAntes(string cuando) { Economizador(false, cuando); }
+
         static void Economizador(bool poner, string cuando)
         {
             try

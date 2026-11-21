@@ -839,6 +839,7 @@ namespace ConsoleEnhancer
             ceEscritorioItem.Checked = cfg.BlackDesktop;
             menu.Opening += delegate { ceApagarItem.Checked = cfg.ShutdownPc; ceEscritorioItem.Checked = cfg.BlackDesktop; MirarInicio(); };
             MirarInicio();
+            MenuUsoYDesinstalar(menu); // (1.1.1: como una consola / como un PC normal, y desinstalar; src\Lanzador\Desinstalar.cs)
             MenuCeImagen(menu); // (20-11: Imagen > RTX HDR, Auto HDR, VRR, botones, escalas; src\ImagenCe.cs)
         }
 

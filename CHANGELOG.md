@@ -5,6 +5,17 @@ publicada es una etiqueta `vX.Y.Z` de git; GitHub Actions monta su zip y copia a
 
 ## [Sin publicar]
 
+## [1.1.1] - 2026-11-21
+
+### Added / Añadido
+- **Tray > "How the PC is used"**: *Like a console* (opens with Windows, black desktop, standby when the console turns off) or *Like a
+  normal PC* (regular Windows: none of that; the app only opens when you open it), each with an explanation; switch any time.
+  *Bandeja > "Cómo se usa el PC": como una consola o como un PC normal (Windows de siempre).*
+- **Tray > "Uninstall ConsoleEnhancer…"**: removes the start-with-Windows task, restores the normal desktop and power plan, and
+  deletes only the app's own files (anything else in its folder stays; folder links are removed, never their contents). Your
+  settings and game profiles can be kept (portable copies keep them in %LOCALAPPDATA%\ConsoleEnhancer for a later install).
+  *Bandeja > "Desinstalar ConsoleEnhancer…": deja Windows como estaba y borra solo los archivos de la app; tus ajustes y perfiles, si quieres, se guardan.*
+
 ## [1.1.0] - 2026-11-21
 
 ### Added / Añadido
