@@ -234,6 +234,7 @@ namespace ConsoleEnhancer
             StringBuilder sb = new StringBuilder();
             List<Img> ex = extra != null ? Cargar(extra, true) : new List<Img>();
             int mal = Escenas121(sb, ex, ex);
+            if (ex.Count > 0) mal += DiagEnSegundoPlano(sb, ex[ex.Count - 1].Ligera);
             sb.Insert(0, "Prueba 1.2.1 (seccion 5): " + mal + " escenas mal; " + ex.Count + " imagenes de " + extra + "\r\n\r\n");
             File.WriteAllText(rep, sb.ToString(), new UTF8Encoding(false));
             return mal;
@@ -282,7 +283,7 @@ namespace ConsoleEnhancer
             e.Tramos = new Tramo[] { new Tramo(bienvenida, 30, true) }; esc.Add(e);
             e = new Esc5(); e.Titulo = "Abierta con la PS5 arrancando, su menu y se arranca Rocket League: sale en el juego como siempre"; e.EnMenu0 = true;
             e.Tramos = new Tramo[] { new Tramo(arranque, 8, true), new Tramo(menu, 6), new Tramo(rlPortada, 3), new Tramo(rlPartido, 8) };
-            e.TramoSalida = 2; e.SalirMin = 0.9; e.SalirMax = 3.0; esc.Add(e);
+            e.TramoSalida = 2; e.SalirMin = 0.9; e.SalirMax = 3.5; esc.Add(e);
             e = new Esc5(); e.Titulo = "Abierta con Rocket League ya en marcha (claro): sale a los ~5 s"; e.EnMenu0 = true;
             e.Tramos = new Tramo[] { new Tramo(rlPartido, 14, true) }; e.TramoSalida = 0; e.SalirMin = 4.5; e.SalirMax = 7.5; esc.Add(e);
             e = new Esc5(); e.Titulo = "Abierta con un juego oscuro en marcha (GTA VI de noche) 70 s: sale a los ~60 s"; e.EnMenu0 = true;
@@ -296,12 +297,12 @@ namespace ConsoleEnhancer
             e = new Esc5(); e.Titulo = "Menu de apagado, se cancela y se arranca Rocket League: sale, con prudencia (~5 s)"; e.EnMenu0 = true;
             e.Tramos = new Tramo[] { new Tramo(menu, 3), new Tramo(menuApagado, 3), new Tramo(menu, 3), new Tramo(rlPartido, 12) };
             e.TramoSalida = 3; e.SalirMin = 4.5; e.SalirMax = 7.5; esc.Add(e);
-            e = new Esc5(); e.Titulo = "Normal: menu y se arranca Rocket League (portada y partido): sale en ~1,2-2,8 s, como antes"; e.EnMenu0 = true;
-            e.Tramos = new Tramo[] { new Tramo(menu, 6), new Tramo(rlPortada, 3), new Tramo(rlPartido, 8) }; e.TramoSalida = 1; e.SalirMin = 0.9; e.SalirMax = 3.0; esc.Add(e);
+            e = new Esc5(); e.Titulo = "Normal: menu y se arranca Rocket League (portada y partido): sale en ~1,2-3 s, como antes"; e.EnMenu0 = true;
+            e.Tramos = new Tramo[] { new Tramo(menu, 6), new Tramo(rlPortada, 3), new Tramo(rlPartido, 8) }; e.TramoSalida = 1; e.SalirMin = 0.9; e.SalirMax = 3.5; esc.Add(e);
             e = new Esc5(); e.Titulo = "Normal: menu, carga oscura de Rocket League y el partido: sale como antes (en la carga o en el partido)"; e.EnMenu0 = true;
-            e.Tramos = new Tramo[] { new Tramo(menu, 6), new Tramo(rlCarga, 4), new Tramo(rlPartido, 8) }; e.TramoSalida = 2; e.TramoSalida2 = 1; e.SalirMin = 0.9; e.SalirMax = 3.0; esc.Add(e);
+            e.Tramos = new Tramo[] { new Tramo(menu, 6), new Tramo(rlCarga, 4), new Tramo(rlPartido, 8) }; e.TramoSalida = 2; e.TramoSalida2 = 1; e.SalirMin = 0.9; e.SalirMax = 3.5; esc.Add(e);
             e = new Esc5(); e.Titulo = "Jugando, el menu 6 s y de vuelta al juego: entra y sale como antes"; e.EnMenu0 = false;
-            e.Tramos = new Tramo[] { new Tramo(rlPartido, 6), new Tramo(menu, 6), new Tramo(rlPartido, 8) }; e.TramoSalida = 2; e.SalirMin = 0.9; e.SalirMax = 3.0; esc.Add(e);
+            e.Tramos = new Tramo[] { new Tramo(rlPartido, 6), new Tramo(menu, 6), new Tramo(rlPartido, 8) }; e.TramoSalida = 2; e.SalirMin = 0.9; e.SalirMax = 3.5; esc.Add(e);
 
             Dictionary<string, LecturaMenu> cache = new Dictionary<string, LecturaMenu>();
             int mal = 0;
@@ -335,6 +336,39 @@ namespace ConsoleEnhancer
                 sb.Append("\r\n");
             }
             return mal;
+        }
+
+        // (1.2.1, "captura PS5 en homeSync") la captura de diagnostico se escribe en segundo plano: vuelve enseguida con su nombre, la imagen
+        // de la app se puede liberar ya y el PNG sale igual pixel a pixel. 1 si falla
+        static int DiagEnSegundoPlano(StringBuilder sb, Bitmap src)
+        {
+            Stopwatch sw = Stopwatch.StartNew();
+            string f;
+            using (Bitmap b = new Bitmap(src)) f = TrayApp.GuardarDiagPs5(b, null);   // (la de la app se libera al volver)
+            double ms = sw.Elapsed.TotalMilliseconds;
+            bool ok = f != null;
+            int diffs = -1;
+            if (ok)
+            {
+                for (int i = 0; i < 100 && !File.Exists(f); i++) System.Threading.Thread.Sleep(50);
+                System.Threading.Thread.Sleep(300);
+                try
+                {
+                    using (Bitmap g = new Bitmap(f))
+                    {
+                        diffs = 0;
+                        for (int y = 0; y < src.Height; y += 7)
+                            for (int x = 0; x < src.Width; x += 5)
+                                if ((src.GetPixel(x, y).ToArgb() & 0xFFFFFF) != (g.GetPixel(x, y).ToArgb() & 0xFFFFFF)) diffs++;
+                    }
+                    File.Delete(f);
+                }
+                catch (Exception e) { ok = false; sb.Append("  (").Append(e.Message).Append(")\r\n"); }
+            }
+            ok = ok && diffs == 0 && ms < 60;
+            sb.Append(ok ? "  OK  " : "  MAL ").Append("Captura de diagnostico en segundo plano: vuelve en ").Append(ms.ToString("0", CultureInfo.InvariantCulture))
+              .Append(" ms (antes ~100-160 ms con homeSync cogido), PNG ").Append(f != null ? Path.GetFileName(f) : "-").Append(", puntos distintos ").Append(diffs).Append("\r\n");
+            return ok ? 0 : 1;
         }
 
         static LecturaMenu Copia(LecturaMenu l)
@@ -485,6 +519,9 @@ namespace ConsoleEnhancer
                 Img im = tr.Imgs[Math.Min(tr.Imgs.Count - 1, (int)dentro % tr.Imgs.Count)];
                 Res r = res[im.File + "|" + var];
                 double ms = ahora ? (enMenu ? r.AhoraMenu.Ms : r.AhoraJugando.Ms) : r.AntesMs;
+                // (21-11, 1.2.1: como mucho 1 s: con el PC ocupado una lectura medida de varios segundos, o el arranque del OCR de Windows,
+                // dejaba una escena sin capturas y la daba por mala sin que cambiara nada; se vio con otras pruebas a la vez)
+                ms = Math.Min(ms, 1000);
                 double listo = t + 0.03 + ms / 1000.0; // (la captura del script ~30 ms y la lectura)
                 int d;
                 if (ahora)

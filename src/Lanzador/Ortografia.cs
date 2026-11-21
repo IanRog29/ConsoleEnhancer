@@ -57,7 +57,7 @@ namespace ConsoleEnhancer
 
         // ¿Palabra valida en algun diccionario? null = no se sabe (sin corrector)
         // 21-11 (1.2.1): el corrector de Windows da por buena cualquier palabra EN MAYUSCULAS (no las mira: "PLAYÑOOM", "XYZQW"): esas se
-        // miran en minusculas y con la primera en mayuscula ("ROCKET LEAGUEN" -> "LEAGUE", como "Rocket Leaguen"). Ojo: en el PC del
+        // miran en minusculas y con la primera en mayuscula ("ROCKET LEAGUER" -> "ROCKET LEAGUE", como "Rocket Leaguen"). Ojo: en el PC del
         // usuario solo hay el diccionario de español (en-US / en-GB no instalados): "Rocket" o "Theft" no estan; solo sirve de desempate
         public static bool? Valida(string palabra)
         {

@@ -219,6 +219,38 @@ namespace ConsoleEnhancer
         public const double MismoIcono = 22.0;   // distancia media por celda (normalizada) por debajo: el mismo icono
         public const double IconoQuieto = 8.0;   // entre dos capturas seguidas: el foco quieto (no a mitad de moverse)
 
+        // 21-11 (1.2.1): ¿el icono lo domina un degradado de arriba abajo (o de lado a lado)? Es la pantalla fundiendose (al arrancar un
+        // juego, al apagar, el centro de control al abrirse), no el dibujo: el segundo icono de GTA VI del usuario (19:08:44, tras el menu de
+        // apagado) tiene sus filas de -63 a 57, casi en linea (el bueno, de 2 a -42 sin orden). Uno asi no se apunta ni se busca: cualquier
+        // otro juego fundiendose se le pareceria
+        public static bool PareceFundido(double[] ic)
+        {
+            if (ic == null || ic.Length != IcoN * IcoN) return false;
+            return Degradado(ic, true) || Degradado(ic, false);
+        }
+
+        static bool Degradado(double[] ic, bool filas)
+        {
+            double[] m = new double[IcoN];
+            for (int i = 0; i < IcoN; i++)
+            {
+                double s = 0;
+                for (int j = 0; j < IcoN; j++) s += filas ? ic[i * IcoN + j] : ic[j * IcoN + i];
+                m[i] = s / IcoN;
+            }
+            double mx = (IcoN - 1) / 2.0, my = 0;
+            foreach (double v in m) my += v;
+            my /= IcoN;
+            double sxy = 0, sxx = 0, syy = 0, lo = double.MaxValue, hi = double.MinValue;
+            for (int i = 0; i < IcoN; i++)
+            {
+                sxy += (i - mx) * (m[i] - my); sxx += (i - mx) * (i - mx); syy += (m[i] - my) * (m[i] - my);
+                lo = Math.Min(lo, m[i]); hi = Math.Max(hi, m[i]);
+            }
+            if (syy <= 0) return false;
+            return Math.Abs(sxy / Math.Sqrt(sxx * syy)) >= 0.9 && hi - lo >= 70;
+        }
+
         // ---------------- 21-11 (1.2.1): nombres a medias y el juego en foco al arrancarlo ----------------
         // El usuario: "evita cualquier tipo de bug a la hora de cargar perfiles de juegos en las consolas". 19:09:42-45 la etiqueta del
         // juego en foco se leyo "Rocket League", "Rocket agu" y "Rocket" (la etiqueta se funde al arrancarlo) y al salir del menu gano la
@@ -788,7 +820,7 @@ namespace ConsoleEnhancer
             "anadir a la biblioteca", "comprar", "buy now", "mas informacion", "more info",
             // 1.2.1: las opciones del juego en el inicio (19:08:34 "Buscar actualización" leido como el juego en foco) y el centro de control
             "buscar actualizacion", "check for update", "gestionar contenido", "manage game content", "estado de sincronizacion",
-            "nuevas sugerencias", "cil de usar",
+            "nuevas sugerencias", "cil de usar", "historias de",
             // 21-11 (Xbox: el Inicio y la guia, en ingles y en español)
             "quick resume", "reanudacion rapida", "browse your games", "explora tus juegos", "customize your home", "personaliza tu inicio",
             "play like a pro", "jump back in", "see all", "full library", "biblioteca completa", "play history", "historial de juegos",
@@ -1024,6 +1056,22 @@ namespace ConsoleEnhancer
                 for (int j = i + 1; j < ics.Count; j++)
                     sb.Append("icono ").Append(icn[i]).Append(" / ").Append(icn[j]).Append(": ")
                       .Append(DistHuella(ics[i], ics[j]).ToString("0.0", CultureInfo.InvariantCulture)).Append("\r\n");
+            // (1.2.1) los iconos de verdad del inicio no son "fundidos"
+            for (int i = 0; i < ics.Count; i++)
+                if (ics[i] != null)
+                    sb.Append("icono ").Append(icn[i]).Append(": fundido ").Append(PareceFundido(ics[i]) ? "si FALLO" : "no OK").Append("\r\n");
+            // (1.2.1) un console_icons.txt (tercer argumento): cuales son iconos fundidos (no se buscan)
+            if (p.Length > 2 && File.Exists(p[2]))
+                foreach (string raw in File.ReadAllLines(p[2], Encoding.UTF8))
+                {
+                    int bar = raw.LastIndexOf('|');
+                    if (raw.StartsWith("#") || bar <= 0) continue;
+                    string[] nums = raw.Substring(bar + 1).Split(',');
+                    if (nums.Length != IcoN * IcoN) continue;
+                    double[] f = new double[nums.Length];
+                    for (int k = 0; k < f.Length; k++) f[k] = double.Parse(nums[k], CultureInfo.InvariantCulture);
+                    sb.Append("icono guardado \"").Append(raw.Substring(0, bar)).Append("\": fundido ").Append(PareceFundido(f) ? "si (no se busca)" : "no").Append("\r\n");
+                }
             foreach (string e in new[] { "BloodborneTY", "Bloor]borno'?", "Blaodborne'Tt•", "p_ra Rocket League", "P_j-m Rocket aguen", "BloodborneTM", "Grand Theft Auto VI" })
                 sb.Append("  limpia \"").Append(e).Append("\" -> \"").Append(LimpiaEtiqueta(e)).Append("\"\r\n");
             sb.Append("\r\nNombre leido en ").Append(leidos).Append(" de ").Append(files.Count).Append(" imagenes\r\n");
@@ -1120,6 +1168,8 @@ namespace ConsoleEnhancer
             }
             // El juego en foco al salir (iconos sinteticos: cada juego el suyo; "fundido" = el mismo con un degradado encima)
             double[] gta = IconoPrueba(1), rl = IconoPrueba(2), rr = IconoPrueba(3), rlF = Fundido(rl), rrF = Fundido(rr);
+            sb.Append("  icono sintetico fundido: ").Append(PareceFundido(rlF) && PareceFundido(rrF) ? "si OK" : "no FALLO").Append("; sin fundir: ")
+              .Append(PareceFundido(rl) || PareceFundido(rr) || PareceFundido(gta) ? "si FALLO" : "no OK").Append("\r\n");
             DateTime t = new DateTime(2026, 11, 21, 19, 9, 42);
             List<LecturaFoco> l = new List<LecturaFoco> { Lf("Grand Theft Auto VI", gta, t, true), Lf("Rocket League", rl, t.AddSeconds(0.5), false),
                                                           Lf("Rocket agu", rl, t.AddSeconds(1.2), true), Lf("Rocket", rlF, t.AddSeconds(2.3), false) };
@@ -1484,7 +1534,8 @@ namespace ConsoleEnhancer
     // 21-11 (quinta vuelta): el icono del juego en foco del inicio de la PS5 (JuegoConsola.IconoFoco) de cada perfil (games\console_icons.txt)
     static class IconosConsola
     {
-        static readonly AlmacenFirmas almacen = new AlmacenFirmas("console_icons.txt", JuegoConsola.IcoN * JuegoConsola.IcoN, "Iconos de los juegos en el inicio de la consola (los guarda la app): perfil|luma normalizada de 12x12 celdas");
+        // (1.2.1: los iconos fundidos guardados antes no se buscan: JuegoConsola.PareceFundido)
+        static readonly AlmacenFirmas almacen = new AlmacenFirmas("console_icons.txt", JuegoConsola.IcoN * JuegoConsola.IcoN, "Iconos de los juegos en el inicio de la consola (los guarda la app): perfil|luma normalizada de 12x12 celdas") { Ignorar = JuegoConsola.PareceFundido };
         public static string Busca(double[] f, out double dist) { return almacen.Busca(f, JuegoConsola.MismoIcono, out dist); }
         public static void Guarda(string perfil, double[] f) { almacen.Guarda(perfil, f, JuegoConsola.MismoIcono); }
         public static void Renombra(string viejo, string nuevo) { almacen.Renombra(viejo, nuevo); }
@@ -1542,6 +1593,9 @@ namespace ConsoleEnhancer
             catch (Exception ex) { Log.Error("Guardando " + Fichero, ex); }
         }
 
+        // (1.2.1) ignorar = firmas que no valen (iconos fundidos guardados antes: JuegoConsola.PareceFundido); null = todas
+        public Func<double[], bool> Ignorar;
+
         public string Busca(double[] f, double umbral, out double dist)
         {
             dist = 999;
@@ -1552,6 +1606,7 @@ namespace ConsoleEnhancer
                 string best = null;
                 foreach (KeyValuePair<string, double[]> kv in lista)
                 {
+                    if (Ignorar != null && Ignorar(kv.Value)) continue;
                     double d = JuegoConsola.DistHuella(kv.Value, f);
                     if (d < dist) { dist = d; best = kv.Key; }
                 }

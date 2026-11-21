@@ -684,9 +684,10 @@ namespace ConsoleEnhancer
             string p = IconosConsola.Busca(icono, out d);
             if (p == null && icono != f.Ultimo)
             {
+                // (el de la ultima lectura, solo si es de un perfil del mismo nombre: puede ser el del fundido de arrancar)
                 double d2;
                 string p2 = IconosConsola.Busca(f.Ultimo, out d2);
-                if (p2 != null) { p = p2; d = d2; }
+                if (p2 != null && (nombre == null || JuegoConsola.Relacionado(JuegoConsola.SinTag(p2), nombre))) { p = p2; d = d2; }
             }
             string dd = d < 900 ? d.ToString("0.0", CultureInfo.InvariantCulture) : "-";
             string leido = nombre != null ? "; leido \"" + nombre + "\" (" + apoyo + " de " + enFoco + " lecturas del foco" + (fiable ? "" : ", icono sin confirmar") + ")" : "";
@@ -856,7 +857,7 @@ namespace ConsoleEnhancer
         // ~100-200 ms) y las demas en el hilo de la captura: la entrada en el juego esperaba a que acabara (los "184-305 ms tras decidirlo" del
         // log). Ahora se copia la imagen (~2 ms) y el PNG se escribe en segundo plano; el nombre se sabe ya (para el log). Dos en el mismo
         // segundo ya no se pisan (la segunda lleva "-2")
-        static string GuardarDiagPs5(Bitmap full, string ocr)
+        internal static string GuardarDiagPs5(Bitmap full, string ocr)
         {
             try
             {
@@ -873,7 +874,7 @@ namespace ConsoleEnhancer
                     }
                     diagPendientes.Add(f);
                 }
-                Bitmap copia = full.Clone(new Rectangle(0, 0, full.Width, full.Height), full.PixelFormat);
+                Bitmap copia = CopiaProfunda(full);
                 string destino = f;
                 System.Threading.ThreadPool.QueueUserWorkItem(delegate
                 {
@@ -890,6 +891,28 @@ namespace ConsoleEnhancer
                 return f;
             }
             catch (Exception ex) { Log.Error("Menu de la PS5: guardando la captura", ex); return null; }
+        }
+
+        // (1.2.1) una copia de verdad de los pixeles (~2 ms a 1280x720; Bitmap.Clone de GDI+ la deja compartida hasta que se escribe y el
+        // original se libera al acabar la captura): la guarda otro hilo
+        static Bitmap CopiaProfunda(Bitmap src)
+        {
+            int w = src.Width, h = src.Height;
+            Bitmap c = new Bitmap(w, h, PixelFormat.Format32bppRgb);
+            Rectangle r = new Rectangle(0, 0, w, h);
+            BitmapData s = src.LockBits(r, ImageLockMode.ReadOnly, PixelFormat.Format32bppRgb);
+            BitmapData d = c.LockBits(r, ImageLockMode.WriteOnly, PixelFormat.Format32bppRgb);
+            try
+            {
+                byte[] row = new byte[w * 4];
+                for (int y = 0; y < h; y++)
+                {
+                    Marshal.Copy(new IntPtr(s.Scan0.ToInt64() + (long)y * s.Stride), row, 0, row.Length);
+                    Marshal.Copy(row, 0, new IntPtr(d.Scan0.ToInt64() + (long)y * d.Stride), row.Length);
+                }
+            }
+            finally { src.UnlockBits(s); c.UnlockBits(d); }
+            return c;
         }
 
         // AnalyzeGrab, con una consola con menu propio (la PS5; la Xbox SIN PROBAR): ¿es su menu? Clasifica la captura (DetectorMenu) y
@@ -1004,6 +1027,7 @@ namespace ConsoleEnhancer
                     // (el icono solo con la etiqueta del nombre legible en la misma captura: el menu quieto, no a mitad de una animacion)
                     // (1.2.1: el icono se calcula fuera de homeSync: con la Xbox busca la tarjeta en la imagen entera)
                     double[] icFoco = (c.Familia == "playstation" || c.Familia == "xbox") && fuerte ? JuegoConsola.IconoFoco(full, c) : null;
+                    if (icFoco != null && JuegoConsola.PareceFundido(icFoco)) icFoco = null;   // (1.2.1: la pantalla fundiendose, no el icono)
                     if (icFoco != null)
                         lock (homeSync) FocoObserva(icFoco, now, nombre);
                     // 1.2.05: el primer juego en foco al abrir el menu desde un juego (el que esta en marcha), si se lee en 1,5 s
@@ -1011,7 +1035,7 @@ namespace ConsoleEnhancer
                         ps5PrimerMenuAt != DateTime.MinValue && (now - ps5PrimerMenuAt).TotalSeconds <= 1.5)
                     {
                         ps5PrimerFoco = nombre;
-                        ps5PrimerFocoIcono = icFoco ?? JuegoConsola.IconoFoco(full, c);
+                        ps5PrimerFocoIcono = icFoco;
                     }
                     // 21-11: cada lectura nueva al log (para ver que lee en el menu)
                     string lect = (nombre ?? "") + (fuerte ? "/f" : "");
