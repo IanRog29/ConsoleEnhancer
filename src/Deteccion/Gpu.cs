@@ -385,7 +385,13 @@ namespace ConsoleEnhancer.Deteccion
                 f.Afmf.Pon(rdna2, rdna2 ? Tx.T("AFMF 2 del driver (AMD Software: actívalo para el exe del motor)", "driver AFMF 2 (enable it in AMD Software)") : Tx.T("AFMF pide RX 6000 o posterior", "AFMF needs RX 6000+"));
                 f.Afmf.Dudoso = rdna2;
                 f.AntiLag.Pon(g.Familia != FamiliaGpu.AmdAntigua || g.Serie >= 400, Tx.T("Radeon Anti-Lag del driver", "driver Radeon Anti-Lag"));
-                f.Fsr4.Pon(g.Familia == FamiliaGpu.AmdRdna4, g.Familia == FamiliaGpu.AmdRdna4 ? Tx.T("FSR 4 (Magpie) en RX 9000", "FSR 4 (Magpie) on RX 9000") : Tx.T("FSR 4 solo en RX 9000", "FSR 4 only on RX 9000"));
+                // 21-11 (1.0.9; el usuario: "en las 9000 7000 y 6000 que use fsr 4 que lo soportan"): RX 9000 oficial; RX 7000 / 6000 con el
+                // override de FSR 4.1.1 de este Magpie (THIRD-PARTY-NOTICES: "capability-check override", experimental; en RDNA 2 mas lento)
+                bool fsr4 = g.Familia == FamiliaGpu.AmdRdna4 || g.Familia == FamiliaGpu.AmdRdna3 || g.Familia == FamiliaGpu.AmdRdna2;
+                f.Fsr4.Pon(fsr4, g.Familia == FamiliaGpu.AmdRdna4 ? Tx.T("FSR 4 (Magpie) en RX 9000", "FSR 4 (Magpie) on RX 9000")
+                              : fsr4 ? Tx.T("FSR 4 (Magpie, sin soporte oficial: override de FSR 4.1.1)", "FSR 4 (Magpie, unofficial: FSR 4.1.1 override)")
+                              : Tx.T("FSR 4 pide RX 6000 o mas nueva", "FSR 4 needs RX 6000 or newer"));
+                if (fsr4 && g.Familia != FamiliaGpu.AmdRdna4) f.Fsr4.Dudoso = true;
                 f.XessSr.Pon(sm64, sm64 ? Tx.T("XeSS (DP4a) por Magpie", "XeSS (DP4a) via Magpie") : Tx.T("pide SM 6.4 (DP4a)", "needs SM 6.4"));
                 f.XessFg.Pon(sm64 && d3d12, Tx.T("XeSS FG por Magpie (modo de compatibilidad)", "XeSS FG via Magpie (compat mode)"));
                 f.XessFg.Dudoso = true;

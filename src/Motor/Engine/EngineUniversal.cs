@@ -168,6 +168,7 @@ namespace ConsoleEnhancer.Motor
             bool dll = File.Exists(Path.Combine(Program.Dir, "sl.interposer.dll"));
             string no = null;
             if (s.Streamline == 0) no = "streamline=0";
+            else if (FgFfx) no = "generacion FSR 3 (FidelityFX lleva su propia cadena de presentacion)";   // 21-11 (EngineFgFfx.cs)
             else if (!dll) no = "no esta sl.interposer.dll junto al exe";
             else if (s.Streamline < 0 && !gpu.IsNvidia) no = "streamline=auto y la grafica no es NVIDIA" + (gpu.Found ? " (" + gpu.VendorText + ")" : "");
             else if (!(s.Standby || WantDlss || s.Fg || s.Reflex > 0)) no = "no hace falta: upscaler=" + s.Upscaler + ", sin generacion ni Reflex";
@@ -193,7 +194,7 @@ namespace ConsoleEnhancer.Motor
         // InitDevice, antes de crear la swapchain: cola_max=N, o -1 (auto) = 1 sin Reflex ni generacion (sin Streamline o sin su Reflex: sin
         // nada que marque el ritmo, DXGI dejaria 3 imagenes en cola); con Reflex la de DXGI como siempre (el ritmo lo lleva Reflex; con la
         // generacion de NVIDIA no se puede pedir: docs\SL_NOTES.md)
-        int QueueMaxNow() { return s.QueueMax >= 0 ? s.QueueMax : (!reflexOk && !fgOk ? 1 : 0); }
+        int QueueMaxNow() { return FgFfx ? 0 : s.QueueMax >= 0 ? s.QueueMax : (!reflexOk && !fgOk ? 1 : 0); }   // (21-11: con FSR 3 FG el ritmo lo lleva su cadena)
 
         // Cada imagen (Run, tras ConfigureFeatures): el escalador que toca. Al cambiar, sin historia (DLSS y los vectores)
         void UpdateScaler()
@@ -204,15 +205,20 @@ namespace ConsoleEnhancer.Motor
             else if (WantDlss && dlssOk && !dlssBroken) sc = "dlss";
             else if (s.Upscaler == "catrom") sc = "catrom";
             else if (inW > outW || inH > outH) { sc = "catrom"; why = "la entrada es mayor que la salida: FSR 1 solo amplia"; }
+            // 21-11 (EngineSr.cs): XeSS SR y FSR 3.1 / 4 en el motor (antes solo por mpv + Magpie)
+            else if (WantXess && XessEnsure()) sc = "xess";
+            else if (WantFfx && FfxEnsure()) sc = "ffx";
             else
             {
                 sc = "fsr1";
                 if (WantDlss) why = !slOn ? "sin Streamline" : !dlssOk ? "sin DLSS en esta grafica" : "DLSS falla";
+                else if (WantXess) why = "XeSS no va aqui (ver arriba)";
+                else if (WantFfx) why = "FSR 3/4 no va aqui (ver arriba)";
             }
             if (sc == scalerNow) return;
             if (scalerNow.Length > 0) { resetHistory = true; motionValid = false; }
             scalerNow = sc;
-            Log.Write("Escalador: " + (sc == "fsr1" ? "fsr1 (AMD FidelityFX FSR 1 EASU)" : sc) + " " + inW + "x" + inH + " -> " + outW + "x" + outH +
+            Log.Write("Escalador: " + (sc == "fsr1" ? "fsr1 (AMD FidelityFX FSR 1 EASU)" : sc == "xess" ? "XeSS (" + xessQualityName + ")" : sc == "ffx" ? ffxName : sc) + " " + inW + "x" + inH + " -> " + outW + "x" + outH +
                       ", enfoque " + (RcasNow ? "RCAS" : "CAS") + " " + s.Sharp.ToString("0.00", CultureInfo.InvariantCulture) + (why.Length > 0 ? " (" + why + ")" : ""));
         }
 

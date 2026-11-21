@@ -191,6 +191,32 @@ namespace ConsoleEnhancer.Motor
             }
         }
 
+        // 21-11 (el usuario: "no pongas los textos de que se va la señal cuando pasa eso"): ¿esta imagen es la pantalla No Signal de la
+        // capturadora? (cada imagen, para no pintarla: el motor deja la ultima del juego en los cortes cortos)
+        public static bool FrameIsNoSignal(byte* data, int pitch, int w, int h, int fmt)
+        {
+            byte[] fp = new byte[GW * GH * 3];
+            int n = 0;
+            for (int j = 0; j < GH; j++)
+            {
+                byte* row = data + (long)(int)((j + 0.5) * h / GH) * pitch;
+                for (int i = 0; i < GW; i++)
+                {
+                    int x = (int)((i + 0.5) * w / GW);
+                    int R, G, B;
+                    if (fmt == Shaders.FmtBgr24) { byte* p = row + x * 3; B = p[0]; G = p[1]; R = p[2]; }
+                    else if (fmt == Shaders.FmtBgrx32) { byte* p = row + x * 4; B = p[0]; G = p[1]; R = p[2]; }
+                    else if (fmt == Shaders.FmtYuy2) { byte* p = row + (x & ~1) * 2 + (x & 1) * 2; R = G = B = p[0]; }
+                    else { R = G = B = row[x]; }
+                    fp[n * 3] = (byte)R; fp[n * 3 + 1] = (byte)G; fp[n * 3 + 2] = (byte)B;
+                    n++;
+                }
+            }
+            return IsNoSignal(fp);
+        }
+
+        public bool ConsoleSeen { get { lock (sync) return consoleSeen; } }
+
         static bool IsNoSignal(byte[] fp)
         {
             if (fp == null) return false;

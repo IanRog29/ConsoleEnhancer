@@ -280,6 +280,19 @@ namespace ConsoleEnhancer.Deteccion
                 bool up = p.CapH > 0 && p.CapH < p.OutH;
                 if (!up) { p.Escalador = "ninguno"; p.Motivos.Add(Tx.T("La captura ya es de la resolución de la pantalla: sin escalado (bordes, enfoque y generación sí)", "Capture matches display: no scaling")); }
                 else if (g.F.DlssSr.Si) { p.Escalador = "dlss"; p.EscaladorAlternativo = "fsr1"; }
+                // 21-11 (1.0.9; el usuario: "si la gpu es gtx o amd que sea xess el rescalado" / "y fsr 4?"): sin DLSS, en AMD RX 9000 FSR 4
+                // (IA, solo RDNA 4) y en el resto con XeSS (DP4a: GTX, AMD, Intel Arc) XeSS; los dos por Magpie (el motor propio no los tiene).
+                // En graficas integradas (Intel Xe) XeSS va lento: FSR 1 como antes
+                else if (g.F.Fsr4.Si)
+                {
+                    p.Escalador = "fsr4"; p.EscaladorAlternativo = g.F.XessSr.Si ? "xess" : "fsr1";
+                    p.Motivos.Add(Tx.T("Escalado: FSR 4 (AMD RX 9000, por Magpie)", "Scaling: FSR 4 (AMD RX 9000, via Magpie)"));
+                }
+                else if (g.F.XessSr.Si && g.Familia != FamiliaGpu.IntelXe && g.Familia != FamiliaGpu.IntelAntigua && g.Familia != FamiliaGpu.Software)
+                {
+                    p.Escalador = "xess"; p.EscaladorAlternativo = "fsr1";
+                    p.Motivos.Add(Tx.T("Escalado: XeSS (sin DLSS en esta gráfica, por Magpie)", "Scaling: XeSS (no DLSS on this GPU, via Magpie)"));
+                }
                 else { p.Escalador = "fsr1"; p.EscaladorAlternativo = "catrom"; }
                 p.Enfoque = p.CapH <= 720 ? 0.6 : p.CapH <= 1080 ? 0.5 : 0.3;
                 ElegirGeneracion(p, g, pref);
@@ -477,6 +490,9 @@ namespace ConsoleEnhancer.Deteccion
                 if (sm) l60.Add("smooth");
                 if (dg) l60.Add("dlss");   // (21-11, 1.0.7: tambien en RTX 40, como Prisma)
                 if (!sm && !dg) foreach (string t in magpie) if (t == "xess" ? xe : fs) l60.Add(t);
+                // 21-11 (1.0.9; el usuario: "arregla que ahora de repente no aparece xefg"): XeSS FG tambien en el modo 60 aunque haya algo
+                // de NVIDIA (en Prisma, 19-11, no llegaba a 60 reales: 27-48; el usuario lo quiere poder elegir)
+                if (xe && !l60.Contains("xess")) l60.Add("xess");
             }
             foreach (string t in l30) if (!p.Lista30.Contains(t)) p.Lista30.Add(t);
             foreach (string t in l60) if (!p.Lista60.Contains(t)) p.Lista60.Add(t);

@@ -5,6 +5,39 @@ publicada es una etiqueta `vX.Y.Z` de git; GitHub Actions monta su zip y copia a
 
 ## [Sin publicar]
 
+## [1.0.9] - 2026-11-21
+
+### Nuevo
+- **XeSS y FSR 3.1 / FSR 4 como escaladores del motor propio** (antes solo por mpv + Magpie, y con XeSS pedido el motor ponía FSR 1 sin
+  decirlo). Usan las DLL de Intel y AMD que trae Magpie (`magpie\`). Medido en una RTX 4060 Ti, 1080p → 4K: XeSS 2.0.2 a 59,9
+  imágenes/s con 5,5 ms de gráfica; FSR 3.1.5 a 59,9 con 5,2 ms. FSR 4 solo lo ofrece AMD en las RX 9000; en las demás va FSR 3.1.
+  *XeSS and FSR 3.1/4 upscaling inside the own engine.*
+- **FSR 3 FG (generación de fotogramas de AMD) en el motor propio**, para cualquier gráfica: la cadena de presentación de FidelityFX
+  intercala las imágenes generadas. Medido con PresentMon: 59,9 reales → 120 presentadas por segundo. Con DLSS de escalador sigue
+  yendo por Magpie (con FSR 3 FG el motor va sin Streamline). XeSS FG sigue por Magpie. *AMD FSR 3 frame generation in the engine.*
+- **Escalado de serie sin DLSS**: GTX e Intel Arc → XeSS; AMD RX 6000 / 7000 / 9000 → FSR 4 (oficial en las RX 9000; en RX 6000 y
+  7000 con el desbloqueo de FSR 4.1.1 del Magpie que trae la app, experimental). *Default upscaler without DLSS: XeSS / FSR 4.*
+- **Xbox Series X|S: un perfil por juego**, como con la PS5: el nombre y el dibujo de la tarjeta en foco del Inicio (la grande con el
+  borde de color) y la imagen de arranque de cada juego (fija en cada juego de Xbox, también al volver con Reanudación rápida).
+  Probado con capturas oficiales del Inicio; **sin probar con una Xbox de verdad**. *Per-game profiles for Xbox Series X|S (untested on
+  real hardware).*
+- **Aviso y bajada automática si no se llega a los fps del modo** (motor propio): si 5 s seguidos no llega por culpa del PC (no del
+  juego de la consola), sale un aviso y se baja un paso (DLSS 5, 120 → 60, captura más baja, 60 → 30 con generación), guardado en el
+  perfil del juego. *Warns and steps settings down when the PC can't keep up.*
+- **Motor de reserva**: jugando, la app deja preparado en segundo plano un motor con el otro tipo de generación del modo (Smooth
+  Motion / DLSS FG); cambiar entre ellos pasa de 4-5 s a ~0,5 s. `motor_reserva=0` lo quita (ocupa ~0,9 GB de memoria gráfica).
+
+### Arreglado
+- **Perfiles por juego de la PS5**: el juego se reconoce por el icono en foco del Inicio y por su portada al arrancar (antes por textos
+  del menú que el OCR leía mal, y con el foco movido justo antes de entrar se guardaba en el juego anterior). Volver al juego en marcha
+  con el botón PS ya no cambia de perfil. *PS5 per-game profiles now follow the focused icon and the launch splash.*
+- **Al cambiar el tipo de generación salía "Generación desactivada / activada" sin tocarla**: ahora dice el tipo que queda.
+- **Sin aviso de "Sin señal" en los cortes cortos** (la PS5 cambiando a 120 Hz con un juego a 120): se queda la última imagen; si dura
+  más de 5 s, el aviso de siempre. *No "no signal" text on short HDMI mode changes.*
+- **No había modo 120 fps** con un ini de antes del 20-11: ahora se pone al día leyendo la capturadora (`capturas_120`).
+- **XeSS FG no salía en el modo 60** con una NVIDIA: vuelve a estar en el selector (L3).
+
+
 ## [1.0.8] - 2026-11-21
 
 ### Arreglado

@@ -494,8 +494,24 @@ end
 
 -- El aviso a pantalla completa: "Sin señal..." mientras se mira o se espera (ns_eval / ns_held, con la consola vista antes), si no
 -- "Enciende la consola" (la app abierta con la consola apagada)
+-- 21-11 (el usuario: "no pongas los textos de que se va la señal cuando pasa eso"): con la consola vista antes (un cambio de modo de
+-- video de la PS5, ~2 s al entrar o salir de un juego a 120 Hz) los primeros NOSIG_QUIET_SECS solo un fondo oscuro, sin texto ni la
+-- pantalla No Signal de la capturadora; si dura más (apagada de verdad), el aviso de siempre
+local NOSIG_QUIET_SECS = 5
+local nosig_quiet_timer = nil
 local function nosig_paint()
     pcall(notice_stop) -- (ningún aviso encima)
+    if console_seen and nosig_since and (mp.get_time() - nosig_since) < NOSIG_QUIET_SECS then
+        nosig_overlay.data = draw_ev("\\1c&H070403&", "m 0 0 l 1920 0 l 1920 1080 l 0 1080")
+        nosig_overlay:update()
+        if not nosig_quiet_timer then
+            nosig_quiet_timer = mp.add_timeout(NOSIG_QUIET_SECS + 0.05, function()
+                nosig_quiet_timer = nil
+                if no_signal_shown then nosig_paint() end
+            end)
+        end
+        return
+    end
     nosig_overlay.data = nosig_data_for(((ns_held or ns_eval) and console_seen) and NOSIG_WAIT or NOSIG_OFF)
     nosig_overlay:update()
 end

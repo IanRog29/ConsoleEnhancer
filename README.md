@@ -104,14 +104,13 @@ y contar en qué PC y con qué consola lo usas.
   generación, y sin "DLSS 5" (tal cual, con ~10 ms menos de retraso; `motor_dlss5_home=0`); los cambios menú ↔ juego tardan menos de 1 s.
 - **Reconoce cada juego y le guarda su perfil** (`juegos\perfiles.txt`): en la Switch / Switch 2 lee el nombre del juego en el HOME
   y guarda su icono, así que lo que cambies con el mando (captura, modelo y pasadas de DLSS 5, escalador, modo 30/60 y tipo de
-  generación) se recuerda por juego y se vuelve a poner solo la próxima vez que entras. En la **PS5** lee el nombre del juego en el
-  centro de control o el conmutador de juegos (botón PS) y le guarda su perfil igual; en la **Xbox Series**, en la Guía y las fichas de
-  Inicio (*preliminar: sin probar aún con una Xbox de verdad*). Si no reconoce el juego, usa el perfil único de la consola, como antes
-  (`ps5_reconocer_juegos=1`, `xbox_reconocer_juegos=1`; 0 = un solo perfil para toda la consola).
-  **Importante en la PS5/Xbox:** el nombre del juego solo aparece en el centro de control / conmutador (botón PS) o en la Guía, no durante
-  el juego. Para que la app recuerde cada juego con su perfil, **pulsa el botón PS una vez al entrar en el juego** (se abre el centro de
-  control, la app lee el nombre y ya queda guardado); a partir de ahí se re-aplica solo. El menú de la consola se muestra a 4K nativo
-  siempre que haga falta para esto, independientemente de `home_4k_nativo` (esa opción solo afecta al HOME de la Switch 2).
+  generación) se recuerda por juego y se vuelve a poner solo la próxima vez que entras. En la **PS5** reconoce el juego por su
+  **icono en foco** en el Inicio (con su nombre al lado) y por su **portada** al arrancarlo: basta con entrar en el juego desde el
+  Inicio; volver al que ya estaba abierto con el botón PS no cambia de perfil. En la **Xbox Series**, igual con la tarjeta en foco del
+  Inicio (la grande, con el nombre abajo) y la imagen de arranque de cada juego (*preliminar: probado con capturas oficiales, sin
+  probar aún con una Xbox de verdad*). Si no reconoce el juego, usa el perfil único de la consola, como antes
+  (`ps5_reconocer_juegos=1`, `xbox_reconocer_juegos=1`; 0 = un solo perfil para toda la consola). Lo que aprende está en
+  `juegos\iconos_consola.txt` y `juegos\portadas_consola.txt`.
 - **Mandos**: Xbox / XInput, DualSense / DualShock 4, mandos de Switch y Switch 2, 8BitDo, GameSir y genéricos HID, sin programas
   aparte. La app lee el mando sin quitárselo a la consola y, fuera de la imagen, maneja el PC (modo PC).
 - **Iniciar con Windows** (tarea del usuario, sin permisos de administrador) con la pantalla en negro hasta que hay imagen y,

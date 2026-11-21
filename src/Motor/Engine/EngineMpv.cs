@@ -16,6 +16,22 @@ namespace ConsoleEnhancer.Motor
         long framesIn, capN, lastPassed = -100, passedCount, ratePassed;
         bool lastPassedNew = true;
         volatile bool noSignalScreen;
+        // 21-11 (sin aviso en los cortes cortos): la pantalla No Signal no se pinta ni se avisa durante NosigSilencioMs
+        const int NosigSilencioMs = 5000;
+        volatile bool nosigSilencio;
+        int nosigEpisodio;
+        long nosigFrameDesde;   // (ms de Environment.TickCount) primera imagen No Signal seguida
+
+        // Desde OnFrame: true = no usar esta imagen (es la pantalla No Signal de la capturadora en un corte corto con la consola vista):
+        // se queda la ultima del juego en pantalla
+        bool NoSignalCongela(byte* src, int pitch, int w, int h, int fmt)
+        {
+            if (power == null || !power.Enabled || inStandby || !power.ConsoleSeen) { nosigFrameDesde = 0; return false; }
+            if (!PowerWatch.FrameIsNoSignal(src, pitch, w, h, fmt)) { nosigFrameDesde = 0; return false; }
+            long now = Environment.TickCount & 0x7fffffffL;
+            if (nosigFrameDesde == 0 || now < nosigFrameDesde) nosigFrameDesde = now;
+            return now - nosigFrameDesde < NosigSilencioMs;
+        }
         long firstArrival, lastArrivalT;
         volatile bool signalSeen, signalAcked;
         // 15-11: el aviso "switch2-signal" ya ha llegado a algun cliente. Hasta entonces su respuesta (switch2-signal-ack) no cuenta:
@@ -43,6 +59,27 @@ namespace ConsoleEnhancer.Motor
             power.OnNoSignalScreen = delegate (bool on, bool wait)
             {
                 if (inStandby) return;
+                // 21-11 (el usuario: "no pongas los textos de que se va la señal cuando pasa eso"): con la consola vista antes (un cambio de
+                // modo de video de la PS5 al entrar o salir de un juego a 120 Hz, ~2 s) nada en pantalla: se queda la ultima imagen del juego
+                // (NoSignalCongela). Solo si dura mas de NosigSilencioMs (apagada de verdad) sale el aviso de siempre
+                int ep = Interlocked.Increment(ref nosigEpisodio);
+                if (on && wait && power.ConsoleSeen)
+                {
+                    if (!nosigSilencio) Log.Write("Sin señal con la consola vista: sin aviso ni la pantalla No Signal (la ultima imagen) " + NosigSilencioMs / 1000 + " s");
+                    nosigSilencio = true;
+                    ThreadPool.QueueUserWorkItem(delegate
+                    {
+                        Thread.Sleep(NosigSilencioMs);
+                        if (ep != nosigEpisodio || !nosigSilencio) return;
+                        nosigSilencio = false;
+                        Log.Write("Sin señal mas de " + NosigSilencioMs / 1000 + " s: el aviso de siempre");
+                        noSignalScreen = true;
+                        osd.Show("Sin señal de la consola · Si vuelve en unos segundos, se sigue jugando", 24 * 3600 * 1000, Osd.Warn);
+                        frameEvent.Set();
+                    });
+                    return;
+                }
+                nosigSilencio = false;
                 noSignalScreen = on;
                 // (16-11: con la consola vista antes, mientras se mira o se espera "No Signal", el aviso de esperar, como el del script)
                 if (on) osd.Show(wait ? "Sin señal de la consola · Si vuelve en unos segundos, se sigue jugando"

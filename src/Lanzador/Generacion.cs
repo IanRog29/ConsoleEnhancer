@@ -65,6 +65,7 @@ namespace ConsoleEnhancer
         {
             PrepareCfg();
             if (!fgWanted) return "no";
+            if (cfg.EngineNow && cfg.EngineFfxWanted) return "fsr3";   // 21-11 (1.0.9): FSR 3 FG en el motor
             if (cfg.EngineNow) return cfg.EngineSmoothFor(cfg.CapMode) && !NvProfiles.EngineSmoothBroken ? "smooth" : "dlss";
             return cfg.FgTypeNow;
         }

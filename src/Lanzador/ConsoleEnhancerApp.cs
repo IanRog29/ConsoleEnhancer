@@ -69,7 +69,11 @@ namespace ConsoleEnhancer
         {
             string s = cfg.ScalerNow;
             if (s == "dlss") return NoNvidia ? "fsr1" : "dlss";
-            if (s == "fsr" || s == "fsr2" || s == "fsr3" || s == "fsr4" || s == "xess") return "fsr1";
+            // 21-11 (1.0.9, src\Motor\Engine\EngineSr.cs): XeSS SR y FSR 3.1 / 4 ya los hace el motor propio (con las DLL de magpie\)
+            if (s == "xess") return "xess";
+            if (s == "fsr4") return "fsr4";
+            if (s == "fsr2" || s == "fsr3") return "fsr3";
+            if (s == "fsr") return "fsr1";
             return "fsr1";   // (R3 / sin DLSS: el FSR 1 propio del motor; catrom queda en el motor por si se pide a mano)
         }
 
@@ -80,6 +84,7 @@ namespace ConsoleEnhancer
             a.Add("streamline=" + (NoNvidia ? "0" : cfg.EngineStreamline));
             if (cfg.EngineAdapter.Length > 0) a.Add("adapter_luid=" + cfg.EngineAdapter);
             a.Add("datos=" + EngineLogDir);
+            a.Add("dlls_sr=" + Paths.MagpieDir);   // 21-11 (1.0.9): libxess.dll / amd_fidelityfx_*.dll para XeSS y FSR 3/4 en el motor
             Escalas.ArgsMotor(cfg, a);   // (20-11: adapta=1 adapta_clave=...: el motor ajusta las escalas solo, src\Escalas.cs)
             CeImagen.ArgsMotor(cfg, a);  // (20-11: vrr=1, src\ImagenCe.cs)
             return a.ToArray();
@@ -275,9 +280,14 @@ namespace ConsoleEnhancer
         // completos y el giro de la 1.0.5 encendidos -> halos; Smooth Motion de serie en RTX 40). Una vez por version (la marca
         // "# ce_ini_version=" al final): lo de arriba del plan pasa a ser el base.ini de ahora, el plan y lo de debajo se quedan, y se
         // añade la generacion de un plan nuevo de este PC (lo demas del plan, lo elegido en el asistente, no se toca). Copia: .antes-<version>
-        public const string IniVersion = "1.0.8";
+        public const string IniVersion = "1.0.9";   // 21-11 (1.0.9): capturas_120 y XeSS FG en el modo 60
         static readonly string[] ClavesGenPlan = { "generacion_tipo", "generacion_tipo_60", "generacion_tipo_30", "motor_generacion_60", "motor_generacion_30",
-                                                   "generacion_lista_60", "generacion_lista_30", "generacion_60", "generacion_disponible" };
+                                                   "generacion_lista_60", "generacion_lista_30", "generacion_60", "generacion_disponible",
+                                                   // 21-11 (1.0.9; el usuario: "no hay opcion de 120fps"): los ini con el plan de antes del 20-11 no tenian
+                                                   // capturas_120 (sin ella no hay modo 120): se ponen tambien al dia (con la capturadora abierta para leer sus formatos)
+                                                   "capturas_120", "framerate_120",
+                                                   // (1.0.9: XeSS / FSR 4 de serie sin DLSS; con RTX sale igual que antes, dlss)
+                                                   "escalador", "escalador_alternativo" };
         static void ActualizarIni()
         {
             try
@@ -295,12 +305,14 @@ namespace ConsoleEnhancer
                 StringBuilder gen = new StringBuilder();
                 try
                 {
-                    Hardware hw = Detectar(false);
+                    Hardware hw = Detectar(true);   // (1.0.9: abriendo la capturadora: sus formatos a 120 para capturas_120)
                     PreferenciasPlan pref = new PreferenciasPlan();
                     pref.Consola = "";
                     CeImagen.Preferencias(pref, hw.Pantallas.Find(delegate(PantallaInfo x) { return x.Principal; }));
                     PlanImagen plan = Planificador.Elegir(hw, pref);
                     string pi = PlanComoIni(plan, hw, IniLeer("consola"), IniLeer("idioma"), null);
+                    // (si no se pudieron leer los formatos: capturas_120 vacia no se pone, se queda la que hubiera)
+                    if (System.Text.RegularExpressions.Regex.IsMatch(pi, @"(?m)^capturas_120=\s*$")) pi = pi.Replace("capturas_120=", "#capturas_120=");
                     foreach (string raw in pi.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None))
                     {
                         int i = raw.IndexOf('=');
@@ -401,8 +413,10 @@ namespace ConsoleEnhancer
             sb.AppendLine("motor=" + (p.Motor == "propio" ? "propio" : "magpie"));
             sb.AppendLine("motor_streamline=" + (p.Streamline ? "auto" : "0"));
             bool nv = fab == "nvidia";
-            sb.AppendLine("escalador=" + (p.Escalador == "dlss" ? "dlss" : p.Escalador == "ninguno" ? (nv && g != null && g.F.DlssSr.Si ? "dlss" : "fsr") : "fsr"));
-            string alt = nv && g != null && g.F.RtxVideo.Si ? "vsr" : g != null && g.F.XessSr.Si && g.Fab == Fabricante.Intel ? "xess" : "lanczos";
+            sb.AppendLine("escalador=" + (p.Escalador == "dlss" || p.Escalador == "xess" || p.Escalador == "fsr4" ? p.Escalador : p.Escalador == "ninguno" ? (nv && g != null && g.F.DlssSr.Si ? "dlss" : "fsr") : "fsr"));
+            // (1.0.9) con XeSS / FSR 4 de serie, R3 = el otro (FSR 4 -> XeSS) o FSR 1
+            string alt = p.Escalador == "fsr4" ? (p.EscaladorAlternativo == "xess" ? "xess" : "fsr") : p.Escalador == "xess" ? "fsr" :
+                         nv && g != null && g.F.RtxVideo.Si ? "vsr" : g != null && g.F.XessSr.Si && g.Fab == Fabricante.Intel ? "xess" : "lanczos";
             sb.AppendLine("escalador_alternativo=" + alt);
             string flujo = nv && g != null && g.F.Nvof.Si ? "nvidia" : "amd";
             sb.AppendLine("dlss_flujo=" + flujo);
