@@ -3945,8 +3945,13 @@ namespace ConsoleEnhancer
 
     static class AudioMeter
     {
-        [ComImport, Guid("BCDE0395-E52F-467C-8E3D-C4579291692E")]
-        class MMDeviceEnumeratorCom { }
+        // 21-11 (1.2.1): "ERROR: Medidor de audio -> InvalidCastException: No se puede convertir un objeto de tipo 'MMDeviceEnumeratorCom' al
+        // tipo 'MMDeviceEnumeratorCom'" al abrir la app (19:09:22.486): habia DOS clases [ComImport] con el CLSID del enumerador (esta y la de
+        // Escuchar, SonidoDoble.cs). El enumerador de Windows devuelve el mismo objeto COM y .NET reutiliza su envoltorio (RCW), que es de la
+        // OTRA clase: el "new" de la segunda fallaba al convertirlo (y el medidor de audio no iba en toda la sesion). Ahora las dos lo crean
+        // sin clase propia (un __ComObject) y solo se convierte a la interfaz (QueryInterface), que vale con cualquier envoltorio
+        static readonly Guid ClsidEnumerador = new Guid("BCDE0395-E52F-467C-8E3D-C4579291692E");
+        internal static object NuevoEnumerador() { return Activator.CreateInstance(Type.GetTypeFromCLSID(ClsidEnumerador, true)); }
 
         [ComImport, Guid("A95664D2-9614-4F35-A746-DE8DB63617E6"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
         interface IMMDeviceEnumerator
@@ -4060,7 +4065,7 @@ namespace ConsoleEnhancer
         static float ScanPeak(HashSet<uint> pids, List<IAudioMeterInformation> found)
         {
             float best = -1f;
-            IMMDeviceEnumerator en = (IMMDeviceEnumerator)new MMDeviceEnumeratorCom();
+            IMMDeviceEnumerator en = (IMMDeviceEnumerator)NuevoEnumerador();
             IMMDeviceCollection devs;
             if (en.EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE, out devs) != 0) return best;
             int nd;
@@ -8111,11 +8116,13 @@ namespace ConsoleEnhancer
             keyProc = KeyHook;
             keyHook = SetWindowsHookEx(13, keyProc, GetModuleHandle(null), 0); // WH_KEYBOARD_LL, en el hilo de la interfaz
             if (keyHook == IntPtr.Zero) Log.Write("Aviso: no se pudo vigilar el boton de captura del mando (" + Marshal.GetLastWin32Error() + ")");
+            ganchoTeclaUlt = Environment.TickCount;   // (21-11, 1.2.1: recien puesto; MenuJuego.cs GanchosVigila)
         }
 
         IntPtr KeyHook(int nCode, IntPtr wParam, IntPtr lParam)
         {
             ganchoUlt = Environment.TickCount;   // (1.0.12: vigilante de los ganchos, MenuJuego.cs GanchosVigila)
+            ganchoTeclaUlt = ganchoUlt;          // (21-11, 1.2.1: el de cada gancho, frente a lo que ve Raw Input)
             try
             {
                 if (nCode >= 0)
@@ -14071,6 +14078,7 @@ namespace ConsoleEnhancer
         static int Main(string[] args)
         {
             try { SetProcessDPIAware(); } catch (Exception) { }
+            TrayApp.InstalarManejadoresDeFallos(); // 21-11 (1.2.1): antes de cualquier ventana (el asistente las crea); ver src\Cierres.cs
             bool dryRun = false, dryCap = false;
             int dryPasses = 1;
             foreach (string arg in args)

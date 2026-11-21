@@ -50,6 +50,9 @@ namespace ConsoleEnhancer
                 case "generacion_disponible": FgAvailable = val.Trim() != "0"; if (!FgAvailable) FgOff = true; return true;
                 case "dlssg_solo_magpie": Ce.DlssgSoloMagpie = val.Trim() == "1"; return true;   // (1.0.10: RTX 30 + dlssg_sm86)
                 case "idioma": Language = val.Trim().ToLowerInvariant(); Idioma.Poner(Language); return true;
+                // 21-11 (1.2.1): la escribe la app (src\Lanzador\DefenderAviso.cs: el ultimo aviso de Defender ya enseñado) y la lee ella misma
+                // con Ce.IniLeer; aqui solo para que el log no diga "Aviso: clave desconocida en ini: defender_aviso" en cada arranque
+                case "defender_aviso": return true;
             }
             return false;
         }

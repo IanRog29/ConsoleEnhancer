@@ -258,7 +258,8 @@ namespace ConsoleEnhancer
     {
         public sealed class Entrada { public string Id = "", Nombre = "", Adaptador = ""; public bool Escuchando; }
 
-        [ComImport, Guid("BCDE0395-E52F-467C-8E3D-C4579291692E")] class MMDeviceEnumeratorCom { }
+        // (21-11, 1.2.1: sin clase [ComImport] propia del enumerador: la misma que el medidor de audio, AudioMeter.NuevoEnumerador; con dos
+        // clases para el mismo objeto COM la segunda fallaba con InvalidCastException)
 
         [ComImport, Guid("A95664D2-9614-4F35-A746-DE8DB63617E6"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
         interface IMMDeviceEnumerator
@@ -308,7 +309,7 @@ namespace ConsoleEnhancer
         public static List<Entrada> Entradas()
         {
             List<Entrada> l = new List<Entrada>();
-            IMMDeviceEnumerator en = (IMMDeviceEnumerator)new MMDeviceEnumeratorCom();
+            IMMDeviceEnumerator en = (IMMDeviceEnumerator)AudioMeter.NuevoEnumerador();
             IMMDeviceCollection devs;
             if (en.EnumAudioEndpoints(eCapture, DEVICE_STATE_ACTIVE, out devs) != 0) return l;
             int n; devs.GetCount(out n);
@@ -341,7 +342,7 @@ namespace ConsoleEnhancer
         // "" bien; si no, el motivo ("no esta": la entrada ya no existe)
         public static string Poner(string id, bool on)
         {
-            IMMDeviceEnumerator en = (IMMDeviceEnumerator)new MMDeviceEnumeratorCom();
+            IMMDeviceEnumerator en = (IMMDeviceEnumerator)AudioMeter.NuevoEnumerador();
             IMMDevice d;
             if (en.GetDevice(id, out d) != 0 || d == null) return "no esta";
             IPropertyStore ps;
