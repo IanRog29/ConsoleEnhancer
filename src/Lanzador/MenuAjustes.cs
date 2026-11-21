@@ -483,6 +483,17 @@ namespace ConsoleEnhancer
                               "To install it, put your " + Integrado.Dlss5Dll + " file in the folder " + Extras.Dir + " and open this menu again " +
                               "(or from the tray: “Add DLSS 5 (your own file)…”)");
 
+            // (1.2.02, el usuario: "derepente no aparece el dlss fg"): con DLSS 5 por Magpie, DLSS FG necesita runtimes\dlssg_sm86 (tambien en
+            // RTX 40) y sin el se quitaba de la lista sin decir nada. Ahora una fila dice que falta y donde va (se mira otra vez al abrir el menu)
+            if (!Integrado.MagpieDlssgOk && Extras.HaySm86) { Ce.PrepararExtras(); Integrado.Dlss5Rever(); }
+            FilaAjuste fgno = new FilaAjuste { Id = "dlssginfo", Nombre = "DLSS FG", Activa = false, Nota = Tx.T("Falta dlssg_sm86", "dlssg_sm86 missing") };
+            fgno.Visible = cfg.FgAvailable && !Ce.NoNvidia && cfg.DlssFgPorMagpieSinRuntime &&
+                           (Array.IndexOf(cfg.GenList30, "dlss") >= 0 || Array.IndexOf(cfg.GenList60, "dlss") >= 0);
+            fgno.Ayuda = Tx.T("Con DLSS 5, DLSS FG va por Magpie y necesita la carpeta dlssg_sm86: ponla en " + Extras.Sm86 + " y vuelve a abrir este menú " +
+                              "(o en la bandeja: «Añadir DLSS 5 (tu propio archivo)…»). Mientras, va otra generación",
+                              "With DLSS 5, DLSS FG runs through Magpie and needs the dlssg_sm86 folder: put it in " + Extras.Sm86 + " and open this menu again " +
+                              "(or from the tray: “Add DLSS 5 (your own file)…”). Until then another frame generation is used");
+
             FilaAjuste niv = new FilaAjuste { Id = "nivel", Nombre = Tx.T("Nivel de DLSS 5", "DLSS 5 level") };
             string nv = Math.Max(1, Math.Min(4, dlss5Level)).ToString();
             niv.Poner(new List<string> { "1", "2", "3", "4" }, new List<string> { "1", "2", "3", "4" }, nv, nv);
@@ -513,7 +524,7 @@ namespace ConsoleEnhancer
             esc.Carrusel = ev.Count > 3;
             esc.Visible = ev.Count > 1;
 
-            ajFilas.AddRange(new[] { cap, mo, fg, tipo, d5, d5no, niv, pas, esc });
+            ajFilas.AddRange(new[] { cap, mo, fg, tipo, fgno, d5, d5no, niv, pas, esc });
             ajFilas.RemoveAll(delegate(FilaAjuste f) { return !f.Visible; });
             AjustesDepende(true);
         }

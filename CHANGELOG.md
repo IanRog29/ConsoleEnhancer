@@ -5,6 +5,17 @@ publicada es una etiqueta `vX.Y.Z` de git; GitHub Actions monta su zip y copia a
 
 ## [Sin publicar]
 
+## [1.2.02] - 2026-11-21
+
+### Fixed / Arreglado
+- **DLSS FG no longer disappears from the frame generation list without a reason.** With DLSS 5 on, the picture goes through Magpie,
+  and Magpie's DLSS Frame Generation needs the community `dlssg_sm86` folder on every RTX (not only RTX 30). A fresh install
+  downloads Magpie without it, so since 1.2.0 the app quietly took DLSS FG out of the list and used XeSS FG or Smooth Motion. Now the
+  settings menu (Guide button) shows **"DLSS FG · dlssg_sm86 missing"** with the folder to put it in (`extras\runtimes\dlssg_sm86`);
+  a folder dropped there is picked up the next time the menu opens. The "Add DLSS 5" dialog no longer says the folder is only for
+  RTX 30. *DLSS FG ya no desaparece de la lista sin explicación: con DLSS 5 (por Magpie) necesita la carpeta `dlssg_sm86` en cualquier
+  RTX; el menú de ajustes dice "DLSS FG · Falta dlssg_sm86" y dónde ponerla (`extras\runtimes\dlssg_sm86`).*
+
 ## [1.2.01] - 2026-11-21
 
 ### Added / Añadido

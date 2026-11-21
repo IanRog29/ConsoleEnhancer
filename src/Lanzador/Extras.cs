@@ -139,11 +139,11 @@ namespace ConsoleEnhancer
                 Mal(w, Tx.T("No se pudo copiar a ", "Could not copy to ") + Dir + ":\r\n" + ex.Message);
                 return false;
             }
-            // opcional: la carpeta dlssg_sm86 (solo sirve en RTX 30)
-            if (Pregunta(w, Tx.T("Copiado.\r\n\r\n¿Tienes también la carpeta dlssg_sm86 (DLSS Frame Generation en RTX 30 por Magpie)? Solo sirve en " +
-                                 "RTX 30; si no la tienes o no sabes qué es, di que no.",
-                                 "Copied.\r\n\r\nDo you also have the dlssg_sm86 folder (DLSS Frame Generation on RTX 30 via Magpie)? Only useful on RTX 30; " +
-                                 "if you do not have it or are not sure, say no."), MessageBoxIcon.Question))
+            // opcional: la carpeta dlssg_sm86 (1.2.02: con DLSS 5, el DLSS FG de Magpie la necesita en RTX 30 y tambien en RTX 40/50)
+            if (Pregunta(w, Tx.T("Copiado.\r\n\r\n¿Tienes también la carpeta dlssg_sm86? Con DLSS 5 la imagen va por Magpie y su DLSS Frame Generation " +
+                                 "la necesita (en cualquier RTX); sin ella se usa otra generación (XeSS FG o Smooth Motion). Si no la tienes, di que no.",
+                                 "Copied.\r\n\r\nDo you also have the dlssg_sm86 folder? With DLSS 5 the picture goes through Magpie and its DLSS Frame Generation " +
+                                 "needs it (on any RTX); without it another frame generation is used (XeSS FG or Smooth Motion). If you do not have it, say no."), MessageBoxIcon.Question))
                 AnadirSm86(w);
             // encenderlo
             bool on = Pregunta(w, Tx.T("¿Encender DLSS 5 ya? (Jugando se enciende y se apaga con el botón A del mando.)",

@@ -224,8 +224,10 @@ If you already have your own file, adding it takes one click:
 1. Tray icon > **Add DLSS 5 (your own file)…** (or the **Add DLSS 5** button on the wizard's last step; only with a GeForce RTX and
    6 GB of VRAM or more).
 2. Read the notice (it is unofficial, NVIDIA doesn't support it and it is at your own risk) and pick your `nvngx_dlssnr.dll`.
-3. The app checks that it is a 64-bit Windows DLL with that name and copies it to `extras\` next to the exe. Optionally, on RTX 30, also
-   your `dlssg_sm86` folder (DLSS Frame Generation through Magpie).
+3. The app checks that it is a 64-bit Windows DLL with that name and copies it to `extras\` next to the exe. Optionally, also your
+   `dlssg_sm86` folder: with DLSS 5 the picture goes through Magpie, and Magpie's DLSS Frame Generation needs it on any RTX (RTX 30,
+   40 or 50). Without it the settings menu shows **"DLSS FG · dlssg_sm86 missing"** and another frame generation is used (XeSS FG or
+   Smooth Motion). You can also drop the folder in `extras\runtimes\dlssg_sm86` and open the menu again.
 4. Choose whether to turn it on now. While playing, the controller's **A** button turns it on and off (X / Y / B: passes; L1 / L2 / R2 /
    R1: level).
 
@@ -641,8 +643,10 @@ Si ya tienes tu propio archivo, añadirlo es un clic:
 1. Icono de la bandeja > **Añadir DLSS 5 (tu propio archivo)…** (o el botón **Añadir DLSS 5** del último paso del asistente; solo con
    una GeForce RTX y 6 GB de VRAM o más).
 2. Lee el aviso (no es oficial, NVIDIA no lo soporta y es bajo tu responsabilidad) y elige tu `nvngx_dlssnr.dll`.
-3. La app comprueba que es una DLL de Windows de 64 bits con ese nombre y la copia a `extras\` junto al exe. Opcionalmente, en RTX 30,
-   también tu carpeta `dlssg_sm86` (DLSS Frame Generation por Magpie).
+3. La app comprueba que es una DLL de Windows de 64 bits con ese nombre y la copia a `extras\` junto al exe. Opcionalmente, también tu
+   carpeta `dlssg_sm86`: con DLSS 5 la imagen va por Magpie y su DLSS Frame Generation la necesita en cualquier RTX (30, 40 o 50). Sin
+   ella el menú de ajustes muestra **"DLSS FG · Falta dlssg_sm86"** y se usa otra generación (XeSS FG o Smooth Motion). También puedes
+   dejar la carpeta en `extras\runtimes\dlssg_sm86` y volver a abrir el menú.
 4. Dices si lo enciendes ya. Jugando se enciende y se apaga con el botón **A** del mando (X / Y / B: pasadas; L1 / L2 / R2 / R1: nivel).
 
 Para quitarlo: icono de la bandeja > **Quitar DLSS 5** (borra la copia de `extras\`; tu archivo original no se toca).
