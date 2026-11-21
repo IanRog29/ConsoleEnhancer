@@ -5,6 +5,23 @@ publicada es una etiqueta `vX.Y.Z` de git; GitHub Actions monta su zip y copia a
 
 ## [Sin publicar]
 
+## [1.0.10] - 2026-11-21
+
+### Nuevo
+- **Todo lo del mando, también en el menú de la bandeja** (clic derecho en el icono), con lo puesto marcado: generación de fotogramas
+  sí / no, tipo de generación, modo 30 / 60 / 120, captura 720p / 1080p / 1440p / 4K, DLSS 5 (sí / no, nivel, pasadas), escalador
+  alternativo, filtro de tramado y "ver lo que va puesto". Para quien juega sin mando conectado al PC.
+  *Everything the controller does is now in the tray icon's right-click menu too.*
+- **Atajos de teclado** sobre la imagen de la consola: Ctrl+F generación sí / no, Ctrl+G tipo de generación, Ctrl+M modo 30/60/120,
+  Ctrl+1…4 captura, Ctrl+R escalador, Ctrl+D DLSS 5, Ctrl+I lo que va puesto, Alt+F4 salir.
+  *Keyboard shortcuts: Ctrl+F/G/M/1-4/R/D/I, Alt+F4 to quit.*
+
+### Arreglado
+- **DLSS FG en RTX 30 con la carpeta `dlssg_sm86`**: el plan no la ofrecía nunca (y sin FSR 3 la generación quedaba desactivada del
+  todo). Ahora aparece en el selector (L3 / Ctrl+G / bandeja) y va por Magpie; apagada de serie, se enciende con Ctrl+F, el botón o la
+  bandeja. Al actualizar, el ini se pone al día solo.
+  *DLSS FG on RTX 30 with the community dlssg_sm86 runtime can now be selected.*
+
 ## [1.0.9] - 2026-11-21
 
 ### Nuevo

@@ -53,6 +53,7 @@ namespace ConsoleEnhancer
                 // (ConsoleEnhancer: la lista sale del plan de la grafica, generacion_lista_60/30; por si el ini es de antes, sin NVIDIA
                 // nada de NVIDIA, y con generacion_disponible=0 nada)
                 if (!cfg.FgAvailable || ((t == "smooth" || t == "dlss") && Ce.NoNvidia)) continue;
+                if (t == "dlss" && Ce.DlssgSoloMagpie && !Directory.Exists(Path.Combine(Paths.MagpieDir, @"runtimes\dlssg_sm86"))) continue; // (1.0.10: RTX 30 sin el runtime)
                 if (t == "fsr3" && !File.Exists(Path.Combine(Paths.MagpieDir, "amd_fidelityfx_framegeneration_dx12.dll"))) continue;
                 if (t == "xess" && (!File.Exists(Path.Combine(Paths.MagpieDir, "libxess_fg.dll")) || Config.WindowFor(cfg.VideoSize) == "1920x1080")) continue; // (19-11: a 1080p no arranca)
                 r.Add(t);

@@ -47,6 +47,7 @@ namespace ConsoleEnhancer
                 case "motor_streamline": EngineStreamline = val.Trim().ToLowerInvariant(); return true;
                 case "motor_adaptador": EngineAdapter = val.Trim(); return true;
                 case "generacion_disponible": FgAvailable = val.Trim() != "0"; if (!FgAvailable) FgOff = true; return true;
+                case "dlssg_solo_magpie": Ce.DlssgSoloMagpie = val.Trim() == "1"; return true;   // (1.0.10: RTX 30 + dlssg_sm86)
                 case "idioma": Language = val.Trim().ToLowerInvariant(); Idioma.Poner(Language); return true;
             }
             return false;
@@ -58,6 +59,8 @@ namespace ConsoleEnhancer
     {
         // Sin NVIDIA: nada de NVAPI (perfiles, Smooth Motion); lo pone gpu_fabricante del ini
         public static volatile bool NoNvidia;
+        // (1.0.10) RTX 30 con dlssg_sm86 (ini dlssg_solo_magpie=1): DLSS FG solo por Magpie (el DLSS-G del motor, Streamline, pide RTX 40)
+        public static volatile bool DlssgSoloMagpie;
 
         public static string BaseIni { get { return Path.Combine(Paths.AppDir, @"recursos\base.ini"); } }
         public static string HardwareFile { get { return Path.Combine(Paths.Datos, "hardware.txt"); } }
@@ -280,8 +283,9 @@ namespace ConsoleEnhancer
         // completos y el giro de la 1.0.5 encendidos -> halos; Smooth Motion de serie en RTX 40). Una vez por version (la marca
         // "# ce_ini_version=" al final): lo de arriba del plan pasa a ser el base.ini de ahora, el plan y lo de debajo se quedan, y se
         // añade la generacion de un plan nuevo de este PC (lo demas del plan, lo elegido en el asistente, no se toca). Copia: .antes-<version>
-        public const string IniVersion = "1.0.9";   // 21-11 (1.0.9): capturas_120 y XeSS FG en el modo 60
+        public const string IniVersion = "1.0.10";  // 21-11 (1.0.10): DLSS FG en RTX 30 con dlssg_sm86 (dlssg_solo_magpie); (1.0.9) capturas_120 y XeSS FG en el modo 60
         static readonly string[] ClavesGenPlan = { "generacion_tipo", "generacion_tipo_60", "generacion_tipo_30", "motor_generacion_60", "motor_generacion_30",
+                                                   "dlssg_solo_magpie",
                                                    "generacion_lista_60", "generacion_lista_30", "generacion_60", "generacion_disponible",
                                                    // 21-11 (1.0.9; el usuario: "no hay opcion de 120fps"): los ini con el plan de antes del 20-11 no tenian
                                                    // capturas_120 (sin ella no hay modo 120): se ponen tambien al dia (con la capturadora abierta para leer sus formatos)
@@ -439,6 +443,15 @@ namespace ConsoleEnhancer
                 sb.AppendLine("generacion_60=" + Math.Max(2, Math.Min(4, p.Mult60)));
                 sb.AppendLine("generacion_disponible=1");
             }
+            else if (p.DlssgSoloMagpie)
+            {
+                // (1.0.10) RTX 30 con dlssg_sm86: DLSS FG por Magpie, apagada de serie (generacion.txt = 0: la enciende el boton, Ctrl+G o la bandeja)
+                sb.AppendLine("generacion_tipo=dlss");
+                sb.AppendLine("generacion_tipo_60=dlss");
+                sb.AppendLine("generacion_tipo_30=dlss");
+                sb.AppendLine("generacion_60=2");
+                sb.AppendLine("generacion_disponible=1");
+            }
             else if (magpieFg || altFsr3)
             {
                 string t = g60 == "xessfg" || g30 == "xessfg" ? "xess" : "fsr3";
@@ -448,6 +461,7 @@ namespace ConsoleEnhancer
                 sb.AppendLine("generacion_disponible=1");
             }
             else sb.AppendLine("generacion_disponible=0");
+            sb.AppendLine("dlssg_solo_magpie=" + (p.DlssgSoloMagpie ? "1" : "0"));
             sb.AppendLine("modo30_generacion=2");
             // (19-11) el selector de L3 / Ctrl+G: los tipos de generacion que tiene esta grafica (Plan.ListasGeneracion)
             sb.AppendLine("generacion_lista_60=" + (p.Lista60.Count > 0 ? string.Join(",", p.Lista60.ToArray()) : "no"));
