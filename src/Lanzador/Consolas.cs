@@ -341,6 +341,16 @@ namespace ConsoleEnhancer
             try { if (File.Exists(ArchivoUltima)) { string g = File.ReadAllText(ArchivoUltima).Trim(); last = Buscar(g); guardada = g; } }
             catch { }
             if (last != null) { actual = last; origen = "la ultima vista (games\\console.txt)"; return; }
+            // (1.2.07, el usuario: "otra vez me meto a un juego y no pone su nombre"): version nueva en otra carpeta y la vieja borrada:
+            // la consola de la copia de seguridad (Integrado.CopiaSeguridad), y se escribe aqui para la proxima vez
+            if (string.Equals(carpeta, Path.Combine(Paths.Datos, "games"), StringComparison.OrdinalIgnoreCase))
+                try
+                {
+                    string cs = Path.Combine(Integrado.CopiaDir, @"games\console.txt");
+                    if (File.Exists(cs)) { string g = File.ReadAllText(cs).Trim(); last = Buscar(g); if (last != null) { guardada = g; File.WriteAllText(ArchivoUltima, g, new UTF8Encoding(false)); } }
+                }
+                catch { }
+            if (last != null) { actual = last; origen = "la ultima vista (copia de seguridad de games\\console.txt)"; return; }
             // Sin historia: la Switch 2 si ya se vio su HOME en este PC (la app era solo para ella), si no ninguna en concreto
             bool sw2 = false;
             try { sw2 = File.Exists(ArchivoHomeRef); } catch { }

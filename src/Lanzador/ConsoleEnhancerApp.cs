@@ -205,6 +205,9 @@ namespace ConsoleEnhancer
                 }
             }
             catch (Exception e) { Log.Error("Extras (dlssg_sm86)", e); }
+            // (1.2.07, el usuario: "no tiene que hacer falta poner ningun archivo para activarlo ... que lo incluya la app"): con DLSS 5 en
+            // una NVIDIA y sin dlssg_sm86, la app lo busca en el PC o lo baja sola de su release (Componentes.AsegurarSm86, en segundo plano)
+            Componentes.AsegurarSm86();
         }
 
         static int CopiarCarpeta(string de, string a)

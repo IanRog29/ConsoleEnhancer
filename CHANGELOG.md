@@ -5,6 +5,22 @@ publicada es una etiqueta `vX.Y.Z` de git; GitHub Actions monta su zip y copia a
 
 ## [Sin publicar]
 
+## [1.2.07] - 2026-11-21
+
+### Fixed / Arreglado
+- **DLSS FG no longer asks for a file**: with DLSS 5 the picture goes through Magpie, whose DLSS Frame Generation needs the
+  `dlssg_for_sm86` runtime on any RTX. A new version in a new folder started without it, the settings menu said
+  "DLSS FG · dlssg_sm86 missing" and Magpie could show "Frame generation did not start". Now the app gets it by itself: from your PC
+  if it is already there (Magpie's own copy in `%LOCALAPPDATA%\Magpie\DlssgSm86` or an older ConsoleEnhancer folder) or from its
+  official release (https://github.com/sdli1995/dlssg_for_sm86 v0.4.0, MIT, SHA-256 checked), in the background, and also writes the
+  two small `.ini` files Magpie checks. Only on NVIDIA with DLSS 5 added.
+  *DLSS FG ya no pide ningún archivo: la app coge o baja sola dlssg_for_sm86 (de su release oficial) y pone los .ini que comprueba Magpie.*
+- **Game names missing in the settings menu after updating**: deleting the old version's folder meant the new one started without
+  knowing your console was a PS5 (one generic "Console" profile, no game names) and without your game profiles. The app now keeps a
+  backup of its settings in `%LOCALAPPDATA%\ConsoleEnhancer\backup` (every 2 minutes, only what changed) and a new version takes
+  them from there when there is no older folder next to it.
+  *Sin nombre de juego en el menú tras actualizar: la app guarda una copia de sus datos fuera de su carpeta y la versión nueva la hereda.*
+
 ## [1.2.06] - 2026-11-21
 
 ### Changed / Cambiado

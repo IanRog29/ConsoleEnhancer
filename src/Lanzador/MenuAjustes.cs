@@ -489,13 +489,16 @@ namespace ConsoleEnhancer
             // (1.2.02, el usuario: "derepente no aparece el dlss fg"): con DLSS 5 por Magpie, DLSS FG necesita runtimes\dlssg_sm86 (tambien en
             // RTX 40) y sin el se quitaba de la lista sin decir nada. Ahora una fila dice que falta y donde va (se mira otra vez al abrir el menu)
             if (!Integrado.MagpieDlssgOk && Extras.HaySm86 && ExtrasToca()) { Ce.PrepararExtras(); Integrado.Dlss5Rever(); }
-            FilaAjuste fgno = new FilaAjuste { Id = "dlssginfo", Nombre = "DLSS FG", Activa = false, Nota = Tx.T("Falta dlssg_sm86", "dlssg_sm86 missing") };
+            // (1.2.07: la app lo busca o lo baja sola, Componentes.AsegurarSm86: la fila solo dice que se esta preparando)
+            Componentes.AsegurarSm86();
+            FilaAjuste fgno = new FilaAjuste { Id = "dlssginfo", Nombre = "DLSS FG", Activa = false,
+                                               Nota = Componentes.Sm86Bajando ? Tx.T("Preparando…", "Getting ready…") : Tx.T("No disponible ahora", "Not available right now") };
             fgno.Visible = cfg.FgAvailable && !Ce.NoNvidia && cfg.DlssFgPorMagpieSinRuntime &&
                            (Array.IndexOf(cfg.GenList30, "dlss") >= 0 || Array.IndexOf(cfg.GenList60, "dlss") >= 0);
-            fgno.Ayuda = Tx.T("Con DLSS 5, DLSS FG va por Magpie y necesita la carpeta dlssg_sm86: ponla en " + Extras.Sm86 + " y vuelve a abrir este menú " +
-                              "(o en la bandeja: «Añadir DLSS 5 (tu propio archivo)…»). Mientras, va otra generación",
-                              "With DLSS 5, DLSS FG runs through Magpie and needs the dlssg_sm86 folder: put it in " + Extras.Sm86 + " and open this menu again " +
-                              "(or from the tray: “Add DLSS 5 (your own file)…”). Until then another frame generation is used");
+            fgno.Ayuda = Tx.T("Con DLSS 5, DLSS FG va por Magpie y necesita un componente (dlssg_for_sm86) que la app baja sola de su página oficial. " +
+                              "Cuando acabe, vuelve a abrir este menú. Mientras, va otra generación",
+                              "With DLSS 5, DLSS FG runs through Magpie and needs a component (dlssg_for_sm86) the app downloads by itself from its official page. " +
+                              "When it is done, open this menu again. Until then another frame generation is used");
 
             FilaAjuste niv = new FilaAjuste { Id = "nivel", Nombre = Tx.T("Nivel de DLSS 5", "DLSS 5 level") };
             string nv = Math.Max(1, Math.Min(4, dlss5Level)).ToString();

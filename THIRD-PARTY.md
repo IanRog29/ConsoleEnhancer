@@ -10,7 +10,8 @@ del repositorio. En el zip, las licencias completas van en `licenses\`.
 > Magpie (GPL-3.0). No third-party binaries are in the repository. The release zip contains only ConsoleEnhancer's own executables plus
 > the unmodified, NVIDIA-signed Streamline / DLSS / Reflex DLLs, which NVIDIA allows applications to redistribute. **mpv and Magpie are
 > not redistributed**: on first start the app downloads them from their official GitHub releases (pinned versions, SHA-256 checked).
-> The community-modified `nvngx_dlssnr.dll` ("DLSS 5") and the `dlssg_sm86` runtime are never distributed, downloaded or recommended.
+> The community-modified `nvngx_dlssnr.dll` ("DLSS 5") is never distributed, downloaded or recommended. With DLSS 5 added, the
+> `dlssg_for_sm86` runtime (MIT, https://github.com/sdli1995/dlssg_for_sm86) is downloaded from its official release (v0.4.0, SHA-256 checked).
 
 ## 1. Lo que va en el zip de la release
 
@@ -61,7 +62,9 @@ Para desarrollar, `scripts\descargar_dependencias.ps1` baja lo mismo (y Streamli
   Ni en el repositorio, ni en el zip, ni en lo que baja la app (`.gitignore`, `scripts\empaquetar.ps1` y `Componentes.cs` lo impiden).
   La app solo la usa si el usuario la añade él mismo con su propio archivo (bandeja > *Añadir DLSS 5*, que comprueba que es una DLL
   x64 y la copia a `extras\`, o a mano en `extras\`), y avisa de que no es oficial. La app no enlaza ni dice de dónde sacarla.
-- `runtimes\dlssg_sm86` (DLSS-G en RTX 30): runtime de la comunidad con DLL autofirmadas. Igual que la anterior.
+- `runtimes\dlssg_sm86`: no va en el zip. Desde la 1.2.07, con DLSS 5 puesto en una NVIDIA, la app lo coge del PC o lo baja de su
+  release oficial (`dlssg-release-0.4.0-x64.zip` de https://github.com/sdli1995/dlssg_for_sm86, MIT; SHA-256 en `scripts\components.json`)
+  a `extras\runtimes\dlssg_sm86`, porque el DLSS FG de Magpie no funciona sin él.
 - `DLSSNR-DLL-Options.zip` y `NGX_OTA_Switch.bat` (assets aparte de la release de Magpie): no se bajan.
 - Un Magpie compilado con `parches\magpie-dlssfg-vsync-pacing.patch`: el parche (código fuente, GPL-3.0) sí está en el repositorio; el
   exe resultante no se reparte (enlaza la librería estática de NGX de NVIDIA).

@@ -71,6 +71,7 @@ namespace ConsoleEnhancer
             NombresIngles(d);
             try { Directory.CreateDirectory(Path.Combine(d, "games")); Directory.CreateDirectory(Path.Combine(d, "logs")); } catch { }
             HeredarDatos(d, appDir);
+            CopiaSeguridad(d.TrimEnd('\\'));
             return d.TrimEnd('\\');
         }
 
@@ -144,6 +145,10 @@ namespace ConsoleEnhancer
                         if (!string.Equals(dir.TrimEnd('\\'), appDir.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase))
                             foreach (string sd in new[] { "data", "datos" })   // (1.2.06: hasta la 1.2.05, datos\)
                                 if (File.Exists(Path.Combine(dir, sd + @"\consoleenhancer.ini"))) { fuentes.Add(Path.Combine(dir, sd)); break; }
+                // (1.2.07, el usuario: "otra vez me meto a un juego y no pone su nombre"): borrada la carpeta de la version anterior, la
+                // nueva empezaba sin games\console.txt (consola generica: sin nombres de juegos) ni perfiles. La copia de seguridad que
+                // guarda cada version en %LOCALAPPDATA%\ConsoleEnhancer\backup (CopiaSeguridad) va antes que el %LOCALAPPDATA% viejo
+                if (fuentes.Count == 0 && File.Exists(Path.Combine(CopiaDir, "consoleenhancer.ini"))) fuentes.Add(CopiaDir);
                 if (fuentes.Count == 0) fuentes.Add(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ConsoleEnhancer"));
                 string yo = Path.GetFullPath(d).TrimEnd('\\');
                 Dictionary<string, string> mejor = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -209,6 +214,52 @@ namespace ConsoleEnhancer
                 File.WriteAllText(Path.Combine(d, HeredadoTxt), sb.ToString(), new UTF8Encoding(false));
             }
             catch { }
+        }
+
+        // (1.2.07) Copia de seguridad de los datos fuera de la carpeta de la app (cada version portable vive en la suya y el usuario borra
+        // las viejas): el ini y data\ + data\games\ (sin logs ni cache) en %LOCALAPPDATA%\ConsoleEnhancer\backup, al abrir y cada 2 min
+        // (solo lo que ha cambiado). HeredarDatos la usa si no hay otra version al lado; Consolas lee de ahi console.txt si falta
+        public static string CopiaDir { get { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), @"ConsoleEnhancer\backup"); } }
+        static System.Threading.Timer copiaTimer;
+        public static void CopiaSeguridad(string d)
+        {
+            if (copiaTimer != null || string.IsNullOrEmpty(d)) return;
+            foreach (string a in Environment.GetCommandLineArgs())   // (pruebas con otra carpeta de datos o simulando otro PC: nada)
+                if (a.StartsWith("--datos=", StringComparison.OrdinalIgnoreCase) || a.StartsWith("--simula", StringComparison.OrdinalIgnoreCase) ||
+                    a.StartsWith("--prueba", StringComparison.OrdinalIgnoreCase) || a.StartsWith("--test", StringComparison.OrdinalIgnoreCase)) return;
+            if (string.Equals(Path.GetFullPath(d).TrimEnd('\\'), Path.GetFullPath(CopiaDir).TrimEnd('\\'), StringComparison.OrdinalIgnoreCase)) return;
+            copiaTimer = new System.Threading.Timer(delegate { CopiaAhora(d); }, null, 5000, 120000);
+        }
+        static int copiando;
+        public static void CopiaAhora(string d)
+        {
+            if (System.Threading.Interlocked.Exchange(ref copiando, 1) == 1) return;
+            try
+            {
+                if (!File.Exists(Path.Combine(d, "consoleenhancer.ini"))) return;
+                foreach (string sub in new[] { "", "games" })
+                {
+                    string dir = sub.Length == 0 ? d : Path.Combine(d, sub);
+                    if (!Directory.Exists(dir)) continue;
+                    string dst = sub.Length == 0 ? CopiaDir : Path.Combine(CopiaDir, sub);
+                    Directory.CreateDirectory(dst);
+                    foreach (string a in Directory.GetFiles(dir))
+                    {
+                        string n = Path.GetFileName(a);
+                        if (n.StartsWith(".") || n.EndsWith(".log", StringComparison.OrdinalIgnoreCase) || n.Equals(HeredadoTxt, StringComparison.OrdinalIgnoreCase)) continue;
+                        if (n.IndexOf(".antes-", StringComparison.OrdinalIgnoreCase) >= 0) continue;
+                        try
+                        {
+                            FileInfo fa = new FileInfo(a), fb = new FileInfo(Path.Combine(dst, n));
+                            if (fb.Exists && fb.Length == fa.Length && fb.LastWriteTimeUtc >= fa.LastWriteTimeUtc) continue;
+                            File.Copy(a, fb.FullName, true);
+                        }
+                        catch { }   // (un fichero abierto para escribir: la proxima vez)
+                    }
+                }
+            }
+            catch { }
+            finally { System.Threading.Interlocked.Exchange(ref copiando, 0); }
         }
 
         static int CopiarCarpeta(string src, string dst)

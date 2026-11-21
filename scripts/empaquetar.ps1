@@ -123,7 +123,7 @@ Texto "$lic\NVIDIA-NOTICE.txt" @(
     'endorsed by NVIDIA.')
 $ver = @('# Versiones de los componentes de terceros / third-party component versions (scripts\components.json)', '')
 foreach ($c in $tabla) {
-    $donde = if ($c.al_abrir) { 'NO va en el paquete: la app lo baja la primera vez de / NOT in the package: downloaded on first start from' } else { 'en el paquete / in the package:' }
+    $donde = if ($c.bajo_demanda) { 'NO va en el paquete: la app lo baja cuando hace falta (DLSS 5) / NOT in the package: downloaded when needed (DLSS 5) from' } elseif ($c.al_abrir) { 'NO va en el paquete: la app lo baja la primera vez de / NOT in the package: downloaded on first start from' } else { 'en el paquete / in the package:' }
     $ver += "$($c.nombre) $($c.version) - $donde"
     $ver += "  $($c.url)"
     $ver += "  sha256 $($c.sha256)"
@@ -157,15 +157,15 @@ Texto "$Destino\extras\README.txt" @(
     ' - nvngx_dlssnr.dll ("DLSS 5", filtro DLSSNR de Magpie): DLL de NVIDIA modificada por la comunidad, SIN FIRMA, sin licencia.',
     '   Lo facil: icono de la bandeja > "Anadir DLSS 5 (tu propio archivo)..." (o el boton del ultimo paso del asistente): elige tu',
     '   archivo, la app comprueba que es una DLL de 64 bits, avisa y la copia aqui. "Quitar DLSS 5" la borra. Bajo tu responsabilidad.',
-    ' - runtimes\dlssg_sm86 (DLSS-G en RTX 30): runtime de la comunidad con DLL autofirmadas. Igual: aqui (extras\runtimes\dlssg_sm86);',
-    '   la app lo copia a magpie\runtimes\ al arrancar (y lo quita si lo quitas de aqui). Apagado de serie.',
-    'ConsoleEnhancer no reparte, no baja ni recomienda estos ficheros: NVIDIA no los ha publicado asi y su uso puede ir contra sus',
+    ' - runtimes\dlssg_sm86 (DLSS FG de Magpie con DLSS 5): no hace falta ponerlo; con DLSS 5 la app lo coge del PC o lo baja sola de',
+    '   su release oficial (github.com/sdli1995/dlssg_for_sm86, MIT) a extras\runtimes\dlssg_sm86 y lo copia a magpie\runtimes\.',
+    'ConsoleEnhancer no reparte, no baja ni recomienda nvngx_dlssnr.dll: NVIDIA no los ha publicado asi y su uso puede ir contra sus',
     'condiciones. Si no sabes de donde salen, no los uses.',
     '',
-    'UNOFFICIAL extras (not shipped; the app works fully without them): nvngx_dlssnr.dll (community-modified, unsigned NVIDIA DLL) and',
-    'runtimes\dlssg_sm86 (community, self-signed). If you already have them, use tray icon > "Add DLSS 5 (your own file)..." (it checks the',
+    'UNOFFICIAL extras (not shipped; the app works fully without them): nvngx_dlssnr.dll (community-modified, unsigned NVIDIA DLL).',
+    'With DLSS 5 the app downloads runtimes\dlssg_sm86 (github.com/sdli1995/dlssg_for_sm86) by itself. If you already have the DLL, use tray icon > "Add DLSS 5 (your own file)..." (it checks the',
     'file and copies it here) or put them here by hand; used at your own risk. ConsoleEnhancer does',
-    'not distribute, download or recommend them.')
+    'not distribute, download or recommend nvngx_dlssnr.dll.')
 Texto "$Destino\README.txt" @(
     "ConsoleEnhancer $verTxt - your console through a capture card, enhanced on your PC / tu consola por la capturadora, mejorada en el PC",
     '',

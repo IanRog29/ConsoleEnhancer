@@ -78,7 +78,7 @@ with help a lot too.
   with *Test sound*, the console, the display, the **picture** (HDR and VRR), the **controller** (button table for yours) and the plan.
 - **Chain chosen by GPU** (`src\Deteccion\Plan.cs`): RTX 50, DLSS SR + Reflex + DLSS-G (x2-x4); RTX 40, DLSS SR + Reflex + DLSS
   Frame Generation (Smooth Motion as an alternative in the selector); RTX 20/30, DLSS SR + Reflex (optional FSR 3 FG; on RTX 30 also
-  DLSS FG through Magpie if you add your own `dlssg_sm86` folder); without DLSS, **XeSS** on GTX and Intel Arc and **FSR 4** on AMD
+  DLSS FG through Magpie with DLSS 5); without DLSS, **XeSS** on GTX and Intel Arc and **FSR 4** on AMD
   RX 6000 / 7000 / 9000 (official on RX 9000; on RX 6000 / 7000 through the FSR 4.1.1 unlock of the bundled Magpie, experimental;
   otherwise FSR 3.1), plus whatever frame generation each one has (driver AFMF, FSR 3 FG, XeSS FG).
 - **Built-in image engine** (D3D12, `src\Motor`): DirectShow capture; upscaling with DLSS, XeSS, FSR 3.1 / FSR 4 (with the Intel and
@@ -224,10 +224,11 @@ If you already have your own file, adding it takes one click:
 1. Tray icon > **Add DLSS 5 (your own file)…** (or the **Add DLSS 5** button on the wizard's last step; only with a GeForce RTX and
    6 GB of VRAM or more).
 2. Read the notice (it is unofficial, NVIDIA doesn't support it and it is at your own risk) and pick your `nvngx_dlssnr.dll`.
-3. The app checks that it is a 64-bit Windows DLL with that name and copies it to `extras\` next to the exe. Optionally, also your
-   `dlssg_sm86` folder: with DLSS 5 the picture goes through Magpie, and Magpie's DLSS Frame Generation needs it on any RTX (RTX 30,
-   40 or 50). Without it the settings menu shows **"DLSS FG · dlssg_sm86 missing"** and another frame generation is used (XeSS FG or
-   Smooth Motion). You can also drop the folder in `extras\runtimes\dlssg_sm86` and open the menu again.
+3. The app checks that it is a 64-bit Windows DLL with that name and copies it to `extras\` next to the exe. With DLSS 5 the picture goes
+   through Magpie, and Magpie's DLSS Frame Generation needs the `dlssg_for_sm86` runtime on any RTX (30, 40 or 50): **you don't have to
+   add anything**. The app takes it from your PC if it is already there (Magpie's own copy or an older ConsoleEnhancer folder) or
+   downloads it by itself from its official release (https://github.com/sdli1995/dlssg_for_sm86, MIT, SHA-256 checked, ~80 MB). While
+   it is getting ready, the settings menu shows **"DLSS FG · Getting ready…"** and another frame generation is used.
 4. Choose whether to turn it on now. While playing, the controller's **A** button turns it on and off (X / Y / B: passes; L1 / L2 / R2 /
    R1: level).
 
@@ -343,9 +344,10 @@ low-power mode in `ConsoleEnhancer Settings.exe` > *Test standby*.
 - **mpv and Magpie are not redistributed by ConsoleEnhancer**: the app downloads them from their official releases, with their licenses
   (GPL) and source code on their pages.
 - **"DLSS 5" is not included.** `nvngx_dlssnr.dll` is a community-modified NVIDIA DLL with no signature or license, and
-  `runtimes\dlssg_sm86` is a community runtime with self-signed DLLs. They are not in the repository or the zip, the app doesn't download
-  them, and using them may go against NVIDIA's terms. If you already have them, you can add them yourself (tray > *Add DLSS 5*, which
-  copies them to `extras\`) at your own risk: the app warns that they are not official.
+  it is not in the repository or the zip, the app doesn't download it, and using it may go against NVIDIA's terms. If you already have
+  it, you can add it yourself (tray > *Add DLSS 5*, which copies it to `extras\`) at your own risk: the app warns that it is not
+  official. Once DLSS 5 is added, the app gets the `dlssg_for_sm86` runtime Magpie's DLSS FG needs (a community project, MIT) from its
+  official GitHub release, like mpv and Magpie; it is not in the zip either.
 - **Author**: ConsoleEnhancer is created and maintained by **IanRog29** (with contributions from its contributors). Copyright (C) 2026
   IanRog29 and ConsoleEnhancer contributors.
 - **Donations**: voluntary (Ko-fi); they don't give access to anything extra and don't buy third-party DLLs.
@@ -496,7 +498,7 @@ y contar en qué PC y con qué consola lo usas.
   el sonido con *Probar sonido*, la consola, la pantalla, la **imagen** (HDR y VRR), el **mando** (tabla de botones del tuyo) y el plan.
 - **Cadena según la gráfica** (`src\Deteccion\Plan.cs`): RTX 50, DLSS SR + Reflex + DLSS-G (x2-x4); RTX 40, DLSS SR + Reflex + DLSS
   Frame Generation (Smooth Motion como alternativa en el selector); RTX 20/30, DLSS SR + Reflex (FSR 3 FG opcional; en RTX 30 también
-  DLSS FG por Magpie si añades tu propia carpeta `dlssg_sm86`); sin DLSS, **XeSS** en GTX e Intel Arc y **FSR 4** en AMD RX 6000 / 7000 /
+  DLSS FG por Magpie con DLSS 5); sin DLSS, **XeSS** en GTX e Intel Arc y **FSR 4** en AMD RX 6000 / 7000 /
   9000 (oficial en las RX 9000; en RX 6000 / 7000 con el desbloqueo de FSR 4.1.1 del Magpie que trae la app, experimental; si no,
   FSR 3.1), y la generación que tenga cada una (AFMF del driver, FSR 3 FG, XeSS FG).
 - **Motor de imagen propio** (D3D12, `src\Motor`): captura DirectShow; escalado con DLSS, XeSS, FSR 3.1 / FSR 4 (con las DLL de Intel
@@ -643,10 +645,11 @@ Si ya tienes tu propio archivo, añadirlo es un clic:
 1. Icono de la bandeja > **Añadir DLSS 5 (tu propio archivo)…** (o el botón **Añadir DLSS 5** del último paso del asistente; solo con
    una GeForce RTX y 6 GB de VRAM o más).
 2. Lee el aviso (no es oficial, NVIDIA no lo soporta y es bajo tu responsabilidad) y elige tu `nvngx_dlssnr.dll`.
-3. La app comprueba que es una DLL de Windows de 64 bits con ese nombre y la copia a `extras\` junto al exe. Opcionalmente, también tu
-   carpeta `dlssg_sm86`: con DLSS 5 la imagen va por Magpie y su DLSS Frame Generation la necesita en cualquier RTX (30, 40 o 50). Sin
-   ella el menú de ajustes muestra **"DLSS FG · Falta dlssg_sm86"** y se usa otra generación (XeSS FG o Smooth Motion). También puedes
-   dejar la carpeta en `extras\runtimes\dlssg_sm86` y volver a abrir el menú.
+3. La app comprueba que es una DLL de Windows de 64 bits con ese nombre y la copia a `extras\` junto al exe. Con DLSS 5 la imagen va por
+   Magpie y su DLSS Frame Generation necesita el runtime `dlssg_for_sm86` en cualquier RTX (30, 40 o 50): **no tienes que poner nada**.
+   La app lo coge del PC si ya está (la copia de Magpie o una carpeta anterior de ConsoleEnhancer) o lo baja sola de su release oficial
+   (https://github.com/sdli1995/dlssg_for_sm86, MIT, con su SHA-256, ~80 MB). Mientras se prepara, el menú de ajustes muestra
+   **"DLSS FG · Preparando…"** y se usa otra generación.
 4. Dices si lo enciendes ya. Jugando se enciende y se apaga con el botón **A** del mando (X / Y / B: pasadas; L1 / L2 / R2 / R1: nivel).
 
 Para quitarlo: icono de la bandeja > **Quitar DLSS 5** (borra la copia de `extras\`; tu archivo original no se toca).
@@ -761,9 +764,10 @@ consumo en `ConsoleEnhancer Settings.exe` > *Probar el modo espera*.
 - **mpv y Magpie no los reparte ConsoleEnhancer**: los baja la app de sus releases oficiales, con sus licencias (GPL) y su código fuente
   en sus páginas.
 - **"DLSS 5" no se incluye.** `nvngx_dlssnr.dll` es una DLL de NVIDIA modificada por la comunidad, sin firma ni licencia, y
-  `runtimes\dlssg_sm86` un runtime de la comunidad con DLL autofirmadas. No están en el repositorio ni en el zip, la app no los baja, y
-  su uso puede ir contra las condiciones de NVIDIA. Si ya los tienes, puedes añadirlos tú (bandeja > *Añadir DLSS 5*, que los copia a
-  `extras\`) bajo tu responsabilidad: la app avisa de que no son oficiales.
+  no está en el repositorio ni en el zip, la app no la baja, y su uso puede ir contra las condiciones de NVIDIA. Si ya la tienes, puedes
+  añadirla tú (bandeja > *Añadir DLSS 5*, que la copia a `extras\`) bajo tu responsabilidad: la app avisa de que no es oficial. Con DLSS 5
+  puesto, la app baja el runtime `dlssg_for_sm86` que necesita el DLSS FG de Magpie (proyecto de la comunidad, MIT) de su release oficial
+  de GitHub, como mpv y Magpie; tampoco va en el zip.
 - **Autor**: ConsoleEnhancer lo crea y mantiene **IanRog29** (con las aportaciones de sus colaboradores). Copyright (C) 2026 IanRog29 y
   colaboradores de ConsoleEnhancer.
 - **Donaciones**: voluntarias (Ko-fi); no dan acceso a nada extra ni compran DLL de terceros.

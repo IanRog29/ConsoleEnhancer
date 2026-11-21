@@ -302,6 +302,149 @@ namespace ConsoleEnhancer
             return rels.Count;
         }
 
+        // ---- (1.2.07) dlssg_sm86 sin que el usuario ponga nada ----
+        // Con DLSS 5 el DLSS FG va por Magpie, y el de este Magpie solo funciona con runtimes\dlssg_sm86 (tambien en RTX 40/50). El
+        // 21-11 el usuario: "otra vez me dice que no puedo poner dlss fg porque falta noseque archivo, no tiene que hacer falta poner
+        // ningun archivo" / "que lo incluya la app". No va dentro del zip (lleva DLL de NVIDIA), asi que, en segundo plano:
+        //  1. se busca en el PC: la copia que guarda Magpie (%LOCALAPPDATA%\Magpie\DlssgSm86\<zip>\<id>), otras versiones de la app
+        //     al lado (extras\ o magpie\runtimes\) y %LOCALAPPDATA%\ConsoleEnhancer\extras
+        //  2. si no esta, se baja de su release oficial (github.com/sdli1995/dlssg_for_sm86, components.json, con su SHA-256)
+        // y va a extras\runtimes\dlssg_sm86 (Ce.PrepararExtras lo pone en magpie\). Solo con NVIDIA y DLSS 5 puesto; un intento por sesion
+        static int sm86Corriendo;
+        static volatile bool sm86Intentado;
+        public static bool Sm86Bajando { get { return Interlocked.CompareExchange(ref sm86Corriendo, 0, 0) == 1; } }
+        public static void AsegurarSm86()
+        {
+            try
+            {
+                if (Ce.NoNvidia || !Extras.HayDlss5 || sm86Intentado) return;
+                // (puesto a mano o de una version anterior sin los .ini de Magpie: se ponen)
+                string mag = Path.Combine(Paths.MagpieDir, @"runtimes\dlssg_sm86");
+                if (File.Exists(Path.Combine(mag, "version.dll"))) { PonerIniMagpie(mag); return; }
+                if (Extras.HaySm86) return;   // (en extras\ y aun no en magpie\: lo copia Ce.PrepararExtras)
+                if (Interlocked.Exchange(ref sm86Corriendo, 1) == 1) return;
+            }
+            catch { return; }
+            sm86Intentado = true;
+            Thread t = new Thread(delegate ()
+            {
+                try
+                {
+                    string de = Sm86EnElPc();
+                    if (de != null)
+                    {
+                        int n = CopiarSm86(de, Extras.Sm86);
+                        Log.Write("dlssg_sm86: cogido de " + de + " (" + n + " ficheros) a extras\\runtimes\\ (sin que el usuario ponga nada)");
+                    }
+                    else
+                    {
+                        Componente c = null;
+                        foreach (Componente x in Leer(Tabla)) if (x.Nombre == "dlssg_sm86") c = x;
+                        if (c == null) { Log.Write("dlssg_sm86: no esta en el PC ni en components.json: DLSS FG con DLSS 5 no va"); return; }
+                        Log.Write("dlssg_sm86: no esta en el PC: se baja " + c.Titulo + " " + c.Version + " de " + c.Url);
+                        Instalar(c, Paths.AppDir, null, null);
+                    }
+                    PonerIniMagpie(Extras.Sm86);
+                    Ce.PrepararExtras();
+                    PonerIniMagpie(Path.Combine(Paths.MagpieDir, @"runtimes\dlssg_sm86"));
+                    Integrado.Dlss5Rever();
+                    Log.Write("dlssg_sm86: listo (DLSS FG con DLSS 5 disponible" + (Integrado.MagpieDlssgOk ? "" : "; falta copiarlo a magpie\\") + ")");
+                }
+                catch (Exception ex) { Log.Error("dlssg_sm86 (buscar / bajar)", ex); }
+                finally { Interlocked.Exchange(ref sm86Corriendo, 0); }
+            });
+            t.IsBackground = true;
+            t.Name = "dlssg_sm86";
+            t.Start();
+        }
+
+        // forward.ini y native.ini: los escribe Magpie (no vienen en el zip de dlssg_for_sm86) y su build-manifest.json los comprueba
+        // por SHA-256 (sin ellos: "Frame generation did not start ... validation failed"). Los mismos bytes que los de Magpie 0.6.12
+        const string ForwardIni = "OyBNYW5hZ2VkIGJ5IE1hZ3BpZS4gRmVhdHVyZSBwcmVzZXRzIGFyZSBzdWJtaXR0ZWQgdGhyb3VnaCBOR1gsIG5vdCB0aGlzIElOSS4KW0dlbmVyYWxdCkVuYWJsZWQ9MQoKW0ZyYW1lR2VuZXJhdGlvbl0KRW5naW5lPURMU1MKTWF4R2VuZXJhdGVkRnJhbWVzPTMKRm9yY2VHZW5lcmF0ZWRGcmFtZXM9MApGb3JjZVBsdWdpbkZyYW1lcz0wCkltYWdlQXBwcm94PTAKCltETFNTR10KT3B0aW1pemVkPTEKUHJlc2V0PUF1dG8KCltDb21wYXRpYmlsaXR5XQpSb3V0ZXI9QXV0bwpLZXJuZWxJbWFnZT1QVFgKQWNjZWxlcmF0ZU5ld2VyR3B1cz0xClNwb29mQXJjaFRvR2FtZT0wCkZvcmNlU004NlJvdXRlPTAKU2ltdWxhdGVBbXBlcmU9MApMYXVuY2hDaGFpbnM9MApDaGFpbkJsb2NrMD0wCgpbUnVudGltZV0KTW9kZT1CdW5kbGVkCgpbU3VwZXJSZXNvbHV0aW9uXQpNb2RlPU9mZgoKW0xvZ2dpbmddCkxldmVsPTIKRGlyZWN0b3J5PWRsc3NnX3NtODZcbG9ncwo=";
+        const string NativeIni = "OyBNYW5hZ2VkIGJ5IE1hZ3BpZS4gRmVhdHVyZSBwcmVzZXRzIGFyZSBzdWJtaXR0ZWQgdGhyb3VnaCBOR1gsIG5vdCB0aGlzIElOSS4KW0dlbmVyYWxdCkVuYWJsZWQ9MQoKW0ZyYW1lR2VuZXJhdGlvbl0KRW5naW5lPURMU1MKTWF4R2VuZXJhdGVkRnJhbWVzPTMKRm9yY2VHZW5lcmF0ZWRGcmFtZXM9MApGb3JjZVBsdWdpbkZyYW1lcz0wCkltYWdlQXBwcm94PTAKCltETFNTR10KT3B0aW1pemVkPTEKUHJlc2V0PUF1dG8KCltDb21wYXRpYmlsaXR5XQpSb3V0ZXI9QXV0bwpLZXJuZWxJbWFnZT1BdXRvCkFjY2VsZXJhdGVOZXdlckdwdXM9MQpTcG9vZkFyY2hUb0dhbWU9MApGb3JjZVNNODZSb3V0ZT0wClNpbXVsYXRlQW1wZXJlPTAKTGF1bmNoQ2hhaW5zPTAKQ2hhaW5CbG9jazA9MAoKW1J1bnRpbWVdCk1vZGU9QnVuZGxlZAoKW1N1cGVyUmVzb2x1dGlvbl0KTW9kZT1PZmYKCltMb2dnaW5nXQpMZXZlbD0yCkRpcmVjdG9yeT1kbHNzZ19zbTg2XGxvZ3MK";
+        static void PonerIniMagpie(string d)
+        {
+            try
+            {
+                if (!Directory.Exists(d)) return;
+                foreach (KeyValuePair<string, string> kv in new[] { new KeyValuePair<string, string>("forward.ini", ForwardIni), new KeyValuePair<string, string>("native.ini", NativeIni) })
+                {
+                    string f = Path.Combine(d, kv.Key);
+                    byte[] b = Convert.FromBase64String(kv.Value);
+                    if (!File.Exists(f) || new FileInfo(f).Length != b.Length) File.WriteAllBytes(f, b);
+                }
+            }
+            catch (Exception ex) { Log.Error("dlssg_sm86: forward.ini / native.ini", ex); }
+        }
+
+        static bool Sm86Vale(string d)
+        {
+            return Directory.Exists(d) && File.Exists(Path.Combine(d, "version.dll")) &&
+                   File.Exists(Path.Combine(d, @"dlssg_sm86\runtime\nvngx_dlssg.dll")) && File.Exists(Path.Combine(d, @"dlssg_sm86\backend\sm86_backend.dll")) &&
+                   File.Exists(Path.Combine(d, @"dlssg_sm86\kernels\fg_kernels.dll"));
+        }
+
+        static string Sm86EnElPc()
+        {
+            List<string> c = new List<string>();
+            string la = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            try
+            {
+                string mag = Path.Combine(la, @"Magpie\DlssgSm86");
+                if (Directory.Exists(mag))
+                    foreach (string z in Directory.GetDirectories(mag)) foreach (string id in Directory.GetDirectories(z)) c.Add(id);
+            }
+            catch { }
+            try
+            {
+                string app = Paths.AppDir.TrimEnd('\\'), padre = Path.GetDirectoryName(app);
+                if (!string.IsNullOrEmpty(padre) && Directory.Exists(padre))
+                    foreach (string dir in Directory.GetDirectories(padre, "ConsoleEnhancer*"))
+                    {
+                        if (string.Equals(dir.TrimEnd('\\'), app, StringComparison.OrdinalIgnoreCase)) continue;
+                        c.Add(Path.Combine(dir, @"extras\runtimes\dlssg_sm86"));
+                        c.Add(Path.Combine(dir, @"magpie\runtimes\dlssg_sm86"));
+                    }
+            }
+            catch { }
+            c.Add(Path.Combine(la, @"ConsoleEnhancer\extras\runtimes\dlssg_sm86"));
+            string mejor = null;
+            DateTime cuando = DateTime.MinValue;
+            foreach (string d in c)
+                try
+                {
+                    if (!Sm86Vale(d)) continue;
+                    DateTime w = File.GetLastWriteTimeUtc(Path.Combine(d, "version.dll"));
+                    if (mejor == null || w > cuando) { mejor = d; cuando = w; }
+                }
+                catch { }
+            return mejor;
+        }
+
+        // Solo lo que hace falta (sin logs\ ni los .ini que escribe Magpie)
+        static int CopiarSm86(string de, string a)
+        {
+            a = a.TrimEnd('\\');
+            string tmp = a + ".parcial";
+            if (Directory.Exists(tmp)) Directory.Delete(tmp, true);
+            Directory.CreateDirectory(tmp);
+            int n = 0;
+            foreach (string f in new[] { "version.dll", "LICENSE.md", "THIRD_PARTY_NOTICES.txt" })
+                if (File.Exists(Path.Combine(de, f))) { File.Copy(Path.Combine(de, f), Path.Combine(tmp, f), true); n++; }
+            foreach (string sub in new[] { "backend", "kernels", "runtime" })
+            {
+                string s = Path.Combine(de, @"dlssg_sm86\" + sub), t = Path.Combine(tmp, @"dlssg_sm86\" + sub);
+                if (!Directory.Exists(s)) continue;
+                Directory.CreateDirectory(t);
+                foreach (string f in Directory.GetFiles(s, "*.dll")) { File.Copy(f, Path.Combine(t, Path.GetFileName(f)), true); n++; }
+            }
+            if (!Sm86Vale(tmp)) { Directory.Delete(tmp, true); throw new InvalidDataException("dlssg_sm86 incompleto en " + de); }
+            if (Directory.Exists(a)) Directory.Delete(a, true);
+            Directory.CreateDirectory(Path.GetDirectoryName(a));
+            Directory.Move(tmp, a);
+            return n;
+        }
+
         public static bool SePuedeEscribir(string dir)
         {
             try { string f = Path.Combine(dir, ".escribir_componentes"); File.WriteAllText(f, ""); File.Delete(f); return true; }
