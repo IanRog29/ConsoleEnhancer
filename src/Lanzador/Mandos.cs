@@ -291,6 +291,14 @@ namespace ConsoleEnhancer
 
         public int Connects { get { return connects; } }
         public bool RawInputOk { get { return rawOk; } }
+        // 21-11 (1.2.1): la ultima entrada de teclado / raton que ha visto Raw Input (Environment.TickCount; 0 = ninguna aun), fisica o
+        // inyectada: los ganchos de bajo nivel ven las dos, el mando (XInput) ninguna. Para el vigilante de los ganchos (MenuJuego.cs
+        // GanchosVigila): GetLastInputInfo tambien cuenta el mando XInput y los volvia a poner cada 2 s jugando con el
+        volatile int lastKbdTick, lastMouseTick;
+        volatile bool rawMouseOk;
+        public int LastKbdTick { get { return lastKbdTick; } }
+        public int LastMouseTick { get { return lastMouseTick; } }
+        public bool RawMouseOk { get { return rawOk && rawMouseOk; } }
         public PadKind MainKind { get { lock (sync) return mainKind; } }
 
         static void Say(string s)
@@ -702,6 +710,13 @@ namespace ConsoleEnhancer
                 for (int i = 0; i < 4; i++) { r[i].UsagePage = 1; r[i].Usage = us[i]; r[i].Flags = 0x00000100 | 0x00002000; r[i].Target = hwnd; }
                 rawOk = RegisterRawInputDevices(r, 4, (uint)Marshal.SizeOf(typeof(RAWINPUTDEVICE)));
                 if (!rawOk) Say("Aviso: mandos HID: Raw Input no disponible (" + Marshal.GetLastWin32Error() + "): solo XInput y winmm");
+                // 21-11 (1.2.1): y el raton (1, 2), tambien sin el foco y sin avisos de conectar: solo la hora de su ultima entrada (LastMouseTick)
+                if (rawOk)
+                {
+                    RAWINPUTDEVICE[] rm = new RAWINPUTDEVICE[1];
+                    rm[0].UsagePage = 1; rm[0].Usage = 2; rm[0].Flags = 0x00000100; rm[0].Target = hwnd;
+                    rawMouseOk = RegisterRawInputDevices(rm, 1, (uint)Marshal.SizeOf(typeof(RAWINPUTDEVICE)));
+                }
                 // Mandos XInput nuevos (la interfaz XUSB) y cualquier HID (para winmm): se buscan al momento
                 foreach (Guid g in new Guid[] { XusbGuid, HidGuid })
                 {
@@ -976,8 +991,10 @@ namespace ConsoleEnhancer
             if (got == uint.MaxValue || got < hdr) return;
             uint type = (uint)Marshal.ReadInt32(rawBuf, 0);
             IntPtr dev = Marshal.ReadIntPtr(rawBuf, 8);
+            if (type == 0) { int tm = Environment.TickCount; lastMouseTick = tm == 0 ? 1 : tm; return; } // (21-11, 1.2.1: raton, solo la hora)
             if (type == 1)
             {
+                { int tk = Environment.TickCount; lastKbdTick = tk == 0 ? 1 : tk; } // (21-11, 1.2.1: cualquier teclado, para el vigilante de los ganchos)
                 // Teclado: solo importa el del receptor GameSir (Win derecha 0x5C / Impr Pant 0x2C = su boton de captura). La Win
                 // llega siempre (el gancho solo se queda Impr Pant): con ella basta
                 bool gs;
@@ -2019,13 +2036,17 @@ namespace ConsoleEnhancer
             if (!PadOptions.BlockJoyxoff) return; // (mando_bloquear_joyxoff=0: ni se instala)
             mouseProc = MouseHook;
             mouseHook = SetWindowsHookEx(14, mouseProc, GetModuleHandle(null), 0); // WH_MOUSE_LL, en el hilo de la interfaz
+            // (21-11, 1.2.1: el aviso solo la primera vez y si falla; el vigilante lo vuelve a poner a veces y el log lo decia cada 2 s)
             if (mouseHook == IntPtr.Zero) Log.Write("Aviso: no se pudo instalar el gancho del raton para bloquear Joyxoff con la imagen delante (" + Marshal.GetLastWin32Error() + ")");
-            else Log.Write("Bloqueo de Joyxoff con la imagen delante (mando_bloquear_joyxoff=1): activo (teclado y raton)");
+            else if (!bloqueoDicho) { bloqueoDicho = true; Log.Write("Bloqueo de Joyxoff con la imagen delante (mando_bloquear_joyxoff=1): activo (teclado y raton)"); }
+            ganchoRatonUlt = Environment.TickCount;
         }
+        bool bloqueoDicho;
 
         IntPtr MouseHook(int nCode, IntPtr wParam, IntPtr lParam)
         {
             ganchoUlt = Environment.TickCount;   // (1.0.12: vigilante de los ganchos, MenuJuego.cs GanchosVigila)
+            ganchoRatonUlt = ganchoUlt;          // (21-11, 1.2.1: el de cada gancho, frente a lo que ve Raw Input)
             try
             {
                 if (nCode >= 0 && PadOptions.BlockJoyxoff)

@@ -252,9 +252,17 @@ namespace ConsoleEnhancer
         // error de .NET o el proceso muerto sin dejar rastro). Para que un hilo secundario no mate la app hace falta ademas
         // ConsoleEnhancer.exe.config con legacyUnhandledExceptionPolicy (al lado del exe; en ConsoleEnhancer: resources\ConsoleEnhancer.exe.config,
         // que build.bat y scripts\empaquetar.ps1 ponen junto a ConsoleEnhancer.exe)
+        // 21-11 (1.2.1): se llama al principio de Main (antes de la primera ventana) y otra vez donde estaba; la segunda no hace nada. En
+        // el primer arranque el asistente ya habia creado ventanas en este hilo: SetUnhandledExceptionMode lanzaba InvalidOperationException
+        // ("El modo de excepcion del subproceso no se puede cambiar una vez que se creen Controles") y salia un ERROR en el log. Si no se
+        // puede, se sigue sin el (los manejadores de abajo valen igual)
+        static bool manejadoresPuestos;
         public static void InstalarManejadoresDeFallos()
         {
+            if (manejadoresPuestos) return;
+            manejadoresPuestos = true;
             try { Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException); }
+            catch (InvalidOperationException) { } // (ya hay ventanas en este hilo: el modo de serie)
             catch (Exception ex) { Log.Error("SetUnhandledExceptionMode", ex); }
             Application.ThreadException += delegate (object o, ThreadExceptionEventArgs a)
             {

@@ -40,6 +40,9 @@ namespace ConsoleEnhancer.Motor
         volatile bool signalSent;
         bool earlyAckLogged;
         string pendingLavfSize;                 // video_size de "set demuxer-lavf-o" (se aplica con loadfile)
+        // 21-11 (1.2.1): y su framerate y pixel_format (antes solo el tamaño: del menu de la consola a 4K a 60 a un juego a 1440p a 120 sin
+        // cerrar el motor, el motor seguia pidiendo 59,94 a la capturadora; ni el formato de pixel_format_4k). null = no venia
+        string pendingLavfFps, pendingLavfFmt;
         volatile string awaitSwitch;            // tamaño esperado tras un cambio de captura
         volatile bool mpvGrab;                  // la captura en curso es una peticion por la tuberia de mpv
         // Rafaga de imagenes (diagnostico del tramado)
@@ -142,7 +145,8 @@ namespace ConsoleEnhancer.Motor
             if (!signalSeen) { signalSeen = true; Log.Write("Primera imagen de la fuente: " + w + "x" + h); }
             if (power != null) power.Sample(src, pitch, w, h, fmt, false);
             string aw = awaitSwitch;
-            if (aw != null && aw == w + "x" + h)
+            // (21-11, 1.2.1: o el tamaño que eligio la captura porque la capturadora no da el pedido: DsCapture.LastSizeSwap "pedido>elegido")
+            if (aw != null && (aw == w + "x" + h || Capture.DsCapture.LastSizeSwap == aw + ">" + w + "x" + h))
             {
                 awaitSwitch = null;
                 Ev("switch2-switched", aw);
@@ -317,6 +321,14 @@ namespace ConsoleEnhancer.Motor
                         {
                             Match mm = Regex.Match(val, @"video_size=(\d+x\d+)");
                             if (mm.Success) pendingLavfSize = mm.Groups[1].Value;
+                            // (21-11, 1.2.1: la velocidad y el formato, con el mismo nombre que en los argumentos del motor: fps= y format=)
+                            Match mf = Regex.Match(val, @"framerate=(\d+(?:/\d+)?)");
+                            pendingLavfFps = mf.Success ? mf.Groups[1].Value : null;
+                            Match mp = Regex.Match(val, @"pixel_format=([a-z0-9]+)");
+                            // (como TrayApp.EngineFormat del lanzador: bgr24 -> rgb24, yuyv422 -> yuy2, nv12; el resto o sin el, auto)
+                            pendingLavfFmt = !mp.Success ? (mm.Success ? "auto" : null) :
+                                             mp.Groups[1].Value == "yuyv422" ? "yuy2" : mp.Groups[1].Value == "bgr24" ? "rgb24" :
+                                             mp.Groups[1].Value == "nv12" ? "nv12" : "auto";
                         }
                         else if (prop == "pause" || prop == "geometry" || prop == "glsl-shaders" || prop == "glsl-shader-opts") { }
                         else Log.Write("set sin uso: " + prop);
@@ -332,9 +344,18 @@ namespace ConsoleEnhancer.Motor
                         if (size != null)
                         {
                             awaitSwitch = size;
-                            lock (pendingLock) pending.Add(new KeyValuePair<string, string>("capture", size));
+                            // (21-11, 1.2.1: con la capturadora -no una fuente de prueba- tambien la velocidad y el formato de demuxer-lavf-o)
+                            bool cap = !url.StartsWith("av://lavfi", StringComparison.Ordinal);
+                            string fps = cap ? pendingLavfFps : null, fmt = cap ? pendingLavfFmt : null;
+                            pendingLavfFps = null; pendingLavfFmt = null;
+                            lock (pendingLock)
+                            {
+                                pending.Add(new KeyValuePair<string, string>("capture", size));
+                                if (fps != null) pending.Add(new KeyValuePair<string, string>("fps", fps));
+                                if (fmt != null) pending.Add(new KeyValuePair<string, string>("format", fmt));
+                            }
                             frameEvent.Set();
-                            Log.Write("loadfile: captura a " + size);
+                            Log.Write("loadfile: captura a " + size + (fps != null ? " a " + fps : "") + (fmt != null ? " " + fmt : ""));
                         }
                         return null;
                     }

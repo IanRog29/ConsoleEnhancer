@@ -597,6 +597,81 @@ namespace ConsoleEnhancer
             if (h != IntPtr.Zero) ForceForeground(h);
         }
 
+        // 21-11 (1.2.1, log del usuario: "Telon quitado: 8637 ms en negro" al entrar en un juego y "10521 ms en negro" al cambiar a 1440p
+        // desde el menu de ajustes): sin puente (sin motor en espera listo), mientras Magpie prepara, el telon negro pasa a ser el en vivo en
+        // cuanto mpv ya da la imagen del juego (tras el cambio sin cerrar mpv o tras reabrirlo): la consola a la vista, sin escalar, en vez de
+        // negro. Con lo de telon_vivo (2: solo en los modos de 60 y 120) y lo que mira ShowLiveCurtain. El nuevo sale ya opaco encima y el
+        // negro se cierra debajo (sin fundidos: no se ve el cambio). Magpie, al presentar, sale encima de el; luego se quita como siempre
+        bool SwapToLiveCurtain(string why)
+        {
+            if (cfg.CurtainLive == 0 || (cfg.CurtainLive == 2 && cfg.CapMode)) return false;
+            if (curtain == null || curtainLive || curtainFrozen || relevo != null) return false;
+            IntPtr h = IntPtr.Zero;
+            try
+            {
+                Process p = mpv;
+                if (p == null || p.HasExited || Config.EngineActive || cfg.HomeNative || !signalOn || !consoleOn || MagpieLive.IsScaling()) return false;
+                h = mpvWindow;
+                uint wp = 0;
+                if (h != IntPtr.Zero) GetWindowThreadProcessId(h, out wp);
+                if (h == IntPtr.Zero || wp != (uint)p.Id) { p.Refresh(); h = p.MainWindowHandle; }
+                if (h == IntPtr.Zero) return false;
+            }
+            catch { return false; }
+            bool ok = false;
+            string no = null;
+            try
+            {
+                ui.Invoke((MethodInvoker)delegate
+                {
+                    if (DropClosedCurtain("al pasar al en vivo")) { no = "el telon ya estaba cerrado"; return; }
+                    CoverForm old = curtain;
+                    if (old == null || splash != null || curtainLive) { no = "ya no hay telon negro"; return; }
+                    CoverForm c = new CoverForm(null, null, NeonBlue, false, null, 0, h);
+                    c.Note = Log.Write;
+                    IntPtr ch = c.Handle; // (crea la ventana y registra la miniatura sin que se vea nada)
+                    if (!c.LiveOk || ch == IntPtr.Zero) { no = c.LiveLost ?? "sin miniatura"; c.Dispose(); return; }
+                    c.Show();
+                    c.ShowNow();
+                    c.RefreshLive();
+                    curtain = c;
+                    curtainLive = true;
+                    curtainKind = "en vivo";
+                    // (curtainSince sigue: "Telon quitado" cuenta desde el negro). El negro, por su camino de siempre (en su siguiente paso se
+                    // cierra, sin volver a ponerse encima)
+                    try { old.FadeOut(0.01); } catch { }
+                    ok = true;
+                });
+            }
+            catch (Exception ex) { no = ex.GetType().Name + ": " + ex.Message; }
+            Log.Write(ok ? "Telon en vivo (" + why + "): la imagen de la consola a la vista mientras Magpie prepara (" + (curtainSince != null ? curtainSince.ElapsedMilliseconds + " ms en negro" : "") + ")"
+                         : "Telon en vivo (" + why + "): no (" + no + "): sigue el negro");
+            return ok;
+        }
+
+        // Lo mismo en otro hilo: hasta 2 s a que el mpv nuevo diga que lo que ve es la consola (su primer aviso puede ser "No Signal" un
+        // momento), si sigue el telon negro y Magpie aun no escala ni hay puente
+        void SwapToLiveCurtainAsync(string why, Process p)
+        {
+            if (cfg.CurtainLive == 0 || (cfg.CurtainLive == 2 && cfg.CapMode)) return;
+            Thread t = new Thread(delegate ()
+            {
+                try
+                {
+                    Stopwatch sw = Stopwatch.StartNew();
+                    while (sw.ElapsedMilliseconds < 2000 && !userExit && mpv == p && curtain != null && relevo == null && !MagpieLive.IsScaling() &&
+                           !(consoleOn && signalOn))
+                        Thread.Sleep(50);
+                    if (userExit || mpv != p || curtain == null || relevo != null || MagpieLive.IsScaling()) return;
+                    SwapToLiveCurtain(why);
+                }
+                catch (Exception ex) { Log.Error("Telon en vivo (" + why + ")", ex); }
+            });
+            t.IsBackground = true;
+            t.Name = "Telon en vivo";
+            t.Start();
+        }
+
         // Lo que ha sido el telon que se quita (la linea "Telon quitado" del log)
         string CurtainKindText(CoverForm c)
         {

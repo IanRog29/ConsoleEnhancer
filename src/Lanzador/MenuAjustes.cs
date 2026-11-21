@@ -385,15 +385,34 @@ namespace ConsoleEnhancer
             string firma = AjFirma(ajFilas, curGame);
             if (firma == ajFirma) { ajFilas.Clear(); ajFilas.AddRange(viejas); return; }   // (nada nuevo: sigue todo como estaba)
             // Lo cambiado en el menu sin aplicar se mantiene (si sigue siendo posible)
+            // 21-11 (1.2.1, pendiente de la revision: "tipo del menu se pierde en un refresco con el modo cambiado"): la lista de tipos de
+            // generacion depende del modo elegido; el modelo nuevo la trae para el modo de AHORA y el tipo elegido para el otro modo no estaba
+            // en ella: se perdia. Ahora se pone lo cambiado, se recalcula lo que depende (AjustesDepende) y se vuelve a poner lo que antes no
+            // cabia. Y con el modo cambiado, el tipo que se veia aunque no se tocara (es el que se aplicara con ese modo)
+            FilaAjuste viejoModo = null;
+            foreach (FilaAjuste v in viejas) if (v.Id == "modo") viejoModo = v;
+            bool modoCambiado = viejoModo != null && viejoModo.Cambiada;
+            List<FilaAjuste> sinSitio = new List<FilaAjuste>();
             foreach (FilaAjuste v in viejas)
             {
-                if (!v.Cambiada) continue;
+                if (!v.Cambiada && !(modoCambiado && v.Id == "tipo")) continue;
                 FilaAjuste n = AjFila(v.Id);
                 if (n == null) continue;
                 int i = n.Vals.IndexOf(v.Val);
-                if (i >= 0) n.Sel = i;
+                if (i >= 0) n.Sel = i; else sinSitio.Add(v);
             }
             AjustesDepende(false);
+            if (sinSitio.Count > 0)
+            {
+                foreach (FilaAjuste v in sinSitio)
+                {
+                    FilaAjuste n = AjFila(v.Id);
+                    if (n == null) continue;
+                    int i = n.Vals.IndexOf(v.Val);
+                    if (i >= 0) n.Sel = i;
+                }
+                AjustesDepende(false);
+            }
             ajFirma = firma;   // (la del modelo recien hecho: si no, se volveria a refrescar cada vez)
             Log.Write("Menu de ajustes: actualizado con lo de ahora");
             int altas = ajFilas.Count, altasAntes = viejas.Count;

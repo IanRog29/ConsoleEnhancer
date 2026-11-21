@@ -165,18 +165,47 @@ namespace ConsoleEnhancer
         int ganchoPuestos;
         DateTime ganchoSinRaton = DateTime.MinValue;
 
+        // 21-11 (1.2.1): la hora de la ultima llamada de CADA gancho (KeyHook / MouseHook; ganchoUlt es la de cualquiera de los dos)
+        volatile int ganchoTeclaUlt = Environment.TickCount, ganchoRatonUlt = Environment.TickCount;
+        int ganchoRawPuestos;
+
         void GanchosVigila()
         {
             try
             {
                 if (userExit || keyHook == IntPtr.Zero) return;
+                // 21-11 (1.2.1, log del usuario 19:04-19:15: "Ganchos de teclado y raton: Windows ha visto entrada 2000 ms despues de su ultima
+                // llamada (los habra quitado por lentos): se vuelven a poner (vez 140)" cada 2 s jugando, y el "Bloqueo de Joyxoff ... activo"
+                // de cada reinstalacion): GetLastInputInfo tambien cuenta el mando XInput (Windows lo toma por el usuario delante), que ningun
+                // gancho de teclado ni de raton ve. Con Raw Input (src\Mandos.cs PadHub: teclado y raton, fisicos o inyectados, lo mismo que
+                // ven los ganchos) solo se vuelve a poner el gancho que se ha perdido una entrada de verdad. Sin Raw Input, lo de antes
+                PadHub hub = PadHub.Shared;
+                if (hub.RawInputOk)
+                {
+                    int t = Environment.TickCount;
+                    int kb = hub.LastKbdTick, ms = hub.LastMouseTick;
+                    // (la entrada reciente, 15 s; el gancho no la ha visto: su ultima llamada es de mas de 1,5 s antes)
+                    bool teclaPerdida = kb != 0 && unchecked(t - kb) < 15000 && unchecked(kb - ganchoTeclaUlt) > 1500;
+                    bool ratonPerdido = mouseHook != IntPtr.Zero && hub.RawMouseOk && ms != 0 && unchecked(t - ms) < 15000 && unchecked(ms - ganchoRatonUlt) > 1500;
+                    if (!teclaPerdida && !ratonPerdido) return;
+                    ganchoRawPuestos++;
+                    if (ganchoRawPuestos <= 5 || ganchoRawPuestos % 20 == 0)
+                        Log.Write("Ganchos de teclado y raton: Raw Input ha visto " + (teclaPerdida ? "teclado" : "") + (teclaPerdida && ratonPerdido ? " y " : "") +
+                                  (ratonPerdido ? "raton" : "") + " que su gancho no (Windows lo habra quitado por lento): se vuelve a poner (vez " + ganchoRawPuestos + ")");
+                    // (los dos van en el hilo de la interfaz: si se cayo uno por lento, seguramente el otro tambien)
+                    ReinstallKeyHook();
+                    if (mouseHook != IntPtr.Zero) ReinstallMouseHook();
+                    ganchoUlt = Environment.TickCount;
+                    return;
+                }
                 LastInput li = new LastInput(); li.Size = Marshal.SizeOf(typeof(LastInput));
                 if (!GetLastInputInfo(ref li)) return;
                 int now = Environment.TickCount;
                 if (unchecked(now - li.Time) > 15000) return;               // (nada reciente)
                 if (unchecked(li.Time - ganchoUlt) < 1500) return;          // los ganchos han visto lo ultimo
-                // (sin el gancho del raton, mover el raton tambien cuenta como entrada sin llamada: entonces como mucho cada 30 s)
-                if (mouseHook == IntPtr.Zero && (DateTime.Now - ganchoSinRaton).TotalSeconds < 30) return;
+                // (sin el gancho del raton, mover el raton tambien cuenta como entrada sin llamada: entonces como mucho cada 30 s. 21-11, 1.2.1:
+                // y siempre, sin Raw Input: el mando XInput tambien cuenta)
+                if ((DateTime.Now - ganchoSinRaton).TotalSeconds < 30) return;
                 ganchoSinRaton = DateTime.Now;
                 ganchoPuestos++;
                 if (ganchoPuestos <= 5 || ganchoPuestos % 20 == 0)
