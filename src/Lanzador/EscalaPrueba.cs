@@ -89,6 +89,7 @@ namespace ConsoleEnhancer
                 Modelo(gs, ti, r2060, r3060, r4090);
                 Decisiones(ti);
                 ConfigMagpie(ti, r4090);
+                ConTuIni();
             }
             catch (Exception ex) { fallos++; sb.AppendLine("EXCEPCION: " + ex); }
             finally
@@ -339,6 +340,47 @@ namespace ConsoleEnhancer
                 int pn = EscalaAuto.PctPara(nada, 1);
                 Ok(po <= pn, "un juego nuevo empieza por lo aprendido en cualquiera (" + po + " % frente a " + pn + " % sin nada aprendido)");
             }
+            sb.AppendLine();
+        }
+
+        // ------------------------------------------------------------------ 4) con el ini de este PC (solo se lee) y su grafica (data\hardware.txt)
+        static void ConTuIni()
+        {
+            sb.AppendLine("== 4) Con el ini de este PC (" + Paths.IniFile + ", solo lectura) y su grafica ==");
+            if (!File.Exists(Paths.IniFile)) { sb.AppendLine("  (no hay ini)"); return; }
+            Forzar("dlss5State", 1); Forzar("dlssgState", 1);
+            bool w1080 = Config.Window1080;
+            try
+            {
+                EscalaAuto.Reiniciar(Path.Combine(Path.GetTempPath(), "ce_test_escala_ini.txt"));
+                Config cfg = Config.Load();
+                CadenaEscala g0 = new CadenaEscala(); EscalaAuto.GpuPara(g0);
+                int ow, oh; EscalaAuto.Salida(out ow, out oh);
+                sb.AppendLine("  grafica: indice " + g0.Indice.ToString("0.##", CultureInfo.InvariantCulture) + ", " + g0.Familia + ", " + g0.VramGb + " GB; pantalla " + ow + "x" + oh +
+                              "; ventana_1080 " + (Config.Window1080 ? "si" : "no") + "; escala automatica " + (cfg.Dlss5AutoAhora ? "si" : "no"));
+                int menosE = -1, menosM = -1;
+                foreach (string cap in new[] { "2560x1440", "1920x1080", "3840x2160" })
+                    foreach (int modo in new[] { 30, 60, 120 })
+                        foreach (int modelo in new[] { 5, 13 })
+                        {
+                            if (modo == 120 && (cap == "3840x2160" || !cfg.Captura120Ok(cap))) continue;
+                            EscalaAuto.Reiniciar(Path.Combine(Path.GetTempPath(), "ce_test_escala_ini.txt"));
+                            cfg.VideoSize = cap; cfg.CapMode = modo == 30; cfg.Mode120 = modo == 120; cfg.FgOff = false; cfg.Dlss5Off = false; cfg.Passes30 = 1; cfg.DlssModel = modelo;
+                            bool auto = cfg.Dlss5AutoOn;
+                            cfg.Dlss5AutoOn = false;
+                            int antes = cfg.Dlss5FitsNow ? cfg.Dlss5PctNow : -1;
+                            cfg.Dlss5AutoOn = auto;
+                            List<object> fx = MagpieConfig.Chain(cfg, double.NaN);
+                            Dictionary<string, object> nr = Efecto(fx, "DLSSNR\\DLSSNR_AI_Filter");
+                            int ahora = cfg.Dlss5FitsNow ? cfg.Dlss5PctNow : -1;
+                            if (cap == "2560x1440" && modo == 30) { if (modelo == 5) menosE = ahora; else menosM = ahora; }
+                            sb.AppendLine("  " + cfg.ProfileText + " | antes (tablas) " + antes + " %, ahora " + ahora + " %, Magpie inputResolutionPercent " +
+                                          (nr != null ? Num(nr, "inputResolutionPercent").ToString(CultureInfo.InvariantCulture) : "(sin DLSSNR)"));
+                        }
+                Ok(menosE > menosM, "con tu ini, 1440p 30 + FG -> pantalla: con DLSS E mas % que con M (" + menosE + " frente a " + menosM + ")");
+            }
+            catch (Exception ex) { fallos++; sb.AppendLine("  EXCEPCION: " + ex.Message); }
+            finally { Config.Window1080 = w1080; Forzar("dlss5State", 0); Forzar("dlssgState", 0); try { File.Delete(Path.Combine(Path.GetTempPath(), "ce_test_escala_ini.txt")); } catch { } }
             sb.AppendLine();
         }
 

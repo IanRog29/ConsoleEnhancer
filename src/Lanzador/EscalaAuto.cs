@@ -13,36 +13,43 @@
 //
 // Ahora (dlss5_escala_auto=1, de serie):
 //  1) MODELO DE COSTE (ms de grafica por imagen REAL, en la RTX 4060 Ti del usuario = indice 1,2; Coste*): lo fijo (captura de la
-//     ventana de mpv, mpv, CAS, presentar: 1 + 0,6 ms por megapixel de la ventana; "ligero" x0,55), el escalado a la salida (DLSS E 4,8 /
-//     K 6,2 / M 10,1 / L 12,1 ms a 4K, medidos en el motor el 15-11; FSR 1 0,5...; mas el flujo optico de DLSS SR), la generacion por
+//     ventana de mpv, mpv, CAS, presentar: 1 + 0,6 ms por megapixel de la ventana; "ligero" x0,55; + el flujo optico de DLSS SR), el
+//     escalado a la salida (DLSS E 4,8 / K 6,2 / M 10,1 / L 12,1 ms a 4K, medidos en el motor el 15-11; FSR 1 0,5...), la generacion por
 //     imagen real (DLSS FG 5 ms a 4K por cada inventada + sus vectores NVOF, Smooth Motion 2,5, FSR 3 7, XeSS 8, VFG 10) y DLSS 5 =
 //     pasadas x 4 ms por megapixel de la ventana x (% de entrada)^2 (x1,15 con la ventana de 4K). Se escala por la grafica (1,2 / indice
-//     de Gpu.cs; lo neuronal x1,3 en RTX 20 y x1,1 en RTX 30) y por k (lo que mide esta grafica de verdad, abajo). El % elegido es el
-//     mayor (de 5 en 5, 25-100) cuyo coste cabe en el 75 % del tiempo de una imagen real del modo (dlss5_escala_uso). Calibrado con lo
-//     medido en Prisma (LEEME / switch2.ini 14-19/11, imagen de Ocarina en movimiento): 1440p -> 4K con E, modo 30 + DLSS FG 85/60/50
-//     (modelo 78/55/45), 30 sin FG 100/80/65 (100/74/60), 60 + DLSS FG ligero 40 (36), XeSS FG 30 70 (66). Con el modelo de DLSS SR
-//     cambia: 1440p 30 + FG -> 4K en la Ti: E 75 %, K 70 %, M 50 %, L 40 % (antes 40 % con cualquiera); a 120 fps no cabe (DLSS 5 fuera,
-//     el motor propio da los 120).
-//  2) VIGILANCIA (cada 5 s, CheckLsPacing; Decidir es una funcion pura): imagenes reales que recibe Magpie (media de TODOS sus
-//     resumenes "Output cadence", no solo el primero), las que da mpv (filtro de repetidas; a 120 tambien su recuento de 20 s), las de
-//     salida con la generacion de Magpie (captureFps x (nuevas + inventadas) / nuevas) y el % de grafica (NVAPI, GetDynamicPstatesInfoEx,
-//     cada 0,5 s). No llega (menos de lo del modo - max(1, 3 %)) 3 ventanas seguidas (15 s), o menos del 85 % 2 ventanas: se baja YA,
-//     en una sola reapertura de Magpie (con el puente: el motor encima, sin telon), lo que el modelo dice que hace falta, por orden: el %
-//     de DLSS 5 (hasta 25; 30 con la ventana de 1080p), una pasada menos, el modelo de DLSS SR (M/L -> K -> E), una generacion mas
-//     barata de la lista del modo; y si ya no queda nada de eso, la escalera de siempre (FpsBajo: DLSS 5 fuera, FSR 1, 120 -> 60,
-//     captura, 60 -> 30). Hasta 2 pasos juntos (3 si falta mucho), 30 s entre bajadas. El nivel de DLSS 5 no se toca: no cambia el coste.
-//     En pantalla: "No se llega a 60 fps (52) · DLSS 5 al 50 % → 40 %".
-//  3) SUBIR, con histeresis: 3 min seguidos llegando de sobra (todas las imagenes, sin huecos y la grafica por debajo del 82 %; sin
-//     NVAPI, 10 min) -> el % que el modelo (ya calibrado) ve caber, como mucho +15 y nunca hasta el % que ya fallo en ese juego y esa
-//     cadena (no_pct). Magpie 0.6.12 NO cambia el % de entrada en caliente desde fuera (es un ajuste "estructural": "Restart scaling
+//     de Gpu.cs; lo neuronal x1,3 en RTX 20 y x1,1 en RTX 30) y por k (lo medido en esta grafica). El % elegido es el mayor (de 5 en 5,
+//     25-100) que cabe en el 75 % del tiempo de una imagen real del modo (dlss5_escala_uso; el minimo "a prueba" si le falta <= 15 %).
+//     Calibrado con lo medido en Prisma (LEEME / switch2.ini 14-19/11, imagen de Ocarina en movimiento, 1440p -> 4K, E): 30 + DLSS FG
+//     85/60/50 (el modelo 75/55/45), 30 sin FG 100/80/65 (100/70/60), 60 + DLSS FG ligero 40 (35), XeSS FG 30 70/45/35 (70/50/40); con
+//     el 75 % y no el 80-85 % de entonces porque la capturadora de verdad cuesta 7-10 puntos mas. Con el modelo de DLSS SR cambia: 1440p
+//     30 + FG -> 4K en la Ti E 75 %, K 70 %, M 50 %, L 30 % (antes 40 % con cualquiera); a 120 fps no cabe (DLSS 5 fuera: el motor propio
+//     da los 120; al 35 % Magpie recibia ~100 de 120, log del 21-11 19:12).
+//  2) VIGILANCIA (cada 5 s, CheckLsPacing; Decidir es una funcion pura): las imagenes reales que recibe Magpie (TODOS sus resumenes
+//     "Output cadence": nuevas / tiempo; antes solo el primero), las que da mpv (su script o su recuento de 20 s: a 120 el script se
+//     queda corto), las de salida con la generacion de Magpie ((nuevas + inventadas) / tiempo) y el % de grafica (NVAPI,
+//     GetDynamicPstatesInfoEx, cada 0,5 s). Si mpv no da el modo entero (el juego va a menos), nada. No llega (menos de lo del modo -
+//     max(1, 3 %)) 3 ventanas (15 s), o menos del 85 % 2 ventanas (10 s): se baja YA, en una sola reapertura de Magpie (con el puente:
+//     el motor encima, sin telon), lo que falta + un 3 % del tiempo de grafica, en proporcion (lo que quita cada paso sale del modelo
+//     en fraccion; DLSS 5 cuenta como un 25 % del tiempo como poco): el % de DLSS 5 (hasta 25; 30 con la ventana de 1080p; como mucho
+//     -15 si no falta mucho), una pasada menos, el modelo de DLSS SR (M / L -> K -> E), una generacion mas barata de la lista del modo.
+//     Hasta 2 pasos juntos (3 si falta mucho); sin la grafica llena (por debajo del 85 %), solo -5. Si ya no queda nada de eso, la
+//     escalera de siempre (FpsBajo: DLSS 5 fuera, FSR 1, 120 -> 60, captura, 60 -> 30). 20 s tras cada cambio sin juzgar (y 25 s de
+//     Magpie abierto). El nivel de DLSS 5 no se toca: no cambia el coste. En pantalla: "No se llega a 60 fps (52) · DLSS 5 al 50 % →
+//     40 %" (inglés: "60 fps not reached (52): DLSS 5 scale 50% -> 40%").
+//  3) SUBIR, con histeresis: 3 min seguidos de sobra (todas las imagenes, sin huecos, la grafica por debajo del 82 %; sin NVAPI, 10 min
+//     y +5) -> el % que deja la grafica al 85 % como mucho, +15 como mucho y nunca hasta el % que ya no llego en ese juego y esa cadena
+//     (no_pct, 7 dias). Magpie 0.6.12 NO cambia el % de entrada en caliente desde fuera (es un ajuste "estructural": "Restart scaling
 //     after changing ... input size", RELEASE-NOTES; sin IPC: solo WM_MAGPIE_QUIT / WM_MAGPIE_SHOWME y atajos; no vigila su
-//     config.json): la subida queda pendiente y se pone en la siguiente apertura de Magpie (al entrar en un juego desde el menu, o
-//     cualquier otra reapertura), nunca reabriendo por ella. El % de cada cadena se congela mientras Magpie siga abierto.
-//  4) APRENDIDO (data\scales_auto.txt, por grafica + driver): k (coste medido / coste del modelo, con el % de grafica: media movil),
-//     y por juego + cadena (modo, generacion, captura, ventana, salida, escalador) un "extra" de ms que suma lo que el modelo no ve
-//     (ritmo, el juego) y el % que no llego (no_pct, por modelo de DLSS SR y pasadas). Un juego nuevo empieza por lo aprendido en
-//     cualquier juego ("*") con esa cadena. dlss5_escala_auto=0 = como antes (tablas + Escalas.Muestra).
-// Prueba sin consola: ConsoleEnhancer.exe --test-escala[=<informe>] (escenarios y graficas simuladas; ver Prueba).
+//     config.json; su modo "adaptativo" no tiene topes ni sabe de la generacion): la subida queda pendiente y vale en la siguiente
+//     apertura de Magpie (al entrar en un juego desde el menu, o cualquier otra reapertura), nunca reabriendo por ella. El % de cada
+//     cadena se congela mientras Magpie siga abierto. Un aviso corto: "Sobra gráfica · DLSS 5 al 50 % → 65 % al volver a entrar".
+//  4) APRENDIDO (data\scales_auto.txt, por grafica + driver): k de la grafica (coste medido con el % de grafica / coste del modelo,
+//     media movil: para las cadenas sin nada aprendido) y, por juego + cadena (modo, generacion, captura, ventana, salida, escalador; no
+//     el modelo de DLSS SR ni las pasadas), el "extra" de ms y el k con los que lo decidido es justo lo mayor que cabe (al bajar, al
+//     subir y tras 60 s llegando: lo que llega se queda); ademas el % que no llego (por modelo de DLSS SR y pasadas) y el tope del
+//     modelo de DLSS SR. Cambiar luego el modelo (E <-> M) o las pasadas recalcula el % con lo aprendido. Un juego nuevo empieza por lo
+//     ultimo aprendido en cualquier juego ("*") con esa cadena. dlss5_escala_auto=0 = como antes (tablas tabla_dlss5_* + Escalas.Muestra).
+// Prueba sin consola: ConsoleEnhancer.exe --test-escala[=<informe>] (src\Lanzador\EscalaPrueba.cs).
 // C# 5
 using System;
 using System.Collections.Generic;
@@ -105,8 +112,10 @@ namespace ConsoleEnhancer
         public static double CosteBase(CadenaEscala c)
         {
             double mp = Mp(c.VenW, c.VenH);
-            double b = 1.0 + 0.6 * mp;
-            if (c.Ligero) b *= 0.55;
+            // (a 4K, mas: 18-11, 60 + Smooth Motion a 4K con todo puesto al 25 % = 83 % de grafica; y "ligero" a 4K casi no quita nada: la
+            // mascara, el suavizado de mpv y el flujo solo se quitan con claves _4k)
+            double b = 1.0 + 0.6 * mp + 0.5 * Math.Max(0, mp - 4);
+            if (c.Ligero) b *= c.VenH >= 2000 ? 0.9 : 0.55;
             if (c.FlujoSr && c.Escala && !c.Ligero) b += 0.27 * mp;   // (flujo optico de DLSS SR a la resolucion de la ventana: ~1 ms a 1440p)
             if (c.Hdr) b += 15.0 * (c.HdrAntes ? mp / 8.2944 : Mp4k(c.OutW, c.OutH));   // (RTX HDR: ~15 ms a 4K, medido el 15-11)
             return b;
@@ -183,7 +192,8 @@ namespace ConsoleEnhancer
             int suelo = Suelo(c);
             for (int pct = 100; pct >= suelo; pct -= 5)
                 if (Prevision(c, pct, pasadas, k, extra) <= b) return pct;
-            if (Prevision(c, suelo, pasadas, k, extra) <= b * 1.15) return suelo;
+            // (a 4K no: 60 + FG a 4K no cabia ni al 25 %, medido; asi sigue el motor propio sin reabrir Magpie al volver del menu, 1.2.04)
+            if (c.VenH < 2000 && Prevision(c, suelo, pasadas, k, extra) <= b * 1.15) return suelo;
             return -1;
         }
 
@@ -353,7 +363,8 @@ namespace ConsoleEnhancer
             if (d.Pasos.Count == 0)
             {
                 d.Tipo = "escalera";
-                d.Extra = ExtraPara(c, suelo, Math.Max(1, o.Pasadas), k) + 0.05 * b;   // (ni al minimo: la proxima vez con DLSS 5 en esta cadena, sin el)
+                // (ni al minimo: la proxima vez con DLSS 5 en esta cadena, el minimo "a prueba" -un 10 % por encima de lo que cabe- y no mas)
+                d.Extra = ExtraPara(c, suelo, Math.Max(1, o.Pasadas), k) + 0.10 * b;
                 d.Motivo = "DLSS 5 ya al minimo (" + o.Pct + " %, " + o.Pasadas + " pasada(s)" + (c.Esc == "dlss" && c.Escala ? ", DLSS " + Letra(c.Modelo) : "") +
                            ") y no llega (" + F1(m.Real) + " de " + F1(t) + "): lo siguiente de la escalera";
                 return;
@@ -884,7 +895,8 @@ namespace ConsoleEnhancer
         // (Dlss5PassesNow / Dlss5PctNow / DlssModelNow, dentro de la cuenta de la cadena: lo que pasa otra vez por ellos ve las pasadas pedidas)
         [ThreadStatic] static int autoDentro;
 
-        public bool Dlss5AutoAhora { get { return Dlss5AutoOn && Dlss5InputPct == 0; } }
+        // (no con DLSS 5 en el motor propio, motor_dlss5=1: su coste es otro y lo ajusta el motor, EngineAdapta.cs)
+        public bool Dlss5AutoAhora { get { return Dlss5AutoOn && Dlss5InputPct == 0 && !(EngineDlss5 && Engine == "propio"); } }
 
         // El modelo de DLSS SR de Magpie con DLSS 5 y estas pasadas (lo de DlssModelNow sin pasar por Dlss5PassesNow), con el tope de la vigilancia
         int ModeloPara(int pasadas, string clave)
@@ -1019,8 +1031,9 @@ namespace ConsoleEnhancer
             if (!nuestro) return false;
             try
             {
+                if (st.CapN == 0) return true;   // (sin resumen nuevo de Magpie en estos 5 s: en el modo 30 sale uno cada ~4 s; se sigue la cuenta)
                 double uso = EscalaAuto.UsoMedio();
-                bool juzgar = st.CapN > 0 && !InHome && !homeBusy && !passesBusy && relaunchSize == null && !relaunchEngine && !userExit && lsReady && !applying &&
+                bool juzgar = !InHome && !homeBusy && !passesBusy && relaunchSize == null && !relaunchEngine && !userExit && lsReady && !applying &&
                               MagpieLive.RunningFor() > 25 && (now - escCambioAt).TotalSeconds >= 20 && Interlocked.CompareExchange(ref escBusy, 0, 0) == 0;
                 if (!juzgar) { escSeg.Mal = escSeg.Grave = 0; escSeg.SegBien = 0; return true; }
                 int n = Math.Max(1, cfg.Dlss5PassesNow), pct = cfg.Dlss5PctNow;
@@ -1131,7 +1144,7 @@ namespace ConsoleEnhancer
                     Log.Write("Escala de DLSS 5: " + d.Motivo + ": " + string.Join(", ", es.ToArray()) + " (ya, reabriendo Magpie; guardado para la proxima vez en " + EscalaAuto.Fichero + ")");
                     SaveCurProfile();
                     lastPadAction = DateTime.Now;   // (el puente / telon de la reapertura lleva el aviso, como con un boton)
-                    RestartLs(Tx.T("No se llega a " + obj + " fps", obj + " fps not reached"), string.Join(" · ", es.ToArray()));
+                    RestartLs(Tx.T("No se llega a " + obj + " fps", obj + " fps not reached"), Tx.T(string.Join(" · ", es.ToArray()), string.Join(", ", en.ToArray())));
                     // el aviso cuando Magpie vuelve a escalar (la reapertura dura unos segundos)
                     for (int i = 0; i < 80 && (passesBusy || !lsReady) && !userExit; i++) Thread.Sleep(250);
                     OnUi(delegate { OsdWarn(texto, "7000"); });

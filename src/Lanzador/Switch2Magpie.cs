@@ -433,7 +433,7 @@ namespace ConsoleEnhancer
             get
             {
                 if (Dlss5InputPct != 0) return Math.Max(0, Dlss5InputPct);
-                if (Dlss5AutoOn) return AutoPctAhora();   // 21-11 (1.2.1): EscalaAuto.cs
+                if (Dlss5AutoAhora) return AutoPctAhora();   // 21-11 (1.2.1): EscalaAuto.cs
                 int[] p;
                 if (!Dlss5PctTable.TryGetValue(PctKey, out p)) return 0;
                 return Math.Max(0, p[Math.Max(1, Dlss5PassesNow) - 1]);
