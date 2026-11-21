@@ -219,6 +219,274 @@ namespace ConsoleEnhancer
         public const double MismoIcono = 22.0;   // distancia media por celda (normalizada) por debajo: el mismo icono
         public const double IconoQuieto = 8.0;   // entre dos capturas seguidas: el foco quieto (no a mitad de moverse)
 
+        // 21-11 (1.2.1): ¿el icono lo domina un degradado de arriba abajo (o de lado a lado)? Es la pantalla fundiendose (al arrancar un
+        // juego, al apagar, el centro de control al abrirse), no el dibujo: el segundo icono de GTA VI del usuario (19:08:44, tras el menu de
+        // apagado) tiene sus filas de -63 a 57, casi en linea (el bueno, de 2 a -42 sin orden). Uno asi no se apunta ni se busca: cualquier
+        // otro juego fundiendose se le pareceria
+        public static bool PareceFundido(double[] ic)
+        {
+            if (ic == null || ic.Length != IcoN * IcoN) return false;
+            return Degradado(ic, true) || Degradado(ic, false);
+        }
+
+        static bool Degradado(double[] ic, bool filas)
+        {
+            double[] m = new double[IcoN];
+            for (int i = 0; i < IcoN; i++)
+            {
+                double s = 0;
+                for (int j = 0; j < IcoN; j++) s += filas ? ic[i * IcoN + j] : ic[j * IcoN + i];
+                m[i] = s / IcoN;
+            }
+            double mx = (IcoN - 1) / 2.0, my = 0;
+            foreach (double v in m) my += v;
+            my /= IcoN;
+            double sxy = 0, sxx = 0, syy = 0, lo = double.MaxValue, hi = double.MinValue;
+            for (int i = 0; i < IcoN; i++)
+            {
+                sxy += (i - mx) * (m[i] - my); sxx += (i - mx) * (i - mx); syy += (m[i] - my) * (m[i] - my);
+                lo = Math.Min(lo, m[i]); hi = Math.Max(hi, m[i]);
+            }
+            if (syy <= 0) return false;
+            return Math.Abs(sxy / Math.Sqrt(sxx * syy)) >= 0.9 && hi - lo >= 70;
+        }
+
+        // ---------------- 21-11 (1.2.1): nombres a medias y el juego en foco al arrancarlo ----------------
+        // El usuario: "evita cualquier tipo de bug a la hora de cargar perfiles de juegos en las consolas". 19:09:42-45 la etiqueta del
+        // juego en foco se leyo "Rocket League", "Rocket agu" y "Rocket" (la etiqueta se funde al arrancarlo) y al salir del menu gano la
+        // ultima: se creo "PS5: Rocket" (y antes "PS5: PLAYÑOOM" de "ASTRO's PLAYROOM"). Ahora una lectura a medias de otra mejor del mismo
+        // foco no gana nunca, el icono que se guarda es el de una lectura entera (no el del fundido) y un perfil con el nombre a medias se
+        // renombra en cuanto se lee entero.
+
+        // ¿"corto" es una lectura A MEDIAS de "largo"? (la etiqueta entrando, saliendo o fundiendose: "Rocket" y "Rocket agu" de "Rocket
+        // League", "Theft Auto VI" de "Grand Theft Auto VI", "PLAYÑOOM" de "ASTRO's PLAYROOM"). Palabra a palabra y en orden, cada palabra de
+        // corto dentro de una de largo (con 1 errata cada 5 letras como mucho) y con menos letras en total. Cifras y numeros romanos tal cual
+        // ("Grand Theft Auto V" no es parte de "... VI", ni "FC 25" de "FC 26"); lo que largo tiene de mas no puede ser una letra suelta
+        // ("Bloodborne a": basura del OCR, no un nombre mas completo)
+        public static bool Parcial(string corto, string largo)
+        {
+            if (string.IsNullOrEmpty(corto) || string.IsNullOrEmpty(largo)) return false;
+            string[] a = Palabras(corto), b = Palabras(largo);
+            if (a.Length == 0 || b.Length == 0) return false;
+            int la = 0, lb = 0;
+            foreach (string w in a) la += w.Length;
+            foreach (string w in b) lb += w.Length;
+            if (la >= lb || la < 3) return false;
+            bool[] usada = new bool[b.Length];
+            int j = 0;
+            foreach (string p in a)
+            {
+                int k = j;
+                while (k < b.Length && !PalabraDentro(p, b[k])) k++;
+                if (k >= b.Length) return false;
+                usada[k] = true;
+                j = k + 1;
+            }
+            for (int k = 0; k < b.Length; k++)
+                if (!usada[k] && b[k].Length == 1 && char.IsLetter(b[k][0])) return false;
+            return true;
+        }
+
+        // Las palabras de un nombre para compararlo: sin la etiqueta de consola, minusculas sin tildes, el apostrofo dentro de la palabra
+        // ("ASTRO's" -> "astros"), lo demas separa ("Spider-Man" -> "spider", "man")
+        static string[] Palabras(string s)
+        {
+            string n = DetectorMenu.Normal(SinTag(s ?? "")).Replace("'", "").Replace("’", "");
+            List<string> r = new List<string>();
+            foreach (string w in Regex.Split(n, @"[^\p{L}\p{N}]+")) if (w.Length > 0) r.Add(w);
+            return r.ToArray();
+        }
+
+        static readonly Regex RomanoRx = new Regex(@"^[ivx]{1,4}$", RegexOptions.CultureInvariant);
+
+        static bool PalabraDentro(string p, string w)
+        {
+            bool cifras = false;
+            foreach (char ch in p) if (char.IsDigit(ch)) cifras = true;
+            if (cifras || RomanoRx.IsMatch(p) || RomanoRx.IsMatch(w)) return p == w;
+            if (p.Length <= 2) return w.StartsWith(p, StringComparison.Ordinal) || w.EndsWith(p, StringComparison.Ordinal);
+            if (w.Contains(p)) return true;
+            return p.Length >= 4 && DentroConErratas(p, w, p.Length / 5);
+        }
+
+        // ¿p esta dentro de w con como mucho max erratas? (distancia de edicion de p con el mejor trozo de w)
+        static bool DentroConErratas(string p, string w, int max)
+        {
+            if (max <= 0) return w.Contains(p);
+            int[] prev = new int[w.Length + 1], cur = new int[w.Length + 1];
+            for (int i = 1; i <= p.Length; i++)
+            {
+                cur[0] = i;
+                for (int k = 1; k <= w.Length; k++)
+                    cur[k] = Math.Min(Math.Min(prev[k] + 1, cur[k - 1] + 1), prev[k - 1] + (p[i - 1] == w[k - 1] ? 0 : 1));
+                int[] t = prev; prev = cur; cur = t;
+            }
+            int best = int.MaxValue;
+            foreach (int v in prev) best = Math.Min(best, v);
+            return best <= max;
+        }
+
+        // ¿Dos lecturas del mismo nombre? (iguales, una a medias de la otra, o con erratas: Parecido)
+        public static bool Relacionado(string a, string b)
+        {
+            if (string.IsNullOrEmpty(a) || string.IsNullOrEmpty(b)) return false;
+            return GameNames.Key(SinTag(a)) == GameNames.Key(SinTag(b)) || Parcial(a, b) || Parcial(b, a) || Parecido(a, b);
+        }
+
+        // Un nombre limpio (letras, cifras y los signos de un titulo; no basura del OCR como "PLR\"OOM")
+        public static bool Limpio(string s)
+        {
+            return !string.IsNullOrEmpty(s) && Regex.IsMatch(s, @"^[\p{L}\p{N} :&!.,'’\-]+$") && GameNames.Plausible(s);
+        }
+
+        // Un nombre de perfil provisional: "Juego N" (sin nombre leido) o con simbolos (leido con basura). Se renombra al leerlo bien
+        public static bool Provisional(string perfil)
+        {
+            string j = SinTag(perfil ?? "");
+            return j.StartsWith("Juego ") || !Regex.IsMatch(j, @"^[\p{L}\p{N} :&!.,'’\-]+$");
+        }
+
+        // De las lecturas de un mismo foco, el mejor nombre: limpio; que no sea una lectura a medias de otro limpio; el que mas lecturas
+        // explica (las suyas y las que son a medias de el); el de un perfil que ya existe (conocido, puede ser null); el de palabras del
+        // diccionario de Windows; y a igualdad, el ultimo. apoyo = las lecturas que explica
+        public static string MejorNombre(List<string> nombres, Func<string, bool> conocido, out int apoyo)
+        {
+            apoyo = 0;
+            if (nombres == null || nombres.Count == 0) return null;
+            Dictionary<string, int> ultimo = new Dictionary<string, int>();
+            for (int i = 0; i < nombres.Count; i++)
+                if (!string.IsNullOrEmpty(nombres[i])) ultimo[GameNames.Key(nombres[i])] = i;
+            List<int> cand = new List<int>(ultimo.Values);
+            string best = null;
+            int[] bs = null;
+            foreach (int i in cand)
+            {
+                string n = nombres[i], k = GameNames.Key(n);
+                bool limpio = Limpio(n), cubierto = false;
+                foreach (int j in cand)
+                    if (j != i && Limpio(nombres[j]) && Parcial(n, nombres[j])) { cubierto = true; break; }
+                int sop = 0;
+                foreach (string r in nombres)
+                    if (!string.IsNullOrEmpty(r) && (GameNames.Key(r) == k || Parcial(r, n))) sop++;
+                bool con = false;
+                if (conocido != null) { try { con = conocido(n); } catch { } }
+                int[] s = { limpio ? 1 : 0, cubierto ? 0 : 1, sop, con ? 1 : 0, EnDiccionario(n) ? 1 : 0, i };
+                bool mejor = bs == null;
+                for (int x = 0; !mejor && x < s.Length; x++)
+                {
+                    if (s[x] == bs[x]) continue;
+                    mejor = s[x] > bs[x];
+                    break;
+                }
+                if (mejor) { best = n; bs = s; apoyo = sop; }
+            }
+            return best;
+        }
+
+        // ¿Todas sus palabras (de 3 letras o mas, sin cifras ni numeros romanos) en el diccionario de Windows? (desempate: en el PC del usuario
+        // solo hay el de español; false si no hay ninguno)
+        static bool EnDiccionario(string n)
+        {
+            int vistas = 0;
+            foreach (string w in Regex.Split(SinTag(n ?? ""), @"[^\p{L}]+"))
+            {
+                if (w.Length < 3 || RomanoRx.IsMatch(w.ToLowerInvariant())) continue;
+                bool? v = Ortografia.Valida(w);
+                if (v != true) return false;
+                vistas++;
+            }
+            return vistas > 0;
+        }
+
+        // Una lectura de la etiqueta del juego en foco (src\MenuPs5.cs FocoObserva), con el icono de esa captura
+        public sealed class LecturaFoco
+        {
+            public string Nombre;
+            public double[] Icono;
+            public DateTime At;
+            public bool Quieto;   // el icono igual que en la lectura anterior (el foco quieto, no a mitad de moverse ni fundiendose)
+            public bool Fiable;   // (FocoAlSalir) el icono es de una lectura confirmada: etiqueta e icono van juntos (Confirmada)
+            public bool Desfasada; // (FocoAlSalir) su icono es casi el de la lectura de antes, de OTRO juego: el icono aun del foco anterior
+        }
+
+        // ¿La lectura i va con su icono? Una de al lado (la de antes o la de despues) dice el mismo juego (Relacionado) con el mismo icono
+        // (< IconoQuieto). Si no, puede ser la etiqueta nueva con el icono del juego de antes mientras se mueve la fila (el icono de
+        // "PS5: PLAYÑOOM" del usuario, 18:57:24, es casi el de GTA VI: 29,0, con las mismas filas) o el fundido al arrancarlo / apagarla
+        // (el segundo icono de GTA VI, 19:08:44: oscuro arriba y claro abajo)
+        static bool Confirmada(List<LecturaFoco> l, int i)
+        {
+            for (int j = i - 1; j <= i + 1; j += 2)
+                if (j >= 0 && j < l.Count && l[j].Icono != null && l[i].Icono != null && Relacionado(l[i].Nombre, l[j].Nombre) &&
+                    DistHuella(l[i].Icono, l[j].Icono) < IconoQuieto) return true;
+            return false;
+        }
+
+        // Al salir del menu: el juego en foco que se arranca, de las lecturas de esta visita (en orden). La ULTIMA lectura que no sea a medias
+        // de la de antes (la etiqueta fundiendose al arrancar: "Rocket" tras "Rocket agu" tras "Rocket League") o basura con el mismo icono
+        // marca el foco; con ella, las de justo antes del mismo nombre (entero, a medias o con erratas) y las de despues. Su nombre:
+        // MejorNombre; su icono: el de la ultima lectura CONFIRMADA (Confirmada) con ese nombre (o con uno del mismo juego); si no hay
+        // ninguna, el de la ultima con ese nombre, sin Fiable (no se memoriza ni manda sobre el nombre). apoyo = lecturas que explica el
+        // nombre; enFoco = lecturas del foco. null sin lecturas
+        public static LecturaFoco FocoAlSalir(List<LecturaFoco> l, Func<string, bool> conocido, out int apoyo, out int enFoco)
+        {
+            apoyo = enFoco = 0;
+            if (l == null || l.Count == 0) return null;
+            int ancla = l.Count - 1;
+            while (ancla > 0)
+            {
+                LecturaFoco c = l[ancla], p = l[ancla - 1];
+                if (Parcial(c.Nombre, p.Nombre) || (!Limpio(c.Nombre) && Limpio(p.Nombre) && DistHuella(c.Icono, p.Icono) < MismoIcono)) ancla--;
+                else break;
+            }
+            int ini = ancla;
+            while (ini > 0 && Relacionado(l[ini - 1].Nombre, l[ancla].Nombre)) ini--;
+            List<string> nombres = new List<string>();
+            for (int i = ini; i < l.Count; i++) nombres.Add(l[i].Nombre);
+            enFoco = nombres.Count;
+            string mejor = MejorNombre(nombres, conocido, out apoyo);
+            if (mejor == null) return null;
+            string km = GameNames.Key(mejor);
+            int ri = -1;
+            bool fiable = true;
+            for (int i = l.Count - 1; i >= ini && ri < 0; i--) if (GameNames.Key(l[i].Nombre) == km && Confirmada(l, i)) ri = i;
+            for (int i = l.Count - 1; i >= ini && ri < 0; i--) if (Relacionado(l[i].Nombre, mejor) && Confirmada(l, i)) ri = i;
+            if (ri < 0) fiable = false;
+            for (int i = l.Count - 1; i >= ini && ri < 0; i--) if (GameNames.Key(l[i].Nombre) == km) ri = i;
+            if (ri < 0) ri = ancla;
+            LecturaFoco r = l[ri];
+            LecturaFoco res = new LecturaFoco();
+            res.Nombre = mejor; res.Icono = r.Icono; res.At = l[l.Count - 1].At; res.Quieto = r.Quieto; res.Fiable = fiable;
+            res.Desfasada = !fiable && ri > 0 && !Relacionado(l[ri - 1].Nombre, r.Nombre) && DistHuella(l[ri - 1].Icono, r.Icono) < MismoIcono;
+            return res;
+        }
+
+        // Al salir del menu, el icono en foco se parece al guardado de perfilIcono pero se lee OTRO juego (nombres sin relacion): ¿manda el
+        // nombre? Si el icono es aun el del foco de antes (Desfasada: la etiqueta ya cambio y la fila aun se mueve) o la lectura esta
+        // confirmada (etiqueta e icono juntos dos veces: el icono guardado era de un fundido o de otro foco). Con la lectura confirmada, un
+        // perfil provisional ("PS5: Juego 2", con basura) no: ese se renombra con el nombre leido. Una sola lectura sin mas: manda el icono
+        public static bool NombreMandaSobreIcono(string perfilIcono, LecturaFoco foco)
+        {
+            if (string.IsNullOrEmpty(perfilIcono) || foco == null || string.IsNullOrEmpty(foco.Nombre)) return false;
+            if (Relacionado(SinTag(perfilIcono), foco.Nombre)) return false;
+            return foco.Desfasada || (foco.Fiable && !Provisional(perfilIcono));
+        }
+
+        // ¿Cambiar el nombre de un perfil de la consola (viejo) por el leido ahora con su mismo icono (nuevo)? Si viejo es provisional
+        // ("Juego N", con simbolos), una lectura a medias de nuevo ("PS5: Rocket" -> "Rocket League") o el mismo con erratas del OCR
+        // (Parecido) que en esta visita no se ha leido y nuevo si, 2 veces o mas. Nunca a uno mas corto ni a otro juego sin relacion (dos
+        // iconos parecidos de juegos distintos)
+        public static bool MejorNombreQue(string viejo, string nuevo, int apoyoNuevo, bool viejoLeido)
+        {
+            if (!Limpio(nuevo)) return false;
+            string v = SinTag(viejo ?? "");
+            if (v.Length == 0 || GameNames.Key(v) == GameNames.Key(nuevo)) return false;
+            if (Provisional(v)) return true;
+            if (Parcial(v, nuevo)) return true;
+            // (con erratas: el mismo largo mas o menos; Parecido tambien junta el cortado por delante, "Theft Auto VI", que no vale)
+            if (Parcial(nuevo, v) || GameNames.Key(nuevo).Length < GameNames.Key(v).Length - 1) return false;
+            return Parecido(v, nuevo) && apoyoNuevo >= 2 && !viejoLeido;
+        }
+
         // ---------------- Xbox Series / One: la tarjeta en foco del Inicio ----------------
         // 21-11 (el usuario: "haz lo mismo con la Xbox series s/x, que no falle"): en el Inicio de la Xbox (el de 2023, el de ahora) la fila
         // de juegos recientes esta abajo (y 0,59-0,73) y la tarjeta en foco es mas grande (y 0,494-0,736, cuadrada), con un borde del color
@@ -561,6 +829,9 @@ namespace ConsoleEnhancer
             "view details", "actividad", "activit", "juega ahora", "play now", "descubre", "discover", "trofeo", "trophies", "trophy",
             "desafio", "challenge", "partida", "transmitir", "broadcast", "amigos jugando", "friends who play", "complementos", "add-ons",
             "anadir a la biblioteca", "comprar", "buy now", "mas informacion", "more info",
+            // 1.2.1: las opciones del juego en el inicio (19:08:34 "Buscar actualización" leido como el juego en foco) y el centro de control
+            "buscar actualizacion", "check for update", "gestionar contenido", "manage game content", "estado de sincronizacion",
+            "nuevas sugerencias", "cil de usar", "historias de",
             // 21-11 (Xbox: el Inicio y la guia, en ingles y en español)
             "quick resume", "reanudacion rapida", "browse your games", "explora tus juegos", "customize your home", "personaliza tu inicio",
             "play like a pro", "jump back in", "see all", "full library", "biblioteca completa", "play history", "historial de juegos",
@@ -796,6 +1067,22 @@ namespace ConsoleEnhancer
                 for (int j = i + 1; j < ics.Count; j++)
                     sb.Append("icono ").Append(icn[i]).Append(" / ").Append(icn[j]).Append(": ")
                       .Append(DistHuella(ics[i], ics[j]).ToString("0.0", CultureInfo.InvariantCulture)).Append("\r\n");
+            // (1.2.1) los iconos de verdad del inicio no son "fundidos"
+            for (int i = 0; i < ics.Count; i++)
+                if (ics[i] != null)
+                    sb.Append("icono ").Append(icn[i]).Append(": fundido ").Append(PareceFundido(ics[i]) ? "si FALLO" : "no OK").Append("\r\n");
+            // (1.2.1) un console_icons.txt (tercer argumento): cuales son iconos fundidos (no se buscan)
+            if (p.Length > 2 && File.Exists(p[2]))
+                foreach (string raw in File.ReadAllLines(p[2], Encoding.UTF8))
+                {
+                    int bar = raw.LastIndexOf('|');
+                    if (raw.StartsWith("#") || bar <= 0) continue;
+                    string[] nums = raw.Substring(bar + 1).Split(',');
+                    if (nums.Length != IcoN * IcoN) continue;
+                    double[] f = new double[nums.Length];
+                    for (int k = 0; k < f.Length; k++) f[k] = double.Parse(nums[k], CultureInfo.InvariantCulture);
+                    sb.Append("icono guardado \"").Append(raw.Substring(0, bar)).Append("\": fundido ").Append(PareceFundido(f) ? "si (no se busca)" : "no").Append("\r\n");
+                }
             foreach (string e in new[] { "BloodborneTY", "Bloor]borno'?", "Blaodborne'Tt•", "p_ra Rocket League", "P_j-m Rocket aguen", "BloodborneTM", "Grand Theft Auto VI" })
                 sb.Append("  limpia \"").Append(e).Append("\" -> \"").Append(LimpiaEtiqueta(e)).Append("\"\r\n");
             sb.Append("\r\nNombre leido en ").Append(leidos).Append(" de ").Append(files.Count).Append(" imagenes\r\n");
@@ -852,9 +1139,194 @@ namespace ConsoleEnhancer
             rj.Observa(null, null, t0.AddSeconds(30));
             sale = rj.AlSalir(t0.AddSeconds(31), out ult);
             sb.Append("  al salir sin leer nada: \"").Append(sale).Append("\" (el de antes) ").Append(sale == "Grand Theft Auto VI" ? "OK" : "FALLO").Append("\r\n");
+            PruebaNombres(sb);
+            // (1.2.1: devuelve los fallos, como las demas pruebas)
+            int fallos = Regex.Matches(sb.ToString(), "FALLO").Count;
+            sb.Insert(0, "Fallos: " + fallos + "\r\n");
             File.WriteAllText(rep, sb.ToString(), new UTF8Encoding(false));
             Console.WriteLine(sb.ToString());
-            return 0;
+            return fallos;
+        }
+
+        // 21-11 (1.2.1): nombres a medias, el juego en foco al arrancarlo y cuando renombrar un perfil (el log del usuario del 21-11, sin
+        // consola: 19:09:42-45 "Rocket League" -> "Rocket agu" -> "Rocket" se guardo como "PS5: Rocket"; "PLAYÑOOM"; "Buscar actualización")
+        static void PruebaNombres(StringBuilder sb)
+        {
+            sb.Append("\r\n1.2.1: nombres a medias y el juego en foco al salir del menu\r\n");
+            string[][] parc = {
+                new[] { "Rocket", "Rocket League", "1" }, new[] { "Rocket agu", "Rocket League", "1" }, new[] { "Theft Auto VI", "Grand Theft Auto VI", "1" },
+                new[] { "PLAYÑOOM", "ASTRO's PLAYROOM", "1" }, new[] { "Spider-Man", "Marvel's Spider-Man 2", "1" }, new[] { "Grand Th", "Grand Theft Auto VI", "1" },
+                new[] { "Rocket League", "Rocket", "0" }, new[] { "Grand Theft Auto V", "Grand Theft Auto VI", "0" }, new[] { "EA SPORTS FC 25", "EA SPORTS FC 26", "0" },
+                new[] { "Bloodborne", "Bloodborne a", "0" }, new[] { "Rocket League", "Rocket League", "0" }, new[] { "Bloodborne", "Grand Theft Auto VI", "0" },
+                new[] { "Rocket Racing", "Rocket League", "0" }, new[] { "PS5: Rocket", "PS5: Rocket League", "1" } };
+            foreach (string[] q in parc)
+            {
+                bool got = Parcial(q[0], q[1]);
+                sb.Append("  a medias \"").Append(q[0]).Append("\" de \"").Append(q[1]).Append("\": ").Append(got ? "si" : "no").Append(' ')
+                  .Append(got == (q[2] == "1") ? "OK" : "FALLO").Append("\r\n");
+            }
+            string[][] mej = {
+                new[] { "Rocket League", "Rocket League|Rocket agu|Rocket" }, new[] { "Rocket League", "Rocket|Rocket League|Rocket League|Rocket|Rocket|Rocket" },
+                new[] { "Grand Theft Auto VI", "Theft Auto VI|Grand Theft Auto VI|Theft Auto VI|Theft Auto VI" },
+                new[] { "Bloodborne", "Bloodborne|Bloodbornc|Bloodborne" }, new[] { "PLAYÑOOM", "PLR\"OOM|PLAYÑOOM|PLR\"OOM" },
+                new[] { "Bloodborne", "Bloodborne|Bloodborne|Bloodborne a" }, new[] { "ASTRO's PLAYROOM", "PLAYÑOOM|ASTRO's PLAYROOM|PLAYÑOOM" } };
+            foreach (string[] q in mej)
+            {
+                int ap;
+                string got = MejorNombre(new List<string>(q[1].Split('|')), null, out ap);
+                sb.Append("  mejor de ").Append(q[1]).Append(": \"").Append(got).Append("\" (explica ").Append(ap).Append(") ")
+                  .Append(got == q[0] ? "OK" : "FALLO").Append("\r\n");
+            }
+            // El juego en foco al salir (iconos sinteticos: cada juego el suyo; "fundido" = el mismo con un degradado encima)
+            double[] gta = IconoPrueba(1), rl = IconoPrueba(2), rr = IconoPrueba(3), rlF = Fundido(rl), rrF = Fundido(rr);
+            sb.Append("  icono sintetico fundido: ").Append(PareceFundido(rlF) && PareceFundido(rrF) ? "si OK" : "no FALLO").Append("; sin fundir: ")
+              .Append(PareceFundido(rl) || PareceFundido(rr) || PareceFundido(gta) ? "si FALLO" : "no OK").Append("\r\n");
+            DateTime t = new DateTime(2026, 11, 21, 19, 9, 42);
+            List<LecturaFoco> l = new List<LecturaFoco> { Lf("Grand Theft Auto VI", gta, t, true), Lf("Rocket League", rl, t.AddSeconds(0.5), false),
+                                                          Lf("Rocket agu", rl, t.AddSeconds(1.2), true), Lf("Rocket", rlF, t.AddSeconds(2.3), false) };
+            FocoSale(sb, "19:09:42-45 del usuario: GTA VI, Rocket League, Rocket agu, Rocket (fundido)", l, "Rocket League", rl);
+            l = new List<LecturaFoco> { Lf("Rocket League", rl, t, true), Lf("Rocket League", rl, t.AddSeconds(0.4), true), Lf("Rocket League", rl, t.AddSeconds(0.8), true),
+                                        Lf("Rocket Racing", rr, t.AddSeconds(1.2), false), Lf("Rocket", rrF, t.AddSeconds(1.6), false) };
+            FocoSale(sb, "Rocket League x3, Rocket Racing y su fundido \"Rocket\" (se arranca Rocket Racing)", l, "Rocket Racing", rr);
+            l = new List<LecturaFoco> { Lf("Rocket", rl, t, false), Lf("Rocket League", rl, t.AddSeconds(0.4), true), Lf("Rocket League", rl, t.AddSeconds(0.8), true) };
+            FocoSale(sb, "La etiqueta entrando: Rocket, Rocket League x2", l, "Rocket League", rl);
+            l = new List<LecturaFoco> { Lf("Grand Theft Auto VI", gta, t, true), Lf("Rocket League", rl, t.AddSeconds(0.4), false), Lf("Grand Theft Auto VI", gta, t.AddSeconds(0.8), false) };
+            FocoSale(sb, "GTA VI, Rocket League y otra vez GTA VI", l, "Grand Theft Auto VI", gta);
+            l = new List<LecturaFoco> { Lf("Buscar actualización", gta, t, true), Lf("Theft Auto VI", gta, t.AddSeconds(0.4), true), Lf("Grand Theft Auto VI", gta, t.AddSeconds(0.8), true),
+                                        Lf("Theft Auto VI", gta, t.AddSeconds(1.2), true) };
+            FocoSale(sb, "19:08:34-40 del usuario: Buscar actualización, Theft Auto VI, GTA VI, Theft Auto VI", l, "Grand Theft Auto VI", gta);
+            // 18:57:23-24 del usuario: la etiqueta ya dice el juego nuevo y el icono aun es el de GTA VI (la fila moviendose): ni se fia ni se guarda
+            double[] gtaCasi = Normaliza(Ruido(gta, 3));
+            l = new List<LecturaFoco> { Lf("Grand Theft Auto VI", gta, t, true), Lf("PLAYÑOOM", gtaCasi, t.AddSeconds(0.4), true) };
+            {
+                int ap, en;
+                LecturaFoco f = FocoAlSalir(l, null, out ap, out en);
+                bool ok = f != null && f.Nombre == "PLAYÑOOM" && !f.Fiable && f.Desfasada;
+                sb.Append("  al salir (18:57:24: \"PLAYÑOOM\" con el icono aun de GTA VI): \"").Append(f != null ? f.Nombre : "-").Append("\", fiable ")
+                  .Append(f != null && f.Fiable ? "si" : "no").Append(", icono del foco de antes ").Append(f != null && f.Desfasada ? "si" : "no").Append(' ')
+                  .Append(ok ? "OK" : "FALLO").Append("\r\n");
+            }
+            l = new List<LecturaFoco> { Lf("Grand Theft Auto VI", gta, t, true), Lf("PLAYÑOOM", gtaCasi, t.AddSeconds(0.4), true),
+                                        Lf("PLAYÑOOM", rl, t.AddSeconds(0.8), false), Lf("PLAYÑOOM", rl, t.AddSeconds(1.2), true) };
+            {
+                int ap, en;
+                LecturaFoco f = FocoAlSalir(l, null, out ap, out en);
+                bool ok = f != null && f.Nombre == "PLAYÑOOM" && f.Fiable && f.Icono == rl;
+                sb.Append("  al salir (lo mismo y luego su icono de verdad 2 veces): fiable ").Append(f != null && f.Fiable ? "si" : "no").Append(", icono ")
+                  .Append(f != null && f.Icono == rl ? "el suyo" : "OTRO").Append(' ').Append(ok ? "OK" : "FALLO").Append("\r\n");
+            }
+            // Cuando manda el nombre sobre un icono guardado de otro juego
+            object[][] manda = {
+                new object[] { "PS5: Grand Theft Auto VI", "PLAYÑOOM", false, true, true }, new object[] { "PS5: Juego 2", "Bloodborne", true, false, false },
+                new object[] { "PS5: Juego 2", "Bloodborne", false, true, true }, new object[] { "PS5: Rocket", "Rocket League", true, false, false },
+                new object[] { "PS5: Bloodborne", "Rocket League", false, false, false }, new object[] { "PS5: Bloodborne", "Rocket League", true, false, true },
+                new object[] { "PS5: Grand Theft Auto VI", "Theft Auto VI", false, true, false } };
+            foreach (object[] q in manda)
+            {
+                LecturaFoco lf = new LecturaFoco();
+                lf.Nombre = (string)q[1]; lf.Fiable = (bool)q[2]; lf.Desfasada = (bool)q[3];
+                bool got = NombreMandaSobreIcono((string)q[0], lf);
+                sb.Append("  icono de \"").Append(q[0]).Append("\", leido \"").Append(q[1]).Append("\"").Append(lf.Fiable ? " confirmado" : "").Append(lf.Desfasada ? " con el icono del foco de antes" : "")
+                  .Append(": manda ").Append(got ? "el nombre" : "el icono").Append(' ').Append(got == (bool)q[4] ? "OK" : "FALLO").Append("\r\n");
+            }
+            // Cuando se renombra un perfil (el nombre leido con su mismo icono)
+            object[][] ren = {
+                new object[] { "PS5: Rocket", "Rocket League", 1, false, true }, new object[] { "PS5: Rocket League", "Rocket", 3, false, false },
+                new object[] { "PS5: PLAYÑOOM", "ASTRO's PLAYROOM", 1, false, true }, new object[] { "PS5: PLAYÑOOM", "PLAYROOM", 2, false, true },
+                new object[] { "PS5: PLAYÑOOM", "PLAYROOM", 1, false, false }, new object[] { "PS5: PLAYÑOOM", "PLAYROOM", 3, true, false },
+                new object[] { "PS5: Bloodborne", "Rocket League", 5, false, false }, new object[] { "PS5: Juego 2", "Bloodborne", 1, false, true },
+                new object[] { "PS5: PLR\"OOM", "PLAYÑOOM", 1, false, true }, new object[] { "PS5: Grand Theft Auto VI", "Theft Auto VI", 4, false, false },
+                new object[] { "PS5: Theft Auto VI", "Grand Theft Auto VI", 1, false, true } };
+            foreach (object[] q in ren)
+            {
+                bool got = MejorNombreQue((string)q[0], (string)q[1], (int)q[2], (bool)q[3]);
+                bool want = (bool)q[4];
+                sb.Append("  renombrar \"").Append(q[0]).Append("\" con \"").Append(q[1]).Append("\" (").Append(q[2]).Append(" lecturas").Append((bool)q[3] ? ", el viejo tambien leido" : "")
+                  .Append("): ").Append(got ? "si" : "no").Append(' ').Append(got == want ? "OK" : "FALLO").Append("\r\n");
+            }
+            // El reconocedor: la etiqueta a medias no cambia el juego; la entera de uno a medias si
+            ReconocedorJuego rj = new ReconocedorJuego();
+            bool ult;
+            rj.Observa("Rocket League", true, null, t); rj.Observa("Rocket agu", true, null, t.AddSeconds(0.7)); rj.Observa("Rocket", true, null, t.AddSeconds(1.8));
+            string sale = rj.AlSalir(t.AddSeconds(5), out ult);
+            sb.Append("  reconocedor: Rocket League, Rocket agu, Rocket -> \"").Append(sale).Append("\" ").Append(sale == "Rocket League" && rj.FuerteEnVisita ? "OK" : "FALLO").Append("\r\n");
+            rj.Observa("Theft Auto VI", true, null, t.AddSeconds(10)); rj.Observa("Grand Theft Auto VI", true, null, t.AddSeconds(10.4));
+            sale = rj.AlSalir(t.AddSeconds(12), out ult);
+            sb.Append("  reconocedor: Theft Auto VI, Grand Theft Auto VI -> \"").Append(sale).Append("\" ").Append(sale == "Grand Theft Auto VI" ? "OK" : "FALLO").Append("\r\n");
+            rj.Observa("Noticias", false, null, t.AddSeconds(20)); rj.Observa("Noticias", false, null, t.AddSeconds(20.4));
+            sale = rj.AlSalir(t.AddSeconds(22), out ult);
+            sb.Append("  reconocedor: 2 lecturas sueltas (centro de control) -> sin etiqueta en la visita: ").Append(rj.FuerteEnVisita ? "FALLO" : "OK").Append("\r\n");
+            // Filtros nuevos (las opciones del juego en el inicio y las tarjetas del centro de control) y el menu de apagado
+            foreach (string s in new[] { "Buscar actualización", "ácil de usar", "Hay nuevas sugerencias de", "Comprobar estado de sincronización de" })
+                sb.Append("  descarta \"").Append(s).Append("\": ").Append(EsNombreJuego(s, Consolas.Ps5) ? "FALLO (lo acepto)" : "OK").Append("\r\n");
+            string[][] apag = {
+                new[] { "Tu PS5 entrará en modo de reposo en 7 minutos debido a los ajustes de ahorro de energía.", "0" },
+                new[] { "Your PS5 will enter rest mode in 7 minutes due to power saving settings", "0" },
+                new[] { "Entrar en modo de reposo | Apagar la PS5 | Reiniciar la PS5", "1" },
+                new[] { "La PS5 se está apagando. No desenchufes el cable de alimentación de CA mientras parpadee el indicador", "1" },
+                new[] { "Grand Theft Auto VI Un único jugador Continúa donde lo dejaste", "0" } };
+            foreach (string[] q in apag)
+            {
+                bool got = RelojPs5.EsMenuApagado(q[0], Consolas.Ps5);
+                sb.Append("  apagado \"").Append(q[0].Length > 50 ? q[0].Substring(0, 50) + "..." : q[0]).Append("\": ").Append(got ? "si" : "no").Append(' ')
+                  .Append(got == (q[1] == "1") ? "OK" : "FALLO").Append("\r\n");
+            }
+        }
+
+        static LecturaFoco Lf(string n, double[] ic, DateTime at, bool quieto)
+        {
+            LecturaFoco r = new LecturaFoco();
+            r.Nombre = n; r.Icono = ic; r.At = at; r.Quieto = quieto;
+            return r;
+        }
+
+        // Un icono sintetico (12x12, normalizado como IconoZona) distinto para cada semilla
+        static double[] IconoPrueba(int semilla)
+        {
+            Random rnd = new Random(semilla * 7919);
+            double[] s = new double[IcoN * IcoN];
+            for (int i = 0; i < s.Length; i++) s[i] = rnd.Next(0, 256);
+            return Normaliza(s);
+        }
+
+        // El mismo icono con algo de ruido (otra captura del mismo dibujo)
+        static double[] Ruido(double[] ic, int semilla)
+        {
+            Random rnd = new Random(semilla);
+            double[] s = new double[ic.Length];
+            for (int i = 0; i < s.Length; i++) s[i] = ic[i] + rnd.Next(-6, 7);
+            return s;
+        }
+
+        // El mismo icono con un degradado oscuro de arriba abajo (la pantalla fundiendose al arrancar el juego o al apagar)
+        static double[] Fundido(double[] ic)
+        {
+            double[] s = new double[ic.Length];
+            for (int i = 0; i < s.Length; i++) { int y = i / IcoN; s[i] = (ic[i] + 128) * (0.25 + 0.75 * y / (IcoN - 1.0)); }
+            return Normaliza(s);
+        }
+
+        static double[] Normaliza(double[] s)
+        {
+            double m = 0;
+            foreach (double v in s) m += v;
+            m /= s.Length;
+            double var = 0;
+            foreach (double v in s) var += (v - m) * (v - m);
+            double sd = Math.Sqrt(var / s.Length);
+            double[] r = new double[s.Length];
+            for (int i = 0; i < s.Length; i++) r[i] = (s[i] - m) * 50.0 / Math.Max(1e-6, sd);
+            return r;
+        }
+
+        static void FocoSale(StringBuilder sb, string titulo, List<LecturaFoco> l, string quiere, double[] icono)
+        {
+            int ap, en;
+            LecturaFoco f = FocoAlSalir(l, null, out ap, out en);
+            bool ok = f != null && f.Nombre == quiere && f.Icono == icono;
+            sb.Append("  al salir (").Append(titulo).Append("): \"").Append(f != null ? f.Nombre : "-").Append("\", icono ")
+              .Append(f != null && f.Icono == icono ? "el de la etiqueta entera" : "OTRO").Append(" (explica ").Append(ap).Append(" de ").Append(en).Append(") ")
+              .Append(ok ? "OK" : "FALLO").Append("\r\n");
         }
     }
 
@@ -888,8 +1360,12 @@ namespace ConsoleEnhancer
             {
                 // La pagina del juego con "Jugar": vale a la primera, como el nombre del HOME de la Switch
                 votos.Add(new Voto { Nombre = nombre, At = now });
-                if (actual == null || !Mismo(nombre, actual)) { Fijar(nombre, huella, now); porPagina = true; }
+                // 21-11 (1.2.1): una lectura a medias del juego de ahora ("Rocket agu", "Rocket" al fundirse la etiqueta de "Rocket League")
+                // no lo cambia; la entera de uno leido a medias ("Theft Auto VI" -> "Grand Theft Auto VI") si
+                if (actual != null && JuegoConsola.Parcial(nombre, actual)) { }
+                else if (actual == null || !Mismo(nombre, actual) || JuegoConsola.Parcial(actual, nombre)) { Fijar(nombre, huella, now); porPagina = true; }
                 confirmado = true;
+                fuerteVisita = true;
                 return actual;
             }
             if (!string.IsNullOrEmpty(nombre))
@@ -934,11 +1410,17 @@ namespace ConsoleEnhancer
         bool porPagina;
         bool confirmado;            // en esta visita al menu se leyo (fiable) el juego: la pagina con "Jugar" o 2 lecturas iguales
         public bool ConfirmadoEnVisita;  // (lo de la ultima visita, para memorizar su portada al arrancar)
+        // 21-11 (1.2.1): en esta visita se leyo la etiqueta del juego en foco del inicio (fuerte). Sin ella, lo reconocido son 2 lecturas
+        // iguales de otra cosa (el centro de control: "ácil de usar" de la tarjeta "Fácil de usar"): no crea un perfil nuevo (MenuPs5Salir)
+        bool fuerteVisita;
+        public bool FuerteEnVisita;
         public string AlSalir(DateTime now, out bool porUltima)
         {
             porUltima = porPagina;
             ConfirmadoEnVisita = confirmado;
+            FuerteEnVisita = fuerteVisita;
             confirmado = false;
+            fuerteVisita = false;
             votos.Clear();
             return actual;
         }
@@ -1077,7 +1559,8 @@ namespace ConsoleEnhancer
     // 21-11 (quinta vuelta): el icono del juego en foco del inicio de la PS5 (JuegoConsola.IconoFoco) de cada perfil (games\console_icons.txt)
     static class IconosConsola
     {
-        static readonly AlmacenFirmas almacen = new AlmacenFirmas("console_icons.txt", JuegoConsola.IcoN * JuegoConsola.IcoN, "Iconos de los juegos en el inicio de la consola (los guarda la app): perfil|luma normalizada de 12x12 celdas");
+        // (1.2.1: los iconos fundidos guardados antes no se buscan: JuegoConsola.PareceFundido)
+        static readonly AlmacenFirmas almacen = new AlmacenFirmas("console_icons.txt", JuegoConsola.IcoN * JuegoConsola.IcoN, "Iconos de los juegos en el inicio de la consola (los guarda la app): perfil|luma normalizada de 12x12 celdas") { Ignorar = JuegoConsola.PareceFundido };
         public static string Busca(double[] f, out double dist) { return almacen.Busca(f, JuegoConsola.MismoIcono, out dist); }
         public static void Guarda(string perfil, double[] f) { almacen.Guarda(perfil, f, JuegoConsola.MismoIcono); }
         public static void Renombra(string viejo, string nuevo) { almacen.Renombra(viejo, nuevo); }
@@ -1135,6 +1618,9 @@ namespace ConsoleEnhancer
             catch (Exception ex) { Log.Error("Guardando " + Fichero, ex); }
         }
 
+        // (1.2.1) ignorar = firmas que no valen (iconos fundidos guardados antes: JuegoConsola.PareceFundido); null = todas
+        public Func<double[], bool> Ignorar;
+
         public string Busca(double[] f, double umbral, out double dist)
         {
             dist = 999;
@@ -1145,6 +1631,7 @@ namespace ConsoleEnhancer
                 string best = null;
                 foreach (KeyValuePair<string, double[]> kv in lista)
                 {
+                    if (Ignorar != null && Ignorar(kv.Value)) continue;
                     double d = JuegoConsola.DistHuella(kv.Value, f);
                     if (d < dist) { dist = d; best = kv.Key; }
                 }

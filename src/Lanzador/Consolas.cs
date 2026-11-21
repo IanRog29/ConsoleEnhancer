@@ -195,7 +195,10 @@ namespace ConsoleEnhancer
             ConsejoHdcp = "Sin imagen de la PS5 · desactiva el HDCP en Ajustes > Sistema > HDMI",
             // (al arrancar un juego con HDR o 120 Hz la PS5 cambia de modo de video: unos segundos sin señal)
             ApagadoPorMenu = false, EsperaSinSenalMinS = 8, EsperaNegroS = 30, Reposo = "modo de reposo",
-            TextosApagado = new string[] { "modo de reposo", "apagar la ps5", "reiniciar la ps5", "rest mode", "turn off ps5", "restart ps5" },
+            // (1.2.1: tambien la pantalla de apagarse, por si no se vio su menu: el boton de la consola o el de reposo del mando)
+            TextosApagado = new string[] { "modo de reposo", "apagar la ps5", "reiniciar la ps5", "rest mode", "turn off ps5", "restart ps5",
+                                           "se esta apagando", "preparando para apagar", "preparandose para apagar", "preparing to turn off",
+                                           "cable de alimentacion", "ac power cord" },
             TextosMarca = new string[] { "ps5", "playstation 5", "playstation store", "playstation plus", "dualsense", "playstation" },
             AjustesVideo = "Ajustes > Pantalla y vídeo > Salida de vídeo", ConsejoVideo = "Resolución 2160p, salida de 120 Hz desactivada, HDR desactivado, rango RGB automático; HDCP desactivado (Ajustes > Sistema > HDMI)",
         };
