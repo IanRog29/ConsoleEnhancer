@@ -5,6 +5,22 @@ publicada es una etiqueta `vX.Y.Z` de git; GitHub Actions monta su zip y copia a
 
 ## [Sin publicar]
 
+## [1.2.05] - 2026-11-21
+
+### Fixed / Arreglado
+- **Starting another game while the app was switching engines left the old game's settings** (Rocket League -> GTA VI right after
+  changing the capture to 1440p/120: the settings menu still said Rocket League). During an engine swap (~6 s) the app took no
+  captures, so it never saw the PS5 menu. Now it keeps watching for the console menu during the swap; if a different game is focused
+  there, the app switches to it as soon as it sees it start (black screen, no signal or its cover).
+  *Entrar en otro juego mientras la app cambiaba de motor dejaba los ajustes del anterior (GTA VI tras Rocket League): ahora lo ve.*
+- **The game focused when you open the PS5 menu is the one running**: if it isn't the one the app thought, the app corrects itself
+  right there (a safety net for any game start it missed).
+  *Al abrir el menú de la PS5, el juego en foco es el que está en marcha: si la app se había equivocado, se corrige.*
+
+### Changed / Cambiado
+- The "Add DLSS 5" warning no longer says `dlssg_sm86` is for RTX 30 (since 1.2.02 Magpie's DLSS FG with DLSS 5 needs it on RTX 40/50 too).
+  *El aviso de "Añadir DLSS 5" ya no dice que dlssg_sm86 es para RTX 30.*
+
 ## [1.2.04] - 2026-11-21
 
 ### Fixed / Arreglado

@@ -9229,13 +9229,20 @@ namespace ConsoleEnhancer
                 while (!p.HasExited && !userExit && mpv == p)
                 {
                     Thread.Sleep(100);
-                    if (signalOn && lsReady) GrabTick(DateTime.Now);
+                    if (signalOn && (lsReady || MenuCiegoCaptura)) GrabTick(DateTime.Now);
                     // Fuera del HOME: se decide sin esperar al siguiente WatchLoop (hasta 0,5 s; el negro cuenta por tiempo)
                     if (signalOn && lsReady && InHome && noLabel >= 1) RunHomeTick(DateTime.Now);
                 }
             }
             catch (InvalidOperationException) { }
             catch (Exception ex) { Log.Error("Pidiendo capturas", ex); }
+        }
+
+        // 1.2.05: con un relevo de motor en curso (lsReady=false, ~5-7 s) y una consola con menu propio (PS5/Xbox), se sigue capturando
+        // SOLO para su menu (AnalyzeGrab -> MenuPs5Captura): el 21-11 17:38 se arranco GTA VI en ese hueco y la app siguio con Rocket League
+        bool MenuCiegoCaptura
+        {
+            get { return relevo != null && !InHome && Consolas.Actual.MenuPropio && !Consolas.Actual.TieneHome && JuegoConsola.Activo(Consolas.Actual, cfg); }
         }
 
         void GrabTick(DateTime now)
@@ -9417,6 +9424,12 @@ namespace ConsoleEnhancer
                     strips = HomeLabel.Strips(small);
                     noSignal = HomeLabel.IsNoSignal(small);
                     if (noSignal) lab = null;
+                    // 1.2.05: captura del relevo de motor (MenuCiegoCaptura): solo para el menu de la consola; lo demas, como antes: nada
+                    if (!lsReady && relevo != null)
+                    {
+                        if (Consolas.Actual.MenuPropio) MenuPs5Captura(full, small, noSignal);
+                        return;
+                    }
                     if (!conHome) ObservaConsola(full, small, strips, noSignal, homeRef);
                     // 19-11: el menu de la PS5 (src\MenuPs5.cs): con ella puesta, su menu a 4K nativo; con otra y consola=auto, pista a su favor
                     if (Consolas.Actual.MenuPropio) MenuPs5Captura(full, small, noSignal);

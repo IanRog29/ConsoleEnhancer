@@ -503,6 +503,66 @@ namespace ConsoleEnhancer
 
         DateTime ps5NegroDesde = DateTime.MinValue;    // negro liso seguido desde (con candidato)
 
+        // 1.2.05 (el usuario: "me meto al gta despues del rocket y pone que me he metido al rocket al darle a los ajustes"): 17:38:07 se
+        // cambio a 1440p/120 y el cambio de motor (sin telon, ~6 s con lsReady=false) dejo la app SIN capturas: justo entonces se abrio el
+        // menu de la PS5 y se arranco GTA VI, y la app siguio con Rocket League. Ahora, con el relevo en curso, se sigue capturando SOLO para
+        // el menu (AnalyzeGrab -> MenuPs5Captura) y una visita al menu que no se pudo atender (VISITA CIEGA) se resuelve al volver la imagen
+        // del juego como la salida del menu: el icono en foco, de candidato hasta ver el arranque (negro, sin señal o su portada)
+        DateTime ps5CiegoDesde = DateTime.MinValue;    // menu visto sin poder entrar en el (cambio de motor / captura en curso)
+        DateTime ps5CiegoUltimo = DateTime.MinValue;   // la ultima captura del menu en esa visita
+        double[] ps5FirmaAntesCiego;                   // la imagen del juego de antes de esa visita
+        // 1.2.05: al abrir el menu desde un juego, la PS5 pone en foco el juego EN MARCHA (17:37:40 y 17:38:31: GTA VI, el primero leido).
+        // Si no es el que cree la app (se arranco otro sin que lo viera), ese manda como "el juego de antes del menu"
+        string ps5PrimerFoco;                          // el primer nombre leido (etiqueta) en esta visita al menu
+        double[] ps5PrimerFocoIcono;
+        DateTime ps5PrimerMenuAt = DateTime.MinValue;  // la primera captura del menu en esta visita (jugando)
+
+        // (lo que deja a MenuPs5Tick sin entrar en el menu un buen rato; homeBusy no: es la propia entrada/salida del menu)
+        bool Ps5AppOcupada { get { return relevo != null || passesBusy || relaunchSize != null || relaunchEngine; } }
+
+        // El perfil del primer juego en foco de esta visita (icono conocido o, si no, su nombre); null si no se leyo enseguida
+        string PerfilPrimerFoco(ConsolaPerfil c)
+        {
+            if (ps5PrimerFoco == null) return null;
+            double d;
+            string p = ps5PrimerFocoIcono != null ? IconosConsola.Busca(ps5PrimerFocoIcono, out d) : null;
+            if (p != null) return p;
+            string nom = JuegoConsola.NombrePerfil(c, ps5PrimerFoco);
+            if (NombreProvisional(nom)) return null;
+            GameProfile gp = GameProfiles.Find(nom);
+            return gp != null ? gp.Name : nom;
+        }
+
+        // VISITA CIEGA terminada (ya no se ve el menu y la app esta libre): como salir del menu con el icono en foco
+        void SalidaCiega(DateTime now, ConsolaPerfil c)
+        {
+            double s = (ps5CiegoUltimo - ps5CiegoDesde).TotalSeconds;
+            ps5CiegoDesde = DateTime.MinValue;
+            if (!RecoJuegosActivo(c)) return;
+            string info, pi, cur;
+            lock (homeSync)
+            {
+                pi = PerfilPorIcono(c, now, out info, 30);
+                ps5Foco = ps5FocoPrev = null; ps5FocoQuieto = false; ps5Etiquetas.Clear();
+                ps5PrimerFoco = null; ps5PrimerFocoIcono = null; ps5PrimerMenuAt = DateTime.MinValue;
+            }
+            lock (profileSync) cur = curGame;
+            string vis = "Menu de la consola visto " + s.ToString("0.0", CultureInfo.InvariantCulture) + " s mientras la app cambiaba de motor o de captura";
+            if (pi == null) { Log.Write(vis + ": sin icono en foco fiable: sigue \"" + (cur ?? "ninguno") + "\""); return; }
+            if (cur != null && (cur == pi || GameProfiles.SameGame(cur, pi))) { Log.Write(vis + ": en foco \"" + pi + "\", el mismo: sigue"); return; }
+            if (JuegoConsola.EsAppSistema(pi)) { Log.Write(vis + ": en foco \"" + pi + "\" (app de la consola): sigue \"" + (cur ?? "ninguno") + "\""); return; }
+            ps5JuegoAntesMenu = cur;
+            ps5FirmaAntesMenu = ps5FirmaAntesCiego;
+            ps5Candidato = pi;
+            ps5CandidatoHasta = now.AddSeconds(25);   // (GTA VI tarda en enseñar su pantalla de carga)
+            ps5NegroDesde = DateTime.MinValue;
+            ps5SalidaAt = now;
+            ps5SalidaPorIcono = false;
+            lock (homeSync) { ps5PortadaHasta = ps5CandidatoHasta; ps5PortadaPrev = null; ps5PortadaFresco = false; }
+            Log.Write(vis + ": en foco \"" + pi + "\" (" + info + "), se jugaba \"" + (cur ?? "ninguno") +
+                      "\": se pasa a el si se ve arrancar (negro, sin señal o su portada) en 25 s");
+        }
+
         void PasaACandidato(string cand, string porque)
         {
             ps5Candidato = null;
@@ -587,10 +647,12 @@ namespace ConsoleEnhancer
         // Al salir del menu al juego: el perfil del icono en foco (el que se arranca). Conocido: ese, aunque el nombre no se leyera. Nuevo
         // (y quieto): con el nombre leido con el (o un perfil que ya hubiera con ese nombre); sin nombre, "PS5: Juego N" (se renombra
         // cuando se lea). null: sin icono fiable (se decide como antes: nombre, histeresis, portada)
-        string PerfilPorIcono(ConsolaPerfil c, DateTime now, out string info)
+        string PerfilPorIcono(ConsolaPerfil c, DateTime now, out string info) { return PerfilPorIcono(c, now, out info, 4); }
+
+        string PerfilPorIcono(ConsolaPerfil c, DateTime now, out string info, double maxS)
         {
             info = null;
-            if (ps5Foco == null || (now - ps5FocoAt).TotalSeconds > 4) return null;
+            if (ps5Foco == null || (now - ps5FocoAt).TotalSeconds > maxS) return null;
             double d;
             string p = IconosConsola.Busca(ps5Foco, out d);
             string nombre = MejorEtiqueta(ps5Foco);
@@ -734,6 +796,15 @@ namespace ConsoleEnhancer
             DateTime now = DateTime.Now;
             bool inMenu = InHome;
             ConsolaPerfil c = Consolas.Actual;
+            bool ocupada = Ps5AppOcupada;
+            if (inMenu) ps5CiegoDesde = DateTime.MinValue;   // (se entro en el menu: la salida normal decide)
+            // 1.2.05 (VISITA CIEGA): el menu ya no se ve (desde hace 0,6 s) y la app esta libre: que juego se arranco
+            if (!inMenu && ps5CiegoDesde != DateTime.MinValue && !ocupada && (now - ps5CiegoUltimo).TotalSeconds >= 0.6)
+            {
+                int dec; lock (homeSync) dec = menuMaq.Decision;
+                if (dec <= 0) SalidaCiega(now, c);
+            }
+            double[] firmaPrevia = ps5FirmaJuego;
             if (!noSignal) PortadaRapida(full, now, c, inMenu);
             if (!noSignal && !inMenu)
             {
@@ -753,6 +824,27 @@ namespace ConsoleEnhancer
             // En el menu: la pantalla entera cada segundo aunque se vea la hora (el menu de apagado); sin la hora, siempre
             bool leer = inMenu && (now - ps5TextoAt).TotalSeconds >= 1.0;
             LecturaMenu l = DetectorMenu.Clasifica(full, now, c, inMenu, leer);
+            if (!inMenu)
+            {
+                if (l.Vista == VistaMenu.Menu)
+                {
+                    if (ps5PrimerMenuAt == DateTime.MinValue) ps5PrimerMenuAt = now;
+                    if (ocupada && RecoJuegosActivo(c))
+                    {
+                        if (ps5CiegoDesde == DateTime.MinValue)
+                        {
+                            ps5CiegoDesde = now;
+                            ps5FirmaAntesCiego = firmaPrevia;
+                            Log.Write("Menu de la consola visto mientras la app cambia de motor o de captura: se mira que juego queda en foco");
+                        }
+                        ps5CiegoUltimo = now;
+                    }
+                }
+                else if (l.Vista == VistaMenu.Juego && ps5CiegoDesde == DateTime.MinValue)
+                {
+                    ps5PrimerMenuAt = DateTime.MinValue; ps5PrimerFoco = null; ps5PrimerFocoIcono = null;
+                }
+            }
             if (l.Pantalla != null)
             {
                 ps5TextoAt = now;
@@ -808,6 +900,13 @@ namespace ConsoleEnhancer
                     // (el icono solo con la etiqueta del nombre legible en la misma captura: el menu quieto, no a mitad de una animacion)
                     if ((c.Familia == "playstation" || c.Familia == "xbox") && fuerte)
                         lock (homeSync) FocoObserva(full, now, nombre, c);
+                    // 1.2.05: el primer juego en foco al abrir el menu desde un juego (el que esta en marcha), si se lee en 1,5 s
+                    if (!inMenu && fuerte && !string.IsNullOrEmpty(nombre) && ps5PrimerFoco == null && ps5CiegoDesde == DateTime.MinValue &&
+                        ps5PrimerMenuAt != DateTime.MinValue && (now - ps5PrimerMenuAt).TotalSeconds <= 1.5)
+                    {
+                        ps5PrimerFoco = nombre;
+                        ps5PrimerFocoIcono = JuegoConsola.IconoFoco(full, c);
+                    }
                     // 21-11: cada lectura nueva al log (para ver que lee en el menu)
                     string lect = (nombre ?? "") + (fuerte ? "/f" : "");
                     if (nombre != null && lect != ps5LecturaLog)
@@ -963,6 +1062,21 @@ namespace ConsoleEnhancer
             // (VUELTA) el juego que se estaba jugando al abrir el menu, y su imagen
             lock (profileSync) ps5JuegoAntesMenu = curGame;
             ps5FirmaAntesMenu = ps5FirmaJuego;
+            ps5CiegoDesde = DateTime.MinValue;
+            // 1.2.05: el primer juego en foco es el que esta en marcha: si no es el que creia la app, manda ese
+            if (RecoJuegosActivo(Consolas.Actual))
+            {
+                string pf = PerfilPrimerFoco(Consolas.Actual);
+                string antes = ps5JuegoAntesMenu;
+                if (pf != null && !JuegoConsola.EsAppSistema(pf) && antes != null && JuegoConsola.TagConsola(antes) != null &&
+                    antes != pf && !GameProfiles.SameGame(antes, pf))
+                {
+                    Log.Write("Menu de la consola: el juego en foco al abrirlo (el que esta en marcha) es \"" + pf + "\", no \"" + antes +
+                              "\" (se arranco sin que la app lo viera): se toma ese como el juego de antes del menu");
+                    ps5JuegoAntesMenu = pf;
+                }
+            }
+            ps5PrimerFoco = null; ps5PrimerFocoIcono = null; ps5PrimerMenuAt = DateTime.MinValue;
             pendingPassesRestart = false;
             bool sm = Config.EngineActive && Config.EngineSmoothRunning > 0;
             Log.Write("Menu de la consola (la hora \"" + ps5Hora + "\" arriba): a 4K nativo a 60 fps, sin Magpie ni generacion" +
@@ -1004,6 +1118,7 @@ namespace ConsoleEnhancer
             bool porUltima = false;
             lock (homeSync)
             {
+                ps5CiegoDesde = DateTime.MinValue;
                 menuMaq.Hecho(DateTime.Now, false); ps5OutHits = ps5MenuHits = 0; juego = RecoJuegosActivo(c) ? recoJuego.AlSalir(DateTime.Now, out porUltima) : null;
                 // 21-11 (PORTADA): 15 s para ver la portada del juego si arranca
                 ps5PortadaFresco = recoJuego.ConfirmadoEnVisita;

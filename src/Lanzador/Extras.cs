@@ -94,12 +94,12 @@ namespace ConsoleEnhancer
             if (!Pregunta(w, Tx.T(
                     "DLSS 5 no es una función oficial.\r\n\r\n" +
                     "Usa nvngx_dlssnr.dll, una DLL de NVIDIA modificada por la comunidad, sin firma y sin licencia, y opcionalmente la carpeta " +
-                    "dlssg_sm86 (DLSS-G en RTX 30, también de la comunidad). NVIDIA no la ha publicado así ni la soporta, ConsoleEnhancer no la " +
+                    "dlssg_sm86 (también de la comunidad). NVIDIA no la ha publicado así ni la soporta, ConsoleEnhancer no la " +
                     "incluye, no la descarga ni dice de dónde sacarla, y su uso puede ir contra las condiciones de NVIDIA.\r\n\r\n" +
                     "Si la usas es bajo tu responsabilidad. La app funciona entera sin ella.\r\n\r\n¿Elegir tu archivo nvngx_dlssnr.dll?",
                     "DLSS 5 is not an official feature.\r\n\r\n" +
                     "It uses nvngx_dlssnr.dll, a community-modified NVIDIA DLL with no signature and no license, and optionally the dlssg_sm86 " +
-                    "folder (DLSS-G on RTX 30, also from the community). NVIDIA has not released it this way and does not support it; " +
+                    "folder (also from the community). NVIDIA has not released it this way and does not support it; " +
                     "ConsoleEnhancer does not include it, download it or say where to get it, and using it may breach NVIDIA's terms.\r\n\r\n" +
                     "Using it is your own responsibility. The app works fully without it.\r\n\r\nPick your nvngx_dlssnr.dll file?"), MessageBoxIcon.Warning))
                 return false;
