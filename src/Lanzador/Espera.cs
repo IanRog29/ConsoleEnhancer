@@ -47,6 +47,9 @@
 //  - La sonda sin mpv (src\Lanzador\EsperaSonda.cs, ConsoleEnhancer.exe --ce-sonda): el grafo de DirectShow montado una vez y en marcha
 //    solo un momento cada espera_sonda_cada_ms (2000 de serie); entre medias la capturadora parada. Si no se puede (codigo 3, tres
 //    veces), la de mpv como antes. La de mpv abriendo y cerrando a ratos no valia: cada apertura cuesta ~0,4 s de CPU.
+//    Medido (A/B en espera, 3 rondas): la sonda ~0,8 % de un nucleo y ~13 cambios de contexto/s (mpv: ~10 % y ~300/s, +860
+//    interrupciones/s); el paquete de la CPU ~0,6 W menos (con los otros agentes compilando de fondo: no se ve mas fino). La consola se
+//    ve de media ~0,5 s mas tarde (como mucho ~1,2 s): probado todo el despertar con la GC573 (CE_PRUEBA_SONDA_CONSOLA_S).
 //  - La pantalla: "alguien la ha tocado" con el raton o el teclado por Raw Input (PadHub), no con GetLastInputInfo, que cuenta tambien un
 //    mando XInput encendido: con el mando del PC encima de la mesa la pantalla (la tele) no se volvia a apagar.
 using System;
