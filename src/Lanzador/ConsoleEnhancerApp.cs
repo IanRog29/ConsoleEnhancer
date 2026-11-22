@@ -49,7 +49,7 @@ namespace ConsoleEnhancer
                 case "device_path": DevicePath = val.Trim(); return true;
                 case "audio_dispositivo": AudioDevice = val.Trim(); return true;
                 case "audio_pines": AudioPins = val.Trim() == "1"; return true;
-                case "gpu_fabricante": GpuVendor = val.Trim().ToLowerInvariant(); Ce.NoNvidia = GpuVendor.Length > 0 && GpuVendor != "nvidia"; return true;
+                case "gpu_fabricante": GpuVendor = val.Trim().ToLowerInvariant(); Ce.NoNvidia = GpuVendor.Length > 0 && GpuVendor != "nvidia"; MotorFgFabricante(GpuVendor); return true;   // (1.2.4: tambien para el reparto de MotorFg.cs desde el primer momento)
                 case "motor_streamline": EngineStreamline = val.Trim().ToLowerInvariant(); return true;
                 case "motor_adaptador": EngineAdapter = val.Trim(); return true;
                 case "generacion_disponible": FgAvailable = val.Trim() != "0"; if (!FgAvailable) FgOff = true; return true;

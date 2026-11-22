@@ -25,6 +25,7 @@ namespace ConsoleEnhancer
         public static volatile bool MotorFgMulti = true;
         // gpu_fabricante del ini (lo copia EngineFgChain; "" = sin detectar: como NVIDIA)
         static volatile string motorFgFab = "";
+        public static void MotorFgFabricante(string v) { motorFgFab = (v ?? "").Trim().ToLowerInvariant(); }   // (al leer gpu_fabricante del ini)
         // Lo que el motor dijo que no puede en esta sesion ("dlss4", "xess3"...)
         static readonly HashSet<string> motorFgNo = new HashSet<string>();
 
