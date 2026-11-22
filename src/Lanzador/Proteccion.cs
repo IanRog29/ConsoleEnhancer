@@ -341,7 +341,8 @@ namespace ConsoleEnhancer
             }
             // 3) la escalera de siempre (DLSS 5 fuera, FSR 1, captura...)
             Log.Write("Proteccion: no se llega con " + nombre + " x" + m + " (" + medida + "): lo siguiente de la escalera");
-            ProteMemoria.Anota(clave, "no", real, modo);
+            ProteMemoria.Entrada ya = ProteMemoria.Mira(clave);
+            if (ya == null || !ya.Res.StartsWith("modelo=")) ProteMemoria.Anota(clave, "no", real, modo);   // (el modelo ya bajado se queda)
             FpsLanza(real, modo, 0, "Magpie");
             return true;
         }
