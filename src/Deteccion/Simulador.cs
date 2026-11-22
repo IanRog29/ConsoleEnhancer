@@ -22,7 +22,7 @@ namespace ConsoleEnhancer.Deteccion
             // 22-11 (1.2.2, UNIVERSAL): mas graficas, pantallas, CPU y capturadoras del catalogo ("cap:<clave>", CatalogoCapturas.cs)
             "rtx4060", "rtx5070", "amd-rx6600", "intel-arc-a750", "amd-780m", "cpu-4hilos",
             "tele-4k60", "monitor-1080p144", "monitor-1440p144-vrr", "monitor-1080p60",
-            "uvc-ms2130", "cap:elgato-4kx", "cap:elgato-hd60s+", "cap:elgato-camlink4k", "cap:avermedia-gc553", "cap:avermedia-gc311", "cap:j5create-jva04",
+            "uvc-ms2130", "uvc-ms2130-usb2", "cap:elgato-4kx", "cap:elgato-hd60s+", "cap:elgato-camlink4k", "cap:avermedia-gc553", "cap:avermedia-gc311", "cap:j5create-jva04",
         };
 
         // (1.2.2) La matriz (DeteccionTest --simula=matriz): graficas x pantallas x capturadoras, con hardware inventado entero (sin detectar
@@ -93,6 +93,10 @@ namespace ConsoleEnhancer.Deteccion
                 case "uvc-ms2130":
                     Captura(h, "USB3 Video", 0x345F, 0x2130, "USB", new[] { F(3840, 2160, 30, "MJPG"), F(2560, 1440, 30, "MJPG"), F(1920, 1080, 60, "MJPG"), F(1280, 720, 60, "MJPG"),
                         F(1920, 1080, 60, "YUY2"), F(1280, 720, 60, "YUY2"), F(1920, 1080, 60, "NV12") }, "Digital Audio Interface (USB3 Video)", true);
+                    break;
+                // la misma en un puerto USB 2.0 (o un hub lento): solo MJPEG (la lista encoge)
+                case "uvc-ms2130-usb2":
+                    Captura(h, "USB3 Video", 0x345F, 0x2130, "USB", new[] { F(1920, 1080, 30, "MJPG"), F(1280, 720, 60, "MJPG"), F(640, 480, 30, "YUY2") }, "Digital Audio Interface (USB3 Video)", true);
                     break;
                 default:
                     if (caso.StartsWith("cap:")) CapturaCatalogo(h, caso.Substring(4));

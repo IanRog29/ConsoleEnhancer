@@ -136,7 +136,7 @@ static class DeteccionTest
     {
         List<string> caps = new List<string>();
         foreach (ModeloCaptura m in DetectorCapturadoras.Catalogo) if (m.Clave.Length > 0 && m.Modos.Length > 0) caps.Add("cap:" + m.Clave);
-        caps.Add("uvc-ms2109"); caps.Add("uvc-ms2130");
+        caps.Add("uvc-ms2109"); caps.Add("uvc-ms2130"); caps.Add("uvc-ms2130-usb2");
         int n = 0, mal = 0;
         Dictionary<string, int> porMotivo = new Dictionary<string, int>();
         foreach (string gpu in Simulador.MatrizGpus)

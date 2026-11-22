@@ -330,7 +330,7 @@ namespace ConsoleEnhancer.Deteccion
                 // (1.2.2, UNIVERSAL) XeSS / FSR 4 que no caben, generacion imposible, capturas a 120 y VRAM (PlanMargen.cs)
                 AjustarMargenes(hw, p, g, pref.Calibracion);
                 p.MotorEnEspera = gb >= 8 && p.Motor == "propio";
-                if (!p.MotorEnEspera) p.Motivos.Add(Tx.T("Menos de 8 GB de VRAM: el motor no se queda en espera (libera la memoria para Magpie)", "Under 8 GB VRAM: no engine standby"));
+                if (!p.MotorEnEspera && gb < 8) p.Motivos.Add(Tx.T("Menos de 8 GB de VRAM: el motor no se queda en espera (libera la memoria para Magpie)", "Under 8 GB VRAM: no engine standby"));
             }
 
             // ---- DLSS 5 (extra no oficial)
@@ -366,6 +366,14 @@ namespace ConsoleEnhancer.Deteccion
             List<FormatoCaptura> fl = c.FormatosParaElegir();
             if (fl != null && fl.Count > 0) return fl.Exists(delegate(FormatoCaptura f) { return f.Alto >= alto && c.FpsDe(f) >= fps && !f.Comprimido; });
             return c.Modelo != null && c.Modelo.MaxH >= alto && (c.Modelo.MaxFps >= fps || alto < c.Modelo.MaxH && fps <= 60);
+        }
+
+        // (1.2.2) el catalogo dice que da 1080p60 sin comprimir y lo leido no lo tiene
+        static bool UsbLenta(CapturadoraInfo c)
+        {
+            if (c.Formatos == null || c.Formatos.Count == 0 || c.Modelo == null) return false;
+            Predicate<FormatoCaptura> bueno = delegate(FormatoCaptura f) { return !f.Comprimido && f.Subtipo != "P010" && f.Alto >= 1080 && f.FpsMax >= 59; };
+            return c.Modelo.Previstos().Exists(bueno) && !c.Formatos.Exists(bueno);
         }
 
         static void ElegirCaptura(Hardware hw, PreferenciasPlan pref, PlanImagen p, int consMaxH)
@@ -417,6 +425,11 @@ namespace ConsoleEnhancer.Deteccion
                     if (f.Comprimido && f.Alto < 1080 && topeComp < 1080 && fl.Exists(delegate(FormatoCaptura x) { return x.Comprimido && x.Alto == 1080 && c.FpsDe(x) >= 59; }))
                         p.Motivos.Add(Tx.T("MJPEG a 1080p pide más procesador (" + hw.Sistema.Hilos + " hilos): captura a 720p", "MJPEG at 1080p needs a stronger CPU: 720p capture"));
                     if (c.Modelo != null && c.Modelo.Rarezas.Length > 0) p.Motivos.Add(c.Modelo.Marca + " " + c.Modelo.Modelo + ": " + c.Modelo.Rarezas);
+                    // (1.2.2) una USB 3 que lista mucho menos de lo que da (sin 1080p60 sin comprimir): suele ser un puerto USB 2.0, un hub o un
+                    // cable lento (la lista de formatos encoge: MS2130, j5create, AVerMedia, Elgato...)
+                    if (leidos && c.Modelo != null && c.Modelo.Bus.StartsWith("USB3") && UsbLenta(c))
+                        p.Avisos.Add(Tx.T("La " + c.Modelo.Marca + " " + c.Modelo.Modelo + " da mucho menos de lo que debería (sin 1080p60 sin comprimir): conéctala a un puerto USB 3 de la placa, sin hub, con su cable",
+                                          "The " + c.Modelo.Marca + " " + c.Modelo.Modelo + " offers much less than it should (no uncompressed 1080p60): plug it into a USB 3 port on the motherboard, no hub, with its own cable"));
                     return;
                 }
             }
