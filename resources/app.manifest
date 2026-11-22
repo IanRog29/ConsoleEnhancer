@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <!-- ConsoleEnhancer.exe / ConsoleEnhancer Settings.exe: runs as the invoking user (no elevation), Windows 10/11, system DPI aware.
-     Version: src\Version.cs (the assemblyIdentity version below is only the manifest identity; kept in step with it since 1.2.4). -->
+     Version: src\Version.cs (the assemblyIdentity version below is only the manifest identity). -->
 <assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
-  <assemblyIdentity type="win32" name="IanRog29.ConsoleEnhancer" version="1.2.4.0"/>
+  <assemblyIdentity type="win32" name="IanRog29.ConsoleEnhancer" version="1.0.0.0"/>
   <description>ConsoleEnhancer</description>
   <trustInfo xmlns="urn:schemas-microsoft-com:asm.v2">
     <security>

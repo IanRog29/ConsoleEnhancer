@@ -10,20 +10,16 @@ del repositorio. En el zip, las licencias completas van en `licenses\`.
 > Magpie (GPL-3.0). No third-party binaries are in the repository. The release zip contains only ConsoleEnhancer's own executables plus
 > the unmodified, NVIDIA-signed Streamline / DLSS / Reflex DLLs, which NVIDIA allows applications to redistribute. **mpv and Magpie are
 > not redistributed**: on first start the app downloads them from their official GitHub releases (pinned versions, SHA-256 checked).
-> The community-modified `nvngx_dlssnr.dll` ("DLSS 5") and the community `dlssg_sm86` package are never distributed, downloaded or
-> recommended (since 1.2.4 the app no longer downloads `dlssg_sm86`); the app only uses them if you add them yourself. Since 1.2.4 the
-> repository and the zip carry the engine's own native pieces `PrismaNr` and `PrismaFg` (own code, GPL-3.0), which load those user-added
-> files without going through NVIDIA's check (NGX); NVIDIA's terms do not allow that, and the user decided to publish them knowing it.
-> PrismaNr is compiled with NVIDIA's two public NGX headers, which are only used to build it and are not in the repository.
+> The community-modified `nvngx_dlssnr.dll` ("DLSS 5") is never distributed, downloaded or recommended. With DLSS 5 added, the
+> `dlssg_for_sm86` runtime (MIT, https://github.com/sdli1995/dlssg_for_sm86) is downloaded from its official release (v0.4.0, SHA-256 checked).
 
 ## 1. Lo que va en el zip de la release
 
 | Componente | Versión y origen | Licencia | ¿Se puede repartir? |
 |---|---|---|---|
 | **ConsoleEnhancer** (`ConsoleEnhancer.exe`, `engine\ConsoleEnhancerEngine.exe`, `scripts\`, `resources\`, `languages\`) | este repositorio | GPL-3.0 + `LICENSE-EXCEPTION.txt` | Sí. El código fuente de cada versión está en GitHub, junto a su release |
-| **Piezas propias del motor** (`engine\PrismaNr.dll`, `engine\PrismaFg.dll`, desde la 1.2.4) | este repositorio (`src\PrismaNr`, `src\PrismaFg`, C++); PrismaNr se compila con las cabeceras públicas de NGX del SDK de DLSS v310.9.16 (`scripts\descargar_cabeceras_ngx.ps1`, no van a git) | GPL-3.0 + `LICENSE-EXCEPTION.txt` (código propio) | Es código propio. Pero cargan la `nvngx_dlssnr.dll` y el paquete `dlssg_sm86` que pone el usuario sin pasar por la comprobación de NGX de NVIDIA, cosa que los términos de NVIDIA no permiten (ver abajo); el usuario decidió publicarlas sabiéndolo |
-| **NVIDIA Streamline** (`engine\sl.interposer.dll`, `sl.common.dll`, `sl.dlss.dll`, `sl.dlss_g.dll`, `sl.reflex.dll`, `sl.pcl.dll`, `sl.deepdvc.dll`) | v2.14.16, DLL de producción firmadas por NVIDIA, de `streamline-sdk-v2.14.16.zip` (https://github.com/NVIDIA-RTX/Streamline/releases) | MIT (`licenses\streamline\license.txt`, `3rd-party-licenses.md`) | Sí (MIT) |
-| **NVIDIA DLSS Super Resolution / Frame Generation, RTX Dynamic Vibrance** (`engine\nvngx_dlss.dll`, `engine\nvngx_dlssg.dll`, `engine\nvngx_deepdvc.dll`) | Las del mismo SDK de Streamline 2.14.16, sin cambios | NVIDIA RTX SDKs License (`licenses\streamline\nvngx_dlss.license.txt`) | Sí, en código objeto y como parte de una aplicación con funciones propias (punto 1.c y 2 de su licencia), con condiciones al menos igual de protectoras para NVIDIA: `licenses\NVIDIA-NOTICE.txt` |
+| **NVIDIA Streamline** (`engine\sl.interposer.dll`, `sl.common.dll`, `sl.dlss.dll`, `sl.dlss_g.dll`, `sl.reflex.dll`, `sl.pcl.dll`) | v2.14.16, DLL de producción firmadas por NVIDIA, de `streamline-sdk-v2.14.16.zip` (https://github.com/NVIDIA-RTX/Streamline/releases) | MIT (`licenses\streamline\license.txt`, `3rd-party-licenses.md`) | Sí (MIT) |
+| **NVIDIA DLSS Super Resolution / Frame Generation** (`engine\nvngx_dlss.dll`, `engine\nvngx_dlssg.dll`) | Las del mismo SDK de Streamline 2.14.16, sin cambios | NVIDIA RTX SDKs License (`licenses\streamline\nvngx_dlss.license.txt`) | Sí, en código objeto y como parte de una aplicación con funciones propias (punto 1.c y 2 de su licencia), con condiciones al menos igual de protectoras para NVIDIA: `licenses\NVIDIA-NOTICE.txt` |
 | **NVIDIA Reflex** (dentro de `sl.reflex.dll`, `sl.pcl.dll`) | Streamline 2.14.16 | Licencia de los SDK de NVIDIA (`licenses\streamline\reflex.license.txt`) | Sí, como parte de la aplicación (1.2 de su licencia) |
 
 Lo que pide NVIDIA y cómo se cumple:
@@ -37,14 +33,8 @@ Lo que pide NVIDIA y cómo se cumple:
 - *DLSS solo con gráficas NVIDIA* (suplemento, 1): el plan solo usa DLSS en GeForce RTX; en las demás va FSR 1.
 - *Aviso a NVIDIA antes de un lanzamiento comercial* (suplemento, 4): ConsoleEnhancer es gratuito y no comercial; quien lo venda o lo
   meta en un producto comercial debe avisar a NVIDIA (https://developer.nvidia.com/sw-notification).
-- *No eludir mecanismos de autenticación* (4.d): el motor usa Streamline tal cual, con su identificador de aplicación de serie (0), y
-  solo pide lo que el runtime de NVIDIA ofrece (DLSS FG x3 / x4 de NVIDIA solo donde NVIDIA lo da: RTX 50). **Excepción, desde la 1.2.4**:
-  **PrismaNr** (carga la `nvngx_dlssnr.dll` del usuario para "DLSS 5" en el motor) y **PrismaFg** (carga el paquete `dlssg_sm86` del
-  usuario para DLSS FG x3 / x4 en RTX 40 / 30) se saltan la comprobación de NGX: eso no cumple este punto. Van en el repositorio y en el
-  zip por decisión del usuario, que asume el riesgo. Sin los archivos del usuario no hacen nada, y la app no reparte ni baja esos archivos.
-- *Intel XeSS FG / XeLL en el motor* (1.2.4): `libxess_fg.dll` y `libxell.dll` de la carpeta de Magpie, sin cambios y por su API
-  pública; fuera de las gráficas Intel el motor se queda en x2, como dice el runtime de Intel (su licencia no permite modificar la DLL
-  ni su funcionamiento, tampoco en memoria).
+- *No eludir mecanismos de autenticación* (4.d): el motor usa Streamline tal cual, con su identificador de aplicación de serie (0).
+  Por eso **PrismaNr** (una DLL en C++ de uso propio para cargar la DLL no oficial de "DLSS 5" desde el motor) no está en el repositorio.
 
 ## 2. Lo que la app baja la primera vez (no va en el zip)
 
@@ -72,15 +62,13 @@ Para desarrollar, `scripts\descargar_dependencias.ps1` baja lo mismo (y Streamli
   Ni en el repositorio, ni en el zip, ni en lo que baja la app (`.gitignore`, `scripts\empaquetar.ps1` y `Componentes.cs` lo impiden).
   La app solo la usa si el usuario la añade él mismo con su propio archivo (bandeja > *Añadir DLSS 5*, que comprueba que es una DLL
   x64 y la copia a `extras\`, o a mano en `extras\`), y avisa de que no es oficial. La app no enlaza ni dice de dónde sacarla.
-- `runtimes\dlssg_sm86`: paquete de la comunidad que hace que NGX cargue DLSS FG saltándose la comprobación de NVIDIA (y lleva su
-  `nvngx_dlssg.dll` suelta). No va en el zip y, desde la 1.2.4, la app **ya no lo baja** (de la 1.2.07 a la 1.2.3 lo bajaba sola). Si el
-  usuario ya lo tiene (lo pone él en `extras\runtimes\dlssg_sm86` o está en otra copia suya de la app), se usa como antes para el DLSS FG
-  de Magpie; si no, va otra generación.
+- `runtimes\dlssg_sm86`: no va en el zip. Desde la 1.2.07, con DLSS 5 puesto en una NVIDIA, la app lo coge del PC o lo baja de su
+  release oficial (`dlssg-release-0.4.0-x64.zip` de https://github.com/sdli1995/dlssg_for_sm86, MIT; SHA-256 en `scripts\components.json`)
+  a `extras\runtimes\dlssg_sm86`, porque el DLSS FG de Magpie no funciona sin él.
 - `DLSSNR-DLL-Options.zip` y `NGX_OTA_Switch.bat` (assets aparte de la release de Magpie): no se bajan.
 - Un Magpie compilado con `parches\magpie-dlssfg-vsync-pacing.patch`: el parche (código fuente, GPL-3.0) sí está en el repositorio; el
   exe resultante no se reparte (enlaza la librería estática de NGX de NVIDIA).
-- Las cabeceras del SDK de DLSS de NVIDIA (`terceros\dlss_sdk`, las dos de NGX con las que se compila PrismaNr): solo para compilar,
-  fuera de git y del zip (`scripts\descargar_cabeceras_ngx.ps1` las baja de github.com/NVIDIA/DLSS con su SHA-256).
+- PrismaNr y las cabeceras del SDK de DLSS de NVIDIA (`terceros\dlss_sdk`): solo de uso propio, fuera de git.
 
 ## 3. Código de terceros dentro del repositorio
 

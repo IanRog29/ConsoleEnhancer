@@ -168,8 +168,7 @@ namespace ConsoleEnhancer.Motor
             bool dll = File.Exists(Path.Combine(Program.Dir, "sl.interposer.dll"));
             string no = null;
             if (s.Streamline == 0) no = "streamline=0";
-            else if ((FgFfx || FgXe) && !(WantDlss && s.SlSoloDlss && dll && gpu.IsNvidia)) no = FgFfx ? "generacion FSR 3 (FidelityFX lleva su propia cadena de presentacion)" : "generacion XeSS FG (XeSS FG lleva su propia cadena de presentacion; XeLL en vez de Reflex)";   // 21-11 (EngineFgFfx.cs) (22-11, 1.2.4 MOTORFG: XeSS FG, EngineFgXe.cs)
-            if (no == null && (FgFfx || FgXe)) slSoloDlss = true;   // (1.2.4 MOTORFG: con DLSS de escalador, Streamline solo para DLSS SR, sin ganchos)
+            else if (FgFfx) no = "generacion FSR 3 (FidelityFX lleva su propia cadena de presentacion)";   // 21-11 (EngineFgFfx.cs)
             else if (!dll) no = "no esta sl.interposer.dll junto al exe";
             else if (s.Streamline < 0 && !gpu.IsNvidia) no = "streamline=auto y la grafica no es NVIDIA" + (gpu.Found ? " (" + gpu.VendorText + ")" : "");
             else if (!(s.Standby || WantDlss || s.Fg || s.Reflex > 0)) no = "no hace falta: upscaler=" + s.Upscaler + ", sin generacion ni Reflex";
@@ -195,7 +194,7 @@ namespace ConsoleEnhancer.Motor
         // InitDevice, antes de crear la swapchain: cola_max=N, o -1 (auto) = 1 sin Reflex ni generacion (sin Streamline o sin su Reflex: sin
         // nada que marque el ritmo, DXGI dejaria 3 imagenes en cola); con Reflex la de DXGI como siempre (el ritmo lo lleva Reflex; con la
         // generacion de NVIDIA no se puede pedir: docs\SL_NOTES.md)
-        int QueueMaxNow() { return FgFfx ? 0 : FgXe ? s.XeQueue : s.QueueMax >= 0 ? s.QueueMax : (!reflexOk && !fgOk ? 1 : 0); }   // (21-11: con FSR 3 FG el ritmo lo lleva su cadena)
+        int QueueMaxNow() { return FgFfx ? 0 : s.QueueMax >= 0 ? s.QueueMax : (!reflexOk && !fgOk ? 1 : 0); }   // (21-11: con FSR 3 FG el ritmo lo lleva su cadena)
 
         // Cada imagen (Run, tras ConfigureFeatures): el escalador que toca. Al cambiar, sin historia (DLSS y los vectores)
         void UpdateScaler()

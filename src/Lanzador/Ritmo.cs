@@ -484,7 +484,7 @@ namespace ConsoleEnhancer
             {
                 string t = FgTypeNow;
                 if (t == "smooth") return false;
-                if (FgMultNow >= 3) return !XessFijoNow;   // (1.2.4, XEFG: XeSS FG x4 de compatibilidad a refresco fijo, Multiplicador.cs)
+                if (FgMultNow >= 3) return true;
                 // (1.2.3: DLSS FG x2 fijo solo si ese camino esta -VsyncHalfFgNow- y con una pantalla de 120 Hz, donde "cada 2 refrescos" son
                 // los 60 huecos de 59,94; a 144 / 165 Hz serian 72 / 82,5 huecos para 59,94 imagenes (una de cada 5-6 el doble): por VRR. Sin
                 // ese camino tambien por VRR: sin VRR iria por DirectComposition)

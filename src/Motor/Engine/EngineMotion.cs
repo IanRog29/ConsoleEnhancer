@@ -100,7 +100,7 @@ namespace ConsoleEnhancer.Motor
         bool uiValid;               // la de interfaz es de la imagen que se pinta
         int fgUiApplied;            // fgui/fgui_recomp con los que se configuro la generacion
 
-        bool QualityMotion { get { return s.MvMask > 0 || MvPxNow || (s.FgUi > 0 && fgApplied) || s.MvCapas; } }   // (17-11, REJAS: mvcapas usa blockInfo) (1.2.4: fgui solo con DLSS-G)
+        bool QualityMotion { get { return s.MvMask > 0 || MvPxNow || s.FgUi > 0 || s.MvCapas; } }   // (17-11, REJAS: mvcapas usa blockInfo)
 
         // 16-11 (E, tirones a 1440p): mvpx solo por debajo de 1440p cuando hay generacion en el modo 60 (mvpx_auto=1, de serie). Medido a
         // 1440p con K: los vectores 2,37 ms con mvpx y 1,26 sin (+1,1 ms, no los 0,45 de arriba), y con la generacion de NVIDIA no cabia
@@ -314,7 +314,7 @@ namespace ConsoleEnhancer.Motor
             // solo con DLSS o DLSS-G: XeSS y FSR reescalaban con los vectores a 0 (medido: el volcado de mvec, todo 0 en un paneo) y lo que se
             // mueve dejaba rastro y se emborronaba; FSR 3 FG generaba sin vectores. mvsr_xess_ffx=0 = como antes
             bool srTemporal = (inW != outW || inH != outH) && (scalerNow == "dlss" || (s.MvXessFfx && (scalerNow == "xess" || scalerNow == "ffx")));
-            bool on = s.Motion && newFrame && (srTemporal || fgApplied || (s.MvXessFfx && ExtFgOn) || (s.MvNativeNr && s.Nr && s.Mode == 30) || FpWanted());   // (22-11, 1.2.4 DLSS5LEGAL: + la generacion propia, EngineFgPropia.cs)   // (1.0.5: mv_nativo_dlss5, DLSS 5 a 4K nativo sin FG)
+            bool on = s.Motion && newFrame && (srTemporal || fgApplied || (s.MvXessFfx && ffxFgOn) || (s.MvNativeNr && s.Nr && s.Mode == 30));   // (1.0.5: mv_nativo_dlss5, DLSS 5 a 4K nativo sin FG)
             // 22-11 (1.2.1): si solo los usa la generacion con el vector de la camara (fg_global, EngineFgGlobal.cs) y nadie mas los vectores
             // por bloque (4K nativo sin DLSS 5, o un escalador espacial), sin la busqueda por bloques: solo la piramide de luma. Medido a 4K,
             // modo 30 + DLSS-G (3 pasadas de cada, grafica compartida): grafica por imagen real 9,1 -> 7,1 ms, la seccion de vectores 5,5 ->
@@ -489,7 +489,7 @@ namespace ConsoleEnhancer.Motor
             ID3D12Resource ui = UiTarget;
             if (fgApplied && s.FgUi > 0 && uiValid && ui != null)
             {
-                SlBufferType t = s.FgUi == 2 || s.FgUi == 5 ? SlBufferType.UIColorAndAlpha : s.FgUi == 3 ? SlBufferType.NoWarpMask : SlBufferType.UIAlpha;
+                SlBufferType t = s.FgUi == 2 ? SlBufferType.UIColorAndAlpha : s.FgUi == 3 ? SlBufferType.NoWarpMask : SlBufferType.UIAlpha;
                 tags.Add(t, Com.BorrowPtr(ui, typeof(ID3D12Resource)), (uint)D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, SlResourceLifecycle.eValidUntilPresent, outExt);
             }
         }
@@ -510,10 +510,10 @@ namespace ConsoleEnhancer.Motor
             return Sl.EvaluateFeature(SlFeature.DLSS, token, vp, cl, localTags);
         }
 
-        ID3D12Resource UiTarget { get { return s.FgUi == 2 || s.FgUi == 5 ? uiColor : s.FgUi == 4 ? null : s.FgUi > 0 ? uiAlpha : null; } }
+        ID3D12Resource UiTarget { get { return s.FgUi == 2 ? uiColor : s.FgUi > 0 ? uiAlpha : null; } }
 
         // Formato de la interfaz para DLSSGOptions.uiBufferFormat (0 = sin interfaz)
-        uint UiBufferFormat() { return s.FgUi == 2 || s.FgUi == 5 ? (uint)ColorFmt : s.FgUi == 4 ? 0u : s.FgUi > 0 ? (uint)DXGI_FORMAT.R8_UNORM : 0u; }
+        uint UiBufferFormat() { return s.FgUi == 2 ? (uint)ColorFmt : s.FgUi > 0 ? (uint)DXGI_FORMAT.R8_UNORM : 0u; }
         int FgUiKey() { return s.FgUi * 10 + (s.FgUiRecomp ? 1 : 0) + (s.FgMenus ? 100 : 0); }
 
         void UiOutViews()
@@ -529,7 +529,6 @@ namespace ConsoleEnhancer.Motor
         void RecordUiOut()
         {
             if (!(fgApplied && s.FgUi > 0 && uiValid) || psoUiOut == null) return;
-            if (s.FgUi >= 4) { RecordHudless(); return; }   // 1.2.4 (DLSSFG): la imagen sin la interfaz quieta (EngineFgHud.cs)
             bool color = s.FgUi == 2;
             if ((color && uiColor == null) || (!color && uiAlpha == null))
             {

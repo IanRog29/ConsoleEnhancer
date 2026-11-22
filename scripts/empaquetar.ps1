@@ -6,9 +6,7 @@
 #  - mpv ni Magpie: no los reparte ConsoleEnhancer. La app los baja la primera vez que se abre de sus releases oficiales (con su
 #    SHA-256: scripts\components.json, src\Lanzador\Componentes.cs). Asi no hay que repartir el codigo fuente de mpv / FFmpeg ni los
 #    binarios de Magpie Experimental (que llevan DLL de NVIDIA, AMD e Intel que su autor pide no volver a repartir sin revisar)
-#  - nvngx_dlssnr.dll ("DLSS 5": DLL de NVIDIA modificada, sin firma), runtimes\dlssg_sm86 (autofirmado) ni ninguna otra DLL de NVIDIA que
-#    no sea de las redistribuibles. (1.2.4) SI van las dos piezas propias del motor, engine\PrismaNr.dll y engine\PrismaFg.dll
-#    (build_prismanr.bat, build_prismafg.bat): cargan los archivos que pone el usuario saltandose la comprobacion de NGX (ver README)
+#  - nvngx_dlssnr.dll ("DLSS 5": DLL de NVIDIA modificada, sin firma), runtimes\dlssg_sm86 (autofirmado), PrismaNr.dll
 #  - el ini, logs, data\, games\ ni nada del PC donde se monta
 # Antes: build.bat y build_motor.bat (o preparar.bat). Streamline sale de terceros\streamline (scripts\descargar_dependencias.ps1;
 # si falta, se baja, salvo con -SinDescargar).
@@ -49,9 +47,6 @@ if (-not (Test-Path "$Streamline\bin\x64\sl.interposer.dll")) {
     & "$PSScriptRoot\descargar_dependencias.ps1" -Raiz $Raiz -Solo streamline
 }
 foreach ($need in @("$Raiz\bin\ConsoleEnhancer.exe", "$Raiz\bin\engine\ConsoleEnhancerEngine.exe")) { if (-not (Test-Path $need)) { throw "Falta $need (compila con build.bat y build_motor.bat, o preparar.bat)" } }
-# (1.2.4) las piezas propias del motor (C++, Visual Studio; PrismaNr con las cabeceras de NGX de scripts\descargar_cabeceras_ngx.ps1)
-$propias = @('PrismaNr.dll', 'PrismaFg.dll')
-foreach ($d in $propias) { if (-not (Test-Path "$Raiz\bin\engine\$d")) { throw "Falta $Raiz\bin\engine\$d (scripts\descargar_cabeceras_ngx.ps1, build_prismanr.bat y build_prismafg.bat)" } }
 # (1.2.3, DEFENDER) la version que llevan los exe en sus propiedades (src\Version.cs) = la del paquete: que no salga una version con los
 # exe de otra, ni sin version
 $verCs = [regex]::Match((Get-Content -LiteralPath "$Raiz\src\Version.cs" -Raw -Encoding UTF8), 'const string Texto = "([^"]+)"').Groups[1].Value
@@ -101,8 +96,7 @@ Poner "$Raiz\resources\mpv.conf" "$Destino\mpv\portable_config\mpv.conf"
 
 # ---- el motor y las DLL de produccion de Streamline (firmadas por NVIDIA) ----
 Poner "$Raiz\bin\engine\ConsoleEnhancerEngine.exe" "$Destino\engine\ConsoleEnhancerEngine.exe"
-foreach ($d in $propias) { Poner "$Raiz\bin\engine\$d" "$Destino\engine\$d" }   # (1.2.4: PrismaNr.dll / PrismaFg.dll, codigo propio)
-foreach ($d in @('sl.interposer.dll', 'sl.common.dll', 'sl.dlss.dll', 'sl.dlss_g.dll', 'sl.reflex.dll', 'sl.pcl.dll', 'nvngx_dlss.dll', 'nvngx_dlssg.dll', 'sl.deepdvc.dll', 'nvngx_deepdvc.dll')) {
+foreach ($d in @('sl.interposer.dll', 'sl.common.dll', 'sl.dlss.dll', 'sl.dlss_g.dll', 'sl.reflex.dll', 'sl.pcl.dll', 'nvngx_dlss.dll', 'nvngx_dlssg.dll')) {
     Poner "$Streamline\bin\x64\$d" "$Destino\engine\$d"
 }
 
@@ -118,7 +112,7 @@ foreach ($f in @('license.txt', '3rd-party-licenses.md', 'nvngx_dlss.license.txt
 Texto "$lic\NVIDIA-NOTICE.txt" @(
     'Componentes de NVIDIA en engine\ / NVIDIA components in engine\',
     '',
-    'engine\nvngx_dlss.dll (NVIDIA DLSS Super Resolution), engine\nvngx_dlssg.dll (NVIDIA DLSS Frame Generation) y engine\nvngx_deepdvc.dll (NVIDIA RTX Dynamic Vibrance) son de NVIDIA Corporation',
+    'engine\nvngx_dlss.dll (NVIDIA DLSS Super Resolution) y engine\nvngx_dlssg.dll (NVIDIA DLSS Frame Generation) son de NVIDIA Corporation',
     'y NO estan bajo la GPL de ConsoleEnhancer: se reparten sin cambios segun la NVIDIA RTX SDKs License (streamline\nvngx_dlss.license.txt).',
     'engine\sl.*.dll son NVIDIA Streamline (MIT, streamline\license.txt); sl.reflex.dll y sl.pcl.dll llevan NVIDIA Reflex (streamline\reflex.license.txt).',
     'Al usarlas aceptas tambien estas condiciones de NVIDIA: solo se usan como parte de ConsoleEnhancer; no se pueden vender, alquilar,',
@@ -127,7 +121,7 @@ Texto "$lic\NVIDIA-NOTICE.txt" @(
     'ningun tipo, y no responde de ningun dano; estan sujetas a las leyes de exportacion de los EE. UU.; NVIDIA conserva todos sus derechos.',
     'DLSS solo funciona con graficas NVIDIA GeForce RTX. ConsoleEnhancer no esta patrocinado ni respaldado por NVIDIA.',
     '',
-    'engine\nvngx_dlss.dll (NVIDIA DLSS Super Resolution), engine\nvngx_dlssg.dll (NVIDIA DLSS Frame Generation) and engine\nvngx_deepdvc.dll (NVIDIA RTX Dynamic Vibrance) belong to NVIDIA',
+    'engine\nvngx_dlss.dll (NVIDIA DLSS Super Resolution) and engine\nvngx_dlssg.dll (NVIDIA DLSS Frame Generation) belong to NVIDIA',
     'Corporation and are NOT covered by ConsoleEnhancer''s GPL: they are redistributed unmodified under the NVIDIA RTX SDKs License',
     '(streamline\nvngx_dlss.license.txt). engine\sl.*.dll are NVIDIA Streamline (MIT, streamline\license.txt); sl.reflex.dll and sl.pcl.dll',
     'contain NVIDIA Reflex (streamline\reflex.license.txt). By using them you also accept these NVIDIA terms: they may only be used as part of',
@@ -138,7 +132,7 @@ Texto "$lic\NVIDIA-NOTICE.txt" @(
     'endorsed by NVIDIA.')
 $ver = @('# Versiones de los componentes de terceros / third-party component versions (scripts\components.json)', '')
 foreach ($c in $tabla) {
-    $donde = if ($c.al_abrir) { 'NO va en el paquete: la app lo baja la primera vez de / NOT in the package: downloaded on first start from' } else { 'en el paquete / in the package:' }
+    $donde = if ($c.bajo_demanda) { 'NO va en el paquete: la app lo baja cuando hace falta (DLSS 5) / NOT in the package: downloaded when needed (DLSS 5) from' } elseif ($c.al_abrir) { 'NO va en el paquete: la app lo baja la primera vez de / NOT in the package: downloaded on first start from' } else { 'en el paquete / in the package:' }
     $ver += "$($c.nombre) $($c.version) - $donde"
     $ver += "  $($c.url)"
     $ver += "  sha256 $($c.sha256)"
@@ -155,11 +149,9 @@ Texto "$lic\README.txt" @(
     '   Incluye: FSR 1 EASU/RCAS y CAS (AMD FidelityFX, MIT), FXAA 3.11 (NVIDIA, BSD-3-Clause) y un filtro derivado de Magpie (GPL-3.0):',
     '   avisos completos en THIRD-PARTY.md.',
     " - NVIDIA Streamline $($sl.version) (engine\sl.*.dll): MIT (streamline\license.txt, 3rd-party-licenses.md).",
-    ' - NVIDIA DLSS Super Resolution y Frame Generation, RTX Dynamic Vibrance (engine\nvngx_dlss.dll, nvngx_dlssg.dll, nvngx_deepdvc.dll): NVIDIA RTX SDKs License',
+    ' - NVIDIA DLSS Super Resolution y Frame Generation (engine\nvngx_dlss.dll, nvngx_dlssg.dll): NVIDIA RTX SDKs License',
     '   (streamline\nvngx_dlss.license.txt) y NVIDIA-NOTICE.txt.',
     ' - NVIDIA Reflex (engine\sl.reflex.dll, sl.pcl.dll): streamline\reflex.license.txt.',
-    ' - engine\PrismaNr.dll, engine\PrismaFg.dll: codigo propio de ConsoleEnhancer (GPL-3.0); cargan archivos que pone el usuario sin la',
-    '   comprobacion de NGX de NVIDIA (ver THIRD-PARTY.md) / own code; they load user-added files without NVIDIA''s NGX check.',
     '',
     'Bajados por la app la primera vez (NO van en el paquete; cada uno con su licencia, dentro de su carpeta):',
     "Downloaded by the app on first start (NOT in the package; each one keeps its license inside its folder):",
@@ -168,25 +160,21 @@ Texto "$lic\README.txt" @(
     '',
     'Marcas (NVIDIA, DLSS, Reflex, GeForce RTX, AMD, FSR, FidelityFX, Intel, XeSS, Nintendo, Sony, PlayStation, Microsoft, Xbox...): de sus',
     'duenos; aqui solo describen compatibilidad. ConsoleEnhancer no esta afiliado a ninguno. / Trademarks belong to their owners.',
-    'No incluido / not included: nvngx_dlssnr.dll, runtimes\dlssg_sm86 (ver extras\README.txt). Si van / included: engine\PrismaNr.dll, engine\PrismaFg.dll.')
+    'No incluido / not included: nvngx_dlssnr.dll, runtimes\dlssg_sm86 (ver extras\README.txt).')
 Texto "$Destino\extras\README.txt" @(
     'Extras NO OFICIALES (no vienen con ConsoleEnhancer y la app funciona entera sin ellos). Solo si ya los tienes:',
     ' - nvngx_dlssnr.dll ("DLSS 5", filtro DLSSNR de Magpie): DLL de NVIDIA modificada por la comunidad, SIN FIRMA, sin licencia.',
     '   Lo facil: icono de la bandeja > "Anadir DLSS 5 (tu propio archivo)..." (o el boton del ultimo paso del asistente): elige tu',
     '   archivo, la app comprueba que es una DLL de 64 bits, avisa y la copia aqui. "Quitar DLSS 5" la borra. Bajo tu responsabilidad.',
-    ' - runtimes\dlssg_sm86 (DLSS FG de Magpie con DLSS 5, o x3 / x4 por Magpie): paquete de la comunidad que hace que NGX cargue DLSS FG',
-    '   sin la comprobacion de NVIDIA. Desde la 1.2.4 la app no lo trae ni lo baja; si ya lo tienes, ponlo en extras\runtimes\dlssg_sm86.',
-    'Anadir DLSS 5 los busca en ESTE PC si ya los tienes (Descargas, Escritorio, otras carpetas de la app...; solo local) y eliges tu.',
-    'Con ellos, engine\PrismaNr.dll y engine\PrismaFg.dll (codigo propio de la app) los cargan sin la comprobacion de NGX de NVIDIA.',
-    'ConsoleEnhancer no reparte, no baja ni recomienda nvngx_dlssnr.dll ni dlssg_sm86: NVIDIA no los ha publicado asi y su uso puede ir',
-    'contra sus condiciones. Si no sabes de donde salen, no los uses.',
+    ' - runtimes\dlssg_sm86 (DLSS FG de Magpie con DLSS 5): no hace falta ponerlo; con DLSS 5 la app lo coge del PC o lo baja sola de',
+    '   su release oficial (github.com/sdli1995/dlssg_for_sm86, MIT) a extras\runtimes\dlssg_sm86 y lo copia a magpie\runtimes\.',
+    'ConsoleEnhancer no reparte, no baja ni recomienda nvngx_dlssnr.dll: NVIDIA no los ha publicado asi y su uso puede ir contra sus',
+    'condiciones. Si no sabes de donde salen, no los uses.',
     '',
-    'UNOFFICIAL extras (not shipped; the app works fully without them): nvngx_dlssnr.dll (community-modified, unsigned NVIDIA DLL) and',
-    'runtimes\dlssg_sm86 (community package that makes NGX load DLSS FG without NVIDIA''s check; since 1.2.4 the app no longer downloads it).',
-    'If you already have them, use tray icon > "Add DLSS 5 (your own file)..." (it checks the file and copies it here) or put them here by',
-    'hand (Add DLSS 5 also finds them on THIS PC if you already have them; local only); used at your own risk. With them, the app''s own',
-    'engine\PrismaNr.dll / PrismaFg.dll load them without NVIDIA''s NGX check. ConsoleEnhancer does not distribute, download or recommend',
-    'nvngx_dlssnr.dll or dlssg_sm86.')
+    'UNOFFICIAL extras (not shipped; the app works fully without them): nvngx_dlssnr.dll (community-modified, unsigned NVIDIA DLL).',
+    'With DLSS 5 the app downloads runtimes\dlssg_sm86 (github.com/sdli1995/dlssg_for_sm86) by itself. If you already have the DLL, use tray icon > "Add DLSS 5 (your own file)..." (it checks the',
+    'file and copies it here) or put them here by hand; used at your own risk. ConsoleEnhancer does',
+    'not distribute, download or recommend nvngx_dlssnr.dll.')
 Texto "$Destino\README.txt" @(
     "ConsoleEnhancer $verTxt - your console through a capture card, enhanced on your PC / tu consola por la capturadora, mejorada en el PC",
     '',
@@ -198,9 +186,6 @@ Texto "$Destino\README.txt" @(
     'when the console is turned off, DLSS 5 (your own file, in extras\), download mpv/Magpie again, logs and uninstall.',
     'Unzip it into one of your own folders, not Program Files.',
     "Help, issues and source code: $webTxt. Licenses: licenses\README.txt. No warranty (GPL-3.0).",
-    'DLSS 5: not included and never downloaded (nor dlssg_sm86). Legal DLSS 5 does not exist today outside NVIDIA''s own games on RTX 50;',
-    'whatever you add yourself is yours and at your own risk (extras\README.txt). The app works fully without it. The engine''s own',
-    'engine\PrismaNr.dll / PrismaFg.dll load the files you add without NVIDIA''s NGX check, which NVIDIA''s terms do not allow.',
     'ConsoleEnhancer is free and complete. If you find it useful and want to support it (optional): https://ko-fi.com/ianrog29',
     '',
     '--- ESPANOL ---',
@@ -219,17 +204,14 @@ Texto "$Destino\README.txt" @(
     'Requisitos: Windows 10 2004 o posterior (64 bits), .NET Framework 4.8, grafica con Direct3D 12, una capturadora.',
     "Ayuda, problemas y codigo fuente: $webTxt",
     'Licencias: licenses\README.txt. Extras no oficiales: extras\README.txt. Sin garantia (GPL-3.0).',
-    'DLSS 5: no viene ni se baja nunca (tampoco dlssg_sm86). DLSS 5 legal hoy no existe fuera de los juegos de NVIDIA en RTX 50; lo que',
-    'anadas tu es tuyo y bajo tu responsabilidad (extras\README.txt). La app funciona entera sin el. Las piezas propias del motor',
-    'engine\PrismaNr.dll / PrismaFg.dll cargan los archivos que pones tu sin la comprobacion de NGX de NVIDIA, cosa que sus terminos no permiten.',
     'ConsoleEnhancer es gratis y completo. Si te es util y quieres apoyarlo (opcional): https://ko-fi.com/ianrog29')
 
 # ---- comprobaciones ----
-$noVan = @('nvngx_dlssnr.dll', 'DLSSNR-DLL-Options.zip', 'NGX_OTA_Switch.bat', 'switch2.ini', 'consoleenhancer.ini', 'hardware.txt', 'mpv.exe', 'Magpie.exe', 'PrismaNrTest.exe')
+$noVan = @('nvngx_dlssnr.dll', 'DLSSNR-DLL-Options.zip', 'NGX_OTA_Switch.bat', 'switch2.ini', 'consoleenhancer.ini', 'hardware.txt', 'mpv.exe', 'Magpie.exe', 'PrismaNr.dll', 'PrismaNrTest.exe')
 $malos = @(Get-ChildItem -LiteralPath $Destino -Recurse -File -Force | Where-Object { $_.Name -in $noVan -or $_.FullName -like '*dlssg_sm86*' -or $_.FullName -like '*\games\*' -or $_.FullName -like '*\data\*' -or $_.FullName -like "$Destino\magpie\*" -or $_.Extension -in @('.log', '.pdb', '.obj', '.zip') })
 if ($malos.Count -gt 0) { throw ("En el paquete hay lo que no debe: " + (($malos | ForEach-Object { $_.FullName }) -join ', ')) }
-# Solo DLL firmadas por NVIDIA, salvo las dos propias del motor (las nuestras: los exe, PrismaNr.dll y PrismaFg.dll en engine\)
-foreach ($f in Get-ChildItem -LiteralPath $Destino -Recurse -File | Where-Object { $_.Extension -eq '.dll' -and -not ($propias -contains $_.Name -and $_.DirectoryName -eq "$Destino\engine") }) {
+# Solo DLL firmadas por NVIDIA (las nuestras son los exe)
+foreach ($f in Get-ChildItem -LiteralPath $Destino -Recurse -File | Where-Object { $_.Extension -eq '.dll' }) {
     $s = Get-AuthenticodeSignature -LiteralPath $f.FullName
     if ($s.Status -ne 'Valid' -or $s.SignerCertificate.Subject -notmatch 'NVIDIA') { throw "DLL sin la firma valida de NVIDIA: $($f.FullName) ($($s.Status))" }
 }
@@ -237,7 +219,7 @@ foreach ($f in Get-ChildItem -LiteralPath $Destino -Recurse -File | Where-Object
 $personal = @($env:USERNAME, $env:COMPUTERNAME, $env:USERPROFILE)
 if (Test-Path "$Raiz\scripts\privado.txt") { $personal += @(Get-Content -LiteralPath "$Raiz\scripts\privado.txt" -Encoding UTF8 | Where-Object { $_ -and -not $_.StartsWith('#') } | ForEach-Object { $_.Trim() }) }
 $personal = @($personal | Where-Object { $_ -and $_.Length -ge 3 } | Select-Object -Unique)
-$mirar = @("$Destino\ConsoleEnhancer.exe", "$Destino\engine\ConsoleEnhancerEngine.exe", "$Destino\engine\PrismaNr.dll", "$Destino\engine\PrismaFg.dll") + @(Get-ChildItem -LiteralPath $Destino -Recurse -File | Where-Object { $_.Extension -in @('.txt', '.ini', '.lua', '.glsl', '.conf', '.config', '.md', '.json') -and $_.FullName -notlike "$lic\streamline\*" } | ForEach-Object { $_.FullName })
+$mirar = @("$Destino\ConsoleEnhancer.exe", "$Destino\engine\ConsoleEnhancerEngine.exe") + @(Get-ChildItem -LiteralPath $Destino -Recurse -File | Where-Object { $_.Extension -in @('.txt', '.ini', '.lua', '.glsl', '.conf', '.config', '.md', '.json') -and $_.FullName -notlike "$lic\streamline\*" } | ForEach-Object { $_.FullName })
 $avisos = 0
 foreach ($e in $mirar) {
     $b = [IO.File]::ReadAllBytes($e)
@@ -256,7 +238,7 @@ Write-Output ("Paquete: $Destino - $script:n ficheros, {0:N0} MB, {1:N1} s" -f (
 foreach ($d in Get-ChildItem -LiteralPath $Destino -Directory) { $s = (Get-ChildItem -LiteralPath $d.FullName -Recurse -File | Measure-Object Length -Sum).Sum; Write-Output ("  {0,-10} {1,8:N1} MB" -f $d.Name, ($s / 1MB)) }
 foreach ($k in ($firmas.Keys | Sort-Object)) { Write-Output ("  firma {0}: {1}" -f $k, (($firmas[$k] | Sort-Object) -join ', ')) }
 if ($avisos -gt 0) { throw "$avisos datos de este PC en el paquete (arriba): quitalos antes de publicarlo" }
-Write-Output 'Comprobado: nada no redistribuible, ni mpv ni Magpie, solo DLL firmadas por NVIDIA (y las dos propias del motor) y ningun dato de este PC'
+Write-Output 'Comprobado: nada no redistribuible, ni mpv ni Magpie, solo DLL firmadas por NVIDIA y ningun dato de este PC'
 if ($Zip) {
     $z = "$(Split-Path $Destino)\ConsoleEnhancer$(if ($Version) { '-' + $Version }).zip"
     if (Test-Path $z) { Remove-Item -LiteralPath $z -Force }

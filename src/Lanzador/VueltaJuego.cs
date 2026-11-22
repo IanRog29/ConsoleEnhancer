@@ -110,12 +110,8 @@ namespace ConsoleEnhancer
 
         static bool UpperMix(string s) { bool up = false, low = false; foreach (char ch in s) { if (char.IsUpper(ch)) up = true; if (char.IsLower(ch)) low = true; } return up && low; }
 
-        // La ™ pegada leida como letras: "TY", "JY", "vy", "y", "TM" (la M leida como Y). 1.2.4: y la ™ / ® como "rn" / "r" / "n"
-        // ("Bloodborner•n" -> "Bloodbornern", 22-11 16:00:18; "Rocket Leaguen", 1.2.04)
-        static readonly Regex TmRx = new Regex(@"^(?:[TtJjVvRr]?[YyMmNn]|[Rr])$", RegexOptions.CultureInvariant);
-        // 1.2.4: las lecturas de la ™ / ® de 2-3 caracteres que no son el final de un titulo (para un nombre guardado SOLO, sin otro con el
-        // que compararlo: la migracion)
-        static readonly Regex TmFuerteRx = new Regex(@"^(?:rn|vy|[TtJj][YyMm]|Tt|Jbf)$", RegexOptions.CultureInvariant);
+        // La ™ pegada leida como letras: "TY", "JY", "vy", "y", "TM" (la M leida como Y)
+        static readonly Regex TmRx = new Regex(@"^(?:[TtJjVv]?[YyMm])$", RegexOptions.CultureInvariant);
 
         // ¿Ese sufijo es basura probable? (raro, o la ™ leida como letras)
         public static bool BasuraProbable(string sufijo, string corto)
@@ -309,13 +305,7 @@ namespace ConsoleEnhancer
         // otro nombre guardado del que son "basura pegada" (y el diccionario no dice lo contrario), la base comun de dos o mas con basura
         // distinta ("PS5: Bloodborney" del perfil y "PS5: Bloodbornevy" del icono -> "PS5: Bloodborne") o, con un sufijo raro (una
         // mayuscula tras minuscula, una tilde suelta, un simbolo), el nombre sin el. Devuelve viejo -> nuevo
-        public static Dictionary<string, string> Migracion(List<string> nombres) { return Migracion(nombres, null); }
-
-        // 1.2.4: pistas = nombres buenos de antes (las copias .bak de profiles.txt / game_icons.txt: el nombre que tenia el perfil antes de
-        // que una lectura con basura lo pisara, "PS5: Bloodborne" -> "PS5: Bloodbornern" del 22-11 16:00:20). Solo valen como destino de un
-        // nombre con una lectura de la ™ / ® de 2-3 caracteres pegada (TmFuerteRx: "rn", "vy", "TY"...; una letra sola no: "PS5: Batma"
-        // de antes no deshace "PS5: Batman"), nunca se migran ellas
-        public static Dictionary<string, string> Migracion(List<string> nombres, List<string> pistas)
+        public static Dictionary<string, string> Migracion(List<string> nombres)
         {
             Dictionary<string, string> r = new Dictionary<string, string>();
             List<string> l = new List<string>();
@@ -342,25 +332,11 @@ namespace ConsoleEnhancer
                     break;
                 }
             }
-            // 2b. (1.2.4) Uno que es una pista (un nombre bueno de antes) con la ™ / ® pegada
-            if (pistas != null)
-                foreach (string e in l)
-                {
-                    if (r.ContainsKey(e)) continue;
-                    foreach (string b in pistas)
-                    {
-                        string suf;
-                        if (string.IsNullOrEmpty(b) || b == e || JuegoConsola.TagConsola(b) != JuegoConsola.TagConsola(e)) continue;
-                        if (!BasuraPegada(e, b, out suf) || !TmFuerteRx.IsMatch(suf) || GanaLargoConocido(e, b)) continue;
-                        r[e] = b;
-                        break;
-                    }
-                }
-            // 3. Solo, con un sufijo raro (o, 1.2.4, con una lectura de la ™ / ® de 2-3 caracteres: SinMarcaFuerte)
+            // 3. Solo, con un sufijo raro
             foreach (string e in l)
             {
                 if (r.ContainsKey(e)) continue;
-                string limpio = SinBasuraRara(e) ?? SinMarcaFuerte(e);
+                string limpio = SinBasuraRara(e);
                 if (limpio != null && limpio != e) r[e] = limpio;
             }
             // (las cadenas: a -> b -> c = a -> c)
@@ -372,28 +348,6 @@ namespace ConsoleEnhancer
                 if (v == k) r.Remove(k); else r[k] = v;
             }
             return r;
-        }
-
-        // 1.2.4: el nombre sin una lectura de la ™ / ® de 2-3 caracteres pegada a la ultima palabra ("PS5: Bloodbornern" -> "PS5: Bloodborne",
-        // "PS5: Bloodbornevy"), o null. Solo si lo que queda de la palabra tiene 7 letras o mas (un "rn" de verdad, "Modern", "Western", deja
-        // menos) y el diccionario no dice que la palabra entera existe
-        public static string SinMarcaFuerte(string nombre)
-        {
-            string tag = JuegoConsola.TagConsola(nombre);
-            string[] w = PalabrasCrudas(nombre);
-            if (w.Length == 0) return null;
-            string u = w[w.Length - 1];
-            for (int k = SufijoMax; k >= 2; k--)
-            {
-                if (u.Length - k < 7) continue;
-                string pre = u.Substring(0, u.Length - k), suf = u.Substring(u.Length - k);
-                if (!TmFuerteRx.IsMatch(suf) || LetrasDe(pre) < 7 || ConCifras(pre) || !char.IsLetter(pre[pre.Length - 1])) continue;
-                if (Ortografia.Valida(Regex.Replace(u, @"[^\p{L}]", "")) == true) return null;
-                string corto = string.Join(" ", w, 0, w.Length - 1);
-                corto = (corto.Length > 0 ? corto + " " : "") + pre;
-                return tag != null ? tag + ": " + corto : corto;
-            }
-            return null;
         }
 
         // El nombre sin una basura rara pegada a la ultima palabra ("PS5: Rocket LeagueF" -> "PS5: Rocket League"), o null si no la lleva.
@@ -477,21 +431,6 @@ namespace ConsoleEnhancer
     //     portada nueva del foco) seguida de su carga a oscuras
     //   - sin pruebas en 25 s MIRADOS (capturas con menos de 2 s entre ellas) o 90 s de reloj: el de antes
     // ===================================================================
-    //  1.2.4 (PERFILES; el usuario: "Me he metido a un juego despues del gta 6 y seguia poniendome ajustes de gta 6 y poniendo de titulo
-    //  gta 6"; log del 22-11 15:59:44): GTA VI -> menu -> Bloodborne arrancado. Al salir, la portada de Bloodborne (su pantalla de arranque)
-    //  y todo lo de despues NADA parecido a lo de antes del menu (lo mas parecido a 40,3; la misma escena da < 13), pero sin negro liso, ni
-    //  "sin señal", ni su portada guardada (la que habia no era la buena) ni carga oscura tras una portada: a los 26 s mirados "sigue GTA VI".
-    //  Ahora LA DUDA SE RESUELVE A FAVOR DEL JUEGO EN FOCO cuando la imagen no se parece a la de antes (en la PS5 arrancar otro cierra el
-    //  anterior; volver al de antes da su imagen de antes enseguida):
-    //   - al salir, las capturas que sacaron del menu (3 o mas, 0,8 s) todas claramente distintas de lo de antes: el del foco YA (el titulo y
-    //     los ajustes cambian sin esperar); despues, 4 capturas seguidas y 2 s mirados claramente distintos: lo mismo;
-    //   - esa decision es PROVISIONAL: se sigue mirando hasta 60 s mirados; si vuelve la imagen de antes del menu (2 capturas seguidas) o la
-    //     portada del de antes, se corrige sola al de antes (y lo cambiado entre medias en el perfil del del foco se le devuelve); el negro,
-    //     "sin señal" o su portada la confirman;
-    //   - una imagen "a medias" (ni la misma ni claramente distinta: 13-22) no deja decidir por la duda (sigue como en la 1.2.2);
-    //   - el aviso de la consola de cerrar el juego en marcha visto en el menu decide el arranque (TrayApp.ps5CierreVistoAt).
-    //  El caso al reves (mover el foco a otro juego y volver al que estaba): su imagen de antes sale al momento y decide "el de antes" antes
-    //  de que la duda cuente (al salir se miran TODAS las capturas de la salida antes de dudar).
     sealed class VueltaOArranque
     {
         public const double MismaNorm = 13.0;    // DistNorm 16x9 por debajo (y MismaCruda en crudo): la misma escena que antes del menu
@@ -499,11 +438,6 @@ namespace ConsoleEnhancer
         public const double NegroS = 1.2, SinSenalS = 0.8, OscuroTrasPortadaS = 1.0;
         public const double ObservarS = 25, RelojMaxS = 90, HuecoMaxS = 2.0;
         public const double DistintaNorm = 22.0; // una portada (quieta) "no es la de antes" por encima de esto (normalizada)
-        // 1.2.4: la duda (todo claramente distinto de lo de antes) -> el del foco, provisional
-        public const int DudaN = 4, DudaSalidaN = 3;
-        public const double DudaS = 2.0, DudaSalidaS = 0.8;
-        public const double CorrigeS = 60, CorrigeRelojS = 150;   // se vigila la provisional (por si vuelve la imagen de antes)
-        public const int CorrigeN = 2;                            // capturas seguidas como las de antes para corregir
 
         public readonly string EnMarcha, Candidato;
         readonly List<double[]> antes = new List<double[]>();
@@ -520,17 +454,6 @@ namespace ConsoleEnhancer
         public bool Arranque;            // la decision vino de ver arrancar un juego (se puede memorizar su portada)
         public double MejorDistNorm = 999;  // (log) lo mas parecido a lo de antes visto
         public double Observado { get { return observado; } }
-        // 1.2.4
-        public bool Provisional;         // Decision = Candidato por la duda: se sigue mirando por si era el de antes
-        public bool Corregida;           // era provisional y resulto el de antes
-        public bool EnSalida;            // (VueltaEmpieza) las capturas de la salida: la duda la mira DudaAlSalir con todas
-        int distintasN;                  // capturas seguidas claramente distintas de lo de antes
-        double distintasDesde = -1;      // (observado) desde la primera de ellas
-        int comoAntesN;                  // (provisional) capturas seguidas como las de antes
-        double obsProvisional;           // (observado) al decidir la provisional
-        DateTime tProvisional = DateTime.MinValue;
-        readonly int antesUtiles;        // imagenes de antes que no son negro liso (con solo negro no hay con que comparar: sin duda)
-        public int Cambios;              // sube con cada cambio de Decision / Provisional (la app mira si hay algo nuevo)
 
         public VueltaOArranque(string enMarcha, string candidato, List<double[]> imagenesAntes, DateTime t)
         {
@@ -538,7 +461,7 @@ namespace ConsoleEnhancer
             int oscuras = 0;
             if (imagenesAntes != null)
                 foreach (double[] f in imagenesAntes)
-                    if (f != null) { antes.Add(f); if (Oscura(f)) oscuras++; if (!PortadasConsola.NegroLiso(f)) antesUtiles++; }
+                    if (f != null) { antes.Add(f); if (Oscura(f)) oscuras++; }
             antesOscuro = antes.Count > 0 && oscuras * 2 >= antes.Count;
         }
 
@@ -578,186 +501,80 @@ namespace ConsoleEnhancer
         {
             if (Decision != null) return;
             Decision = quien; Arranque = arranque; Porque = porque;
-            Cambios++;
-        }
-
-        // 1.2.4: el del foco por la duda (provisional)
-        void DecideDuda(DateTime t, string porque)
-        {
-            if (Decision != null || EnMarcha == null) return;
-            Decision = Candidato; Arranque = false; Porque = porque; Provisional = true;
-            obsProvisional = observado; tProvisional = t; comoAntesN = 0;
-            Cambios++;
-        }
-
-        // (provisional) se confirma el del foco: con una prueba de arranque (arranque) o sin volver a ver lo de antes en el plazo
-        void Confirma(bool arranque, string porque)
-        {
-            if (!Provisional) return;
-            Provisional = false;
-            if (arranque) Arranque = true;
-            Porque = Porque + "; confirmado: " + porque;
-            Cambios++;
-        }
-
-        // (provisional) era el de antes
-        void Corrige(bool arranque, string porque)
-        {
-            if (!Provisional) return;
-            Provisional = false; Corregida = true;
-            Decision = EnMarcha; Arranque = arranque;
-            Porque = porque + " (antes, provisional: \"" + Candidato + "\" por " + Porque + ")";
-            Cambios++;
         }
 
         // Una captura fuera del menu. f = PortadasConsola.Firma (null sin imagen); sinSenal; tenue = LecturaMenu.Tenue (oscura); portada = el
         // perfil de una portada CONOCIDA en esta captura y la anterior (o null); pantallaConsola = texto de una pantalla de la consola.
-        // Devuelve la decision (null = aun no). 1.2.4: con la decision provisional (Provisional) se sigue mirando: la puede corregir al de
-        // antes (Corregida) o confirmar
+        // Devuelve la decision (null = aun no)
         public string Observa(DateTime t, double[] f, bool sinSenal, bool tenue, string portada, bool pantallaConsola)
         {
-            if (Decision != null && !Provisional) return Decision;
+            if (Decision != null) return Decision;
             if (ultima != DateTime.MinValue)
             {
                 double gap = (t - ultima).TotalSeconds;
                 if (gap > 0 && gap <= HuecoMaxS) observado += gap;
             }
             ultima = t;
-            string prueba = null;   // una prueba de que se arranco el del foco
             if (portada != null)
             {
-                comoAntesN = 0;
-                if (portada == Candidato || GameProfiles.SameGame(portada, Candidato)) prueba = "su portada en pantalla";
-                else if (EnMarcha != null && (portada == EnMarcha || GameProfiles.SameGame(portada, EnMarcha)))
-                {
-                    if (Provisional) Corrige(true, "la portada del que estaba en marcha (se ha vuelto a arrancar)");
-                    else Decide(EnMarcha, true, "la portada del que estaba en marcha (se ha vuelto a arrancar)");
-                    return Decision;
-                }
-                else { if (!Provisional) Decide(portada, true, "la portada de otro juego conocido"); return Plazo(t); }
+                if (portada == Candidato || GameProfiles.SameGame(portada, Candidato)) Decide(Candidato, true, "su portada en pantalla");
+                else if (EnMarcha != null && (portada == EnMarcha || GameProfiles.SameGame(portada, EnMarcha))) Decide(EnMarcha, true, "la portada del que estaba en marcha (se ha vuelto a arrancar)");
+                else Decide(portada, true, "la portada de otro juego conocido");
+                return Decision;
             }
-            else if (sinSenal)
+            if (sinSenal)
             {
-                negroDesde = DateTime.MinValue; quietaPrev = null; oscuroDesde = DateTime.MinValue; comoAntesN = 0;
+                negroDesde = DateTime.MinValue; quietaPrev = null; oscuroDesde = DateTime.MinValue;
                 if (sinSenalDesde == DateTime.MinValue) sinSenalDesde = t;
                 double s = (t - sinSenalDesde).TotalSeconds;
-                if (s >= SinSenalS) prueba = "sin señal " + s.ToString("0.0", CultureInfo.InvariantCulture) + " s (la consola cambia de modo de video al arrancar otro juego)";
-                else return Plazo(t);
-            }
-            else
-            {
-                sinSenalDesde = DateTime.MinValue;
-                if (f == null) return Plazo(t);
-                // La de volver: la misma imagen que antes del menu
-                double dn, dc;
-                DistAntes(f, out dn, out dc);
-                bool negro = PortadasConsola.NegroLiso(f);
-                if (dn < MejorDistNorm && !negro) MejorDistNorm = dn;
-                if (ComoAntes(f))
-                {
-                    string q = "la misma imagen que antes del menu (distancia " + dn.ToString("0.0", CultureInfo.InvariantCulture) + " sin el brillo, " +
-                               dc.ToString("0.0", CultureInfo.InvariantCulture) + " en crudo)";
-                    distintasN = 0; distintasDesde = -1;
-                    if (!Provisional) { Decide(EnMarcha, false, q); return Decision; }
-                    // (provisional: dos seguidas, por si una imagen del otro juego se parece una vez)
-                    if (++comoAntesN >= CorrigeN) { Corrige(false, q + ", " + comoAntesN + " capturas seguidas"); return Decision; }
-                    return Plazo(t);
-                }
-                comoAntesN = 0;
-                // Negro liso seguido (no si lo de antes del menu era oscuro: podia ser una carga del mismo juego)
-                if (negro && !antesOscuro)
-                {
-                    if (negroDesde == DateTime.MinValue) negroDesde = t;
-                    double s = (t - negroDesde).TotalSeconds;
-                    if (s >= NegroS) prueba = "negro liso " + s.ToString("0.0", CultureInfo.InvariantCulture) + " s (la consola cierra un juego y abre otro)";
-                }
-                else negroDesde = DateTime.MinValue;
-                // Una imagen quieta con dibujo que no es la de antes: la portada nueva del foco (o el menu de pausa del de antes: aun no decide)
-                if (!pantallaConsola && PortadasConsola.ConDibujo(f) && dn >= DistintaNorm)
-                {
-                    if (quietaPrev != null && PortadasConsola.Dist(quietaPrev, f) <= PortadasConsola.Quieta)
-                    {
-                        if ((t - quietaDesde).TotalSeconds >= 1.2 && PortadaVista == null) PortadaVista = f;
-                    }
-                    else { quietaPrev = f; quietaDesde = t; }
-                }
-                else { quietaPrev = null; quietaDesde = DateTime.MinValue; }
-                // Tras esa portada, su carga a oscuras (otra imagen, oscura y que no es la de antes) seguida: se arranca el del foco
-                if (prueba == null && PortadaVista != null && !antesOscuro && tenue && PortadasConsola.Dist(f, PortadaVista) > 20 && dn >= DistintaNorm)
-                {
-                    if (oscuroDesde == DateTime.MinValue) oscuroDesde = t;
-                    double s = (t - oscuroDesde).TotalSeconds;
-                    if (s >= OscuroTrasPortadaS) prueba = "una portada quieta nueva y luego su carga a oscuras " + s.ToString("0.0", CultureInfo.InvariantCulture) + " s";
-                }
-                else if (!tenue) oscuroDesde = DateTime.MinValue;
-                // 1.2.4: la duda. Claramente distinta de lo de antes (o el negro, si lo de antes no era oscuro): suma; a medias, empieza otra vez;
-                // el negro con lo de antes oscuro y una pantalla de la consola, ni suman ni empiezan
-                if (!pantallaConsola && !(negro && antesOscuro) && antesUtiles > 0)
-                {
-                    if (negro || dn >= DistintaNorm)
-                    {
-                        if (distintasN == 0) distintasDesde = observado;
-                        distintasN++;
-                    }
-                    else { distintasN = 0; distintasDesde = -1; }
-                }
-            }
-            if (prueba != null)
-            {
-                if (Provisional) Confirma(true, prueba);
-                else Decide(Candidato, true, prueba);
+                if (s >= SinSenalS) Decide(Candidato, true, "sin señal " + s.ToString("0.0", CultureInfo.InvariantCulture) + " s (la consola cambia de modo de video al arrancar otro juego)");
+                else return Vence(t);
                 return Decision;
             }
-            if (!Provisional && !EnSalida && Duda(DudaN, DudaS))
+            sinSenalDesde = DateTime.MinValue;
+            if (f == null) return Vence(t);
+            // La de volver: la misma imagen que antes del menu
+            double dn, dc;
+            DistAntes(f, out dn, out dc);
+            if (dn < MejorDistNorm && !PortadasConsola.NegroLiso(f)) MejorDistNorm = dn;
+            if (ComoAntes(f))
             {
-                DecideDuda(t, DudaTexto());
+                Decide(EnMarcha, false, "la misma imagen que antes del menu (distancia " + dn.ToString("0.0", CultureInfo.InvariantCulture) + " sin el brillo, " +
+                       dc.ToString("0.0", CultureInfo.InvariantCulture) + " en crudo)");
                 return Decision;
             }
-            return Plazo(t);
-        }
-
-        bool Duda(int n, double s)
-        {
-            return Decision == null && antesUtiles > 0 && distintasN >= n && distintasDesde >= 0 && observado - distintasDesde >= s - 1e-6;
-        }
-
-        string DudaTexto()
-        {
-            return "la imagen no se parece a la de antes del menu (" + distintasN + " capturas seguidas claramente distintas en " +
-                   (observado - distintasDesde).ToString("0.0", CultureInfo.InvariantCulture) + " s, lo mas parecido a " +
-                   (MejorDistNorm < 900 ? MejorDistNorm.ToString("0.0", CultureInfo.InvariantCulture) : "-") + "; la misma escena da menos de " +
-                   MismaNorm.ToString("0", CultureInfo.InvariantCulture) + "): se ha arrancado el del foco (provisional: si vuelve la imagen de antes, se corrige)";
-        }
-
-        // 1.2.4 (VueltaEmpieza, tras pasarle TODAS las capturas que sacaron del menu sin decidir): si todas las ultimas son claramente
-        // distintas de lo de antes (3 o mas, 0,8 s), el del foco ya, provisional. Devuelve la decision (o null)
-        public string DudaAlSalir(DateTime t)
-        {
-            EnSalida = false;
-            if (Duda(DudaSalidaN, DudaSalidaS)) DecideDuda(t, DudaTexto() + " (con las capturas que sacaron del menu)");
-            return Decision;
-        }
-
-        // (provisional) se aviso de que cerraba el juego en marcha (la app lo vio en el menu): se confirma
-        public void ConfirmaCierre(string porque)
-        {
-            if (Provisional) Confirma(true, porque);
-            else Decide(Candidato, true, porque);
-        }
-
-        // Sin prueba en esta captura: el plazo (el de la comprobacion o, provisional, el de la vigilancia)
-        string Plazo(DateTime t)
-        {
-            if (!Provisional) return Vence(t);
-            if (observado - obsProvisional >= CorrigeS || (t - tProvisional).TotalSeconds >= CorrigeRelojS)
-                Confirma(false, "sin la imagen de antes del menu en " + (observado - obsProvisional).ToString("0", CultureInfo.InvariantCulture) + " s mirados");
-            return Decision;
+            // Negro liso seguido (no si lo de antes del menu era oscuro: podia ser una carga del mismo juego)
+            if (PortadasConsola.NegroLiso(f) && !antesOscuro)
+            {
+                if (negroDesde == DateTime.MinValue) negroDesde = t;
+                double s = (t - negroDesde).TotalSeconds;
+                if (s >= NegroS) { Decide(Candidato, true, "negro liso " + s.ToString("0.0", CultureInfo.InvariantCulture) + " s (la consola cierra un juego y abre otro)"); return Decision; }
+            }
+            else negroDesde = DateTime.MinValue;
+            // Una imagen quieta con dibujo que no es la de antes: la portada nueva del foco (o el menu de pausa del de antes: aun no decide)
+            if (!pantallaConsola && PortadasConsola.ConDibujo(f) && dn >= DistintaNorm)
+            {
+                if (quietaPrev != null && PortadasConsola.Dist(quietaPrev, f) <= PortadasConsola.Quieta)
+                {
+                    if ((t - quietaDesde).TotalSeconds >= 1.2 && PortadaVista == null) PortadaVista = f;
+                }
+                else { quietaPrev = f; quietaDesde = t; }
+            }
+            else { quietaPrev = null; quietaDesde = DateTime.MinValue; }
+            // Tras esa portada, su carga a oscuras (otra imagen, oscura y que no es la de antes) seguida: se arranca el del foco
+            if (PortadaVista != null && !antesOscuro && tenue && PortadasConsola.Dist(f, PortadaVista) > 20 && dn >= DistintaNorm)
+            {
+                if (oscuroDesde == DateTime.MinValue) oscuroDesde = t;
+                double s = (t - oscuroDesde).TotalSeconds;
+                if (s >= OscuroTrasPortadaS) { Decide(Candidato, true, "una portada quieta nueva y luego su carga a oscuras " + s.ToString("0.0", CultureInfo.InvariantCulture) + " s"); return Decision; }
+            }
+            else if (!tenue) oscuroDesde = DateTime.MinValue;
+            return Vence(t);
         }
 
         // Sin pruebas: el de antes, pasados ObservarS mirados o RelojMaxS de reloj
         public string Vence(DateTime t)
         {
-            if (Decision != null && Provisional) return Plazo(t);
             if (Decision != null) return Decision;
             if (observado >= ObservarS || (t - inicio).TotalSeconds >= RelojMaxS)
                 Decide(EnMarcha, false, "sin pantalla de arranque en " + observado.ToString("0", CultureInfo.InvariantCulture) + " s mirados (" +
@@ -851,16 +668,6 @@ namespace ConsoleEnhancer
 
         // (GrabTick) cada cuanto mientras se comprueba la salida: 0,4 s (el negro de arrancar otro juego se ve en 1,2 s)
         bool VueltaPendiente { get { VueltaOArranque v = ps5Vuelta; return v != null && v.Decision == null; } }
-        // 1.2.4: pendiente o con la decision provisional (el del foco por la duda, vigilando por si era el de antes)
-        bool VueltaVigilando { get { VueltaOArranque v = ps5Vuelta; return v != null && (v.Decision == null || v.Provisional); } }
-        GameProfile ps5VueltaCopiaCand;              // 1.2.4: los ajustes del del foco al pasar a el provisional (si se corrige, se le devuelven)
-        int ps5VueltaCambios;                        // 1.2.4: v.Cambios ya atendidos
-        // 1.2.4: el aviso de la consola de cerrar el juego en marcha (visto en el menu en esta visita): se arranca otro
-        DateTime ps5CierreVistoAt = DateTime.MinValue;
-        // 1.2.4: la portada vista al pasar al del foco sin prueba de arranque: se memoriza si en la siguiente visita al menu el juego en foco
-        // al abrirlo (el que esta en marcha) es ese
-        string ps5PortadaPendJuego;
-        double[] ps5PortadaPendFirma;
 
         // Una captura del juego (fuera del menu, "Juego"): a las recientes (las 6 ultimas, de los ultimos 20 s)
         void VueltaRecuerda(DateTime now, double[] f)
@@ -893,44 +700,11 @@ namespace ConsoleEnhancer
         {
             ps5AntesMenu = VueltaAntesDe(primeraMenu);
             lock (ps5CapturasSalida) ps5CapturasSalida.Clear();
-            ps5CierreVistoAt = DateTime.MinValue;
             VueltaOArranque v = ps5Vuelta;
             if (v != null && v.Decision == null)
                 Log.Write("Comprobacion de la salida anterior sin decidir (\"" + v.EnMarcha + "\" o \"" + v.Candidato + "\"): de vuelta en el menu, el juego en foco al abrirlo dira cual esta en marcha");
-            else if (v != null && v.Provisional)
-            {
-                Log.Write("Salida anterior: \"" + v.Candidato + "\" provisional (sin la imagen de antes del menu en " + v.Observado.ToString("0", CultureInfo.InvariantCulture) +
-                          " s mirados): de vuelta en el menu, el juego en foco al abrirlo dira cual esta en marcha");
-                if (v.PortadaVista != null) { ps5PortadaPendJuego = v.Candidato; ps5PortadaPendFirma = v.PortadaVista; }
-                // (si el juego en foco al abrirlo dice que era el de antes, lo guardado entre medias en el del foco se le devuelve:
-                // PrimerFocoComoEnMarcha -> VueltaDevuelveAjustes)
-                if (ps5VueltaCopiaCand != null) ps5VueltaCopia = ps5VueltaCopiaCand;
-            }
             ps5Vuelta = null;
             ps5Candidato = null;
-            ps5VueltaCopiaCand = null;
-        }
-
-        // 1.2.4: en el menu, el aviso de la consola de cerrar el juego en marcha (para arrancar otro): MenuPs5Captura con el texto de la pantalla
-        void CierreObserva(string texto, DateTime now)
-        {
-            if (!JuegoConsola.EsAvisoCierre(texto)) return;
-            if (ps5CierreVistoAt == DateTime.MinValue)
-                Log.Write("Menu de la consola: el aviso de cerrar el juego en marcha (\"" + ShortText(texto) + "\"): al salir con el foco en otro juego, se arranca ese");
-            ps5CierreVistoAt = now;
-        }
-
-        // 1.2.4: el juego en foco al abrir el menu (el que esta en marcha) es pf: la portada pendiente de ese juego se memoriza (si no hay otra)
-        void PortadaPendienteConfirma(string pf)
-        {
-            string j = ps5PortadaPendJuego;
-            double[] f = ps5PortadaPendFirma;
-            ps5PortadaPendJuego = null; ps5PortadaPendFirma = null;
-            if (j == null || f == null || pf == null || (pf != j && !GameProfiles.SameGame(pf, j))) return;
-            double d;
-            if (PortadasConsola.Busca(f, out d) != null) return;
-            PortadasConsola.Guarda(pf, f);
-            Log.Write("Portada del juego: nueva, memorizada para \"" + pf + "\" (vista al arrancarlo; confirmado por el juego en foco al abrir el menu)");
         }
 
         // En el menu, una captura sin el (confirmando la salida): para las pruebas de enseguida. Con el menu a la vista, se olvidan
@@ -954,14 +728,6 @@ namespace ConsoleEnhancer
             lock (ps5CapturasSalida) { cs = new List<CapturaSalida>(ps5CapturasSalida); ps5CapturasSalida.Clear(); }
             DateTime t0 = cs.Count > 0 && cs[0].At < now ? cs[0].At : now;
             VueltaOArranque v = new VueltaOArranque(enMarcha, cand, ps5AntesMenu, t0);
-            v.EnSalida = true;   // (1.2.4: la duda, con TODAS las de la salida: DudaAlSalir)
-            ps5VueltaCopiaCand = null;
-            // 1.2.4: el aviso de la consola de cerrar el juego en marcha, visto en esta visita: se arranca el del foco
-            if (ps5CierreVistoAt != DateTime.MinValue)
-            {
-                v.ConfirmaCierre("el aviso de la consola de cerrar el juego en marcha, visto en el menu");
-                ps5CierreVistoAt = DateTime.MinValue;
-            }
             string prev = null;
             foreach (CapturaSalida c in cs)
             {
@@ -973,26 +739,12 @@ namespace ConsoleEnhancer
                     string q = PortadasConsola.Busca(c.Firma, out d);
                     if (q != null && d < PortadaSegura) { if (prev == q) p = q; prev = q; } else prev = null;
                 }
-                if (v.Decision != null) break;
-                v.Observa(c.At, c.Firma, c.SinSenal, c.Tenue, p, c.Consola);
+                if (v.Observa(c.At, c.Firma, c.SinSenal, c.Tenue, p, c.Consola) != null) break;
             }
-            if (v.Decision == null) v.DudaAlSalir(cs.Count > 0 ? cs[cs.Count - 1].At : now);
             string antes = (v.HayAntes ? "" : "sin imagen de antes del menu; ") + (v.AntesOscuro ? "la de antes del menu era oscura; " : "");
-            ps5VueltaCambios = v.Cambios;
-            if (v.Decision != null && v.Provisional)
-            {
-                // 1.2.4: el del foco ya, provisional: se sigue mirando (la alimenta MenuPs5Captura) por si era el de antes
-                GameProfile gc = GameProfiles.Find(cand);
-                ps5VueltaCopiaCand = gc != null && gc.Name == cand ? CopiaPerfil(gc) : null;
-                ps5VueltaCopia = null;
-                ps5Candidato = null;
-                ps5Vuelta = v;
-                porque = antes + v.Porque;
-                return v.Decision;
-            }
             if (v.Decision != null)
             {
-                porque = antes + v.Porque + (cs.Count > 0 ? " (con las " + cs.Count + " capturas que sacaron del menu)" : "");
+                porque = antes + v.Porque + " (con las " + cs.Count + " capturas que sacaron del menu)";
                 return v.Decision;
             }
             // (pendiente: los ajustes del de antes, por si al final era el otro y se cambian entre medias). Se publica lo ultimo: desde aqui
@@ -1039,85 +791,43 @@ namespace ConsoleEnhancer
         void VueltaObserva(DateTime now, double[] f, bool noSignal, bool tenue, string portada)
         {
             VueltaOArranque v = ps5Vuelta;
-            if (v == null || (v.Decision != null && !v.Provisional)) return;
-            v.Observa(now, f, noSignal, tenue, portada, false);
-            if (v.Cambios == ps5VueltaCambios) return;
-            ps5VueltaCambios = v.Cambios;
+            if (v == null || v.Decision != null) return;
+            string d = v.Observa(now, f, noSignal, tenue, portada, false);
+            if (d == null) return;
             VueltaDecidida(v);
         }
 
-        // La comprobacion ha cambiado (decidida, provisional, confirmada o corregida): lo que toque en la app
         void VueltaDecidida(VueltaOArranque v)
         {
             if (ps5Vuelta != v) return;
+            ps5Vuelta = null;
             ps5Candidato = null;
             string cur;
             lock (profileSync) cur = curGame;
-            string mirados = " (" + v.Observado.ToString("0.0", CultureInfo.InvariantCulture) + " s mirados)";
-            // 1.2.4: era provisional y resulto el de antes: se vuelve a el y lo guardado entre medias en el del foco se le devuelve
-            if (v.Corregida)
+            if (v.Decision == v.EnMarcha || (cur != null && (v.Decision == cur || GameProfiles.SameGame(v.Decision, cur))))
             {
-                ps5Vuelta = null;
-                GameProfile copia = ps5VueltaCopiaCand;
-                ps5VueltaCopiaCand = null;
-                if (copia != null)
-                {
-                    GameProfile gp = GameProfiles.Find(copia.Name);
-                    if (gp != null && gp.Name == copia.Name && !MismosAjustes(gp, copia))
-                    {
-                        GameProfiles.SaveSettings(gp, copia);
-                        Log.Write("Ajustes de \"" + copia.Name + "\": vuelven a los de antes de la salida del menu (lo cambiado entre medias era de \"" + v.EnMarcha + "\"): " + copia.Summary());
-                    }
-                }
-                ps5ArranqueProbable = false;
-                lock (homeSync) { ps5PortadaHasta = DateTime.MinValue; ps5PortadaPrev = null; }
-                Log.Write("Correccion: era \"" + v.EnMarcha + "\" (" + v.Porque + ")" + mirados + ": se vuelve a sus ajustes");
-                lock (homeSync) { recoJuego.Pon(JuegoConsola.SinTag(v.EnMarcha)); ps5PortadaJuego = v.EnMarcha; }
-                ps5SalidaPorIcono = false;
-                return;
-            }
-            if (v.Decision == v.EnMarcha || (v.EnMarcha != null && GameProfiles.SameGame(v.Decision, v.EnMarcha)))
-            {
-                ps5Vuelta = null;
                 Log.Write("Vuelta al juego en marcha: " + v.Porque + "; sigue \"" + (cur ?? v.EnMarcha) + "\" (el icono en foco era \"" + v.Candidato + "\", no se arranco)");
                 // (lo de despues ya es este juego: sus imagenes valen para la proxima vuelta)
                 return;
             }
-            bool yaEnEl = cur != null && (cur == v.Decision || GameProfiles.SameGame(cur, v.Decision));
-            bool yaPedido = ps5VueltaCopiaCand != null || yaEnEl;   // (provisional ya puesto antes: al salir del menu o en una observacion anterior)
-            if (!yaPedido)
-            {
-                // Era el otro: los ajustes que el de antes cogiera mientras tanto (el mando, el menu de ajustes) no son suyos
-                VueltaDevuelveAjustes(v.EnMarcha);
-                if (v.Provisional)
-                {
-                    GameProfile gc = GameProfiles.Find(v.Decision);
-                    ps5VueltaCopiaCand = gc != null && gc.Name == v.Decision ? CopiaPerfil(gc) : null;
-                }
-                // (lo quieto de despues ya no se apunta como portada: el juego aun es el de antes hasta que MenuPs5Tick ponga este; la portada
-                // vista al arrancarlo, abajo)
-                lock (homeSync) { ps5PortadaHasta = DateTime.MinValue; ps5PortadaPrev = null; }
-                PasaACandidato(v.Decision, v.Porque + mirados);
-            }
-            else if (!v.Provisional)
-                Log.Write("Salida del menu: \"" + v.Decision + "\" confirmado (" + v.Porque + ")" + mirados);
+            // Era el otro: los ajustes que el de antes cogiera mientras tanto (el mando, el menu de ajustes) no son suyos
+            VueltaDevuelveAjustes(v.EnMarcha);
             ps5ArranqueProbable = v.Arranque;
-            if (v.Provisional) return;   // (se sigue mirando: ps5Vuelta sigue)
-            ps5Vuelta = null;
-            ps5VueltaCopiaCand = null;
-            // La portada quieta vista al arrancarlo: la suya (el juego ya es seguro: el del icono en foco y su arranque visto). Sin prueba de
-            // arranque (la duda, confirmada por el plazo), hasta que la siguiente visita al menu diga que el juego en marcha es ese
+            // (lo quieto de despues ya no se apunta como portada: el juego aun es el de antes hasta que MenuPs5Tick ponga este; la portada
+            // vista al arrancarlo, abajo)
+            lock (homeSync) { ps5PortadaHasta = DateTime.MinValue; ps5PortadaPrev = null; }
+            PasaACandidato(v.Decision, v.Porque + " (" + v.Observado.ToString("0.0", CultureInfo.InvariantCulture) + " s mirados)");
+            // La portada quieta vista al arrancarlo: la suya (el juego ya es seguro: el del icono en foco y su arranque visto)
             double[] pv = v.PortadaVista;
-            if (pv != null && JuegoConsola.TagConsola(v.Decision) != null)
+            if (pv != null && v.Arranque && JuegoConsola.TagConsola(v.Decision) != null)
             {
                 double dist;
                 string ya = PortadasConsola.Busca(pv, out dist);
-                if (ya == null && v.Arranque)
+                if (ya == null)
                 {
                     PortadasConsola.Guarda(v.Decision, pv);
                     Log.Write("Portada del juego: nueva, memorizada para \"" + v.Decision + "\" (vista al arrancarlo)");
                 }
-                else if (ya == null) { ps5PortadaPendJuego = v.Decision; ps5PortadaPendFirma = pv; }
             }
         }
 
@@ -1159,92 +869,6 @@ namespace ConsoleEnhancer
         // ---------------- 1.2.2: al abrir la app, los nombres con basura pegada a su nombre bueno ----------------
         // (perfiles, iconos y portadas de la consola y el ultimo juego). Dos perfiles del mismo juego: queda uno, con los ajustes del que
         // diga last_game.txt o, si no, del mas nuevo (el de mas abajo en profiles.txt); los iconos y portadas, de los dos
-        // 1.2.4: los nombres de las copias .bak de profiles.txt y game_icons.txt (de antes del primer cambio de nombre de la sesion): el nombre
-        // bueno que una lectura con basura pudo pisar (pistas de NombresConsola.Migracion)
-        static List<string> PistasNombres()
-        {
-            List<string> r = new List<string>();
-            foreach (string f in new[] { "profiles.txt.bak", "game_icons.txt.bak" })
-            {
-                try
-                {
-                    string p = Path.Combine(Path.Combine(Paths.Datos, "games"), f);
-                    if (!File.Exists(p)) continue;
-                    foreach (string linea in File.ReadAllLines(p, Encoding.UTF8))
-                    {
-                        if (linea.StartsWith("#")) continue;
-                        int i = linea.IndexOf('|');
-                        string n = (i > 0 ? linea.Substring(0, i) : linea).Trim();
-                        if (n.Length > 0 && JuegoConsola.TagConsola(n) != null && JuegoConsola.Limpio(JuegoConsola.SinTag(n)) && !r.Contains(n)) r.Add(n);
-                    }
-                }
-                catch { }
-            }
-            return r;
-        }
-
-        // (1.2.4, la prueba --test-juegos-consola con "migrar", sobre la COPIA de --datos ya migrada): la salida del menu en la app de verdad
-        // (TrayApp sin ventana): GTA VI en marcha, foco en Bloodborne, las capturas de la salida (firmas dadas); se pasa al del foco
-        // provisional, se cambia un ajuste suyo "con el mando" y vuelve la imagen de GTA VI dos veces: se corrige y el ajuste se devuelve
-        internal static string PruebaSalidaApp(List<double[]> antesGta, double[] fGta, double[] fOtro, out int fallos)
-        {
-            StringBuilder sb = new StringBuilder();
-            int f = 0;
-            Action<bool, string> mira = delegate (bool ok, string que) { if (!ok) f++; sb.Append(ok ? "  OK    " : "  FALLO ").Append(que).Append("\r\n"); };
-            TrayApp t = new TrayApp(new Config(), true);
-            string gta = "PS5: Grand Theft Auto VI", bb = "PS5: Bloodborne";
-            GameProfile pb = GameProfiles.Find(bb);
-            if (pb == null || pb.Name != bb) { mira(false, "sin perfil \"" + bb + "\" en la copia de datos"); fallos = f; return sb.ToString(); }
-            int nivelAntes = pb.Level;
-            DateTime now = DateTime.Now;
-            t.ps5AntesMenu = antesGta;
-            for (int i = 0; i < 5; i++)
-            {
-                LecturaMenu l = new LecturaMenu(); l.Vista = VistaMenu.Juego;
-                t.VueltaCapturaEnMenu(now.AddSeconds(-1.2 + i * 0.3), fOtro, l, false);
-            }
-            string porque;
-            string dec = t.VueltaEmpieza(gta, bb, now, out porque);
-            mira(dec == bb && t.VueltaVigilando && t.ps5VueltaCopiaCand != null, "al salir: \"" + dec + "\" provisional (" + porque + ")");
-            // (la app entra en el: curGame) y el usuario sube el nivel de DLSS 5 de Bloodborne con el mando
-            lock (t.profileSync) t.curGame = bb;
-            GameProfile cambio = CopiaPerfil(pb); cambio.Level = nivelAntes == 4 ? 3 : 4;
-            GameProfiles.SaveSettings(GameProfiles.Find(bb), cambio);
-            t.VueltaObserva(now.AddSeconds(1), fOtro, false, false, null);
-            mira(t.VueltaVigilando, "otra imagen de Bloodborne: sigue provisional");
-            t.VueltaObserva(now.AddSeconds(1.6), fGta, false, false, null);
-            mira(t.VueltaVigilando, "una imagen como la de antes: aun no corrige");
-            t.VueltaObserva(now.AddSeconds(2.2), fGta, false, false, null);
-            string pj;
-            lock (t.homeSync) pj = t.ps5PortadaJuego;
-            GameProfile pb2 = GameProfiles.Find(bb);
-            mira(!t.VueltaVigilando && pj == gta && pb2 != null && pb2.Level == nivelAntes,
-                 "dos seguidas: corregido a \"" + pj + "\"; el nivel de Bloodborne vuelve a " + (pb2 != null ? pb2.Level.ToString() : "?") + " (era " + nivelAntes + ")");
-            // Y la confirmacion por el negro (otra salida)
-            TrayApp t2 = new TrayApp(new Config(), true);
-            t2.ps5AntesMenu = antesGta;
-            for (int i = 0; i < 5; i++)
-            {
-                LecturaMenu l = new LecturaMenu(); l.Vista = VistaMenu.Juego;
-                t2.VueltaCapturaEnMenu(now.AddSeconds(-1.2 + i * 0.3), fOtro, l, false);
-            }
-            dec = t2.VueltaEmpieza(gta, bb, now, out porque);
-            lock (t2.profileSync) t2.curGame = bb;
-            for (int i = 0; i < 5; i++) t2.VueltaObserva(now.AddSeconds(0.5 + i * 0.4), null, true, false, null);
-            mira(dec == bb && !t2.VueltaVigilando && t2.ps5ArranqueProbable, "provisional y luego \"sin señal\": confirmado (arranque visto)");
-            // El aviso de cerrar el juego visto en el menu: arranque al salir, sin duda
-            TrayApp t3 = new TrayApp(new Config(), true);
-            t3.ps5AntesMenu = antesGta;
-            t3.CierreObserva("¿Cerrar el juego? Se cerrará Grand Theft Auto VI", now);
-            dec = t3.VueltaEmpieza(gta, bb, now, out porque);
-            mira(dec == bb && !t3.VueltaVigilando, "el aviso de cerrar el juego en el menu: \"" + dec + "\" (" + porque + ")");
-            fallos = f;
-            return sb.ToString();
-        }
-
-        // (1.2.4, la prueba --test-juegos-consola con "migrar": la migracion entera sobre la carpeta de --datos, una COPIA)
-        internal static void PruebaMigra() { new TrayApp(new Config(), true).MigraNombresConsola(); }
-
         void MigraNombresConsola()
         {
             try
@@ -1254,7 +878,7 @@ namespace ConsoleEnhancer
                 nombres.AddRange(PortadasConsola.Nombres());
                 string ultimo = LoadText(Paths.LastGameFile);
                 if (!string.IsNullOrEmpty(ultimo)) nombres.Add(ultimo);
-                Dictionary<string, string> m = NombresConsola.Migracion(nombres, PistasNombres());
+                Dictionary<string, string> m = NombresConsola.Migracion(nombres);
                 if (m.Count == 0) return;
                 foreach (KeyValuePair<string, string> kv in m)
                 {

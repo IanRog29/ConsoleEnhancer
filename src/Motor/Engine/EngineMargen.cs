@@ -41,10 +41,6 @@ namespace ConsoleEnhancer.Motor
 
     unsafe partial class Engine
     {
-        // (1.2.4, XEFG) imagenes inventadas por cada real (1 = x2, 3 = x4) y tipo ("dlss" | "xess") de la generacion del motor, para la reserva
-        internal int margenInventadas = 1;
-        internal string margenFgTipo = "dlss";
-
         // El tope (ms de grafica, p95) del modo de ahora; ver arriba
         double TopeGpu()
         {
@@ -54,17 +50,9 @@ namespace ConsoleEnhancer.Motor
             double q = Math.Max(0.1, outW * (double)outH / (3840.0 * 2160.0));
             double idx = s.GpuIndice > 0.05 ? s.GpuIndice : 1.0;
             if (s.SmoothMode > 0) t -= Math.Max(0.8, 2.5 * q / idx);
-            // (DLSS-G x2: numFramesToGenerate = 1 en Engine.cs)
-            // (1.2.4, XEFG) x3 / x4 y XeSS FG en el motor (agente MOTORFG): la reserva por cada imagen inventada. Medido el 22-11 por Magpie en la
-            // RTX 4060 Ti con salida 4K: DLSS-G la primera ~5 ms y cada una de mas ~1,5 (reutiliza el flujo del par); XeSS FG ~8 ms de grafica por
-            // inventada (genera en su cola: no alarga el hilo, pero ocupa la grafica). margenInventadas / margenFgTipo los pone quien configura la
-            // generacion (1 y "dlss" = lo de siempre)
-            else if (fgApplied || XeFgMultNow > 1)   // (1.2.4 MOTORFG: tambien XeSS FG del motor, EngineFgXe.cs)
-            {
-                int n = Math.Max(1, Math.Min(3, margenInventadas));
-                double r = margenFgTipo == "xess" ? 8.0 * n : 4.5 + 1.5 * (n - 1);
-                t -= Math.Max(1.0, r * q / idx);
-            }
+            // (DLSS-G x2: numFramesToGenerate = 1 en Engine.cs. Si el motor genera x3 / x4 -agente MULTI, 1.2.2-, la reserva va por cada
+            // imagen inventada: multiplicar por las que genere por cada real)
+            else if (fgApplied) t -= Math.Max(1.0, 4.5 * q / idx);
             return Math.Max(periodo * 0.4, t);
         }
 
@@ -72,13 +60,13 @@ namespace ConsoleEnhancer.Motor
         string topeVisto = "";
         void TopeGpuLog()
         {
-            string k = s.Mode + "|" + (s.Is120 ? 1 : 0) + "|" + (fgApplied ? 1 : 0) + "|" + s.SmoothMode + "|" + outW + "x" + outH + "|" + margenInventadas + margenFgTipo;
+            string k = s.Mode + "|" + (s.Is120 ? 1 : 0) + "|" + (fgApplied ? 1 : 0) + "|" + s.SmoothMode + "|" + outW + "x" + outH;
             if (k == topeVisto) return;
             topeVisto = k;
             double periodo = s.Mode == 30 ? 2000.0 / 59.94 : s.Is120 ? 1000.0 / 119.88 : 1000.0 / 59.94;
             double t = TopeGpu();
             Log.Write(string.Format(CultureInfo.InvariantCulture, "Margen: tope de grafica {0:0.0} ms de {1:0.0} ({2:0} %; uso_grafica {3:0.00}, gpu_indice {4:0.00}{5})",
-                t, periodo, 100 * t / periodo, s.UsoGrafica, s.GpuIndice, s.SmoothMode > 0 ? ", Smooth Motion" : fgApplied ? ", " + margenFgTipo + " x" + (margenInventadas + 1) : ""));
+                t, periodo, 100 * t / periodo, s.UsoGrafica, s.GpuIndice, s.SmoothMode > 0 ? ", Smooth Motion" : fgApplied ? ", DLSS-G" : ""));
         }
     }
 }

@@ -625,9 +625,6 @@ namespace ConsoleEnhancer
             s = Limpia(s);
             s = Regex.Replace(s, @"^(?:\S*[_\]\[]\S*\s+)+", "");
             s = Regex.Replace(s, @"(?<=\p{Ll})['’]?(?:TM|TY|JY|Tt|T)(?:\W.*)?$", "");   // (1.2.2: "JY", 22-11 03:59:43)
-            // (1.2.4) la ™ / ® leida con un punto en medio pegado al final ("Bloodborner•n", 22-11 16:00:18): fuera desde el punto (lo de
-            // delante, "r", lo quita el consenso / la comparacion con el perfil: puede ser una letra de verdad)
-            s = Regex.Replace(s, @"(?<=\p{L})[•·]\S{0,3}$", "");
             s = Regex.Replace(s, @"[\[\]|•]", "");
             s = Regex.Replace(s, @"[^\p{L}\p{N}]+$", "");
             // (1.2.04) el ® de "Rocket League®" leido como "n": "Rocket Leaguen" (src\Lanzador\Ortografia.cs)
@@ -943,17 +940,6 @@ namespace ConsoleEnhancer
             "te damos la bienvenida", "te demos la bienvenida", "de nuevo a playstation", "welcome back", "back to playstation",
             "quien esta usando", "quien va a usar", "who's using", "whos using", "who is using", "elige un usuario", "selecciona un usuario",
             "choose a user", "select a user", "pulsa el boton ps", "press the ps button" };
-        // 1.2.4 (PERFILES): el aviso de la consola de que se cierra el juego en marcha (para arrancar otro, o "Cerrar juego" de sus opciones).
-        // Con el foco en otro juego al salir del menu, eso dice que se arranca el del foco (VueltaOArranque.ConfirmaCierre). Frases enteras
-        // (minusculas sin tildes): "se cerrara", "cerrar el juego / la aplicacion", "cerrar juego", "will be closed", "close the game / app"
-        static readonly Regex AvisoCierreRx = new Regex(@"\bse cerrara\b|\bcerrar (?:el )?(?:juego|la aplicacion|aplicacion)\b|\bwill be closed\b|\bclose (?:the )?(?:game|app|application)\b",
-                                                        RegexOptions.CultureInvariant);
-        public static bool EsAvisoCierre(string texto)
-        {
-            if (string.IsNullOrEmpty(texto)) return false;
-            return AvisoCierreRx.IsMatch(DetectorMenu.Normal(texto));
-        }
-
         public static bool EsBienvenida(string texto)
         {
             if (string.IsNullOrEmpty(texto)) return false;
@@ -1196,7 +1182,7 @@ namespace ConsoleEnhancer
             sb.Append("  al salir sin leer nada: \"").Append(sale).Append("\" (el de antes) ").Append(sale == "Grand Theft Auto VI" ? "OK" : "FALLO").Append("\r\n");
             PruebaNombres(sb);
             // (1.2.2: nombres de consenso, migracion y vuelta o arranque al salir del menu; capturas en el cuarto argumento)
-            PruebaPerfiles.Run(sb, p.Length > 3 ? p[3] : null, p.Length > 4 ? p[4] : null);   // (1.2.4: el quinto, "migrar": la migracion entera sobre la COPIA de --datos)
+            PruebaPerfiles.Run(sb, p.Length > 3 ? p[3] : null);
             // (1.2.1: devuelve los fallos, como las demas pruebas)
             int fallos = Regex.Matches(sb.ToString(), "FALLO").Count;
             sb.Insert(0, "Fallos: " + fallos + "\r\n");

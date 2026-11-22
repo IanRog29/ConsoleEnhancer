@@ -226,7 +226,7 @@ namespace ConsoleEnhancer.Motor
                 Thread.Sleep(s.TestStallMs);
                 skip = true;
             }
-            else if (QueueModelSkip(Clock.Now) || FgQueueSkip(slot))   // (22-11, 1.2.4 LATENCIA: cola_tirar_fg, EngineEnvio.cs)
+            else if (QueueModelSkip(Clock.Now))
             {
                 latDrops++;
                 skip = true;
@@ -244,7 +244,6 @@ namespace ConsoleEnhancer.Motor
             if (real && latPickup != 0) { double d = Clock.Ms(latPickup, submit); if (d > 0 && d < 50) latPickSubEma = latPickSubEma <= 0 ? d : latPickSubEma * 0.9 + d * 0.1; }
             if (real && latPickup != 0) LatReflexWatch(Clock.Ms(arrival, latPickup));   // 21-11 (1.2.1)
             QueueModelPresented(submit);
-            FgQueueGpu(real, gpuMs);   // 22-11 (1.2.4 LATENCIA, EngineEnvio.cs)
             if (stats.Recording && real && s.SmoothMode > 0) latBQX.Add(latQX);
             bool csv = s.LatCsv.Length > 0;
             bool want = csv || stats.Recording;     // (jugando, nada mas: DXGI no da estadisticas con Streamline)
@@ -436,12 +435,11 @@ namespace ConsoleEnhancer.Motor
         // Intervalo y flags de cada Present (Run; vrr=0: lo de siempre, vsync / vsync_fg)
         void VrrPresentArgs(out uint sync, out uint flags)
         {
-            bool gen = fgApplied || (xeFgOn && xeFgEnabledNow);   // (1.2.4 MOTORFG: XeSS FG como DLSS-G)
-            bool vs = gen ? s.VsyncFg : s.Vsync;
+            bool vs = fgApplied ? s.VsyncFg : s.Vsync;
             flags = 0;
             if (s.Vrr > 0 && vrrTearing)
             {
-                if (gen)
+                if (fgApplied)
                 {
                     // auto: sin sincronizacion si la salida (2 x las reales) queda por debajo del techo de la tele con margen (modo 30: 59,94
                     // en 120 Hz); en el 60 (119,88 en 120 Hz) con ella (sin ella las que llegan antes de 8,33 ms se cortarian)
@@ -453,7 +451,6 @@ namespace ConsoleEnhancer.Motor
                 if (!vs) flags = PresentAllowTearing;
             }
             sync = vs ? 1u : 0u;
-            fqSync = sync;   // 22-11 (1.2.4 LATENCIA: cola_tirar_fg, EngineEnvio.cs)
         }
 
         // ¿La salida con la generacion (2 x las imagenes reales) cabe por debajo del refresco de la tele con un 10 % de margen? (el refresco
@@ -465,7 +462,7 @@ namespace ConsoleEnhancer.Motor
             {
                 vrrRoomAt = Clock.Now;
                 double hz = DisplayHz();
-                double rate = Math.Max(2, FgFactor) * (s.FpsNum > 0 ? s.FpsNum / (double)Math.Max(1, s.FpsDen) : 59.94) * (s.Mode == 30 ? 0.5 : 1);
+                double rate = 2.0 * (s.FpsNum > 0 ? s.FpsNum / (double)Math.Max(1, s.FpsDen) : 59.94) * (s.Mode == 30 ? 0.5 : 1);
                 vrrRoom = hz > 20 ? rate <= hz * 0.9 : s.Mode == 30;
             }
             return vrrRoom;

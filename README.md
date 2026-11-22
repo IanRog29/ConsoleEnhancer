@@ -30,7 +30,7 @@ Created and maintained by **IanRog29** · [Source and downloads](https://github.
 
 ## Quick start
 
-1. Download the latest **`ConsoleEnhancer-v1.2.4.zip`** (or newer) from
+1. Download the latest **`ConsoleEnhancer-v1.2.3.zip`** (or newer) from
    **[Releases](https://github.com/IanRog29/ConsoleEnhancer/releases)** (not the green "Code" button: that is the source code).
 2. **Unzip** it into one of your own folders: Documents, the Desktop, `D:\Juegos`... (not in *Program Files*).
 3. Open **`ConsoleEnhancer.exe`** and follow the wizard. Done: turn the console on.
@@ -142,15 +142,10 @@ with help a lot too.
   DLSS FG through Magpie with DLSS 5); without DLSS, **XeSS** on GTX and Intel Arc and **FSR 4** on AMD
   RX 6000 / 7000 / 9000 (official on RX 9000; on RX 6000 / 7000 through the FSR 4.1.1 unlock of the bundled Magpie, experimental;
   otherwise FSR 3.1), plus whatever frame generation each one has (driver AFMF, FSR 3 FG, XeSS FG).
-- **Built-in image engine** (D3D12, `src\Motor`), the path the game takes whenever it can (there is nothing to choose): DirectShow
-  capture; upscaling with DLSS, XeSS, FSR 3.1 / FSR 4 (with the Intel and AMD DLLs that come with Magpie) or FSR 1 (EASU + RCAS); frame
-  generation with DLSS FG (×2; ×3 / ×4 on RTX 50 through NVIDIA's official path), **XeSS FG ×2**, Smooth Motion, **FSR 3 FG on any
-  GPU** and, for ×3 / ×4 on any other GPU, **its own frame generation** (shown as "x4 (own FG)"; `motor_fg_propia=0` turns it off);
-  Reflex / XeLL; and, optionally, NVIDIA RTX Dynamic Vibrance (`motor_extra=vibrancia=1`). In the 30 fps mode it gives DLSS FG the
-  picture without the still HUD, so HUDs, minimaps and text don't wobble (`fgui=0` in `motor_extra` turns it off). Only for what the
-  engine doesn't do (NVIDIA VFG, RTX Video, FSR 3 FG together with DLSS) and DLSS 5 when the engine can't run it, mpv + Magpie step in by
-  themselves. Colour from YUY2 / NV12 capture cards is properly reconstructed, without blocky red edges (`croma=2` in `motor_extra`;
-  `croma=0` = as before).
+- **Built-in image engine** (D3D12, `src\Motor`): DirectShow capture; upscaling with DLSS, XeSS, FSR 3.1 / FSR 4 (with the Intel and
+  AMD DLLs that come with Magpie) or FSR 1 (EASU + RCAS); frame generation with DLSS FG, Smooth Motion or **FSR 3 FG on any GPU**; and
+  Reflex. When needed (XeSS FG, RTX Video, FSR 3 FG together with DLSS), mpv + Magpie. Colour from YUY2 / NV12 capture cards is
+  properly reconstructed, without blocky red edges (`croma=2` in `motor_extra`; `croma=0` = as before).
 - **Scaling that adapts to your PC** (`escalas_adaptables=1`, on by default): the wizard estimates the DLSS model and percentages for
   your GPU and display; while you play, the engine measures GPU time every second and lowers quality if it can't keep up (within 2 s)
   or raises it little by little if there is headroom (after 20 s), and remembers it for next time (`data\scales_engine.txt`). With
@@ -194,13 +189,9 @@ with help a lot too.
 - **×2 / ×3 / ×4 frame generation** (DLSS FG and XeSS FG): the settings menu's *Multiplier* row, the tray or Ctrl+X. ×3 / ×4 only
   when they fit your screen (real fps × multiplier ≤ refresh rate: with a 120 Hz TV, the 30 fps mode gives 90 / 120 fps); otherwise
   they are shown locked with the reason. Saved per game and mode; if the output can't be reached, the multiplier is lowered first.
-  ×3 / ×4 run in the engine: NVIDIA's DLSS FG ×3 / ×4 on RTX 50, Intel's XeSS FG ×3 / ×4 on Intel GPUs and, everywhere else, the
-  engine's own frame generation, which the menu shows as **"x4 (own FG)"** (measured on an RTX 4060 Ti at 4K: ×4 at 119.8 fps with every
-  frame 8.3 ms apart, also with DLSS 5 in the engine; on thin bars it is weaker than DLSS FG ×2). Only through Magpie (the fallback, e.g.
-  when the engine can't run DLSS 5), DLSS 5 is kept at 35 % or more with ×3 / ×4, or removed for that multiplier when it doesn't fit.
-- **Protection**: if a combination can't hold the real frame rate of the mode, the app lowers what shows least (DLSS 5 scale and
-  passes, multiplier, DLSS SR model...), tells you, and remembers it for that game and settings for 7 days. Picking something by hand
-  always tries it. `proteccion=0` turns it off.
+  With DLSS 5 on, ×3 / ×4 keep it at 35 % or more; if the 30 real fps can't be held with it, DLSS 5 is removed for that multiplier
+  and the menu says so (RTX 4060 Ti, 4K: ×2 with DLSS 5 at ~35-45 %, ×3 at 35 %, ×4 without it). XeSS FG ×3 / ×4 on NVIDIA / AMD only
+  where the chain fits (Magpie's compatibility pacing): on a 4060 Ti at 4K, ×3 yes and ×4 locked.
 - **120 fps mode (esports)**: for the console's 120 Hz games, it captures at 120 with no frame generation and the lowest latency. The
   mode button goes 30 → 60 → 120 only if the console outputs 120, the TV runs at **120 Hz or more** and the current capture is one your
   capture card provides at 120 (usually **1080p or 1440p**; the wizard reads it from the capture card, capturas_120). At 4K it stays
@@ -313,44 +304,23 @@ If you already have your own file, adding it takes one click:
 
 1. Tray icon > **Add DLSS 5 (your own file)…** (or the **Add DLSS 5** button on the wizard's last step; only with a GeForce RTX and
    6 GB of VRAM or more).
-2. Read the notice (it is unofficial, NVIDIA doesn't support it and it is at your own risk). **Add DLSS 5 now finds these files if they
-   are already on your PC**: it looks for a few seconds, only on your PC (Downloads, Desktop, other ConsoleEnhancer folders, Magpie
-   folders, program and game folders; cancelable), lists what it finds with folder, size, version and whether NVIDIA signed it, puts
-   first the one that suits your GPU, and you pick (or *Pick another file…*). Nothing is downloaded. If DLSS 5 is missing when the app
-   starts, it looks once and asks first.
-3. The app checks that it is a 64-bit Windows DLL with that name, tells you whether it is NVIDIA's original (valid NVIDIA signature) or
-   the unsigned community-modified one, and copies it to `extras\` next to the exe. If you also have the community `dlssg_sm86`
-   package (the app **does not ship or download it**), it can be copied too, into `extras\runtimes\dlssg_sm86`: it gives DLSS FG
-   ×3 / ×4 in the engine on RTX 40 (and DLSS FG through Magpie); without it, ×3 / ×4 use the engine's own frame generation.
+2. Read the notice (it is unofficial, NVIDIA doesn't support it and it is at your own risk) and pick your `nvngx_dlssnr.dll`.
+3. The app checks that it is a 64-bit Windows DLL with that name and copies it to `extras\` next to the exe. With DLSS 5 the picture goes
+   through Magpie, and Magpie's DLSS Frame Generation needs the `dlssg_for_sm86` runtime on any RTX (30, 40 or 50): **you don't have to
+   add anything**. The app takes it from your PC if it is already there (Magpie's own copy or an older ConsoleEnhancer folder) or
+   downloads it by itself from its official release (https://github.com/sdli1995/dlssg_for_sm86, MIT, SHA-256 checked, ~80 MB). While
+   it is getting ready, the settings menu shows **"DLSS FG · Getting ready…"** and another frame generation is used.
 4. Choose whether to turn it on now. While playing, the controller's **A** button turns it on and off (X / Y / B: passes; L1 / L2 / R2 /
    R1: level).
 
 To remove it: tray icon > **Remove DLSS 5** (deletes the copy in `extras\`; your original file is not touched).
 
 Your DLSS 5 files are also kept in `%LOCALAPPDATA%\ConsoleEnhancer\extras`, so a new version unzipped into a new folder picks them up
-by itself. With your file, DLSS 5 runs inside the app's own engine (`engine\PrismaNr.dll`, which ships with the app since 1.2.4; 1 to 3
-passes): much lower latency (4K, 30 fps mode + DLSS FG ×2: 43 ms instead of ~72 ms for the real frame; 1080p → 4K with 2 passes: 37
-instead of ~52) and a steadier pace. There is nothing to choose. `motor_dlss5_pasadas=1` sends 2-3 passes to Magpie, as in 1.2.3.
+by itself. If you also have the engine's optional native helper (`engine\PrismaNr.dll`, not shipped either), DLSS 5 can run inside
+the app's own engine instead of Magpie: much lower latency (measured at 4K, 30 fps mode + DLSS FG ×2: 43 ms instead of ~72 ms for the
+real frame) and a steadier pace. The settings menu row **DLSS 5 through: Engine / Magpie** picks it (Engine by default when the helper
+is there); ×3 / ×4, XeSS FG and 2-3 passes always go through Magpie.
 
-## DLSS 5 and the law
-
-Short and neutral (this is what the licences say; it is not legal advice):
-
-- **What ConsoleEnhancer ships**: its own code (GPL-3.0) and NVIDIA's official Streamline / DLSS SR / DLSS FG / Reflex / RTX Dynamic
-  Vibrance DLLs, unmodified, which NVIDIA allows apps to redistribute. It downloads mpv and Magpie from their official pages.
-- **Since 1.2.4 the repository and the zip also carry `PrismaNr` and `PrismaFg`**, the engine's own native pieces (own code). They
-  load the files you add yourself (`nvngx_dlssnr.dll`, the `dlssg_sm86` package) without going through NVIDIA's check (NGX), which
-  NVIDIA's terms do not allow. The user decided to publish them knowing that. Without your files they do nothing. PrismaNr is compiled
-  with NVIDIA's public NGX headers, which are only used to build it and are not in the repository.
-- **What it never ships, downloads or links to**: `nvngx_dlssnr.dll` ("DLSS 5"), the `dlssg_sm86` package or any modified NVIDIA file.
-  *Add DLSS 5* only looks on your own PC. Each person adds their own file, at their own risk.
-- **Legal DLSS 5 does not exist today outside NVIDIA's own games**: NVIDIA has released DLSS 5 only inside the games that ship it, only
-  on RTX 50, with no SDK or Streamline plugin for other apps (checked on 22-11-2026: the public NGX route answers "please update display
-  driver" with the current driver, and a newer one would only accept NVIDIA's signed original, which only runs on RTX 50). The DLL that
-  circulates for RTX 20 / 30 / 40 is a modified NVIDIA binary.
-- What every RTX gets officially in the engine: DLSS Super Resolution, DLSS Frame Generation (RTX 40 / 50; ×3 / ×4 on RTX 50), Reflex
-  and, optionally, RTX Dynamic Vibrance (it is not DLSS 5: it adds colour and clarity, it doesn't relight). The engine's own frame
-  generation (own code) gives ×3 / ×4 on any GPU without anything from NVIDIA, AMD or Intel.
 ## FAQ / common problems
 
 **Windows or the antivirus won't let me open it / Microsoft Defender removed ConsoleEnhancer.exe.** The exes are not code-signed yet,
@@ -425,17 +395,16 @@ low-power mode in `ConsoleEnhancer Settings.exe` > *Test standby*.
 - **License**: ConsoleEnhancer is free software under the **GPL-3.0** (`LICENSE`), **without any warranty**, with a section 7 additional
   permission for use with the official NVIDIA, AMD, Intel and Microsoft libraries (`LICENSE-EXCEPTION.txt`). Third-party code, versions
   and licenses: [`THIRD-PARTY.md`](THIRD-PARTY.md) and `licenses\` in the zip.
-- **What is in the zip**: the app (with the engine's own `PrismaNr.dll` / `PrismaFg.dll`, see [DLSS 5 and the law](#dlss-5-and-the-law))
-  and the NVIDIA Streamline / DLSS / Reflex / RTX Dynamic Vibrance DLLs, unmodified and signed by NVIDIA, which NVIDIA allows to be
-  redistributed inside an application; their terms (no selling them on their own, no reverse engineering...) are in
+- **What is in the zip**: the app and the NVIDIA Streamline / DLSS / Reflex DLLs, unmodified and signed by NVIDIA, which NVIDIA allows to
+  be redistributed inside an application; their terms (no selling them on their own, no reverse engineering...) are in
   `licenses\NVIDIA-NOTICE.txt` and also apply to you.
 - **mpv and Magpie are not redistributed by ConsoleEnhancer**: the app downloads them from their official releases, with their licenses
   (GPL) and source code on their pages.
 - **"DLSS 5" is not included.** `nvngx_dlssnr.dll` is a community-modified NVIDIA DLL with no signature or license, and
   it is not in the repository or the zip, the app doesn't download it, and using it may go against NVIDIA's terms. If you already have
   it, you can add it yourself (tray > *Add DLSS 5*, which copies it to `extras\`) at your own risk: the app warns that it is not
-  official. The `dlssg_sm86` package Magpie's DLSS FG needs is not in the zip and, since 1.2.4, the app no longer downloads it either.
-  See [DLSS 5 and the law](#dlss-5-and-the-law).
+  official. Once DLSS 5 is added, the app gets the `dlssg_for_sm86` runtime Magpie's DLSS FG needs (a community project, MIT) from its
+  official GitHub release, like mpv and Magpie; it is not in the zip either.
 - **Author**: ConsoleEnhancer is created and maintained by **IanRog29** (with contributions from its contributors). Copyright (C) 2026
   IanRog29 and ConsoleEnhancer contributors.
 - **Donations**: voluntary (Ko-fi); they don't give access to anything extra and don't buy third-party DLLs.
@@ -459,17 +428,11 @@ Step by step:
 powershell -ExecutionPolicy Bypass -File scripts\descargar_dependencias.ps1   :: terceros\mpv, terceros\magpie, terceros\streamline
 build.bat                       :: bin\ConsoleEnhancer.exe (src\Lanzador + src\Deteccion) y bin\ listo (mpv y magpie enlazados a terceros\)
 build_motor.bat                 :: bin\engine\ConsoleEnhancerEngine.exe (src\Motor) + DLL de Streamline
-powershell -ExecutionPolicy Bypass -File scripts\descargar_cabeceras_ngx.ps1   :: terceros\dlss_sdk (2 cabeceras de NGX / NGX headers)
-build_prismanr.bat              :: bin\engine\PrismaNr.dll (C++, Visual Studio)
-build_prismafg.bat              :: bin\engine\PrismaFg.dll (C++, Visual Studio)
 tests\build_deteccion.bat       :: tests\bin\DeteccionTest.exe
 tests\bin\DeteccionTest.exe --simula=todo --sin-d3d12 --salida=deteccion.txt   :: 23 PCs simulados
-powershell -ExecutionPolicy Bypass -File scripts\empaquetar.ps1 -Zip -Version v1.2.4   :: dist\ConsoleEnhancer\ y dist\ConsoleEnhancer-v1.2.4.zip
+powershell -ExecutionPolicy Bypass -File scripts\empaquetar.ps1 -Zip -Version v1.2.3   :: dist\ConsoleEnhancer\ y dist\ConsoleEnhancer-v1.2.3.zip
 ```
 
-- **The engine's own native pieces** (`src\PrismaNr`, `src\PrismaFg`, C++): they need Visual Studio 2022 (or its Build Tools) with C++,
-  and PrismaNr also NVIDIA's two public NGX headers (`scripts\descargar_cabeceras_ngx.ps1`, pinned version and SHA-256; not in git). The
-  app runs without them; the package requires them (`preparar.bat` builds them when Visual Studio is there).
 - **Dependencies**: the table `scripts\components.json` (version, URL, SHA-256 and what is taken from each zip) is used by
   `descargar_dependencias.ps1` and by the app itself. To change a version, change it there.
 - **Package** (`scripts\empaquetar.ps1`): allow-list. It includes the app, the engine with Streamline / DLSS, scripts, languages,
@@ -544,7 +507,7 @@ Creado y mantenido por **IanRog29** · [Código y descargas](https://github.com/
 
 ## Inicio rápido
 
-1. Baja el último **`ConsoleEnhancer-v1.2.4.zip`** (o uno más nuevo) de
+1. Baja el último **`ConsoleEnhancer-v1.2.3.zip`** (o uno más nuevo) de
    **[Releases](https://github.com/IanRog29/ConsoleEnhancer/releases)** (no el botón verde "Code": eso es el código fuente).
 2. **Descomprímelo** en una carpeta tuya: Documentos, el Escritorio, `D:\Juegos`... (no en *Archivos de programa*).
 3. Abre **`ConsoleEnhancer.exe`** y sigue el asistente. Ya está: enciende la consola.
@@ -656,15 +619,10 @@ y contar en qué PC y con qué consola lo usas.
   DLSS FG por Magpie con DLSS 5); sin DLSS, **XeSS** en GTX e Intel Arc y **FSR 4** en AMD RX 6000 / 7000 /
   9000 (oficial en las RX 9000; en RX 6000 / 7000 con el desbloqueo de FSR 4.1.1 del Magpie que trae la app, experimental; si no,
   FSR 3.1), y la generación que tenga cada una (AFMF del driver, FSR 3 FG, XeSS FG).
-- **Motor de imagen propio** (D3D12, `src\Motor`), el camino del juego siempre que se pueda (no hay nada que elegir): captura
-  DirectShow; escalado con DLSS, XeSS, FSR 3.1 / FSR 4 (con las DLL de Intel y AMD que trae Magpie) o FSR 1 (EASU + RCAS); generación
-  de fotogramas con DLSS FG (×2; ×3 / ×4 en RTX 50 por la vía oficial de NVIDIA), **XeSS FG ×2**, Smooth Motion, **FSR 3 FG en
-  cualquier gráfica** y, para ×3 / ×4 en las demás gráficas, **su generación propia** (sale como «x4 (FG propia)»; `motor_fg_propia=0`
-  la quita); Reflex / XeLL; y, si quieres, la Vibrancia RTX de NVIDIA (`motor_extra=vibrancia=1`). En el modo 30 le da a DLSS FG la
-  imagen sin la interfaz quieta, para que la interfaz, los minimapas y los textos no tiemblen (`fgui=0` en `motor_extra` lo quita). Solo
-  para lo que el motor no hace (NVIDIA VFG, RTX Video, FSR 3 FG junto con DLSS) y DLSS 5 cuando el motor no puede, entran mpv + Magpie
-  solos. El color de las capturadoras YUY2 / NV12 se
-  reconstruye bien, sin bordes rojos en escalones (`croma=2` en `motor_extra`; `croma=0` = como antes).
+- **Motor de imagen propio** (D3D12, `src\Motor`): captura DirectShow; escalado con DLSS, XeSS, FSR 3.1 / FSR 4 (con las DLL de Intel
+  y AMD que trae Magpie) o FSR 1 (EASU + RCAS); generación de fotogramas con DLSS FG, Smooth Motion o **FSR 3 FG en cualquier
+  gráfica**; y Reflex. Cuando hace falta (XeSS FG, RTX Video, FSR 3 FG junto con DLSS), mpv + Magpie. El color de las capturadoras
+  YUY2 / NV12 se reconstruye bien, sin bordes rojos en escalones (`croma=2` en `motor_extra`; `croma=0` = como antes).
 - **Escalas que se adaptan a tu PC** (`escalas_adaptables=1`, de serie): el asistente estima el modelo de DLSS y los porcentajes para tu
   gráfica y tu pantalla; jugando, el motor mide el tiempo de gráfica cada segundo y baja la calidad si no llega (en 2 s) o la sube poco
   a poco si sobra (tras 20 s), y lo recuerda para la próxima vez (`data\scales_engine.txt`). Con "DLSS 5" por Magpie, **la escala de
@@ -708,13 +666,9 @@ y contar en qué PC y con qué consola lo usas.
 - **Generación ×2 / ×3 / ×4** (DLSS FG y XeSS FG): la fila *Multiplicador* del menú de ajustes, la bandeja o Ctrl+X. ×3 / ×4 solo si
   caben en tu pantalla (fps reales × multiplicador ≤ refresco: con una tele de 120 Hz, el modo 30 da 90 / 120 fps); si no, salen
   bloqueados con el motivo. Se guarda por juego y modo; si no se llega a la salida, lo primero que baja es el multiplicador.
-  ×3 / ×4 van por el motor: DLSS FG ×3 / ×4 de NVIDIA en RTX 50, XeSS FG ×3 / ×4 de Intel en gráficas Intel y, en lo demás, la
-  generación propia del motor, que el menú enseña como **«x4 (FG propia)»** (medido en una RTX 4060 Ti a 4K: ×4 a 119,8 fps con todas a
-  8,3 ms, también con DLSS 5 en el motor; en barrotes finos, peor que DLSS FG ×2). Solo por Magpie (la reserva, p. ej. cuando el motor
-  no puede con DLSS 5), DLSS 5 se deja al 35 % o más con ×3 / ×4, o se quita con ese multiplicador si no cabe.
-- **Protección**: si una combinación no llega a las imágenes reales del modo, la app baja lo que menos se nota (escala y pasadas de
-  DLSS 5, multiplicador, modelo de DLSS SR...), lo dice y lo recuerda para ese juego y ajustes 7 días. Lo elegido a mano siempre se
-  prueba. `proteccion=0` la quita.
+  Con DLSS 5, ×3 / ×4 lo dejan al 35 % o más; si así no se llega a las 30 reales, DLSS 5 se quita con ese multiplicador y el menú lo
+  dice (RTX 4060 Ti, 4K: ×2 con DLSS 5 al ~35-45 %, ×3 al 35 %, ×4 sin él). XeSS FG ×3 / ×4 en NVIDIA / AMD solo donde la cadena cabe
+  (el ritmo de compatibilidad de Magpie): en una 4060 Ti a 4K, ×3 sí y ×4 bloqueado.
 - **Modo 120 fps (esports)**: para los juegos de 120 Hz de la consola, captura a 120 sin generación de fotogramas y con el menor
   retraso. El botón de modo pasa 30 → 60 → 120 solo si la consola saca 120, la tele va a **120 Hz o más** y la captura de ahora es una
   que tu capturadora da a 120 (normalmente **1080p o 1440p**; el asistente lo lee de la capturadora, capturas_120). A 4K sigue 30 ↔ 60:
@@ -828,43 +782,22 @@ Si ya tienes tu propio archivo, añadirlo es un clic:
 
 1. Icono de la bandeja > **Añadir DLSS 5 (tu propio archivo)…** (o el botón **Añadir DLSS 5** del último paso del asistente; solo con
    una GeForce RTX y 6 GB de VRAM o más).
-2. Lee el aviso (no es oficial, NVIDIA no lo soporta y es bajo tu responsabilidad). **«Añadir DLSS 5» encuentra ahora estos archivos si
-   ya están en tu PC**: busca unos segundos, solo en tu PC (Descargas, Escritorio, otras carpetas de ConsoleEnhancer, carpetas de
-   Magpie, de programas y de juegos; se puede cancelar), enseña lo que encuentra con carpeta, tamaño, versión y si lo firmó NVIDIA, pone
-   primero el que vale para tu gráfica y eliges tú (o *Elegir otro archivo…*). No se descarga nada. Si al abrir la app falta DLSS 5,
-   busca una vez y pregunta antes.
-3. La app comprueba que es una DLL de Windows de 64 bits con ese nombre, te dice si es la original de NVIDIA (firma válida) o la
-   modificada por la comunidad (sin firma) y la copia a `extras\` junto al exe. Si también tienes el paquete de la comunidad
-   `dlssg_sm86` (la app **no lo trae ni lo baja**), se puede copiar a `extras\runtimes\dlssg_sm86`: da DLSS FG ×3 / ×4 en el motor en
-   RTX 40 (y DLSS FG por Magpie); sin él, ×3 / ×4 van con la generación propia del motor.
+2. Lee el aviso (no es oficial, NVIDIA no lo soporta y es bajo tu responsabilidad) y elige tu `nvngx_dlssnr.dll`.
+3. La app comprueba que es una DLL de Windows de 64 bits con ese nombre y la copia a `extras\` junto al exe. Con DLSS 5 la imagen va por
+   Magpie y su DLSS Frame Generation necesita el runtime `dlssg_for_sm86` en cualquier RTX (30, 40 o 50): **no tienes que poner nada**.
+   La app lo coge del PC si ya está (la copia de Magpie o una carpeta anterior de ConsoleEnhancer) o lo baja sola de su release oficial
+   (https://github.com/sdli1995/dlssg_for_sm86, MIT, con su SHA-256, ~80 MB). Mientras se prepara, el menú de ajustes muestra
+   **"DLSS FG · Preparando…"** y se usa otra generación.
 4. Dices si lo enciendes ya. Jugando se enciende y se apaga con el botón **A** del mando (X / Y / B: pasadas; L1 / L2 / R2 / R1: nivel).
 
 Para quitarlo: icono de la bandeja > **Quitar DLSS 5** (borra la copia de `extras\`; tu archivo original no se toca).
 
 Tus archivos de DLSS 5 se guardan también en `%LOCALAPPDATA%\ConsoleEnhancer\extras`, así que una versión nueva descomprimida en otra
-carpeta los recoge sola. Con tu archivo, DLSS 5 va dentro del motor propio (`engine\PrismaNr.dll`, que viene con la app desde la 1.2.4;
-1 a 3 pasadas): mucho menos retraso (4K, modo 30 + DLSS FG ×2: 43 ms en vez de ~72 la imagen real; 1080p → 4K con 2 pasadas: 37 en vez
-de ~52) y un ritmo más regular. No hay nada que elegir. `motor_dlss5_pasadas=1` manda las 2-3 pasadas a Magpie, como en la 1.2.3.
+carpeta los recoge sola. Si además tienes el complemento nativo opcional del motor (`engine\PrismaNr.dll`, que tampoco se distribuye),
+DLSS 5 puede ir dentro del motor propio de la app en vez de Magpie: mucho menos retraso (medido a 4K, modo 30 + DLSS FG ×2: 43 ms en
+vez de ~72 ms la imagen real) y un ritmo más regular. La fila del menú de ajustes **DLSS 5 por: Motor / Magpie** lo elige (Motor de
+serie si está el complemento); ×3 / ×4, XeSS FG y 2-3 pasadas van siempre por Magpie.
 
-## DLSS 5 y la ley
-
-En corto y neutro (es lo que dicen las licencias; no es asesoramiento legal):
-
-- **Lo que reparte ConsoleEnhancer**: su propio código (GPL-3.0) y las DLL oficiales de NVIDIA de Streamline / DLSS SR / DLSS FG /
-  Reflex / Vibrancia RTX, sin cambios, que NVIDIA deja repartir dentro de una app. mpv y Magpie los baja de sus páginas oficiales.
-- **Desde la 1.2.4 el repositorio y el zip llevan también `PrismaNr` y `PrismaFg`**, las piezas nativas propias del motor (código
-  propio). Cargan los archivos que pones tú (`nvngx_dlssnr.dll`, el paquete `dlssg_sm86`) sin pasar por la comprobación de NVIDIA (NGX),
-  cosa que los términos de NVIDIA no permiten. El usuario decidió publicarlas sabiéndolo. Sin tus archivos no hacen nada. PrismaNr se
-  compila con las cabeceras públicas de NGX de NVIDIA, que solo se usan para compilar y no van en el repositorio.
-- **Lo que no reparte, no baja ni enlaza nunca**: `nvngx_dlssnr.dll` ("DLSS 5"), el paquete `dlssg_sm86` ni ningún archivo de NVIDIA
-  modificado. *Añadir DLSS 5* solo mira en tu propio PC. Cada uno pone el suyo, bajo su responsabilidad.
-- **DLSS 5 legal hoy no existe fuera de los juegos de NVIDIA**: NVIDIA solo lo ha sacado dentro de los juegos que lo traen, solo en
-  RTX 50, sin SDK ni plugin de Streamline para otras apps (comprobado el 22-11-2026: la vía pública de NGX responde "please update display
-  driver" con el driver de ahora, y uno nuevo solo aceptaría la original firmada de NVIDIA, que solo funciona en RTX 50). La DLL que
-  circula para RTX 20 / 30 / 40 es un binario de NVIDIA modificado.
-- Lo que tiene cualquier RTX de forma oficial en el motor: DLSS Super Resolution, DLSS Frame Generation (RTX 40 / 50; ×3 / ×4 en RTX 50),
-  Reflex y, si quieres, la Vibrancia RTX (no es DLSS 5: da color y claridad, no cambia la luz). La generación propia del motor (código
-  propio) da ×3 / ×4 en cualquier gráfica sin nada de NVIDIA, AMD ni Intel.
 ## Preguntas frecuentes y problemas comunes
 
 **Windows o el antivirus no me deja abrirlo / Microsoft Defender ha borrado ConsoleEnhancer.exe.** Los exe aún no van firmados, así
@@ -940,17 +873,16 @@ consumo en `ConsoleEnhancer Settings.exe` > *Probar el modo espera*.
 - **Licencia**: ConsoleEnhancer es software libre bajo la **GPL-3.0** (`LICENSE`), **sin ninguna garantía**, con un permiso adicional de
   la sección 7 para usarlo con las librerías oficiales de NVIDIA, AMD, Intel y Microsoft (`LICENSE-EXCEPTION.txt`). Código de terceros,
   versiones y licencias: [`THIRD-PARTY.md`](THIRD-PARTY.md) y `licenses\` en el zip.
-- **Lo que va en el zip**: la app (con `PrismaNr.dll` / `PrismaFg.dll` del motor, ver [DLSS 5 y la ley](#dlss-5-y-la-ley)) y las DLL
-  de NVIDIA Streamline / DLSS / Reflex / Vibrancia RTX, sin cambios y firmadas por NVIDIA, que
-  NVIDIA deja repartir dentro de una aplicación; sus condiciones (no venderlas sueltas, no hacer ingeniería inversa...) están en
+- **Lo que va en el zip**: la app y las DLL de NVIDIA Streamline / DLSS / Reflex, sin cambios y firmadas por NVIDIA, que NVIDIA deja
+  repartir dentro de una aplicación; sus condiciones (no venderlas sueltas, no hacer ingeniería inversa...) están en
   `licenses\NVIDIA-NOTICE.txt` y valen también para ti.
 - **mpv y Magpie no los reparte ConsoleEnhancer**: los baja la app de sus releases oficiales, con sus licencias (GPL) y su código fuente
   en sus páginas.
 - **"DLSS 5" no se incluye.** `nvngx_dlssnr.dll` es una DLL de NVIDIA modificada por la comunidad, sin firma ni licencia, y
   no está en el repositorio ni en el zip, la app no la baja, y su uso puede ir contra las condiciones de NVIDIA. Si ya la tienes, puedes
-  añadirla tú (bandeja > *Añadir DLSS 5*, que la copia a `extras\`) bajo tu responsabilidad: la app avisa de que no es oficial. El paquete
-  `dlssg_sm86` que necesita el DLSS FG de Magpie no va en el zip y, desde la 1.2.4, la app tampoco lo baja. Mira
-  [DLSS 5 y la ley](#dlss-5-y-la-ley).
+  añadirla tú (bandeja > *Añadir DLSS 5*, que la copia a `extras\`) bajo tu responsabilidad: la app avisa de que no es oficial. Con DLSS 5
+  puesto, la app baja el runtime `dlssg_for_sm86` que necesita el DLSS FG de Magpie (proyecto de la comunidad, MIT) de su release oficial
+  de GitHub, como mpv y Magpie; tampoco va en el zip.
 - **Autor**: ConsoleEnhancer lo crea y mantiene **IanRog29** (con las aportaciones de sus colaboradores). Copyright (C) 2026 IanRog29 y
   colaboradores de ConsoleEnhancer.
 - **Donaciones**: voluntarias (Ko-fi); no dan acceso a nada extra ni compran DLL de terceros.
@@ -973,17 +905,11 @@ Paso a paso:
 powershell -ExecutionPolicy Bypass -File scripts\descargar_dependencias.ps1   :: terceros\mpv, terceros\magpie, terceros\streamline
 build.bat                       :: bin\ConsoleEnhancer.exe (src\Lanzador + src\Deteccion) y bin\ listo (mpv y magpie enlazados a terceros\)
 build_motor.bat                 :: bin\engine\ConsoleEnhancerEngine.exe (src\Motor) + DLL de Streamline
-powershell -ExecutionPolicy Bypass -File scripts\descargar_cabeceras_ngx.ps1   :: terceros\dlss_sdk (2 cabeceras de NGX / NGX headers)
-build_prismanr.bat              :: bin\engine\PrismaNr.dll (C++, Visual Studio)
-build_prismafg.bat              :: bin\engine\PrismaFg.dll (C++, Visual Studio)
 tests\build_deteccion.bat       :: tests\bin\DeteccionTest.exe
 tests\bin\DeteccionTest.exe --simula=todo --sin-d3d12 --salida=deteccion.txt   :: 23 PCs simulados
-powershell -ExecutionPolicy Bypass -File scripts\empaquetar.ps1 -Zip -Version v1.2.4   :: dist\ConsoleEnhancer\ y dist\ConsoleEnhancer-v1.2.4.zip
+powershell -ExecutionPolicy Bypass -File scripts\empaquetar.ps1 -Zip -Version v1.2.3   :: dist\ConsoleEnhancer\ y dist\ConsoleEnhancer-v1.2.3.zip
 ```
 
-- **Las piezas nativas propias del motor** (`src\PrismaNr`, `src\PrismaFg`, C++): necesitan Visual Studio 2022 (o sus Build Tools) con
-  C++, y PrismaNr además las dos cabeceras públicas de NGX de NVIDIA (`scripts\descargar_cabeceras_ngx.ps1`, versión fija y SHA-256; no
-  van a git). La app va sin ellas; el paquete las necesita (`preparar.bat` las compila si está Visual Studio).
 - **Dependencias**: la tabla `scripts\components.json` (versión, URL, SHA-256 y qué se coge de cada zip) la usan
   `descargar_dependencias.ps1` y la propia app. Para cambiar de versión, se cambia ahí.
 - **Paquete** (`scripts\empaquetar.ps1`): lista blanca. Lleva la app, el motor con Streamline / DLSS, scripts, languages, resources y

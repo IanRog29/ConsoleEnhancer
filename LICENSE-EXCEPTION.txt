@@ -15,17 +15,16 @@ If you modify this Program, or any covered work, by linking or combining it with
 official updates released by their vendors), containing parts covered by the terms of their own licenses, the licensors of this
 Program grant you additional permission to convey the resulting work:
 
-  - NVIDIA Streamline, NVIDIA DLSS (Super Resolution, Frame Generation, Ray Reconstruction), NVIDIA RTX Dynamic Vibrance,
-    NVIDIA NGX, NVIDIA Reflex and NVIDIA NVAPI runtime libraries (and the public NGX SDK headers used to build them in), as
-    distributed by NVIDIA Corporation;
+  - NVIDIA Streamline, NVIDIA DLSS (Super Resolution, Frame Generation, Ray Reconstruction), NVIDIA NGX, NVIDIA Reflex and
+    NVIDIA NVAPI runtime libraries, as distributed by NVIDIA Corporation;
   - AMD FidelityFX runtime libraries, as distributed by Advanced Micro Devices, Inc.;
-  - Intel XeSS runtime libraries (including XeSS Frame Generation and XeLL), as distributed by Intel Corporation;
+  - Intel XeSS runtime libraries, as distributed by Intel Corporation;
   - Microsoft Direct3D, DXGI, D3DCompiler and Windows runtime libraries, as distributed by Microsoft Corporation.
 
 Corresponding Source for a non-source form of such a combination shall not include the source code for the parts of those
 libraries used as well as that of the covered work. This permission does not cover modified or repackaged versions of those
-libraries made by anyone other than their vendor (for example the community-modified nvngx_dlssnr.dll or the community dlssg_sm86
-package, which ConsoleEnhancer never distributes).
+libraries made by anyone other than their vendor (for example the community-modified nvngx_dlssnr.dll, which ConsoleEnhancer
+never distributes).
 
 This additional permission is granted only by the copyright holders of ConsoleEnhancer's own code. Code that ConsoleEnhancer takes
 from other GPL-3.0 projects keeps the plain terms its authors chose (see THIRD-PARTY.md). You may remove this additional permission
@@ -36,7 +35,7 @@ Resumen en espanol (el texto que vale es el ingles de arriba)
 ------------------------------------------------------------
 ConsoleEnhancer es software libre bajo la GNU GPL version 3 (LICENSE), SIN NINGUNA GARANTIA. Ademas, sus autores dan un permiso
 adicional (seccion 7 de la GPL): se puede repartir ConsoleEnhancer junto con las librerias oficiales de NVIDIA (Streamline, DLSS,
-Vibrancia RTX, NGX y sus cabeceras publicas, Reflex, NVAPI), AMD FidelityFX, Intel XeSS (con XeSS FG y XeLL) y Microsoft Direct3D, que tienen sus propias licencias y no pasan a ser GPL; el codigo
+NGX, Reflex, NVAPI), AMD FidelityFX, Intel XeSS y Microsoft Direct3D, que tienen sus propias licencias y no pasan a ser GPL; el codigo
 fuente que pide la GPL no incluye el de esas librerias. El permiso no vale para versiones modificadas de esas librerias por terceros
-(como la nvngx_dlssnr.dll comunitaria o el paquete dlssg_sm86, que ConsoleEnhancer no reparte nunca). Solo lo dan los autores del codigo propio de
+(como la nvngx_dlssnr.dll comunitaria, que ConsoleEnhancer no reparte nunca). Solo lo dan los autores del codigo propio de
 ConsoleEnhancer; lo que viene de otros proyectos GPL-3.0 sigue con sus condiciones (THIRD-PARTY.md).

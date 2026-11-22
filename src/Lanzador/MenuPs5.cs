@@ -483,7 +483,7 @@ namespace ConsoleEnhancer
         void PortadaRapida(Bitmap full, DateTime now, ConsolaPerfil c, bool inMenu)
         {
             if (!RecoJuegosActivo(c)) return;
-            if (!inMenu && (now - ps5SalidaAt).TotalSeconds > 15 && !VueltaVigilando) { ps5RapidaPrev = null; return; }
+            if (!inMenu && (now - ps5SalidaAt).TotalSeconds > 15 && !VueltaPendiente) { ps5RapidaPrev = null; return; }
             double[] f = PortadasConsola.Firma(full);
             if (!PortadasConsola.ConDibujo(f)) { ps5RapidaPrev = null; return; }
             double d;
@@ -495,7 +495,7 @@ namespace ConsoleEnhancer
             ps5PortadaVistaAt = now;
             if (inMenu) return;   // (al salir del menu, MenuPs5Salir la usa)
             // 1.2.2: con la comprobacion de la salida pendiente, la portada conocida la decide (VueltaOArranque)
-            if (VueltaVigilando) { VueltaObserva(now, f, false, false, p); return; }   // (1.2.4: y con el del foco provisional)
+            if (VueltaPendiente) { VueltaObserva(now, f, false, false, p); return; }
             ps5PortadaHasta = DateTime.MinValue;   // (ya se sabe: la lenta no hace falta)
             string cur;
             lock (profileSync) cur = curGame;
@@ -572,7 +572,6 @@ namespace ConsoleEnhancer
             ps5FirmaAntesMenu = ps5AntesMenu.Count > 0 ? ps5AntesMenu[ps5AntesMenu.Count - 1] : null;
             ps5Candidato = pi;
             ps5Vuelta = new VueltaOArranque(cur, pi, ps5AntesMenu, now);
-            ps5VueltaCambios = 0; ps5VueltaCopiaCand = null;
             ps5VueltaCopia = null;
             ps5ArranqueProbable = false;
             ps5SalidaAt = now;
@@ -725,7 +724,7 @@ namespace ConsoleEnhancer
             if (now > ps5PortadaHasta || !RecoJuegosActivo(c)) return;
             // 1.2.2: con la comprobacion de la salida pendiente (el de antes o el del foco) lo quieto lo mira ella (VueltaOArranque: la
             // portada nueva solo se memoriza si se ve arrancar el juego)
-            if (VueltaVigilando || ps5PortadaJuego != null) { ps5PortadaPrev = null; ps5PortadaQuietaDesde = DateTime.MinValue; return; }
+            if (VueltaPendiente || ps5PortadaJuego != null) { ps5PortadaPrev = null; ps5PortadaQuietaDesde = DateTime.MinValue; return; }
             double[] f = PortadasConsola.Firma(full);
             if (!PortadasConsola.ConDibujo(f)) { ps5PortadaPrev = null; ps5PortadaQuietaDesde = DateTime.MinValue; return; }
             if (ps5PortadaPrev == null || PortadasConsola.Dist(ps5PortadaPrev, f) > PortadasConsola.Quieta)
@@ -943,7 +942,6 @@ namespace ConsoleEnhancer
             if (l.Pantalla != null)
             {
                 ps5TextoAt = now;
-                if (inMenu && RecoJuegosActivo(c)) CierreObserva(l.Pantalla, now);   // (1.2.4: el aviso de cerrar el juego en marcha)
                 Consolas.VistoTexto(l.Pantalla);
                 if (RelojPs5.EsMenuApagado(l.Pantalla, c))
                     lock (homeSync) PowerMenuSeen(now, "el menu de apagado de la consola (\"" + ShortText(l.Pantalla) + "\")");
@@ -1293,11 +1291,9 @@ namespace ConsoleEnhancer
                         perfil = dec;
                         juego = JuegoConsola.SinTag(dec);
                         lock (homeSync) recoJuego.Pon(juego);
-                        // (1.2.4: o, provisional, porque nada de lo que saco del menu se parece a lo de antes: se sigue mirando, VueltaJuego.cs)
-                        bool prov = VueltaVigilando;
                         infoIcono = antesInfo + ": se arranca \"" + dec + "\" (" + porqueV + ")";
                         ps5SalidaPorIcono = true;
-                        ps5ArranqueProbable = !prov;
+                        ps5ArranqueProbable = true;
                     }
                     else if (dec != null)
                     {

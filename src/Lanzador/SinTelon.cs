@@ -216,13 +216,6 @@ namespace ConsoleEnhancer
         {
             try
             {
-                // (1.2.4, integracion: XeSS FG x2 ya va por el motor; p. ej. XeSS FG x3 por Magpie bajado a x2 -proteccion, menu, Ctrl+X-:
-                // el motor en espera se abrio con la cadena de antes -DLSS-G- y no se cambia en marcha: fuera, y uno nuevo con la buena
-                // mientras Magpie sigue a la vista. Lo mismo que mira RunMpv al despertar uno sin relevo)
-                PrepareCfg();
-                Process sbe = standbyEngine;
-                if (sbe != null && Config.EngineFfxOf(sbe) >= 0 && Config.EngineFfxOf(sbe) != cfg.EngineFgChain)
-                    KillStandby("relevo: el motor en espera se abrio con otra cadena de generacion (" + Config.EngineFfxOf(sbe) + ", ahora " + cfg.EngineFgChain + ")");
                 Process e = StandbyForWake(); // (recien arrancado: hasta que diga que esta listo, como mucho 8 s desde su arranque)
                 if (e == null && !userExit)
                 {

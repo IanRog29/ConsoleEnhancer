@@ -5,8 +5,8 @@
 //    nombre esperado, se avisa una vez de que no es oficial ni la soporta NVIDIA y se copia a <app>\extras\ (donde la busca la
 //    deteccion, OpcionesDeteccion.RutasExtra, y de donde Ce.PrepararExtras la copia a magpie\). La app NO dice de donde sacarla ni
 //    enlaza ninguna descarga. "Quitar DLSS 5" lo borra de extras\ (PrepararExtras quita luego la copia de magpie\).
-//  - Encender DLSS 5: games\dlss5_on.txt (como el boton A jugando). DLSS 5 dentro del motor propio siempre que junto
-//    al motor este PrismaNr.dll (pieza propia del motor, en el zip desde la 1.2.4; sin preguntar ni clave): sin ella va por mpv + Magpie.
+//  - Encender DLSS 5: games\dlss5_on.txt (como el boton A jugando). DLSS 5 dentro del motor propio (motor_dlss5=1) solo si junto
+//    al motor esta PrismaNr.dll (de uso propio, no se publica): sin ella va por mpv + Magpie.
 //  - Componentes (mpv, Magpie): comprobar y volver a bajar (--componentes-reparar, Componentes.cs).
 //  - Apoyo: Ko-fi, siempre opcional (la app es gratis y completa).
 using System;
@@ -49,7 +49,6 @@ namespace ConsoleEnhancer
         public static string Sm86Viejo { get { return Path.Combine(Dir, "dlssg_sm86"); } }
         public static string Sm86Puesto { get { return Directory.Exists(Sm86) ? Sm86 : Sm86Viejo; } }
         public static string PrismaNr { get { return Path.Combine(Paths.AppDir, @"engine\PrismaNr.dll"); } }
-        public static string PrismaFg { get { return Path.Combine(Paths.AppDir, @"engine\PrismaFg.dll"); } }   // (1.2.4 MOTORFG: DLSS FG x3 / x4 del motor en RTX 40; pieza propia, en el zip desde la 1.2.4)
         public static bool HayDlss5 { get { return File.Exists(Dll); } }
         public static bool HaySm86 { get { return Directory.Exists(Sm86) || Directory.Exists(Sm86Viejo); } }
         public static bool MotorPuede { get { return File.Exists(PrismaNr); } }
@@ -88,44 +87,24 @@ namespace ConsoleEnhancer
 
         static void Mal(IWin32Window w, string t) { MessageBox.Show(w, t, "ConsoleEnhancer", MessageBoxButtons.OK, MessageBoxIcon.Warning); }
 
-        // El asistente de "Anadir DLSS 5". true = se ha copiado (1.2.4 SOLOMOTOR: sin la pregunta del motor: con engine\PrismaNr.dll DLSS 5
-        // va siempre en el motor, SoloMotor.cs)
-        public static bool Anadir(IWin32Window w)
+        // El asistente de "Anadir DLSS 5". true = se ha copiado. motor: el usuario quiere DLSS 5 en el motor propio (motor_dlss5=1)
+        public static bool Anadir(IWin32Window w, out bool motor)
         {
+            motor = false;
             // el aviso, una vez por cada vez que se anade
-            // (22-11, 1.2.4 DLSS5LEGAL) lo que es cada DLL y lo que dice NVIDIA, claro: hoy no hay forma oficial de usar DLSS 5 fuera de
-            // los juegos que lo traen (sin SDK publico ni plugin de Streamline) y NVIDIA solo lo soporta en RTX 50
             if (!Pregunta(w, Tx.T(
-                    "DLSS 5 no es una función oficial de ConsoleEnhancer.\r\n\r\n" +
-                    "NVIDIA aún no deja que otras aplicaciones usen DLSS 5 (no está en su SDK ni en Streamline) y solo lo soporta en RTX 50, " +
-                    "dentro de los juegos que lo traen. Hay dos nvngx_dlssnr.dll: la original de NVIDIA (firmada por NVIDIA; solo funciona en " +
-                    "RTX 50) y una modificada por la comunidad para RTX 20/30/40 (sin firma). Ninguna trae permiso para usarla fuera de su juego, " +
-                    "y para hacer DLSS 5 aquí se carga sin pasar por las comprobaciones de NVIDIA: su uso puede ir contra las condiciones de NVIDIA. " +
-                    "Opcionalmente también la carpeta dlssg_sm86 (de la comunidad).\r\n\r\n" +
-                    "ConsoleEnhancer no la incluye, no la descarga ni dice de dónde sacarla. Si la usas es bajo tu responsabilidad. " +
-                    "La app funciona entera sin ella.\r\n\r\n¿Elegir tu archivo nvngx_dlssnr.dll?",
-                    "DLSS 5 is not an official ConsoleEnhancer feature.\r\n\r\n" +
-                    "NVIDIA does not yet let other applications use DLSS 5 (it is not in its SDK or in Streamline) and only supports it on RTX 50, " +
-                    "inside the games that ship it. Two nvngx_dlssnr.dll files exist: NVIDIA's original (signed by NVIDIA; only works on RTX 50) " +
-                    "and a community-modified one for RTX 20/30/40 (unsigned). Neither comes with permission to use it outside its game, and to " +
-                    "run DLSS 5 here it is loaded without going through NVIDIA's checks: using it may breach NVIDIA's terms. Optionally also the " +
-                    "dlssg_sm86 folder (from the community).\r\n\r\n" +
-                    "ConsoleEnhancer does not include it, download it or say where to get it. Using it is your own responsibility. " +
-                    "The app works fully without it.\r\n\r\nPick your nvngx_dlssnr.dll file?"), MessageBoxIcon.Warning))
+                    "DLSS 5 no es una función oficial.\r\n\r\n" +
+                    "Usa nvngx_dlssnr.dll, una DLL de NVIDIA modificada por la comunidad, sin firma y sin licencia, y opcionalmente la carpeta " +
+                    "dlssg_sm86 (también de la comunidad). NVIDIA no la ha publicado así ni la soporta, ConsoleEnhancer no la " +
+                    "incluye, no la descarga ni dice de dónde sacarla, y su uso puede ir contra las condiciones de NVIDIA.\r\n\r\n" +
+                    "Si la usas es bajo tu responsabilidad. La app funciona entera sin ella.\r\n\r\n¿Elegir tu archivo nvngx_dlssnr.dll?",
+                    "DLSS 5 is not an official feature.\r\n\r\n" +
+                    "It uses nvngx_dlssnr.dll, a community-modified NVIDIA DLL with no signature and no license, and optionally the dlssg_sm86 " +
+                    "folder (also from the community). NVIDIA has not released it this way and does not support it; " +
+                    "ConsoleEnhancer does not include it, download it or say where to get it, and using it may breach NVIDIA's terms.\r\n\r\n" +
+                    "Using it is your own responsibility. The app works fully without it.\r\n\r\nPick your nvngx_dlssnr.dll file?"), MessageBoxIcon.Warning))
                 return false;
-            string origen = null;
-            // (1.2.4, lo aprobo el usuario) primero se busca en ESTE PC lo que ya tenga (BuscaExtras.cs: solo local, ~4 s como mucho,
-            // cancelable) y se elige de la lista; con "Elegir otro archivo...", la busqueda cancelada o nada encontrado: el selector de siempre
-            BuscaExtras.Hallazgo smHallado = null;
-            {
-                bool otro, cancel;
-                BuscaExtras.Hallazgo h = BuscaExtras.Elegir(w, 4000, out smHallado, out otro, out cancel);
-                if (h != null) origen = h.Ruta;
-                else if (cancel || otro) { }
-                else if (smHallado != null && HayDlss5) { PonerSm86(w, smHallado.Ruta); ExtrasGuardados.Guardar("añadido"); return true; }
-                else if (smHallado == null) return false;   // (la lista cerrada sin elegir)
-            }
-            if (origen == null)
+            string origen;
             using (OpenFileDialog d = new OpenFileDialog())
             {
                 d.Title = Tx.T("Tu archivo nvngx_dlssnr.dll", "Your nvngx_dlssnr.dll file");
@@ -143,14 +122,6 @@ namespace ConsoleEnhancer
             }
             string mal = MirarDll(origen);
             if (mal != null) { Mal(w, Tx.T("No vale como " + Integrado.Dlss5Dll + ": ", "Not valid as " + Integrado.Dlss5Dll + ": ") + mal); return false; }
-            // (22-11, 1.2.4 DLSS5LEGAL) de quien es: la original de NVIDIA (firmada, solo RTX 50) o la modificada (sin firma)
-            string firmante;
-            int firma = FirmaNvidia.Comprobar(origen, out firmante);
-            string ver = "";
-            try { ver = FileVersionInfo.GetVersionInfo(origen).FileVersion ?? ""; } catch { }
-            string queEs = FirmaNvidia.Texto(firma) + (ver.Length > 0 ? " · " + ver.Replace(',', '.').Replace(" ", "") : "");
-            Log.Write("DLSS 5: la DLL elegida es " + (firma == FirmaNvidia.Nvidia ? "la original de NVIDIA (firma valida)" : firma == FirmaNvidia.SinFirma ? "SIN FIRMA (modificada)" : "de otro firmante: " + firmante) +
-                      (ver.Length > 0 ? ", version " + ver : ""));
             try
             {
                 Directory.CreateDirectory(Dir);
@@ -161,8 +132,7 @@ namespace ConsoleEnhancer
                     if (File.Exists(Dll)) File.Delete(Dll);
                     File.Move(tmp, Dll);
                 }
-                Log.Write("DLSS 5: el usuario ha puesto su " + Integrado.Dlss5Dll + " en extras\\ (" + new FileInfo(Dll).Length + " bytes; " +
-                          (firma == FirmaNvidia.Nvidia ? "la original de NVIDIA, firmada; NVIDIA solo la soporta en RTX 50" : firma == FirmaNvidia.SinFirma ? "DLL de NVIDIA modificada, SIN FIRMA" : "firmante: " + firmante) + "; no oficial fuera de su juego)");
+                Log.Write("DLSS 5: el usuario ha puesto su " + Integrado.Dlss5Dll + " en extras\\ (" + new FileInfo(Dll).Length + " bytes; DLL de NVIDIA modificada por la comunidad, SIN FIRMA, no oficial)");
             }
             catch (Exception ex)
             {
@@ -179,18 +149,21 @@ namespace ConsoleEnhancer
                 string sm = BuscarSm86(origen);
                 if (sm != null) PonerSm86(w, sm);
             }
-            if (!HaySm86 && smHallado != null) PonerSm86(w, smHallado.Ruta);   // (1.2.4: la que se encontro en el PC y se marco en la lista)
-            // (22-11, 1.2.3 MOTOR5) y PrismaNr.dll ("DLSS 5" en el motor propio) si esta junto a la DLL elegida: a engine\. (1.2.4: viene ya en
-            // el zip; solo si falta, para no cambiar la de esta version por una de otra)
-            if (!File.Exists(PrismaNr)) { string pn = BuscarPrismaNr(origen); if (pn != null) PonerPrismaNr(w, pn); }
+            // (22-11, 1.2.3 MOTOR5) y PrismaNr.dll ("DLSS 5" en el motor propio, de uso propio) si esta junto a la DLL elegida: a engine\
+            { string pn = BuscarPrismaNr(origen); if (pn != null) PonerPrismaNr(w, pn); }
             // (1.2.3 MOTOR5) lo puesto, tambien fuera de la carpeta de la app: una version nueva lo recoge sola (ExtrasGuardados.cs)
             ExtrasGuardados.Guardar("añadido");
             // encenderlo
-            bool on = Pregunta(w, Tx.T("Tu " + Integrado.Dlss5Dll + ": " + queEs + (firma == FirmaNvidia.Nvidia ? " (NVIDIA solo la hace funcionar en RTX 50)." : ".") +
-                                       "\r\n\r\n¿Encender DLSS 5 ya? (Jugando se enciende y se apaga con el botón A del mando.)",
-                                       "Your " + Integrado.Dlss5Dll + ": " + queEs + (firma == FirmaNvidia.Nvidia ? " (NVIDIA only makes it work on RTX 50)." : ".") +
-                                       "\r\n\r\nTurn DLSS 5 on now? (While playing, the controller's A button turns it on and off.)"), MessageBoxIcon.Question);
+            bool on = Pregunta(w, Tx.T("¿Encender DLSS 5 ya? (Jugando se enciende y se apaga con el botón A del mando.)",
+                                       "Turn DLSS 5 on now? (While playing, the controller's A button turns it on and off.)"), MessageBoxIcon.Question);
             PonerActivo(on);
+            if (on && MotorPuede)
+            {
+                motor = Pregunta(w, Tx.T("Junto al motor está PrismaNr.dll: ¿hacer DLSS 5 en el motor propio (menos retraso) en vez de mpv + Magpie?",
+                                         "PrismaNr.dll is next to the engine: run DLSS 5 in the built-in engine (lower latency) instead of mpv + Magpie?"), MessageBoxIcon.Question);
+                // (22-11, 1.2.3 MOTOR5: con motor_dlss5=auto de serie, el "no" tambien va al ini; el "si" lo ponen los que llaman)
+                if (!motor) Ce.IniPoner("motor_dlss5", "0");
+            }
             Integrado.Dlss5Rever();
             return true;
         }
@@ -242,7 +215,7 @@ namespace ConsoleEnhancer
                 File.Copy(de, tmp, true);
                 if (File.Exists(PrismaNr)) File.Delete(PrismaNr);
                 File.Move(tmp, PrismaNr);
-                Log.Write("DLSS 5 en el motor propio: PrismaNr.dll de " + de + " puesta en engine\\ (" + a.Length + " bytes; pieza propia del motor)");
+                Log.Write("DLSS 5 en el motor propio: PrismaNr.dll de " + de + " puesta en engine\\ (" + a.Length + " bytes; de uso propio, no se distribuye)");
             }
             catch (Exception ex)
             {
@@ -262,9 +235,9 @@ namespace ConsoleEnhancer
                 string m = MirarDll(d);
                 if (m != null) { Log.Write("dlssg_sm86 junto a la DLL no vale (" + Path.GetFileName(d) + ": " + m + "): no se copia"); return; }
             }
-            // (1.2.08) otra version de dlssg_for_sm86: Magpie no la valida (DLSS FG no arranca) -> no se copia
+            // (1.2.08) otra version de dlssg_for_sm86: Magpie no la valida (DLSS FG no arranca) -> no se copia; la app pone la oficial
             string otra = Componentes.Sm86Distinto(de);
-            if (otra != null) { Log.Write("dlssg_sm86 junto a la DLL (" + de + ") no es la version que espera Magpie (" + otra + "): no se copia"); return; }
+            if (otra != null) { Log.Write("dlssg_sm86 junto a la DLL (" + de + ") no es la version que espera Magpie (" + otra + "): no se copia; la app usa la oficial"); return; }
             try
             {
                 if (Path.GetFullPath(de).TrimEnd('\\').Equals(Path.GetFullPath(Sm86).TrimEnd('\\'), StringComparison.OrdinalIgnoreCase)) return;
@@ -317,6 +290,7 @@ namespace ConsoleEnhancer
                 QuitarSm86();
                 string mag = Path.Combine(Paths.MagpieDir, Integrado.Dlss5Dll);
                 try { if (File.Exists(mag + ".de_extras")) { if (File.Exists(mag)) File.Delete(mag); File.Delete(mag + ".de_extras"); } } catch { }
+                if (Ce.IniLeer("motor_dlss5") == "1") Ce.IniPoner("motor_dlss5", "0");
                 Integrado.Dlss5Rever();
                 Log.Write("DLSS 5 quitado por el usuario (extras\\)");
                 ExtrasGuardados.QuitarDlss5();   // (1.2.3 MOTOR5: y de lo guardado fuera de la app: una version nueva ya no lo recoge)
@@ -336,14 +310,7 @@ namespace ConsoleEnhancer
                 if (!g.EsRtx) continue;
                 if (!HayDlss5) { g.F.DlssNr.Pon(false, Tx.T("no está nvngx_dlssnr.dll (extra no oficial: no va en la app)", "nvngx_dlssnr.dll not present (unofficial extra)")); g.F.DlssNr.NoOficial = false; }
                 else if (g.VramGb < 6) g.F.DlssNr.Pon(false, Tx.T("menos de 6 GB de VRAM", "under 6 GB VRAM"));
-                else
-                {
-                    // (22-11, 1.2.4 DLSS5LEGAL) lo que es de verdad (la original firmada de NVIDIA o la modificada sin firma), sin calcular el hash
-                    string fm; int fr = FirmaNvidia.Rapida(Dll, out fm);
-                    g.F.DlssNr.Pon(true, (fr == FirmaNvidia.Nvidia ? Tx.T("DLL del usuario (la original de NVIDIA, solo RTX 50; no oficial fuera de su juego): ", "user DLL (NVIDIA's original, RTX 50 only; unofficial outside its game): ")
-                                                                  : Tx.T("DLL del usuario (sin firma, no oficial): ", "user DLL (unsigned, unofficial): ")) + Dll);
-                    g.F.DlssNr.NoOficial = true;
-                }
+                else { g.F.DlssNr.Pon(true, Tx.T("DLL del usuario (sin firma, no oficial): ", "user DLL (unsigned, unofficial): ") + Dll); g.F.DlssNr.NoOficial = true; }
             }
         }
 
@@ -379,7 +346,9 @@ namespace ConsoleEnhancer
             menu.Items.Add(Tx.T("Componentes: comprobar / volver a descargar", "Components: check / download again"), null, delegate { MenuComponentes(); });
             ToolStripMenuItem d5 = new ToolStripMenuItem("", null, delegate
             {
-                if (!Extras.Anadir(null)) return;
+                bool motor;
+                if (!Extras.Anadir(null, out motor)) return;
+                if (motor) Ce.IniPoner("motor_dlss5", "1");
                 Ce.PrepararExtras();
                 bool asis = MessageBox.Show(Tx.T("DLSS 5 añadido. La app se vuelve a abrir para usarlo.\r\n\r\n¿Abrir antes el asistente para que ajuste DLSS 5 a tu gráfica? (recomendado)",
                                                  "DLSS 5 added. The app reopens to use it.\r\n\r\nOpen the setup wizard first so it tunes DLSS 5 for your GPU? (recommended)"),

@@ -34,7 +34,7 @@ namespace ConsoleEnhancer
         public string CeModeloMax = "auto";      // escalas_modelo_max
         // (1.2.2, UNIVERSAL) motor_uso_grafica: % del tiempo de una imagen que el motor deja usar a la grafica jugando (el tope de su p95,
         // menos la generacion de NVIDIA: src\Motor\Engine\EngineMargen.cs). 85 de serie; 93 ~ como antes de la 1.2.2
-        public double CeUsoGrafica = 90;   // (1.2.4, XEFG: antes 85)
+        public double CeUsoGrafica = 85;
 
         bool CeParseEscalas(string key, string val)
         {
@@ -285,7 +285,7 @@ namespace ConsoleEnhancer
             // (dlss5_escala_auto=0)"-; y los dos presupuestos de MULTI2: el 95 % es el del hilo de Magpie, no de la grafica)
             Log.Write("Escala de DLSS 5 por Magpie: " + (cfg.Dlss5AutoOn && cfg.Dlss5InputPct == 0 ? "automatica por la cadena (dlss5_escala_auto=1, " + EscalaAuto.Fichero + "; hilo de Magpie " +
                       Math.Round(EscalaAuto.Uso * 100) + " %, grafica " + Math.Round(EscalaAuto.UsoGrafica * 100) + " %)" : cfg.Dlss5InputPct != 0 ? "fija (dlss5_entrada)" : "las tablas tabla_dlss5_* (dlss5_escala_auto=0)") +
-                      (cfg.MotorDlss5Pedido ? "; ahora DLSS 5 lo hace el motor propio (engine\\PrismaNr.dll)" : ""));
+                      (cfg.MotorDlss5Pedido ? "; ahora DLSS 5 lo hace el motor propio (engine\\PrismaNr.dll, motor_dlss5)" : ""));
             if (!cfg.CeEscalas) return;
             Cargar();
             string g = GpuClave + "|";

@@ -50,11 +50,6 @@ namespace ConsoleEnhancer
         public int XessFgFlow = -1, XessFgFlowQ = -1, DlssFgFlow4k = -1, DlssFgFlowQ4k = -1;
         // fg_dlss_flujo_4k_multi=1|0 (1.2.3, MULTI2): DLSS FG x3 / x4 a 4K en el modo 30 con los vectores de NVIDIA aunque DLSS 5 no este
         public bool FgVectores4kMulti = true;
-        // fg_dlss_vectores=1|0 (1.2.4, DLSSFG): DLSS FG de Magpie SIEMPRE con los vectores del flujo optico de NVIDIA (tambien x2 a 4K sin
-        // DLSS 5 y el modo 60, que iban sin ellos). 0 = como en la 1.2.3 (fg_flujo_60 / fg_dlss_flujo_4k / fg_dlss_flujo_4k_multi)
-        public bool FgVectoresSiempre = true;
-        // fg_dlss_flujo_calidad_60=1-5 (1.2.4): su calidad NVOF en el modo 60 cuando nada mas de la cadena calcula el flujo (vacio = 2)
-        public int DlssFgFlowQ60 = -1;
 
         // DLSS 5 (el filtro DLSSNR de Magpie) va con el flujo de NVIDIA: el estimador ya esta en marcha a la calidad FlowQualityNvNow
         public bool Dlss5NvofNow { get { return D5Tuned && Dlss5FlowNow == 2; } }
@@ -62,21 +57,10 @@ namespace ConsoleEnhancer
         // Lo que va en la cadena (MagpieConfig.Chain)
         public int XessFgFlowNow { get { return XessFgFlow >= 0 ? XessFgFlow : DlssFlow; } }
         public int XessFgFlowQNow { get { return XessFgFlowQ >= 1 ? XessFgFlowQ : FlowQualityNvNow; } }
-        // (1.2.4, DLSSFG; el usuario: "Dlss fg x2 x3 y x4 tiene muchos fallos visuales y en los mapas y asi muchisimos"). MEDIDO el 22-11 (tele
-        // 3840x2160@120 con VRR, RTX 4060 Ti, mpv + Magpie con la cadena de la app; escena "mapa": minimapa con el mapa moviendose dentro,
-        // textos pequenos con borde, brujula, barra de vida, icono, verja de barrotes de 3 px, cabeza quieta y una ciudad corriendo detras;
-        // error de la imagen inventada contra la intermedia ideal de las dos reales vistas, luma 0-255). SIN vectores, DLSS FG no sabe que la
-        // interfaz esta quieta y la mezcla con lo que corre detras: con x2 a 4K sin DLSS 5 (lo que hacia la 1.2.3) texto 6,9-7,0 -> 1,0 con
-        // los de NVIDIA calidad 2 (dos pasadas cada una), resto de la interfaz 3,1-3,3 -> 0,9, borde de la cabeza 2,5 -> 0,3, barrotes 18,3 ->
-        // 14,5; x3 texto 8,1 -> 0,75; x4 2,1 -> 0,5; con DLSS 5 al 40 % (x2) 4,2 -> 1,0. Modo 60 a 4K (fuente a 59,94): texto 3,1 -> 1,1 (calidad
-        // 1) / 1,06 (calidad 2; todo 6,6 -> 4,0) y llega igual (59,9-60,0 reales de 60 con las dos). El fondo que se repite (ventanas) queda
-        // parecido (3,0-3,8). Los vectores salen de la captura (Magpie no deja darle a DLSS FG una mascara de la interfaz: HUDLess / UI van
-        // "never provided" en su DLSSFrameGenerator), pero con ellos la interfaz quieta va con vector ~0 y deja de "temblar" sobre el fondo.
         public int DlssFgFlowNow
         {
             get
             {
-                if (FgVectoresSiempre && DlssFgFlow4k < 0) return 2;
                 if (!Win4k) return CapMode ? FgFlow30 : FgFlow60;
                 if (DlssFgFlow4k >= 0) return DlssFgFlow4k;
                 // (1.2.3, MULTI2) y con x3 / x4 aunque DLSS 5 no lo calcule (a 4K con x4 DLSS 5 ya no cabe y se quita): MEDIDO el 22-11 (tele 4K a
@@ -94,18 +78,8 @@ namespace ConsoleEnhancer
             {
                 int f = DlssFgFlowNow;
                 if (f != 2) return FlowQualityNvNow;
-                if (Win4k)
-                {
-                    if (DlssFgFlowQ4k >= 1) return DlssFgFlowQ4k;
-                    // (1.2.4) el 60 a 4K sin DLSS 5: la 2 (medido: la 1 texto 1,1 y todo 7,0; la 2 texto 1,06 y todo 4,0; las dos llegan a 60)
-                    if (FgVectoresSiempre && !CapMode && !Dlss5NvofNow) return DlssFgFlowQ60 >= 1 ? DlssFgFlowQ60 : 2;
-                    return FlowQualityNvNow;   // (la de DLSS 5: el mismo estimador, sin coste de mas)
-                }
-                if (CapMode) return FgFlowQualityNv;
-                // (1.2.4) el 60: si DLSS 5 ya calcula el flujo, a su calidad (el mismo estimador: pedir mas lo subiria para todos); si no, la 2
-                if (!FgVectoresSiempre) return FgFlowQualityNv60;
-                if (DlssFgFlowQ60 >= 1) return DlssFgFlowQ60;
-                return Dlss5NvofNow ? FlowQualityNvNow : 2;
+                if (Win4k) return DlssFgFlowQ4k >= 1 ? DlssFgFlowQ4k : FlowQualityNvNow;   // (la de DLSS 5: el mismo estimador, sin coste de mas)
+                return CapMode ? FgFlowQualityNv : FgFlowQualityNv60;
             }
         }
 
@@ -119,8 +93,6 @@ namespace ConsoleEnhancer
                 case "fg_dlss_flujo_4k": DlssFgFlow4k = v.Length == 0 || v.ToLowerInvariant() == "auto" ? -1 : ParseFlow(v); return true;
                 case "fg_dlss_flujo_calidad_4k": DlssFgFlowQ4k = v.Length == 0 ? -1 : Math.Max(1, Math.Min(5, ParseInt(v))); return true;
                 case "fg_dlss_flujo_4k_multi": FgVectores4kMulti = v != "0"; return true;   // (1.2.3, MULTI2)
-                case "fg_dlss_vectores": FgVectoresSiempre = v != "0"; return true;   // (1.2.4, DLSSFG)
-                case "fg_dlss_flujo_calidad_60": DlssFgFlowQ60 = v.Length == 0 ? -1 : Math.Max(1, Math.Min(5, ParseInt(v))); return true;
             }
             return false;
         }

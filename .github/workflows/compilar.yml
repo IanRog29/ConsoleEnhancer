@@ -29,7 +29,7 @@ jobs:
           $permitidos = @('resources/prisma.ico', 'resources/prisma_512.png')
           $bin = $bin | Where-Object { $permitidos -notcontains $_ }
           if ($bin) { 'Binarios en el repositorio (solo se permiten los iconos propios):'; $bin; exit 1 }
-          $malos = $todos | Where-Object { $_ -match '(?i)(nvngx_|dlssg_sm86|DLSSNR-DLL|NGX_OTA|\.(exe|dll|pdb|obj|lib|zip|7z|log)$|\.antes-|(^|/)(terceros|datos|juegos|logs|extras|bin|dist|obj)/|consoleenhancer\.ini$|switch2\.ini$|privado\.txt$)' }
+          $malos = $todos | Where-Object { $_ -match '(?i)(nvngx_|dlssg_sm86|DLSSNR-DLL|NGX_OTA|PrismaNr|\.(exe|dll|pdb|obj|lib|zip|7z|log)$|\.antes-|(^|/)(terceros|datos|juegos|logs|extras|bin|dist|obj)/|consoleenhancer\.ini$|switch2\.ini$|privado\.txt$)' }
           if ($malos) { 'Ficheros que no deben ir al repositorio:'; $malos; exit 1 }
           $personal = git grep -n -I -E '[A-Za-z]:\\Users\\|[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+\.[A-Za-z]{2,}' -- . ':!LICENSE'
           # git grep devuelve 1 cuando NO encuentra nada (lo normal aqui): no debe contar como fallo del paso
@@ -48,18 +48,6 @@ jobs:
         shell: cmd
         run: call .\build_motor.bat
 
-      # (1.2.4) las piezas propias del motor en C++ con el MSVC del runner: PrismaNr.dll (con las DOS cabeceras publicas de NGX de
-      # github.com/NVIDIA/DLSS en una version fija, con su SHA-256; no van en el repositorio) y PrismaFg.dll (solo Windows)
-      - name: Cabeceras de NGX (scripts\descargar_cabeceras_ngx.ps1)
-        shell: pwsh
-        run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts\descargar_cabeceras_ngx.ps1
-
-      - name: PrismaNr.dll y PrismaFg.dll (build_prismanr.bat, build_prismafg.bat)
-        shell: cmd
-        run: |
-          call .\build_prismanr.bat || exit /b 1
-          call .\build_prismafg.bat || exit /b 1
-
       - name: Prueba de deteccion (tests\build_deteccion.bat)
         shell: cmd
         run: call .\tests\build_deteccion.bat
@@ -76,8 +64,6 @@ jobs:
           path: |
             bin/ConsoleEnhancer.exe
             bin/engine/ConsoleEnhancerEngine.exe
-            bin/engine/PrismaNr.dll
-            bin/engine/PrismaFg.dll
             deteccion.txt
 
   release:
@@ -99,17 +85,11 @@ jobs:
         shell: pwsh
         run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts\descargar_dependencias.ps1 -Solo streamline
 
-      - name: Cabeceras de NGX (para PrismaNr)
-        shell: pwsh
-        run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts\descargar_cabeceras_ngx.ps1
-
       - name: Compilar
         shell: cmd
         run: |
           call .\build.bat || exit /b 1
           call .\build_motor.bat || exit /b 1
-          call .\build_prismanr.bat || exit /b 1
-          call .\build_prismafg.bat || exit /b 1
 
       # (1.2.3) Firma de codigo de los exe, OPCIONAL: solo con los secretos del repositorio CE_FIRMA_PFX (el .pfx en base64) y
       # CE_FIRMA_CLAVE (su contrasena), en Settings > Secrets and variables > Actions. Sin ellos, todo como siempre: los exe sin firmar.
@@ -150,7 +130,7 @@ jobs:
           $notas.Add('')
           $notas.Add('SHA-256: `' + ((Get-Content "dist/ConsoleEnhancer-$tag.zip.sha256" -Raw).Split(' ')[0]) + '` (each file inside / cada fichero de dentro: `ConsoleEnhancer-' + $tag + '.files.sha256`)')
           $notas.Add('')
-          $notas.Add('License GPL-3.0 (+ LICENSE-EXCEPTION.txt). Includes unmodified NVIDIA Streamline / DLSS / Reflex (licenses\) and the engine''s own PrismaNr / PrismaFg, which load files you add yourself without NVIDIA''s NGX check (see README). Does not include nvngx_dlssnr.dll, dlssg_sm86 or any modified NVIDIA file. / Licencia GPL-3.0 (+ LICENSE-EXCEPTION.txt). Incluye NVIDIA Streamline / DLSS / Reflex sin cambios (licenses\) y las piezas propias del motor PrismaNr / PrismaFg, que cargan los archivos que pones tu sin la comprobacion de NGX de NVIDIA (ver README). No incluye nvngx_dlssnr.dll, dlssg_sm86 ni ningun archivo de NVIDIA modificado.')
+          $notas.Add('License GPL-3.0 (+ LICENSE-EXCEPTION.txt). Includes unmodified NVIDIA Streamline / DLSS / Reflex (licenses\). Does not include "DLSS 5" or anything unofficial. / Licencia GPL-3.0 (+ LICENSE-EXCEPTION.txt). Incluye NVIDIA Streamline / DLSS / Reflex sin cambios (licenses\). No incluye "DLSS 5" ni nada no oficial.')
           Set-Content -LiteralPath notas.md -Value $notas -Encoding UTF8
 
       - name: Crear la Release

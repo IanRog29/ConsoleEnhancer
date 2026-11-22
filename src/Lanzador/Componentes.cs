@@ -305,13 +305,11 @@ namespace ConsoleEnhancer
         // ---- (1.2.07) dlssg_sm86 sin que el usuario ponga nada ----
         // Con DLSS 5 el DLSS FG va por Magpie, y el de este Magpie solo funciona con runtimes\dlssg_sm86 (tambien en RTX 40/50). El
         // 21-11 el usuario: "otra vez me dice que no puedo poner dlss fg porque falta noseque archivo, no tiene que hacer falta poner
-        // ningun archivo" / "que lo incluya la app". No va dentro del zip (lleva DLL de NVIDIA), asi que, en segundo plano, se busca en
-        // el PC: la copia que guarda Magpie (%LOCALAPPDATA%\Magpie\DlssgSm86\<zip>\<id>), otras versiones de la app al lado (extras\ o
-        // magpie\runtimes\) y %LOCALAPPDATA%\ConsoleEnhancer\extras, y va a extras\runtimes\dlssg_sm86 (Ce.PrepararExtras lo pone en
-        // magpie\). Solo con NVIDIA y DLSS 5 puesto (o DLSS FG x3 / x4 pedido); un intento por sesion.
-        // (1.2.4, el usuario: "haz lo que sea legal") la app YA NO LO BAJA: dlssg_sm86 hace que NGX cargue DLSS-G saltandose la
-        // comprobacion de NVIDIA y reparte su nvngx_dlssg.dll suelta. Si el usuario lo tiene (lo pone el, o esta en otra copia suya del PC),
-        // se usa como antes; si no, DLSS FG con DLSS 5 por Magpie no esta y va otra generacion
+        // ningun archivo" / "que lo incluya la app". No va dentro del zip (lleva DLL de NVIDIA), asi que, en segundo plano:
+        //  1. se busca en el PC: la copia que guarda Magpie (%LOCALAPPDATA%\Magpie\DlssgSm86\<zip>\<id>), otras versiones de la app
+        //     al lado (extras\ o magpie\runtimes\) y %LOCALAPPDATA%\ConsoleEnhancer\extras
+        //  2. si no esta, se baja de su release oficial (github.com/sdli1995/dlssg_for_sm86, components.json, con su SHA-256)
+        // y va a extras\runtimes\dlssg_sm86 (Ce.PrepararExtras lo pone en magpie\). Solo con NVIDIA y DLSS 5 puesto; un intento por sesion
         static int sm86Corriendo;
         static volatile bool sm86Intentado;
         public static bool Sm86Bajando { get { return Interlocked.CompareExchange(ref sm86Corriendo, 0, 0) == 1; } }
@@ -323,7 +321,7 @@ namespace ConsoleEnhancer
                 if (Ce.NoNvidia || (!Extras.HayDlss5 && !Config.MultPideSm86) || sm86Intentado) return;
                 // (puesto a mano o de una version anterior sin los .ini de Magpie: se ponen)
                 string mag = Path.Combine(Paths.MagpieDir, @"runtimes\dlssg_sm86");
-                // (1.2.08) otra version de dlssg_for_sm86 (puesta a mano): Magpie no la valida (y no escala) -> fuera
+                // (1.2.08) otra version de dlssg_for_sm86 (puesta a mano): Magpie no la valida -> fuera, y la oficial
                 string malMag = Directory.Exists(mag) ? Sm86Distinto(mag) : null;
                 if (malMag != null) { if (!QuitarSm86Distinto(mag, malMag)) return; }
                 else if (File.Exists(Path.Combine(mag, "version.dll"))) { PonerIniMagpie(mag); return; }
@@ -339,14 +337,19 @@ namespace ConsoleEnhancer
                 try
                 {
                     string de = Sm86EnElPc();
-                    if (de == null)
+                    if (de != null)
                     {
-                        // (1.2.4: ya no se baja; ver arriba)
-                        Log.Write("dlssg_sm86: no esta en este PC (la app no lo baja): DLSS FG por Magpie con DLSS 5 / x3 / x4 no esta; si lo tienes, ponlo en " + Extras.Sm86);
-                        return;
+                        int n = CopiarSm86(de, Extras.Sm86);
+                        Log.Write("dlssg_sm86: cogido de " + de + " (" + n + " ficheros) a extras\\runtimes\\ (sin que el usuario ponga nada)");
                     }
-                    int n = CopiarSm86(de, Extras.Sm86);
-                    Log.Write("dlssg_sm86: cogido de " + de + " (" + n + " ficheros) a extras\\runtimes\\ (una copia que ya estaba en este PC)");
+                    else
+                    {
+                        Componente c = null;
+                        foreach (Componente x in Leer(Tabla)) if (x.Nombre == "dlssg_sm86") c = x;
+                        if (c == null) { Log.Write("dlssg_sm86: no esta en el PC ni en components.json: DLSS FG con DLSS 5 no va"); return; }
+                        Log.Write("dlssg_sm86: no esta en el PC: se baja " + c.Titulo + " " + c.Version + " de " + c.Url);
+                        Instalar(c, Paths.AppDir, null, null);
+                    }
                     PonerIniMagpie(Extras.Sm86);
                     Ce.PrepararExtras();
                     PonerIniMagpie(Path.Combine(Paths.MagpieDir, @"runtimes\dlssg_sm86"));
@@ -466,10 +469,16 @@ namespace ConsoleEnhancer
             {
                 if (Directory.Exists(d)) Directory.Delete(d, true);
                 if (File.Exists(d.TrimEnd('\\') + ".de_extras")) File.Delete(d.TrimEnd('\\') + ".de_extras");
-                Log.Write("dlssg_sm86: " + d + " no es la version que espera este Magpie (" + por + "; con ella Magpie no escala): quitado");
+                Log.Write("dlssg_sm86: " + d + " no es la version que espera este Magpie (" + por + "): quitado; se usa la oficial " + Sm86VersionOficial());
                 return true;
             }
             catch (Exception ex) { Log.Write("dlssg_sm86: " + d + " no es la version que espera Magpie (" + por + ") y no se pudo quitar: " + ex.Message); return false; }
+        }
+
+        static string Sm86VersionOficial()
+        {
+            try { foreach (Componente x in Leer(Tabla)) if (x.Nombre == "dlssg_sm86") return x.Version; } catch { }
+            return "";
         }
 
         static string Sm86EnElPc()

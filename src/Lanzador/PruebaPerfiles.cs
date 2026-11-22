@@ -23,126 +23,15 @@ namespace ConsoleEnhancer
             if (!ok) fallos++;
         }
 
-        public static int Run(StringBuilder salida, string carpetaCapturas) { return Run(salida, carpetaCapturas, null); }
-
-        public static int Run(StringBuilder salida, string carpetaCapturas, string migrar)
+        public static int Run(StringBuilder salida, string carpetaCapturas)
         {
             sb = salida;
             fallos = 0;
             sb.Append("\r\n== 1.2.2 (PERFILES): nombres de consenso, migracion y vuelta o arranque al salir del menu ==\r\n");
             Nombres();
-            Nombres124();
             Migracion();
             Vuelta(carpetaCapturas);
-            if (migrar == "migrar") { MigraDatos(); SalidaApp(carpetaCapturas); }
             return fallos;
-        }
-
-        // ---------------- 1.2.4: la ™ / ® leida como "rn" / "n" / "r" (22-11 16:00:18-20: "PS5: Bloodborne" -> "PS5: Bloodbornern") ----------------
-        static void Nombres124()
-        {
-            sb.Append("\r\n-- 1.2.4: un nombre leido con la ™ / ® pegada no pisa el bueno --\r\n");
-            Func<string, bool> bb = delegate (string n) { return n == "Bloodborne"; };
-            int ap;
-            string got = JuegoConsola.MejorNombre(new List<string> { "Bloodbornern", "Bloodborney" }, bb, out ap);
-            Mira(got == "Bloodborne", "las lecturas de 16:00:18-19 \"Bloodbornern|Bloodborney\" con \"PS5: Bloodborne\" guardado: \"" + got + "\" (antes \"Bloodbornern\")");
-            got = JuegoConsola.MejorNombre(new List<string> { "Bloodbornern", "Bloodborney" }, null, out ap);
-            Mira(got == "Bloodborne", "las mismas sin perfil guardado: \"" + got + "\" (base comun)");
-            got = JuegoConsola.LimpiaEtiqueta("Bloodborner•n");
-            Mira(got == "Bloodborner", "limpia \"Bloodborner•n\" -> \"" + got + "\" (la \"r\" la quita el consenso o el perfil)");
-            got = JuegoConsola.MejorNombre(new List<string> { "Bloodborner", "Bloodborne", "Bloodborne" }, null, out ap);
-            Mira(got == "Bloodborne", "\"Bloodborner|Bloodborne|Bloodborne\": \"" + got + "\"");
-            object[][] ren = {
-                new object[] { "PS5: Bloodborne", "Bloodbornern", 2, false, false, "16:00:20 (2 lecturas)" },
-                new object[] { "PS5: Bloodborne", "Bloodbornern", 6, false, false, "aunque se lea muchas veces" },
-                new object[] { "PS5: Bloodborne", "Bloodbornen", 5, false, false, "la ® como \"n\"" },
-                new object[] { "PS5: Bloodborne", "Bloodborner", 5, false, false, "la ™ como \"r\"" },
-                new object[] { "PS5: Bloodborne", "Bloodborney", 5, false, false, "la ™ como \"y\"" },
-                new object[] { "PS5: Rocket League", "Rocket Leaguen", 5, false, false, "la ® de Rocket League" },
-                new object[] { "PS5: Bloodbornern", "Bloodborne", 3, false, true, "al reves: el estropeado se arregla con 3 lecturas" },
-                new object[] { "PS5: Bloodbornern", "Bloodborne", 2, false, false, "al reves con 2: aun no" },
-                new object[] { "PS5: Rocket", "Rocket League", 1, false, true, "lo de antes: a medias -> entero" },
-                new object[] { "PS5: Juego 1", "Bloodborne", 1, false, true, "provisional" } };
-            foreach (object[] q in ren)
-            {
-                bool r = JuegoConsola.MejorNombreQue((string)q[0], (string)q[1], (int)q[2], (bool)q[3]);
-                Mira(r == (bool)q[4], "renombrar \"" + q[0] + "\" con \"" + q[1] + "\" (" + q[2] + " lecturas; " + q[5] + "): " + (r ? "si" : "no"));
-            }
-            // Migracion de lo del usuario (22-11 16:01): todo "PS5: Bloodbornern" (perfil, icono, portada, ultimo juego)
-            List<string> usuario = new List<string> { "Consola", "PS5: Grand Theft Auto VI", "PS5: PLAYÑOOM", "PS5: Rocket", "PS5: Bloodbornern",
-                                                      "PS5: Grand Theft Auto VI", "PS5: Rocket", "PS5: Bloodbornern", "PS5: Bloodbornern" };
-            Dictionary<string, string> m = NombresConsola.Migracion(usuario, null);
-            string g2;
-            m.TryGetValue("PS5: Bloodbornern", out g2);
-            Mira(m.Count == 1 && g2 == "PS5: Bloodborne", "migracion de los ficheros del usuario de las 16:01 (sin pistas): \"PS5: Bloodbornern\" -> " + (g2 ?? "se queda") + " (" + m.Count + " cambios)");
-            m = NombresConsola.Migracion(usuario, new List<string> { "PS5: Bloodborne", "PS5: Grand Theft Auto VI" });
-            m.TryGetValue("PS5: Bloodbornern", out g2);
-            Mira(m.Count == 1 && g2 == "PS5: Bloodborne", "la misma con su profiles.txt.bak de pista: -> " + (g2 ?? "se queda"));
-            object[][] solos = {
-                new object[] { new[] { "PS5: Bloodbornen" }, null, "PS5: Bloodbornen", null },
-                new object[] { new[] { "PS5: Bloodbornen" }, new[] { "PS5: Bloodborne" }, "PS5: Bloodbornen", null },
-                new object[] { new[] { "PS5: Haloern" }, new[] { "PS5: Haloe" }, "PS5: Haloern", "PS5: Haloe" },
-                new object[] { new[] { "PS5: Batman" }, new[] { "PS5: Batma" }, "PS5: Batman", null },
-                new object[] { new[] { "PS5: Modern" }, null, "PS5: Modern", null },
-                new object[] { new[] { "PS5: Northern" }, null, "PS5: Northern", null },
-                new object[] { new[] { "PS5: Destiny" }, null, "PS5: Destiny", null },
-                new object[] { new[] { "PS5: Grand Theft Auto VI" }, new[] { "PS5: Grand Theft Auto V" }, "PS5: Grand Theft Auto VI", null },
-                new object[] { new[] { "PS5: Bloodbornevy" }, null, "PS5: Bloodbornevy", "PS5: Bloodborne" } };
-            foreach (object[] q in solos)
-            {
-                Dictionary<string, string> mm = NombresConsola.Migracion(new List<string>((string[])q[0]), q[1] != null ? new List<string>((string[])q[1]) : null);
-                string got3;
-                mm.TryGetValue((string)q[2], out got3);
-                bool ok = got3 == (string)q[3];
-                // (una letra sola, "n" / "r" / "y", no se quita en la migracion: la arreglan 3 lecturas del nombre bueno; "Batma" de antes no deshace "Batman")
-                Mira(ok, "\"" + q[2] + "\"" + (q[1] != null ? " con la pista \"" + string.Join("\", \"", (string[])q[1]) + "\"" : " solo") + ": -> " + (got3 != null ? "\"" + got3 + "\"" : "se queda"));
-            }
-            // El aviso de cerrar el juego en marcha
-            Mira(JuegoConsola.EsAvisoCierre("¿Quieres cerrar el juego? Se cerrará Grand Theft Auto VI") && JuegoConsola.EsAvisoCierre("Cerrar juego") &&
-                 JuegoConsola.EsAvisoCierre("The game will be closed") && JuegoConsola.EsAvisoCierre("Close the game?") &&
-                 !JuegoConsola.EsAvisoCierre("Juegos Contenido multimedia Grand Theft Auto VI Jugar") && !JuegoConsola.EsAvisoCierre("Cerrar sesión") &&
-                 !JuegoConsola.EsAvisoCierre("Un único jugador Continúa donde lo dejaste"), "el aviso de cerrar el juego (y el inicio / cerrar sesion no)");
-        }
-
-        // (1.2.4) La salida del menu en la app (TrayApp sin ventana) sobre la copia de datos ya migrada
-        static void SalidaApp(string dir)
-        {
-            sb.Append("\r\n-- 1.2.4: la salida del menu en la app (provisional, correccion, ajustes devueltos) --\r\n");
-            if (dir == null) { Mira(false, "sin carpeta de capturas"); return; }
-            List<double[]> antes = new List<double[]> { F(dir, "gta_hoy_155628.png"), F(dir, "gta1.png"), F(dir, "gta2.png") };
-            int f;
-            string r = TrayApp.PruebaSalidaApp(antes, F(dir, "gta2.png"), F(dir, "bb_splash.png"), out f);
-            sb.Append(r);
-            fallos += f;
-        }
-
-        // (1.2.4) La migracion entera sobre la carpeta de --datos (una COPIA de la del usuario): perfiles, iconos, portadas y last_game.txt
-        static void MigraDatos()
-        {
-            sb.Append("\r\n-- 1.2.4: migracion entera sobre la copia de datos (" + Paths.Datos + ") --\r\n");
-            string def = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ConsoleEnhancer");
-            bool copia = false;
-            foreach (string a in Environment.GetCommandLineArgs()) if (a.StartsWith("--datos=", StringComparison.OrdinalIgnoreCase)) copia = true;
-            if (!copia || string.Equals(Paths.Datos.TrimEnd('\\'), def.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase) ||
-                Paths.Datos.IndexOf("Downloads", StringComparison.OrdinalIgnoreCase) >= 0)
-            { Mira(false, "solo con --datos=<una COPIA>"); return; }
-            string g = Path.Combine(Paths.Datos, "games");
-            TrayApp.PruebaMigra();
-            foreach (string f in new[] { "profiles.txt", "console_icons.txt", "console_covers.txt", "last_game.txt" })
-            {
-                string p = Path.Combine(g, f);
-                if (!File.Exists(p)) continue;
-                StringBuilder n = new StringBuilder();
-                foreach (string l in File.ReadAllLines(p, Encoding.UTF8))
-                {
-                    if (l.StartsWith("#")) continue;
-                    int i = l.IndexOf('|');
-                    string x = i > 0 ? l.Substring(0, i) : l;
-                    n.Append(n.Length > 0 ? ", " : "").Append(f == "profiles.txt" ? l : x);
-                }
-                string t = n.ToString();
-                Mira(t.IndexOf("Bloodbornern", StringComparison.Ordinal) < 0, f + ": " + t);
-            }
         }
 
         // ---------------- Nombres ----------------
@@ -358,55 +247,24 @@ namespace ConsoleEnhancer
         }
 
         // Una escena: antes del menu (imagenes del juego en marcha), las capturas que sacaron del menu (t <= 0) y las de despues (t > 0,
-        // con el hueco ciego de la 1.2.1 mientras Magpie preparaba). Ahora: VueltaOArranque como en la app (las de la salida con EnSalida y
-        // DudaAlSalir; luego, con la decision provisional, se sigue hasta confirmarla o corregirla); antes (1.2.1): sin las de la salida,
-        // sin capturas entre 0 y ciegoS, plazo de 8 s de reloj, la misma imagen = la ultima captura (unica) a menos de 18 en crudo, negro 1,2 s.
-        // quiere = la decision final; quierePrimera (1.2.4) = la primera (null: da igual)
+        // con el hueco ciego de la 1.2.1 mientras Magpie preparaba). Ahora: VueltaOArranque con todas; antes (1.2.1): sin las de la salida,
+        // sin capturas entre 0 y ciegoS, plazo de 8 s de reloj, la misma imagen = la ultima captura (unica) a menos de 18 en crudo, negro 1,2 s
         static void Escena(string dir, string titulo, string[] antes, List<Paso> pasos, double ciegoS, string quiere, string quiereAntes)
-        {
-            Escena(dir, titulo, antes, pasos, ciegoS, quiere, quiereAntes, null, 999);
-        }
-
-        static void Escena(string dir, string titulo, string[] antes, List<Paso> pasos, double ciegoS, string quiere, string quiereAntes, string quierePrimera, double primeraAntesDe)
         {
             List<double[]> fa = new List<double[]>();
             foreach (string a in antes) { double[] f = F(dir, a); if (f != null) fa.Add(f); }
-            if (fa.Count == 0) { sb.Append("  (sin imagenes) ").Append(titulo).Append("\r\n"); fallos++; return; }
+            if (fa.Count == 0) { sb.Append("  (sin imagenes) ").Append(titulo).Append("\r\n"); return; }
             DateTime t0 = new DateTime(2026, 11, 22, 3, 59, 46);
             VueltaOArranque v = new VueltaOArranque("PS5: X", "PS5: Y", fa, t0.AddSeconds(pasos.Count > 0 ? Math.Min(0, pasos[0].T) : 0));
-            v.EnSalida = true;
-            string primera = null; double primeraT = 999;
-            StringBuilder hist = new StringBuilder();
-            int cambios = 0;
-            Action<double> apunta = delegate (double t)
-            {
-                if (v.Cambios == cambios) return;
-                cambios = v.Cambios;
-                string q = v.Decision == "PS5: Y" ? "Y" : v.Decision == "PS5: X" ? "X" : v.Decision;
-                if (primera == null) { primera = q; primeraT = t; }
-                hist.Append(hist.Length > 0 ? " -> " : "").Append(q).Append(v.Provisional ? " provisional" : v.Corregida ? " corregido" : "").Append(" a los ")
-                    .Append(t.ToString("0.0", CultureInfo.InvariantCulture)).Append(" s");
-            };
-            bool salida = true;
-            double ultT = 0;
+            string dec = null; double decT = 0;
             foreach (Paso p in pasos)
             {
-                if (salida && p.T > 0)
-                {
-                    salida = false;
-                    if (v.Decision == null) { v.DudaAlSalir(t0); apunta(0); }
-                    v.EnSalida = false;
-                }
-                if (v.Decision != null && !v.Provisional) break;
                 double[] f = p.SinSenal ? null : F(dir, p.Img);
                 bool ten = (p.Img != null && tenues.ContainsKey(p.Img) && tenues[p.Img]);
-                v.Observa(t0.AddSeconds(p.T), f, p.SinSenal, ten, p.Portada, false);
-                apunta(p.T);
-                ultT = p.T;
+                dec = v.Observa(t0.AddSeconds(p.T), f, p.SinSenal, ten, p.Portada, false);
+                if (dec != null) { decT = p.T; break; }
             }
-            if (salida && v.Decision == null) { v.DudaAlSalir(t0); apunta(0); }
-            if (v.Decision == null || v.Provisional) { v.Vence(t0.AddSeconds(ultT + 200)); apunta(999); }
-            string dec = v.Decision;
+            if (dec == null) { DateTime fin = t0.AddSeconds(pasos.Count > 0 ? pasos[pasos.Count - 1].T + 120 : 120); dec = v.Vence(fin); decT = 999; }
             // Antes (1.2.1, CandidatoObserva): la ultima imagen de antes, 8 s de reloj desde la salida, ciego mientras Magpie preparaba
             string ant = null;
             double[] ultima = fa[fa.Count - 1];
@@ -424,8 +282,8 @@ namespace ConsoleEnhancer
             }
             if (ant == null) ant = "X";
             string got = dec == "PS5: Y" ? "Y" : dec == "PS5: X" ? "X" : dec;
-            bool ok = got == quiere && (quierePrimera == null || (primera == quierePrimera && primeraT <= primeraAntesDe));
-            Mira(ok, titulo + ": ahora \"" + got + "\" [" + hist + "] (" + v.Porque + ")" + "; 1.2.1 \"" + ant + "\"" + (ant != quiereAntes ? " (cambia)" : ""));
+            Mira(got == quiere, titulo + ": ahora \"" + got + "\"" + (decT < 900 ? " a los " + decT.ToString("0.0", CultureInfo.InvariantCulture) + " s" : "") + " (" + v.Porque + ")" +
+                 "; 1.2.1 \"" + ant + "\"" + (ant != quiereAntes ? " (cambia)" : ""));
         }
 
         static List<Paso> Serie(List<Paso> l, double desde, double hasta, double cada, string img)
@@ -469,21 +327,14 @@ namespace ConsoleEnhancer
             l = new List<Paso>();
             Serie(l, -1.2, 0.01, 0.25, bb1); Serie(l, 0.6, 14, 0.4, bb1);
             Escena(dir, "22-11 04:03:57: Bloodborne -> vuelve a el (la misma imagen): enseguida", new[] { bb2, bb1 }, l, 8.0, "X", "X");
-            // 6. Vuelve al de antes con la escena moviendose (otra imagen del mismo juego, tan distinta como la de otro juego: 60 de bb1): 1.2.4,
-            //    la duda va al del foco (lo pedido: "que la duda se resuelva a favor del juego en foco cuando la imagen no se parece"); lo arregla
-            //    la siguiente visita al menu (el juego en foco al abrirlo). Hasta la 1.2.3: el de antes a los 25 s mirados
+            // 6. Vuelve al de antes con la escena moviendose (otra imagen del mismo juego): ni negro ni portada en 25 s mirados
             l = new List<Paso>();
             Serie(l, -1.2, 0.01, 0.25, bb3); Serie(l, 0.6, 40, 0.4, bb3);
-            Escena(dir, "vuelve al de antes con OTRA escena suya, nada parecida (sin pruebas): 1.2.4 el del foco (la duda; lo corrige la proxima visita)", new[] { bb1, bb2 }, l, 8.0, "Y", "X");
-            // 7. Vuelve al de antes, su menu de pausa (quieto, otra imagen: hace de el la portada de Rocket League) 30 s y luego sigue jugando
-            //    (su imagen de antes): provisional el del foco y se corrige solo al de antes
+            Escena(dir, "vuelve al de antes con otra escena suya (sin pruebas): el de antes a los 25 s mirados", new[] { bb1, bb2 }, l, 8.0, "X", "X");
+            // 7. Vuelve al de antes y su menu de pausa (quieto, otra imagen: hace de el la portada de Rocket League) 30 s: nunca el del foco
             l = new List<Paso>();
-            Serie(l, -1.2, 0.01, 0.25, rlPortada); Serie(l, 0.6, 30, 0.4, rlPortada); Serie(l, 30, 40, 0.4, gta2);
-            Escena(dir, "vuelve al de antes, su menu de pausa 30 s y sigue jugando: provisional el del foco, corregido al de antes", new[] { gta1, gta2, gta3 }, l, 8.0, "X", "X", "Y", 0.1);
-            // 7b. Igual pero sin volver a jugar en 60 s mirados: se queda el del foco (riesgo aceptado: la proxima visita al menu lo arregla)
-            l = new List<Paso>();
-            Serie(l, -1.2, 0.01, 0.25, rlPortada); Serie(l, 0.6, 70, 0.4, rlPortada); Serie(l, 70, 80, 0.4, gta2);
-            Escena(dir, "vuelve al de antes y su menu de pausa mas de 60 s mirados: el del foco (la proxima visita lo arregla)", new[] { gta1, gta2, gta3 }, l, 8.0, "Y", "X");
+            Serie(l, -1.2, 0.01, 0.25, rlPortada); Serie(l, 0.6, 30, 0.4, rlPortada);
+            Escena(dir, "vuelve al de antes y se queda en su menu de pausa (quieto, distinto) 30 s: el de antes", new[] { gta1, gta2, gta3 }, l, 8.0, "X", "X");
             // 8. Lo de antes del menu era oscuro (una carga): el negro de despues no cuenta
             l = new List<Paso>();
             Serie(l, -1.2, 0.01, 0.25, negro); Serie(l, 0.6, 6, 0.4, negro); Serie(l, 6, 40, 0.4, bb4);
@@ -496,43 +347,13 @@ namespace ConsoleEnhancer
             l = new List<Paso>();
             Serie(l, -1.2, 0.01, 0.25, gta2); Serie(l, 0.6, 5, 0.4, gta2);
             Escena(dir, "vuelve al de antes; entre las de antes, una del inicio apareciendo", new[] { gta1, gta2, inicio }, l, 8.0, "X", "X");
-            // 1.2.4 -------- el caso del usuario de hoy y lo que no tiene que romper --------
-            string hub = "bb_hub_fundido.png", splash = "bb_splash.png", titulo = "bb_titulo.png", gtaHoy = "gta_hoy_155628.png";
-            // 12. 22-11 15:59:43-16:00:20 (1.2.3: "sigue GTA VI" a los 26 s): el inicio fundiendose con Bloodborne en foco, su pantalla de
-            //     arranque y su titulo (lo de en medio no se guardo: la pantalla de arranque y luego el titulo)
-            l = new List<Paso>();
-            l.Add(new Paso(-1.2, hub)); Serie(l, -0.95, 0.01, 0.25, splash); Serie(l, 0.6, 8, 0.4, splash); Serie(l, 8, 40, 0.6, titulo);
-            Escena(dir, "22-11 15:59:44: GTA VI -> Bloodborne arrancado (inicio fundiendose, su pantalla de arranque, su titulo)", new[] { gtaHoy, gta1, gta2 }, l, 11.0, "Y", "X", "Y", 0.1);
-            // 13. Lo mismo con solo 2 capturas en la salida (sin duda al salir): el del foco a los ~2 s de mirar
-            l = new List<Paso>();
-            l.Add(new Paso(-0.4, hub)); l.Add(new Paso(-0.1, splash)); Serie(l, 0.6, 8, 0.4, splash); Serie(l, 8, 40, 0.6, titulo);
-            Escena(dir, "lo mismo con 2 capturas en la salida: el del foco a los pocos segundos de mirar", new[] { gtaHoy, gta1, gta2 }, l, 11.0, "Y", "X", "Y", 3.0);
-            // 14. Al reves: el inicio fundiendose (distinto) y enseguida la imagen de antes: el de antes al salir, sin pasar por el del foco
-            l = new List<Paso>();
-            l.Add(new Paso(-1.2, inicio)); l.Add(new Paso(-0.95, hub)); l.Add(new Paso(-0.7, inicio)); Serie(l, -0.45, 0.01, 0.25, gta2); Serie(l, 0.6, 30, 0.6, gta2);
-            Escena(dir, "al reves: 3 capturas del inicio fundiendose y luego la imagen de antes: el de antes, sin pasar por el del foco", new[] { gta1, gta2, gta3 }, l, 8.0, "X", "X", "X", 0.1);
-            // 15. Provisional y una sola imagen parecida a la de antes entre las del otro juego: no corrige (hacen falta 2 seguidas)
-            l = new List<Paso>();
-            Serie(l, -1.2, 0.01, 0.25, splash); Serie(l, 0.6, 5, 0.4, titulo); l.Add(new Paso(5.2, gta2)); Serie(l, 5.6, 80, 0.6, titulo);
-            Escena(dir, "provisional y una sola imagen como la de antes: no se corrige", new[] { gta1, gta2, gta3 }, l, 8.0, "Y", "X", "Y", 0.1);
-            // 16. Una imagen a medias (ni la misma ni claramente distinta) no deja dudar: como la 1.2.3
-            {
-                double dnm, dcm;
-                VueltaOArranque w2 = new VueltaOArranque("PS5: X", "PS5: Y", new List<double[]> { F(dir, gta1) }, DateTime.Now);
-                w2.DistAntes(F(dir, gta2), out dnm, out dcm);
-                sb.Append("      (gta2 frente a gta1: ").Append(dnm.ToString("0.0", CultureInfo.InvariantCulture)).Append(" sin el brillo, ").Append(dcm.ToString("0.0", CultureInfo.InvariantCulture)).Append(" en crudo)\r\n");
-            }
-            // 17. La de antes era solo negro (cargando): sin con que comparar, sin duda (el de antes a los 25 s, como antes)
-            l = new List<Paso>();
-            Serie(l, -1.2, 0.01, 0.25, splash); Serie(l, 0.6, 40, 0.4, titulo);
-            Escena(dir, "lo de antes del menu era solo negro: sin duda (el de antes a los 25 s mirados)", new[] { negro, negro }, l, 8.0, "X", "X");
             // 11. Las particulas del arranque de la PS5 (oscuras) no son "la misma imagen" que un juego oscuro
             VueltaOArranque w = new VueltaOArranque("PS5: X", "PS5: Y", new List<double[]> { F(dir, bb4) }, DateTime.Now);
             Mira(!w.ComoAntes(F(dir, particulas)) && !w.ComoAntes(F(dir, negro)), "las particulas y el negro no se parecen a una escena oscura de Bloodborne");
             // Distancias (para ajustar): entre imagenes del mismo juego en otro momento y la misma
             double dn, dc;
             VueltaOArranque d = new VueltaOArranque("x", "y", new List<double[]> { F(dir, bb1) }, DateTime.Now);
-            foreach (string q in new[] { bb1, bb2, bb3, bb4, gta1, rlPortada, particulas, inicio, negro, "bb_hub_fundido.png", "bb_splash.png", "bb_titulo.png", "gta_hoy_155628.png" })
+            foreach (string q in new[] { bb1, bb2, bb3, bb4, gta1, rlPortada, particulas, inicio, negro })
             {
                 double[] fq = F(dir, q);
                 if (fq == null) continue;

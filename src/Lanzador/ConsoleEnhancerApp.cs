@@ -42,15 +42,13 @@ namespace ConsoleEnhancer
             if (CeParseLatencia(key, val)) return true; // (21-11, 1.2.1: mpv_cola_ms, audio_bloque_ms, audio_cola_*_ms, src\Latencia.cs)
             if (CeParseRitmo(key, val)) return true;    // (22-11, 1.2.2: magpie_vrr_30*, magpie_fijo_30_dlss, magpie_ritmo_margen_fg..., src\Ritmo.cs)
             if (CeParseMult(key, val)) return true;     // (1.2.2: generacion_multiplicador, xess_fg_1080, src\Lanzador\Multiplicador.cs)
-            if (key == "motor_fg_multi") { MotorFgMulti = val.Trim() != "0"; return true; }   // (1.2.4 MOTORFG: src\Lanzador\MotorFg.cs)
-            if (key == "motor_fg_propia") { MotorFgPropia = val.Trim() != "0"; return true; }   // (1.2.4: la generacion propia del motor para x3 / x4, MotorFg.cs)
             if (CeParseReescalado(key, val)) return true; // (22-11, 1.2.2: magpie_nitidez_transformer..., src\Lanzador\Reescalado.cs)
             switch (key)
             {
                 case "device_path": DevicePath = val.Trim(); return true;
                 case "audio_dispositivo": AudioDevice = val.Trim(); return true;
                 case "audio_pines": AudioPins = val.Trim() == "1"; return true;
-                case "gpu_fabricante": GpuVendor = val.Trim().ToLowerInvariant(); Ce.NoNvidia = GpuVendor.Length > 0 && GpuVendor != "nvidia"; MotorFgFabricante(GpuVendor); return true;   // (1.2.4: tambien para el reparto de MotorFg.cs desde el primer momento)
+                case "gpu_fabricante": GpuVendor = val.Trim().ToLowerInvariant(); Ce.NoNvidia = GpuVendor.Length > 0 && GpuVendor != "nvidia"; return true;
                 case "motor_streamline": EngineStreamline = val.Trim().ToLowerInvariant(); return true;
                 case "motor_adaptador": EngineAdapter = val.Trim(); return true;
                 case "generacion_disponible": FgAvailable = val.Trim() != "0"; if (!FgAvailable) FgOff = true; return true;
@@ -130,7 +128,6 @@ namespace ConsoleEnhancer
                 }
             try { Application.EnableVisualStyles(); Application.SetCompatibleTextRenderingDefault(false); } catch (InvalidOperationException) { }
             ExtrasGuardados.AlArrancar();   // (22-11, 1.2.3 MOTOR5: lo que puso el usuario y no va en el zip, de %LOCALAPPDATA% si falta; src\Lanzador\ExtrasGuardados.cs)
-            BuscaExtras.AlArrancar();       // (1.2.4: si aun falta DLSS 5, una vez: lo que ya este en este PC, con permiso; src\Lanzador\BuscaExtras.cs)
             PrepararExtras();
             bool forzar = false, auto = false;
             string simula = null;   // pruebas: --simula=<caso de Deteccion.Simulador> (con --asistente-auto): el plan de otro PC
@@ -208,7 +205,7 @@ namespace ConsoleEnhancer
                 if (!Directory.Exists(ex)) ex = Path.Combine(Paths.AppDir, @"extras\dlssg_sm86");
                 string dst = Path.Combine(Paths.MagpieDir, @"runtimes\dlssg_sm86"), marca = dst + ".de_extras";
                 // (1.2.02: tambien si una copia anterior quedo a medias, sin version.dll). (1.2.08) Solo si es la version que valida Magpie
-                // (si no, DLSS FG no arranca: Componentes.AsegurarSm86 la quita)
+                // (si no, DLSS FG no arranca: Componentes.AsegurarSm86 la quita y pone la oficial)
                 if (Directory.Exists(ex) && Directory.Exists(Paths.MagpieDir) && !File.Exists(Path.Combine(dst, "version.dll")) && Componentes.Sm86Distinto(ex) == null)
                 {
                     int n = CopiarCarpeta(ex, dst);
@@ -224,7 +221,7 @@ namespace ConsoleEnhancer
             }
             catch (Exception e) { Log.Error("Extras (dlssg_sm86)", e); }
             // (1.2.07, el usuario: "no tiene que hacer falta poner ningun archivo para activarlo ... que lo incluya la app"): con DLSS 5 en
-            // una NVIDIA y sin dlssg_sm86, la app lo busca en el PC (Componentes.AsegurarSm86, en segundo plano; 1.2.4: ya no lo baja)
+            // una NVIDIA y sin dlssg_sm86, la app lo busca en el PC o lo baja sola de su release (Componentes.AsegurarSm86, en segundo plano)
             Componentes.AsegurarSm86();
         }
 
@@ -321,11 +318,9 @@ namespace ConsoleEnhancer
         // 22-11 (1.2.2): base.ini con valores de serie nuevos (dlss5_antiparpadeo_30_1pasada=3, magpie_nitidez_transformer, dlss_flujo_transformer,
         // color / detalle / contener de 2-3 pasadas a 4K, enfoque_sin_reescalado, motor_uso_grafica, espera_sonda_cada_ms) y, en graficas lentas,
         // el plan pone tabla_ligero_30* (Escalas.cs). (1.0.10): DLSS FG en RTX 30 con dlssg_sm86 (dlssg_solo_magpie); (1.0.9) capturas_120 y XeSS FG
-        // 22-11 (1.2.4): motor_dlss5 fuera (SOLOMOTOR: SinClavesQuitadas, tambien de lo de abajo); motor_dlss5_pasadas=3 (SOLOMOTOR),
-        // dlss5_escala_grafica=92 y motor_uso_grafica=90 (XEFG)
         // 22-11 (1.2.3): motor_dlss5=auto y motor_dlss5_pasadas (DLSS 5 en el motor con engine\PrismaNr.dll), la escala de DLSS 5 por el hilo de
         // Magpie (dlss5_escala_hilo / dlss5_escala_grafica / generacion_dlss5_minimo) y comentarios del ritmo (magpie_fijo_30*)
-        public const string IniVersion = "1.2.4";
+        public const string IniVersion = "1.2.3";
         static readonly string[] ClavesGenPlan = { "generacion_tipo", "generacion_tipo_60", "generacion_tipo_30", "motor_generacion_60", "motor_generacion_30",
                                                    // (1.2.2, UNIVERSAL: el modo ligero de Magpie en el 30 con una grafica bastante mas lenta que la de referencia)
                                                    "tabla_ligero_30_fg", "tabla_ligero_30", "tabla_ligero_30_fg_4k", "tabla_ligero_30_4k",
@@ -366,10 +361,8 @@ namespace ConsoleEnhancer
                 // solo escribia el 1; "Quitar DLSS 5", el 0 al quitarla): en un ini de antes de la 1.2.3 ese 0 no es una eleccion, y se quedaba
                 // encima del auto nuevo (con engine\PrismaNr.dll DLSS 5 seguia por Magpie tras actualizar; simulado con el ini del usuario: la
                 // ultima linea salia motor_dlss5=0). Desde la 1.2.3 el 0 si se elige (menu de ajustes, bandeja, "Añadir DLSS 5" -> No): se conserva
-                // (1.2.4 SOLOMOTOR: motor_dlss5 ya no se elige -con engine\PrismaNr.dll DLSS 5 siempre en el motor-: fuera de todo el ini, tambien
-                // de lo del plan y de lo conservado de antes; un motor_dlss5=0 del usuario ya no lo manda a Magpie)
-                resto = SinClavesQuitadas(resto);
-                cola = SinClavesQuitadas(cola);
+                string md5;
+                if (elegidas.TryGetValue("motor_dlss5", out md5) && md5.Trim() == "0" && IniAnteriorA(t, 1, 2, 3)) elegidas.Remove("motor_dlss5");
                 StringBuilder gen = new StringBuilder();
                 try
                 {
@@ -424,27 +417,7 @@ namespace ConsoleEnhancer
         }
 
         // (22-11, 1.2.2) lo elegido en la bandeja / el panel / el asistente que puede estar en una linea del base.ini viejo (ActualizarIni)
-        static readonly string[] ClavesElegidas = { "apagar_pc_modo", "apagar_pc_aviso_s", "escritorio_negro" };
-
-        // (22-11, 1.2.4 SOLOMOTOR) las claves que ya no existen y se quitan de todo el ini al ponerlo al dia: motor_dlss5=0|1|auto (la eleccion
-        // del DLSS 5 por el motor o por Magpie)
-        static readonly string[] ClavesQuitadas = { "motor_dlss5" };
-        public static string SinClavesQuitadasPrueba(string texto) { return SinClavesQuitadas(texto); }   // (--test-solo-motor)
-        static string SinClavesQuitadas(string texto)
-        {
-            if (string.IsNullOrEmpty(texto)) return texto;
-            StringBuilder sb = new StringBuilder();
-            string[] ls = texto.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
-            for (int n = 0; n < ls.Length; n++)
-            {
-                string l = ls[n].Trim();
-                int i = l.IndexOf('=');
-                if (i > 0 && !l.StartsWith("#") && Array.IndexOf(ClavesQuitadas, l.Substring(0, i).Trim().ToLowerInvariant()) >= 0) continue;
-                sb.Append(ls[n]);
-                if (n < ls.Length - 1) sb.Append("\r\n");
-            }
-            return sb.ToString();
-        }
+        static readonly string[] ClavesElegidas = { "apagar_pc_modo", "apagar_pc_aviso_s", "motor_dlss5", "escritorio_negro" };
 
         // (1.2.3 REVISION3) ¿La marca "# ce_ini_version=" del ini (su ultima puesta al dia) es de antes de la a.b.c? Sin marca: si (de antes
         // de la 1.0.7). Las 1.2.01-1.2.09 van entre la 1.2.0 y la 1.2.1 (el "0x" cuenta como 0)

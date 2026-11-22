@@ -233,13 +233,9 @@ namespace ConsoleEnhancer.Motor
         public bool FgGuard = false;                // 21-11 (BORDE) fg_borde=1 (de serie 0: no quitaba todos los halos en GTA; se usa fg_vectores=3): la generacion con 0 en los bordes entre movimientos distintos (los halos; EngineFgBorde.cs)
         public int FgGuardRad = 6; public double FgGuardDif = 6, FgGuardRel = 0.25;   // fg_borde_radio (bloques de 8), fg_borde_dif (px), fg_borde_rel
         public int FgFillRad = 48;                  // fg_relleno_radio (bloques de 8 px)
-        // fgui=1: la generacion no deforma lo quieto con borde (UIAlpha); 2 UIColorAndAlpha; 3 NoWarpMask
-        // (1.2.4 DLSSFG: 4 = la imagen sin la interfaz quieta como HUDLess, EngineFgHud.cs; 5 = y UIColorAndAlpha; 0 = como antes. De serie
-        // (sin fgui=): 4 en el modo 30 y 0 en el 60 -medido: en el 60 el fondo empeora mas de lo que gana la interfaz-)
-        int fgUiVal = -1;
-        public int FgUi { get { return fgUiVal >= 0 ? fgUiVal : Mode == 30 ? 4 : 0; } set { fgUiVal = value; } }
+        public int FgUi = 0;                        // fgui=1: la generacion no deforma lo quieto con borde (UIAlpha); 2 UIColorAndAlpha; 3 NoWarpMask
         public bool FgMenus = false;                // fg_menus=1: DLSS-G with eEnableFullscreenMenuDetection (no generated frames over a fullscreen menu)
-        public bool FgUiRecomp = true;              // fgui_recomp=1: recomposicion de la interfaz de DLSS-G (1.2.4: de serie 1, con fgui=4)
+        public bool FgUiRecomp = false;             // fgui_recomp=1: recomposicion de la interfaz de DLSS-G
         public int FgUiFrames = 4;                  // fgui_quieto: imagenes quieto
         public double FgUiMov = 0.3, FgUiEdge = 0.08;   // fgui_mov: fraccion de la escena que se mueve; fgui_borde: contraste del borde
         // 18-11 (LATENCIA, EngineLatencia.cs): medida y ritmo de los modos 30x2
@@ -486,7 +482,7 @@ namespace ConsoleEnhancer.Motor
                 case "vrr_fg_vsync": VrrFgVsync = I(val); break;
                 case "copia_hilos": Engine.CopyThreadsSet = Math.Max(0, Math.Min(16, I(val))); break;   // 20-11 (LATENCIA4)
                 case "refresco_fijo": RefreshFixed = B(val); break;   // 20-11 (LATENCIA5)
-                default: return ApplyCierres(key.Trim().ToLowerInvariant(), val) || ApplyCe(key, val) || ApplyLatencia(key.Trim().ToLowerInvariant(), val) || ApplyEnvio(key.Trim().ToLowerInvariant(), val) || ApplyFgGlobal(key, val) || ApplyFgMulti(key, val) || ApplyDvc(key, val);   // (1.2.4 MOTORFG: fg_mult, xefg_*: EngineFgMulti.cs; LATENCIA: cola_tirar_fg, cpu_pasos: EngineEnvio.cs; DLSS5LEGAL: vibrancia*: EngineDvc.cs) 20-11 (CIERRES: EngineCuelgue.cs) (ConsoleEnhancer: adapta=...; false = desconocida) (21-11, 1.2.1: EngineLatencia.cs; fg_global, fg_quieto: EngineFgGlobal.cs)
+                default: return ApplyCierres(key.Trim().ToLowerInvariant(), val) || ApplyCe(key, val) || ApplyLatencia(key.Trim().ToLowerInvariant(), val) || ApplyFgGlobal(key, val);   // 20-11 (CIERRES: EngineCuelgue.cs) (ConsoleEnhancer: adapta=...; false = desconocida) (21-11, 1.2.1: EngineLatencia.cs; fg_global, fg_quieto: EngineFgGlobal.cs)
             }
             return true;
         }
@@ -509,7 +505,7 @@ namespace ConsoleEnhancer.Motor
                 "captura {0}x{1}@{2}/{3} {4}{5} -> {6}x{7} {8}{9} nitidez {10:0.00}, modo {11}{12}, FG {13}, Reflex {14}",
                 CapW, CapH, FpsNum, FpsDen, CapFormat, Test.Length > 0 ? " (prueba: " + Test + ")" : "", OutW, OutH,
                 Upscaler, Upscaler == "dlss" || Upscaler == "auto" ? " " + Preset : "", Sharp, Mode, Dedupe == 1 ? " sin repetidas" : Dedupe == 0 ? " con repetidas" : "",
-                Fg ? "si" + (FgMult > 2 ? " x" + FgMult : "") + (FgTipo.Length > 0 ? " " + FgTipo : "") : "no", Reflex) + (SmoothMode > 0 ? ", Smooth Motion " + (SmoothMode == 2 ? "cada 2 refrescos" : "") + (QueueDropMs > 0 ? " (cola de la tele <= " + QueueDropMs.ToString("0", CultureInfo.InvariantCulture) + " ms)" : "") : "") + (Vrr > 0 ? ", VRR" : "") + QualityText();
+                Fg ? "si" : "no", Reflex) + (SmoothMode > 0 ? ", Smooth Motion " + (SmoothMode == 2 ? "cada 2 refrescos" : "") + (QueueDropMs > 0 ? " (cola de la tele <= " + QueueDropMs.ToString("0", CultureInfo.InvariantCulture) + " ms)" : "") : "") + (Vrr > 0 ? ", VRR" : "") + QualityText();
         }
 
         // 16-11 (calidad): lo encendido de EngineMotion.cs ("" si nada)

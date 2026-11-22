@@ -511,7 +511,6 @@ namespace ConsoleEnhancer
                             {
                                 EscalaAuto.Reiniciar(Path.Combine(Path.GetTempPath(), "ce_test_escala_cfg.txt"));
                                 Config cfg = new Config();
-                                cfg.EngineDlss5 = false;   // (1.2.4 SOLOMOTOR: de serie DLSS 5 al motor con PrismaNr.dll; esto prueba la escala de Magpie)
                                 cfg.VideoSize = "2560x1440"; cfg.CapMode = modo == 30; cfg.Mode120 = modo == 120; cfg.FgOff = false; cfg.Dlss5Off = false;
                                 cfg.Capturas120 = new[] { "1920x1080", "2560x1440" }; cfg.Framerate120 = "120";
                                 cfg.Passes30 = n; cfg.DlssModel = modelo;
