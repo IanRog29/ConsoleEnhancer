@@ -6023,8 +6023,14 @@ namespace ConsoleEnhancer
                 check("Vuelto a cargar del disco: el nombre nuevo, seguro y con su icono", g1 == null || (again != null && again.NameSure && again.Icon != null));
                 check("Sin .tmp a medias", !File.Exists(FilePath + ".tmp") && !File.Exists(IconPath + ".tmp"));
                 string[] lines = File.ReadAllLines(FilePath, Encoding.UTF8);
-                check("9 columnas (" + (lines.Length > 1 ? lines[1] : "") + ")", lines.Length > 1 && lines[1].Split('|').Length == 9);
-                check("Copia .bak hecha antes del primer cambio", File.Exists(FilePath + ".bak"));
+                // (22-11, 1.2.2, ERRORES: desde el 19-11 (GENERACION) una 10ª columna, el tipo de generacion elegido con L3, si se eligio;
+                // y la .bak solo se hace antes de cambiar un nombre o juntar perfiles: con perfiles sin "Juego N" no hay cambio que copiar.
+                // Con los del usuario daba 2 fallos sin que nada fuera mal)
+                int cols = lines.Length > 1 ? lines[1].Split('|').Length : 0;
+                check("9 columnas, o 10 con el tipo de generacion elegido (" + (lines.Length > 1 ? lines[1] : "") + ")", cols == 9 || cols == 10);
+                bool cambiado = g1 != null || (g2 != null && cut != null);
+                check("Copia .bak hecha antes del primer cambio" + (cambiado ? "" : " (ningun nombre cambiado en esta copia: no hace falta)"),
+                      !cambiado || File.Exists(FilePath + ".bak"));
             }
             finally { lock (sync) { Dir = Path.Combine(Paths.Datos, "games"); list = null; backedUp = false; } }
             failures = fails;
