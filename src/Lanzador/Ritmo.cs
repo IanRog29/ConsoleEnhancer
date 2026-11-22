@@ -414,6 +414,12 @@ namespace ConsoleEnhancer
         //                espera mas (WGC -> presentar 47,8 frente a 41,5); con el fijo se espera al hueco de la tele (10,7 frente a 2,3)
         //   XeSS FG x2   fijo 98,5 % y 29,75 reales/s; por VRR 67,6 % y 28,3 reales/s (por eso XeSS ya iba fijo)
         public bool RitmoVrr30 = false, RitmoVrr30Otras = false, RitmoFijo30Dlss = true, RitmoSigue30Fg = false;
+        // (1.2.3 RITMO2, prueba, apagada) magpie_fijo_30=1: el 30 SIN generacion por DXGI con la sincronizacion "cada 2 refrescos" (estado 4)
+        // a 120 Hz, en vez de DirectComposition. Medido el 22-11 (4K): por DirectComposition cada imagen se ve 2-7 refrescos (40,8 % a 4,
+        // sd 9 ms, p99 75 ms) sin perder ninguna; por VRR (magpie_vrr_30=1) pierde 0,56 reales/s (la captura de Windows va al ritmo lento de
+        // la pantalla). Con el fijo, DWM y la captura siguen a 120 y cada imagen deberia verse 4 refrescos: SIN MEDIR (la tele se apago)
+        public bool RitmoFijo30 = false;
+        public bool RitmoFijo30SinFgNow { get { int hz = Pantalla.Hz(); return RitmoFijo30 && !RitmoVrr30SinFgNow && CapMode && FgOff && !HomeNative && !Mode120 && !NvProfiles.VsyncBroken && hz >= 118 && hz <= 122; } }
         public double RitmoMargenFg = 0;
         // ---- Las capturas de la app jugando a 4K (las que miran si se ha vuelto al menu de la consola, TrayApp.GrabTick): cada una es un
         // screenshot-raw de mpv que para su hilo mientras pasa la imagen de 4K a RGB y la copia (medido el 22-11 sin grafica, mpv 0.42:
@@ -439,6 +445,7 @@ namespace ConsoleEnhancer
                 case "magpie_vrr_30": RitmoVrr30 = si; return true;
                 case "magpie_vrr_30_otras": RitmoVrr30Otras = si; return true;
                 case "magpie_fijo_30_dlss": RitmoFijo30Dlss = si; return true;
+                case "magpie_fijo_30": RitmoFijo30 = si; return true;
                 case "magpie_sigue_fuente_30_fg": RitmoSigue30Fg = si; return true;
                 case "captura_png": GrabPng = si || v == "juego"; GrabPngTodas = si; return true;   // (22-11, 1.2.2: 1 todas, juego, 0 = screenshot-raw como antes)
                 case "ritmo_resumen_s":

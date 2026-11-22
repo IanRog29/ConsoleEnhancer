@@ -2005,7 +2005,7 @@ namespace ConsoleEnhancer
             // 16-11 04:20 (G1): y sin generacion en el modo 60, solo la sincronizacion vertical forzada (3: Magpie por DXGI, Config.VsyncNoFgNow)
             // (16-11 10:10: y el modo 30 con DLSS FG, solo la sincronizacion cada 2 refrescos: 4, Config.VsyncHalfFgNow)
             // (22-11, 1.2.2 RITMO: x3 / x4 sin VRR, con la sincronizacion vertical forzada: Config.RitmoFijo1Now)
-            int smWant = cfg.SmoothNow ? (cfg.CapMode && Pantalla.Hz() >= 100 ? 2 : 1) : cfg.VsyncNoFgNow || cfg.VrrDxgiNow || cfg.RitmoFijo1Now ? 3 : cfg.VsyncHalfFgNow ? 4 : 0;
+            int smWant = cfg.SmoothNow ? (cfg.CapMode && Pantalla.Hz() >= 100 ? 2 : 1) : cfg.VsyncNoFgNow || cfg.VrrDxgiNow || cfg.RitmoFijo1Now ? 3 : cfg.VsyncHalfFgNow || cfg.RitmoFijo30SinFgNow ? 4 : 0;   // (1.2.3 RITMO2: magpie_fijo_30)
             if (NvProfiles.SmoothState != smWant)
             {
                 if (write) NvProfiles.SetSmooth(smWant);
@@ -2112,7 +2112,7 @@ namespace ConsoleEnhancer
             // sincronizacion vertical global este forzada a desactivada (por DXGI, en pantalla completa, PresentMon ve cambios inmediatos con
             // cortes: ALLOW_TEARING en el 68-100 % con DLSS FG). Era lo que habia desde la exploracion del 15-11 (13:55, quedo puesto)
             // (16-11 04:20, G1: y el 60 sin generacion, con la sincronizacion vertical forzada en el perfil: Config.VsyncNoFgNow)
-            Set(mine, "disableDirectFlip", !(cfg.SmoothNow || cfg.ReflexNow || cfg.VsyncNoFgNow || cfg.VsyncHalfFgNow || cfg.VrrDxgiNow || cfg.RitmoFijo1Now), w, changes);
+            Set(mine, "disableDirectFlip", !(cfg.SmoothNow || cfg.ReflexNow || cfg.VsyncNoFgNow || cfg.VsyncHalfFgNow || cfg.VrrDxgiNow || cfg.RitmoFijo1Now || cfg.RitmoFijo30SinFgNow), w, changes);
             object fr;
             if (!mine.TryGetValue("frameRefresh", out fr) || !(fr is Dictionary<string, object>)) { fr = new Dictionary<string, object>(); mine["frameRefresh"] = fr; }
                 Set((Dictionary<string, object>)fr, "vrrEnabled", cfg.MagpieVrrNow, w + ".frameRefresh", changes);
