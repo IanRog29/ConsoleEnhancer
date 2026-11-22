@@ -431,6 +431,7 @@ namespace ConsoleEnhancer
                 Deteccion.Tx.T("\n\nSí = esta copia se abrirá al iniciar Windows (un acceso directo en la carpeta Inicio, como los programas normales).\nNo = no se abre con Windows. Se puede cambiar cuando quieras: bandeja > «Iniciar con Windows».",
                                "\n\nYes = this copy opens when Windows starts (a shortcut in the Startup folder, like normal programs).\nNo = it does not open with Windows. You can change it any time: tray > \"Start with Windows\".") + aviso;
             if (simulado) { Log.Write("PRUEBA (no se pregunta ni se cambia nada): la pregunta seria:\r\n" + txt); return; }
+            try { Application.EnableVisualStyles(); } catch { }   // (aun no hay ventanas: Main lo vuelve a llamar despues, sin efecto)
             if (MessageBox.Show(txt, "ConsoleEnhancer", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
             {
                 bool ok = Poner(true, out det);
