@@ -805,7 +805,10 @@ namespace ConsoleEnhancer
                     salida = (st.NewSum + st.GenSum) / st.CapTime; real = st.NewSum / st.CapTime;
                 }
                 double objetivo = Math.Min(modo * m, hz >= 60 ? hz - 0.2 : modo * m);
-                bool mal = salida < objetivo * 0.9 || real < modo * 0.9;
+                // (1.2.3, MULTI2) XeSS FG x3 / x4 de compatibilidad (no Intel): con las reales un 5 % por debajo ya va a saltos (el ritmo reparte
+                // las inventadas sobre un periodo que se estira: x4 a 4K, 27,4 reales = huecos de 2 refrescos); antes, un 10 %
+                double umbral = xess && cfg.GpuVendor != "intel" ? 0.95 : 0.9;
+                bool mal = salida < objetivo * umbral || real < modo * umbral;
                 multMal = mal ? multMal + 1 : 0;
                 if (multMal < 2) return false;
                 multMal = 0;
