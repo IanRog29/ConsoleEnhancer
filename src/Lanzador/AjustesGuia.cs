@@ -86,7 +86,8 @@ namespace ConsoleEnhancer
                 if (!ya) { ajPedidoEn = DateTime.Now; ajPedidoDesde = desde; }
                 ajPedidoPorque = porque;
                 Log.Write("Menu de ajustes (" + desde + "): se abre en cuanto se pueda (" + porque + ")" + (ya ? " (ya pedido)" : ""));
-                AjAvisar(Tx.T("Ajustes · se abren en un momento", "Settings · opening in a moment") + (aviso != null ? " · " + aviso : ""), false);
+                // (el aviso se queda mientras espera: se quita al abrirse, al no poder o a los 25 s)
+                if (!ya || ajAviso == null) AjAvisar(Tx.T("Ajustes · se abren en un momento", "Settings · opening in a moment") + (aviso != null ? " · " + aviso : ""), false, true);
                 AjColaPoner();
                 return;
             }
@@ -404,14 +405,15 @@ namespace ConsoleEnhancer
         }
 
         // ---------------- el aviso en pantalla (propio: se ve tambien sobre el puente y el telon) ----------------
-        // (hilo de la interfaz) mal: punto rojo
-        void AjAvisar(string texto, bool mal)
+        // (hilo de la interfaz) mal: punto rojo; fijo: hasta que se quite (AjAvisoFuera; como mucho 30 s)
+        void AjAvisar(string texto, bool mal) { AjAvisar(texto, mal, false); }
+        void AjAvisar(string texto, bool mal, bool fijo)
         {
             try
             {
                 AjAvisoFuera();
                 IntPtr img = mpvWindow;
-                ajAviso = new AvisoAjustes(img, texto, mal);
+                ajAviso = new AvisoAjustes(img, texto, mal, fijo);
                 ajAviso.Empezar();
             }
             catch (Exception ex) { Log.Error("Menu de ajustes: aviso", ex); }
@@ -560,10 +562,12 @@ namespace ConsoleEnhancer
         bool shown;
         readonly System.Windows.Forms.Timer timer = new System.Windows.Forms.Timer();
         readonly Stopwatch since = new Stopwatch();
-        const int EntraMs = 140, DuraMs = 2600, SaleMs = 260;
+        const int EntraMs = 140, SaleMs = 260;
+        readonly int duraMs = 2600;   // (fijo: 30 s como mucho; lo quita antes quien lo puso)
 
-        public AvisoAjustes(IntPtr imagen, string texto, bool mal)
+        public AvisoAjustes(IntPtr imagen, string texto, bool mal, bool fijo)
         {
+            if (fijo) duraMs = 30000;
             IntPtr prevCtx = IntPtr.Zero;
             try { prevCtx = SetThreadDpiAwarenessContext(new IntPtr(-4)); } catch { }   // PER_MONITOR_AWARE_V2: pixeles reales
             try
@@ -637,8 +641,8 @@ namespace ConsoleEnhancer
         void Paso()
         {
             long t = since.ElapsedMilliseconds;
-            if (t >= EntraMs + DuraMs + SaleMs) { Dispose(); return; }
-            double a = t < EntraMs ? t / (double)EntraMs : t > EntraMs + DuraMs ? 1 - (t - EntraMs - DuraMs) / (double)SaleMs : 1;
+            if (t >= EntraMs + duraMs + SaleMs) { Dispose(); return; }
+            double a = t < EntraMs ? t / (double)EntraMs : t > EntraMs + duraMs ? 1 - (t - EntraMs - duraMs) / (double)SaleMs : 1;
             Mostrar((byte)Math.Max(0, Math.Min(255, Math.Round(255 * a))));
             if (t % 100 < 34) Encima();
         }
