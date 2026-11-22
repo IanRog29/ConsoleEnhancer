@@ -131,6 +131,13 @@ namespace ConsoleEnhancer
         // tienen ini, se copian los de la version anterior: de cada fichero, el mas nuevo de las carpetas ConsoleEnhancer* de al lado y de
         // %LOCALAPPDATA%\ConsoleEnhancer (los de data\ y data\games\; no logs ni cache). Se apunta en data\inherited.txt
         public const string HeredadoTxt = "inherited.txt";
+        // 22-11 (1.2.1): estado de un momento que no vale para otra version ni se guarda en la copia: el plan de energia de antes de la espera
+        // (standby_plan.txt, espera_plan.txt hasta la 1.2.05). Copiado mientras el PC estaba en espera, una version nueva lo heredaba y al
+        // "volver" de una espera que no habia ponia un plan viejo
+        static bool EstadoPasajero(string n)
+        {
+            return n.Equals("standby_plan.txt", StringComparison.OrdinalIgnoreCase) || n.Equals("espera_plan.txt", StringComparison.OrdinalIgnoreCase);
+        }
         static void HeredarDatos(string d, string appDir)
         {
             try
@@ -167,7 +174,7 @@ namespace ConsoleEnhancer
                             // (lo elegido con L3 en versiones de antes era Smooth Motion de serie en RTX 40: desde la 1.0.7, DLSS FG del plan)
                             if (n.IndexOf(".antes-", StringComparison.OrdinalIgnoreCase) >= 0 || n.EndsWith(".anterior", StringComparison.OrdinalIgnoreCase)) continue;   // (copias)
                             n = NombreIngles(n);   // (1.2.06: los nombres de antes, en espanol, con el de ahora)
-                            if (n.Equals("framegen_type.txt", StringComparison.OrdinalIgnoreCase) || n.Equals(HeredadoTxt, StringComparison.OrdinalIgnoreCase)) continue;
+                            if (n.Equals("framegen_type.txt", StringComparison.OrdinalIgnoreCase) || n.Equals(HeredadoTxt, StringComparison.OrdinalIgnoreCase) || EstadoPasajero(n)) continue;
                             string k = sub.Length == 0 ? n : "games\\" + n;
                             string ya;
                             if (!mejor.TryGetValue(k, out ya) || File.GetLastWriteTimeUtc(a) > File.GetLastWriteTimeUtc(ya)) mejor[k] = a;
@@ -247,7 +254,7 @@ namespace ConsoleEnhancer
                     {
                         string n = Path.GetFileName(a);
                         if (n.StartsWith(".") || n.EndsWith(".log", StringComparison.OrdinalIgnoreCase) || n.Equals(HeredadoTxt, StringComparison.OrdinalIgnoreCase)) continue;
-                        if (n.IndexOf(".antes-", StringComparison.OrdinalIgnoreCase) >= 0) continue;
+                        if (n.IndexOf(".antes-", StringComparison.OrdinalIgnoreCase) >= 0 || EstadoPasajero(n)) continue;
                         try
                         {
                             FileInfo fa = new FileInfo(a), fb = new FileInfo(Path.Combine(dst, n));
