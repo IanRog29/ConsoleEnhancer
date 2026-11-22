@@ -226,6 +226,7 @@ namespace ConsoleEnhancer
                     return "no llegó aquí (" + R0(e.Reales) + " de " + o + " reales)";
                 }
                 if (!XessMultiCabe) return null;   // (xess_fg_multi_cabe=0: sin prevision)
+                if (ProteMotorHace(m, tipo)) return null;   // (1.2.4, integracion: la prevision es la del hilo de Magpie; el motor vigila lo suyo)
                 double w, b, r = ProteReales(c, out w, out b);
                 if (r < c.Objetivo * ProteLejos)
                 {
@@ -235,6 +236,14 @@ namespace ConsoleEnhancer
             }
             catch (Exception ex) { Log.Error("Proteccion: prevision x" + m, ex); }
             return null;
+        }
+
+        // (1.2.4, integracion) Esta generacion la haria el motor (el reparto de SoloMotor.cs / MotorFg.cs: XeSS FG x2, DLSS FG x3 / x4 en
+        // RTX 50...) y DLSS 5 no la manda a Magpie: la prevision del hilo de Magpie no vale ahi (solo cuenta lo recordado; la vigilancia del
+        // motor -switch2-fps bajo, ProteMotor- sigue). Sin propiedades que vuelvan a la cuenta del multiplicador (sin recursion)
+        bool ProteMotorHace(int m, string tipo)
+        {
+            return Engine == "propio" && MotorSabeGeneracion(tipo, m) && (Dlss5Off || MotorDlss5Disponible);
         }
 
         // Aviso de "a prueba" (se elige y va, pero justo): null = sin aviso
@@ -254,6 +263,7 @@ namespace ConsoleEnhancer
                     en = "on trial: it didn't hold here before (" + R0(e.Reales) + " of " + o + " real fps)";
                     return "a prueba: antes no llegó aquí (" + R0(e.Reales) + " de " + o + " reales)";
                 }
+                if (ProteMotorHace(m, tipo)) return null;   // (1.2.4, integracion: ver ProteMotorHace)
                 double w, b, r = ProteReales(c, out w, out b);
                 if (r < c.Objetivo * 0.97)
                 {
