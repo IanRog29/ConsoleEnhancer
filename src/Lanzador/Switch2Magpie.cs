@@ -13309,6 +13309,7 @@ namespace ConsoleEnhancer
                         {
                             vfFps = int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture);
                             vfNew = m.Groups[2].Value == "new";
+                            RitmoDiag.MpvRitmo(m.Groups[2].Value);   // (1.2.3 RITMO2: la imagen quieta no es un tiron, src\Lanzador\Ritmo.cs)
                             // 15-11: el motor solo cuenta imagenes que le llegan: con ritmo, ya muestra imagen aunque su aviso no llegue
                             // (19:24:53: ni uno, y el motor se cerro a los 30 s "sin imagen"). Solo el de ahora, no uno que se cierra
                             if (vfFps > 0 && Config.EngineActive && readerMpv == mpv) { signalOn = true; videoSignal = true; }

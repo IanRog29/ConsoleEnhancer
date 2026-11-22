@@ -506,11 +506,16 @@ namespace ConsoleEnhancer
         // Buscar de Windows... : Windows deja de mostrar a Magpie directamente, compone, y se pierde el ritmo; 10:28:40 y 10:30:04 del log)
         // "cola": la imagen llego a Magpie pero su cola hacia la pantalla estaba llena (su presentacion no llega a soltar sitio: el ritmo
         // que se impone no deja recuperar un retraso) y la captura de Windows, que solo guarda la ultima, la cambio por la siguiente
-        public static readonly string[] Nombres = { "juego", "captura_app", "mpv", "wgc", "grafica", "salida", "arranque", "ventana", "cola" };
+        // "quieta": la imagen de la consola estaba quieta (menu, pausa, escena fija): el filtro de repetidas de mpv deja pasar una copia cada 3
+        // refrescos (50 ms) y Magpie la recibe cada ~50 ms (+ lo que tarde la captura de Windows): no es un tiron ni se nota (la imagen es la
+        // misma). Antes, en una escena quieta larga mpv ya no avisaba de nada (lo normal para el ya eran 50 ms) y salia "wgc"
+        public static readonly string[] Nombres = { "juego", "captura_app", "mpv", "wgc", "grafica", "salida", "arranque", "ventana", "cola", "quieta" };
         // contadores del resumen (5 min) por origen, y aparte: capturas de la app (cuantas, ms parado mpv) y las imagenes de mpv que
         // salieron tarde justo despues de una (aunque Magpie no viera un tiron: con la generacion y VRR un retraso de 10-25 ms ya se nota)
-        static readonly int[] cuenta = new int[9];
-        static readonly double[] peor = new double[9];
+        static readonly int[] cuenta = new int[10];
+        static readonly double[] peor = new double[10];
+        struct RitmoMpv { public DateTime At; public bool Copia; }
+        static readonly List<RitmoMpv> ritmosMpv = new List<RitmoMpv>();
         struct Anillo { public DateTime At; public double Captadas, Espera; }
         static readonly List<Anillo> anillos = new List<Anillo>();
         static int nCapt, nCaptTarde, nPng; static double sumCapt, maxCapt, sumPng, maxPng;
@@ -627,6 +632,23 @@ namespace ConsoleEnhancer
             lock (sync) { espera.Add(p); fifo.Add(a); if (fifo.Count > 400) { fifo.RemoveAt(0); espera.RemoveAt(0); } }
         }
 
+        // (1.2.3 RITMO2) "switch2-rate" de ce_power.lua (cada 0,5 s): si la ultima imagen que dejo pasar el filtro de repetidas era nueva
+        // ("new") o una copia de una imagen quieta ("copy")
+        public static void MpvRitmo(string kind)
+        {
+            if (kind != "new" && kind != "copy") return;
+            RitmoMpv r = new RitmoMpv(); r.At = DateTime.Now; r.Copia = kind == "copy";
+            lock (sync) { ritmosMpv.Add(r); while (ritmosMpv.Count > 0 && (r.At - ritmosMpv[0].At).TotalSeconds > 60) ritmosMpv.RemoveAt(0); }
+        }
+
+        // (con sync cogido) ¿la imagen estuvo quieta entre a y b? (la mitad o mas de las muestras de mpv eran copias)
+        static bool QuietaEntre(DateTime a, DateTime b)
+        {
+            int n = 0, c = 0;
+            foreach (RitmoMpv r in ritmosMpv) if (r.At >= a && r.At <= b) { n++; if (r.Copia) c++; }
+            return n >= 2 && 2 * c >= n;
+        }
+
         // (1.2.3 RITMO2) Una linea "DLSSFG presentation ring" del log de Magpie (cada ~1 s): las capturas que entraron y lo que espero su
         // cola a que la pantalla soltara sitio (excludedRingWait). Con espera, las imagenes que llegan mientras tanto se pierden
         public static void MagpieAnillo(string line)
@@ -664,7 +686,10 @@ namespace ConsoleEnhancer
                 if (!tiron && !salidaMal) continue;
                 int o; string porque, encima;
                 lock (sync) encima = EventoEntre(v.Desde.AddMilliseconds(-800), v.Hasta.AddMilliseconds(200));
+                bool quieta;
+                lock (sync) quieta = tiron && v.CapMax < 1.45 * 50 + 20 && QuietaEntre(v.Desde.AddMilliseconds(-500), v.Hasta);
                 if (v.Arranque) { o = 6; porque = "Magpie empezando (sus primeros 4 s: la captura se acaba de abrir y la grafica se pone a ritmo)"; }
+                else if (quieta) { o = 9; porque = "la imagen estaba quieta (mpv deja pasar una copia cada 50 ms; no se nota)"; }
                 else if (encima != null) { o = 7; porque = encima + " en ese momento (Windows compone la imagen en vez de mostrar a Magpie directamente)"; }
                 else if (salidaMal) { o = 5; porque = "Magpie presento con un hueco de " + R(v.OutMax) + " ms con las imagenes llegando bien (su ritmo, la generacion o la cola de la pantalla)"; }
                 else
@@ -691,8 +716,8 @@ namespace ConsoleEnhancer
                 }
                 double ms = o == 5 || (o >= 6 && !tiron) ? v.OutMax : v.CapMax;
                 lock (sync) { cuenta[o]++; if (ms > peor[o]) peor[o] = ms; }
-                // (el arranque de Magpie va solo al resumen: no es un tiron jugando)
-                if (o != 6 && ms > peorDe) { peorDe = ms; texto = Nombres[o] + ": " + porque; }
+                // (el arranque de Magpie y la imagen quieta van solo al resumen: no son tirones jugando)
+                if (o != 6 && o != 9 && ms > peorDe) { peorDe = ms; texto = Nombres[o] + ": " + porque; }
             }
             peorMs = peorDe;
             return texto;
@@ -721,7 +746,7 @@ namespace ConsoleEnhancer
             }
         }
 
-        public static void Limpia() { lock (sync) { ventanas.Clear(); mpv.Clear(); capturas.Clear(); anillos.Clear(); ultimaVentana = DateTime.MinValue; ventanasSesion = 0; } }
+        public static void Limpia() { lock (sync) { ventanas.Clear(); mpv.Clear(); capturas.Clear(); anillos.Clear(); ritmosMpv.Clear(); ultimaVentana = DateTime.MinValue; ventanasSesion = 0; } }
 
         static string R(double v) { return Math.Round(v).ToString(CultureInfo.InvariantCulture); }
     }
