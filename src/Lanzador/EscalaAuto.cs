@@ -195,13 +195,15 @@ namespace ConsoleEnhancer
         // ventana (el acelerador de flujo, en serie: DLSSNR lo espera) y lo que DLSSNR hace a esa resolucion antes y despues del modelo
         // (bajar el color, subir el residuo). ms por megapixel de la ventana (escala_coste_dlss5_fijo); lo que ya cuentan los vectores de
         // DLSS FG / el flujo de DLSS SR (el mismo estimador) se descuenta
-        // (a 4K, ajustado a lo medido: ~11,6 ms = el flujo de calidad 2 ~9,5 -CALIDAD, 1.2.2: 9,2-10,2- y lo de DLSSNR ~2)
-        public static double CosteDlss5FlujoMp = 1.15, CosteDlss5FijoMp = 0.25;
+        // (a 4K, ajustado a lo medido: ~11,6 ms = el flujo de calidad 2 ~9,7 y lo de DLSSNR ~2. El flujo no crece con los pixeles: CALIDAD 1.2.2
+        // midio 3,0 / 5,2-6,4 / 9,2-10,2 ms a 1080p / 1440p / 4K -> 2,2 x MP^0,7 (3,7 / 5,5 / 9,7); con 1,15 x MP la 1440p quedaba corta:
+        // DLSS FG x2 a 1440p con M al 80 % daba 29,6 reales con 30,9 ms previstos)
+        public static double CosteDlss5FlujoMp = 2.2, CosteDlss5FijoMp = 0.25;
         public static double CosteDlss5Fijo(CadenaEscala c, int pct, int pasadas)
         {
             if (pasadas <= 0 || pct <= 0) return 0;
             double mp = Mp(c.VenW, c.VenH);
-            double flujo = CosteDlss5FlujoMp * c.FlujoD5 * mp;
+            double flujo = CosteDlss5FlujoMp * c.FlujoD5 * Math.Pow(Math.Max(0.01, mp), 0.7);
             if (c.FlujoD5 > 0)   // (el mismo estimador que ya cuentan los vectores de DLSS FG / el flujo de DLSS SR)
                 flujo -= (c.VectoresFg && c.Gen == "dlss" ? 0.55 * mp : c.VectoresFg && c.Gen == "xess" ? 0.4 * mp : 0) + (c.FlujoSr && c.Escala && !c.Ligero ? 0.27 * mp : 0);
             return Math.Max(0, flujo) + CosteDlss5FijoMp * mp;
