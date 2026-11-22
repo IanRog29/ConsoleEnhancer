@@ -1107,7 +1107,11 @@ namespace ConsoleEnhancer
         public string ScalerPick = "";
         public string ScalerNow { get { return ScalerPick.Length > 0 ? ScalerPick : AltScalerOn ? AltScaler : (D5ScalerNow ?? Scaler); } }
         // (15-11: tabla_modelo_<modo> con 4 numeros = sin DLSS 5, y con DLSS 5 en 1, 2 y 3 pasadas)
-        public int Af30OnePass = 0;
+        // dlss5_antiparpadeo_30_1pasada: el antiparpadeo de DLSS 5 con 1 pasada en el modo 30 (-1 = el de siempre, dlss5_antiparpadeo). 16-11
+        // noche: 0 (sin el, para dejar sitio a DLSS 4.5). 22-11 (1.2.2, REESCALADO): 3, como con 2-3 pasadas: con la entrada reducida (4K al
+        // 45-55 %) la correccion de DLSS 5 parpadeaba al mover la camara, y el flujo optico que necesita ya se calculaba igual (Magpie lo
+        // pide con dlss5_flujo aunque el antiparpadeo este a 0): cuesta solo su pasada (src\Lanzador\Reescalado.cs). =0 como antes
+        public int Af30OnePass = 3;
         // 16-11 noche: tabla_modelo_<modo>_1440= / _1080= / _720= (por captura; sin ella, la del modo)
         string CapSuffix { get { return VideoSize.EndsWith("x1080") ? "_1080" : VideoSize.EndsWith("x720") ? "_720" : VideoSize.EndsWith("x1440") ? "_1440" : ""; } }
         // (19-11, GENERACION: con el tipo de generacion delante: tabla_modelo_30_xess_1440=, tabla_modelo_30_xess=, luego como antes)
@@ -1820,7 +1824,8 @@ namespace ConsoleEnhancer
                         break;
                 }
                 // 3) Enfoque (CAS; con FSR 3 FG o FSR 1, RCAS: lo unico que FSR 3 FG admite en la cadena)
-                double sh = double.IsNaN(sharpen) ? cfg.SharpenNow : sharpen; // (16-11: o el del modo / pasadas: enfoque_<modo>[_pN]_dlss5)
+                // (22-11, 1.2.2 REESCALADO: con DLSS SR J/K/L/M, x magpie_nitidez_transformer: src\Lanzador\Reescalado.cs)
+                double sh = double.IsNaN(sharpen) ? cfg.SharpenMagpieNow : sharpen; // (16-11: o el del modo / pasadas: enfoque_<modo>[_pN]_dlss5)
                 if (sh > 0.001 && cfg.ScalerNow != "cas" && cfg.ScalerNow != "ninguno") // (CAS con escalado ya enfoca)
                 {
                     if ((!cfg.FgOff && cfg.FgTypeNow == "fsr3") || cfg.ScalerNow == "fsr") fx.Add(Effect("FSR\\FSR_RCAS", false, Pars("sharpness", sh)));
@@ -14382,6 +14387,8 @@ namespace ConsoleEnhancer
                 if (arg.StartsWith("--test-deteccion=")) return PruebaDeteccion.Run(arg.Substring(17));
                 // 21-11 (1.2.1): la escala de DLSS 5 automatica (modelo, decisiones, la config de Magpie) sin consola: --test-escala[=<informe>]
                 if (arg == "--test-escala" || arg.StartsWith("--test-escala=")) return EscalaPrueba.Run(arg.Length > 14 ? arg.Substring(14) : null);
+                // 22-11 (1.2.2, REESCALADO): la config de Magpie de reescalado y DLSS 5 por combinacion: --test-reescalado[=<informe>]
+                if (arg == "--test-reescalado" || arg.StartsWith("--test-reescalado=")) return ReescaladoPrueba.Run(arg.Length > 18 ? arg.Substring(18) : null);
                 if (arg.StartsWith("--ui-preview=")) return PrismaPreview.Run(arg.Substring(13));
                 // 18-11 (MANDOS): --test-mandos=<segundos>;<archivo>: mandos detectados, botones pulsados y el modo PC (sin mandar nada)
                 if (arg.StartsWith("--test-mandos=")) return PadTest.Run(arg.Substring(14), args);
