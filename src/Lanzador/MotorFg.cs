@@ -58,6 +58,7 @@ namespace ConsoleEnhancer
         public string MotorFgViaAhora(string tipo, int mult)
         {
             if (Engine != "propio" || !(Dlss5Off || MotorDlss5Disponible)) return "";
+            if (MotorGenAMagpie(tipo, mult)) return "";   // (1.2.4 ronda 5, XEFGM: va por Magpie, XefgMotor.cs)
             return MotorFgVia(tipo, mult);
         }
         // La generacion propia con lo que va ahora (EngineLive: fg=0 fg_propia=N)
@@ -67,7 +68,7 @@ namespace ConsoleEnhancer
             {
                 if (FgOff || HomeNative || Mode120 || !MultOn) return false;
                 string t = FgTypeNow;
-                return (t == "dlss" || t == "xess") && MotorFgVia(t, MotorFgMult) == "propia";
+                return (t == "dlss" || t == "xess") && MotorFgVia(t, MotorFgMult) == "propia" && !MotorGenAMagpie(t, MotorFgMult);   // (1.2.4 ronda 5, XEFGM: XefgMotor.cs)
             }
         }
         // " (FG propia)" / " (own FG)" para los textos del multiplicador (menu, bandeja, avisos, log)
@@ -140,7 +141,7 @@ namespace ConsoleEnhancer
                 if (FgOff || HomeNative || Mode120) return 0;
                 if (EngineFfxWanted) return 1;
                 int m = MotorFgMult;
-                if (MotorFgMulti && FgTypeNow == "xess" && MotorFgSabe("xess", m)) return 10 * m + (Ce.EngineUpscaler(this) == "dlss" ? 1 : 0);
+                if (MotorFgMulti && FgTypeNow == "xess" && MotorFgSabe("xess", m) && !MotorGenAMagpie("xess", m)) return 10 * m + (Ce.EngineUpscaler(this) == "dlss" ? 1 : 0);   // (1.2.4 ronda 5, XEFGM: salvo si va por Magpie, XefgMotor.cs)
                 if (MotorFgMulti && FgTypeNow == "dlss" && m >= 3 && MotorFgFamilia() != "rtx50" && MotorFgSabe("dlss", m)) return 3;
                 return 0;
             }

@@ -327,14 +327,26 @@ namespace ConsoleEnhancer.Motor
             XlMark( xeFgFrame, XELL_RENDERSUBMIT_END);
             XlMark( xeFgFrame, XELL_PRESENT_START);
         }
+        // (1.2.4 ronda 5, XEFGM) Lo que dice XeSS FG de cada Present, contado: "presentadas 2, generacion 0" ERA BIEN (2 = la inventada y la
+        // real; 0 = XEFG_SWAPCHAIN_RESULT_SUCCESS) y en la prueba del usuario se leyo como "no genera". Ahora cada 600 reales: cuantas
+        // llevaron inventada, cuantas no y los resultados distintos de 0 (avisos > 0, errores < 0 de xefg_swapchain_result_t)
+        int xeStN, xeStGen, xeStSolo, xeStMal, xeStUltimo;
         void XeFgAfterPresent()
         {
             if (!xeFgOn) return;
             XlMark( xeFgFrame, XELL_PRESENT_END);
-            if (xeStatus != null && (xeFgFrame % 600) == 5)
+            if (xeStatus == null) return;
+            XefgPresentStatus st;
+            if (xeStatus(xeFg, out st) < 0) return;
+            xeStN++;
+            if (st.framesPresented > 1) xeStGen++; else xeStSolo++;
+            if (st.frameGenResult != 0) { xeStMal++; xeStUltimo = st.frameGenResult; }
+            if ((xeFgFrame % 600) == 5 || xeStN >= 600)
             {
-                XefgPresentStatus st;
-                if (xeStatus(xeFg, out st) >= 0) Log.Write("XeSS FG: imagen " + xeFgFrame + ": presentadas " + st.framesPresented + ", generacion " + st.frameGenResult + ", encendida " + st.isFrameGenEnabled);
+                Log.Write("XeSS FG: imagen " + xeFgFrame + ": de " + xeStN + " reales, " + xeStGen + " con su inventada (" + (xeFgInterp + 1) + " presentadas) y " + xeStSolo +
+                          " solas" + (xeStMal > 0 ? ", " + xeStMal + " con resultado distinto de bien (ultimo " + xeStUltimo + ")" : ", resultado bien (0)") +
+                          (st.isFrameGenEnabled != 0 ? "" : "; la generacion esta APAGADA"));
+                xeStN = xeStGen = xeStSolo = xeStMal = 0;
             }
         }
 
@@ -373,12 +385,14 @@ namespace ConsoleEnhancer.Motor
         }
         uint ScIndex()
         {
+            FphDrain();   // (1.2.4 ronda 5, XEFGM: el hilo de presentacion de la generacion propia, si va, acaba antes; EngineFgPropiaHilo.cs)
             if (!XeRawNow) return swap.GetCurrentBackBufferIndex();
             if (scIndex == null) scIndex = (ScIndexFn)Slot(xeProxySc, 36, typeof(ScIndexFn));
             return scIndex(xeProxySc);
         }
         int ScPresent(uint sync, uint flags)
         {
+            FphDrain();   // (1.2.4 ronda 5, XEFGM: EngineFgPropiaHilo.cs)
             if (!XeRawNow) return swap.Present(sync, (DXGI_PRESENT)flags);
             if (scPresent == null) scPresent = (ScPresentFn)Slot(xeProxySc, 8, typeof(ScPresentFn));
             return scPresent(xeProxySc, sync, flags);

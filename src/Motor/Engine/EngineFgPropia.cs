@@ -40,6 +40,7 @@ namespace ConsoleEnhancer.Motor
                 case "fg_propia_candidatos": FgOwnCands = B(val); return true;
                 case "fg_propia_radio": FgOwnR = Math.Max(1, Math.Min(128, I(val))); return true;
                 case "fg_propia_espera": FgOwnGpuWait = I(val); return true;
+                case "fg_propia_hilo": FgOwnThread = val.Trim() != "0"; return true;   // (1.2.4 ronda 5, XEFGM: EngineFgPropiaHilo.cs)
             }
             return false;
         }
@@ -256,6 +257,7 @@ void main(uint3 id : SV_DispatchThreadID)
         // Run, en vez de swap.Present: sin la generacion propia, como siempre; con ella, las inventadas (cada una a su hora) y luego la real
         int FpPresent(uint sync, uint flags)
         {
+            if (s.FgOwnThread) return FpPresentHilo(sync, flags);   // (1.2.4 ronda 5, XEFGM: con hilo de presentacion, EngineFgPropiaHilo.cs)
             if (!fpHold) return swap.Present(sync, (DXGI_PRESENT)flags);
             fpHold = false;
             int k = s.FgOwn, hr = 0;
@@ -328,6 +330,6 @@ void main(uint3 id : SV_DispatchThreadID)
             if (mpvIpc.Event("switch2-fgpropia", "rota", s.FgOwn.ToString(IC)) > 0) { fpBrokenSaid = true; Log.Write("Generacion propia: rota, avisado el lanzador"); }
         }
 
-        string FpBench() { return s.FgOwn >= 2 ? "\tfg_propia=x" + s.FgOwn + " inventadas=" + fpGens + " reales=" + fpFrames + (fpBroken ? " rota" : "") : ""; }
+        string FpBench() { return s.FgOwn >= 2 ? "\tfg_propia=x" + s.FgOwn + " inventadas=" + fpGens + " reales=" + fpFrames + (fpBroken ? " rota" : "") + FphBench() : ""; }
     }
 }

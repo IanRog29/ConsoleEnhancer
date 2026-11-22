@@ -151,7 +151,8 @@ namespace ConsoleEnhancer.Motor
             if (any && tirFrames > 0)
             {
                 System.Text.StringBuilder sb = new System.Text.StringBuilder();
-                sb.AppendFormat(IC, "Tirones ({0:0} s, {1} imagenes, {2}):", secs, tirFrames, fgApplied ? "con generacion" : "sin generacion");
+                // (1.2.4 ronda 5, XEFGM: decia "sin generacion" tambien con XeSS FG / FSR 3 FG / la propia del motor)
+                sb.AppendFormat(IC, "Tirones ({0:0} s, {1} imagenes, {2}):", secs, tirFrames, fgApplied ? "con generacion" : (xeFgOn && xeFgEnabledNow) ? "con XeSS FG x" + XeFgMultNow : ffxFgOn ? "con FSR 3 FG" : FpWanted() ? "con la generacion propia x" + s.FgOwn : "sin generacion");
                 if (tirLate > 0) sb.AppendFormat(IC, " {0} perdidas antes de pintarlas |", tirLate);
                 if (tirSlow > 0) sb.AppendFormat(IC, " {0} presentadas con retraso (peor +{1:0.0} ms) |", tirSlow, tirSlowWorst);
                 if (spikes > 0) sb.AppendFormat(IC, " latencia: {0} picos (peor {1:0.0} ms, mediana {2:0.0}) |", spikes, worstLat, med);
