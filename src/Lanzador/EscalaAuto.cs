@@ -242,6 +242,8 @@ namespace ConsoleEnhancer
         // sourceMs=37.6" -> 26,4 reales/s y la salida a 105 con huecos de 2 refrescos (P95 18 ms). Asi que el presupuesto es T/m
         public static double UsoXess = 0.95;      // xess_fg_multi_uso: parte de T/m que puede usar la cadena con XeSS FG x3 / x4 (compatibilidad)
         public static bool XessCompat(CadenaEscala c) { return c.Gen == "xess" && c.Mult >= 3 && !c.Intel && c.Modo < 100; }
+        // (1.2.4, XEFG) lo que dura de verdad el hilo por cada "hueco" T/m con el ritmo de compatibilidad (W en ms -> el periodo es m x esto)
+        public static double XessCompatPeriodo(double w, int m) { return w; }
 
         public static double Presupuesto(CadenaEscala c)
         {
@@ -1105,6 +1107,13 @@ namespace ConsoleEnhancer
         // DlssModelNow con DLSS 5 por Magpie: el tope que puso la vigilancia (M/L -> K -> E) en esta cadena
         int AutoModelo(int m)
         {
+            // (1.2.4, XEFG) el modelo que llego en esta combinacion (lo bajo la proteccion, Proteccion.cs)
+            if (autoDentro == 0)
+            {
+                autoDentro++;
+                try { int pt = ProteModeloTope(); if (pt > 0 && CosteModelo(m) > CosteModelo(pt)) m = pt; }
+                finally { autoDentro--; }
+            }
             if (!Dlss5AutoAhora || autoDentro > 0 || Dlss5Off || !UpscaleOn || ScalerNow != "dlss" || EngineDlss5Now || !Dlss5FitsNow) return m;
             autoDentro++;
             try
