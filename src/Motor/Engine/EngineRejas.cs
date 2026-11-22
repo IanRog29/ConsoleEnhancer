@@ -18,7 +18,7 @@ namespace ConsoleEnhancer.Motor
     unsafe partial class Engine
     {
         // Tablas propias detras de TDown (Engine.cs: TablesCount)
-        const int TRBase = TQBase + TQCount + 1, TRTruth = TRBase /* + juego de luma */, TRCons = TRBase + 2 /* + juego */, TRCapas = TRBase + 4 /* + juego */, TRApert = TRBase + 6, TREdge = TRBase + 7 /* + juego */, TREns = TRBase + 9 /* + juego */, TRFg = TRBase + 11, TRFgD = TRBase + 12, TRCount = 23;   // (21-11 FG21: + TRFillA/B/C, EngineFgRelleno.cs)
+        const int TRBase = TQBase + TQCount + 1, TRTruth = TRBase /* + juego de luma */, TRCons = TRBase + 2 /* + juego */, TRCapas = TRBase + 4 /* + juego */, TRApert = TRBase + 6, TREdge = TRBase + 7 /* + juego */, TREns = TRBase + 9 /* + juego */, TRFg = TRBase + 11, TRFgD = TRBase + 12, TRCount = 31;   // (21-11 FG21: + TRFillA/B/C, EngineFgRelleno.cs) (21-11 1.2.1: + TRGlob*, EngineFgGlobal.cs)
         ID3D12PipelineState psoMvTruth, psoMvCons, psoMvCapas, psoMvApert, psoEdge, psoEns, psoFgSmooth, psoFgGlobal, psoFgDepth;
         ID3D12Resource edgeMap, mvecW;   // 17-11 13:20 (mvensancha): fuerza del borde por punto (R8) y los vectores ensanchados
         ID3D12Resource mvCons;      // el campo de bloques del nivel fino tras el consenso (se copia encima de mvLevel[0])
@@ -100,6 +100,7 @@ namespace ConsoleEnhancer.Motor
             }
             FgFillViews();   // 21-11 (FG21): fg_relleno, EngineFgRelleno.cs
             FgGuardViews();   // 21-11 (BORDE): fg_borde, EngineFgBorde.cs
+            FgGlobalViews();   // 21-11 (1.2.1): fg_global / fg_quieto, EngineFgGlobal.cs
         }
 
         // RecordMotion, tras la busqueda (mvLevel[0] en NON_PIXEL_SHADER_RESOURCE): mvconsenso=N. Cada bloque elige entre su vector y los
@@ -189,11 +190,14 @@ namespace ConsoleEnhancer.Motor
         // del motor (EvaluateDlss, etiqueta local). 2 = el campo suavizado (media de (2R+1)^2 muestras cada 8 px alrededor, sin puerta: la
         // generacion interpola el fondo y la reja con un movimiento suave en vez de saltos de bloque), 3 = un solo vector para toda la
         // imagen (la moda de los vectores de bloque en casillas de 1 px, afinada con la media de los que caen en +-0,75; en la grafica)
-        void RecordFgVec(bool on)
+        // 21-11 (1.2.1): con fg_global=1 (de serie) el global sale de su propia busqueda y lo quieto va a 0 (EngineFgGlobal.cs): la moda de
+        // los bloques en -32..32 dejaba 32 px en los giros de mas de 32 px por imagen y 0 en los paneos de 5-64 px a 4K
+        void RecordFgVec(bool on, int cur)
         {
-            if (!(fgApplied && s.FgVec >= 2) || mvecFg == null || gvec == null || FgVecFullNow) return;   // (20-11 FGFALLOS: fg_vectores_completos, DLSS-G con mvec)
+            if (!((fgApplied || FfxFgVecNow) && s.FgVec >= 2) || mvecFg == null || gvec == null || FgVecFullNow) return;   // (20-11 FGFALLOS: fg_vectores_completos, DLSS-G con mvec) (22-11 1.2.1: o FSR 3 FG, EngineFgFfx.cs)
             EnsureRejasPsos();
             uint* c = stackalloc uint[16];
+            if (on && FgGlobalNow) { RecordFgGlobal(cur); RecordFgGlobalOut(cur); return; }   // 21-11 (1.2.1)
             if (on && s.FgVec == 3)
             {
                 Barrier(gvec, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.UNORDERED_ACCESS);
@@ -218,6 +222,7 @@ namespace ConsoleEnhancer.Motor
         void RecordFgDepth(int cur)
         {
             if (!(fgApplied && s.FgDepth > 0) || depthFg == null || edgeMap == null) return;
+            if (FgLayerDepthNow) return;   // 21-11 (1.2.1): la profundidad por capas ya la ha escrito RecordFgGlobalOut (EngineFgGlobal.cs)
             EnsureRejasPsos();
             uint* c = stackalloc uint[16];
             Barrier(edgeMap, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.UNORDERED_ACCESS);
