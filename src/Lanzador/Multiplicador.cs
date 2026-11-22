@@ -381,7 +381,9 @@ namespace ConsoleEnhancer
         // MEDIDO el 22-11: 1440p, DLSS L, DLSS FG x4 sin DLSS 5 = 81 % de grafica; con DLSS 5 encendido la app lo quita ("NO CABE")
         public bool MultCabeDlss5(int m, string tipo)
         {
-            if (!Dlss5AutoAhora || !Integrado.Dlss5Available) return true;
+            // (1.2.3 REVISION3: con la escala automatica elegida, no Dlss5AutoAhora: con DLSS 5 en el motor -x2, engine\PrismaNr.dll- es falso y el
+            // menu no avisaba de que con x3 / x4, que van por Magpie y su escala, DLSS 5 no cabe y se quita)
+            if (!(Dlss5AutoOn && Dlss5InputPct == 0) || !Integrado.Dlss5Available) return true;
             try
             {
                 CadenaEscala c = CadenaEscalaPara(1);
