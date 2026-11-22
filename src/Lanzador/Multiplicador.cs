@@ -646,7 +646,21 @@ namespace ConsoleEnhancer
                     int ac = int.Parse(a.Groups[1].Value, CultureInfo.InvariantCulture);
                     if (puesto == 0 || ac < puesto) puesto = ac;
                 }
-                if (puesto == 0) return;
+                if (puesto == 0)
+                {
+                    // (XeSS FG x3 / x4 en graficas no Intel va por el modo de compatibilidad de Magpie, que solo acepta su libxess_fg.dll: si
+                    // falla, Magpie lo dice como error y no inicializa; sin generacion no hay imagen -> x2, con aviso)
+                    Match e = Regex.Match(log ?? "", @"\|error\|[^\r\n]*XeSS[^\r\n]*");
+                    if (pedido > 2 && cfg.FgTypeNow == "xess" && e.Success && log.IndexOf("XeSSFG initialized", StringComparison.Ordinal) < 0)
+                    {
+                        string msg = e.Value.Length > 200 ? e.Value.Substring(0, 200) : e.Value;
+                        Log.Write("Multiplicador: XeSS FG x" + pedido + " no ha arrancado en Magpie (" + msg + "): se pasa a x2");
+                        int pe2 = pedido;
+                        OnUi(delegate { OsdWarn(Tx.T("XeSS FG x" + pe2 + " no arranca en esta gráfica: x2", "XeSS FG x" + pe2 + " doesn't start on this GPU: x2"), "7000"); });
+                        ThreadPool.QueueUserWorkItem(delegate { try { MultElegir(2, 0); } catch (Exception ex) { Log.Error("Multiplicador: a x2", ex); } });
+                    }
+                    return;
+                }
                 if (puesto == pedido) { Log.Write("Multiplicador: Magpie con " + cfg.FgName + " x" + puesto + " (lo pedido)"); return; }
                 Log.Write("Multiplicador: AVISO, se pidio " + cfg.FgName + " x" + pedido + " y Magpie ha puesto x" + puesto + (c.Success ? " (" + c.Value + ")" : ""));
                 string tipo = cfg.FgName;
