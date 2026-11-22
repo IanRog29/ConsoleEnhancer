@@ -14873,6 +14873,9 @@ namespace ConsoleEnhancer
             int rc = 0;
             try
             {
+                // (1.2.2: el nvngx_dlss.dll que se aparta a 4K, src\Lanzador\TiemposCarga.cs, en su sitio antes de mirar la copia de Magpie:
+                // si no, "FALTAN nvngx_dlss.dll" sin motivo)
+                DllDlssSr.Poner(true, "--dry-run");
                 string detail = null;
                 bool ok = MagpieLive.Running ? File.Exists(Paths.MagpieExe) : MagpieLive.EnsureCopy(cfg.MagpieSource, out detail);
                 if (MagpieLive.Running) detail = "Magpie abierto: la copia no se toca";
