@@ -393,7 +393,7 @@ namespace ConsoleEnhancer
     }
 
     // ---- Como presenta Magpie cada modo (22-11, 1.2.2; 1.2.3 RITMO2: DLSS FG x2 a refresco fijo como XeSS FG). De serie:
-    //   modo 30 sin generacion      DirectComposition (sin VRR)                       magpie_vrr_30=1: por VRR (DXGI + sincronizacion forzada)
+    //   modo 30 sin generacion      "cada 2 refrescos" por DXGI a 120 Hz (1.2.3)     magpie_fijo_30=0: DirectComposition (1.2.2); magpie_vrr_30=1: VRR
     //   modo 30, DLSS FG x2         refresco fijo "cada 2 refrescos" (1.2.3)          magpie_fijo_30_dlss=0: por VRR (lo de la 1.2.2)
     //                               (solo con la pantalla a 120 Hz; a 119,88 / 144 / 165 Hz o si el driver no deja, por VRR como antes)
     //   modo 30, XeSS/FSR 3/VFG x2  refresco fijo "cada 2 refrescos" (dxgi_30_*)     magpie_vrr_30_otras=1: por VRR
@@ -414,11 +414,13 @@ namespace ConsoleEnhancer
         //                espera mas (WGC -> presentar 47,8 frente a 41,5); con el fijo se espera al hueco de la tele (10,7 frente a 2,3)
         //   XeSS FG x2   fijo 98,5 % y 29,75 reales/s; por VRR 67,6 % y 28,3 reales/s (por eso XeSS ya iba fijo)
         public bool RitmoVrr30 = false, RitmoVrr30Otras = false, RitmoFijo30Dlss = true, RitmoSigue30Fg = false;
-        // (1.2.3 RITMO2, prueba, apagada) magpie_fijo_30=1: el 30 SIN generacion por DXGI con la sincronizacion "cada 2 refrescos" (estado 4)
-        // a 120 Hz, en vez de DirectComposition. Medido el 22-11 (4K): por DirectComposition cada imagen se ve 2-7 refrescos (40,8 % a 4,
-        // sd 9 ms, p99 75 ms) sin perder ninguna; por VRR (magpie_vrr_30=1) pierde 0,56 reales/s (la captura de Windows va al ritmo lento de
-        // la pantalla). Con el fijo, DWM y la captura siguen a 120 y cada imagen deberia verse 4 refrescos: SIN MEDIR (la tele se apago)
-        public bool RitmoFijo30 = false;
+        // (1.2.3 RITMO2) magpie_fijo_30 (de serie 1): el 30 SIN generacion por DXGI con la sincronizacion "cada 2 refrescos" (estado 4) a
+        // 120 Hz, en vez de DirectComposition. Medido el 22-11 (4K, DLSS 5 al 65 %): por DirectComposition cada imagen se ve 2-12 refrescos
+        // (40,8-44 % a 4, sd 8,3-9 ms, p99 67-75 ms) sin perder ninguna, 52-54 ms; por VRR (magpie_vrr_30=1) pierde 0,56 reales/s (la
+        // captura de Windows va al ritmo lento de la pantalla); con el fijo, 0 perdidas (29,68 de 29,73), p99 33,5 ms (la tele ve cada 16,7 ms
+        // la nueva o su repeticion: 2 refrescos el 89 %, 4 el 7 %), 54,9 ms (n=10), la grafica igual (62 frente a 67 %). Una pasada.
+        // magpie_fijo_30=0 = DirectComposition como en la 1.2.2. Solo con la pantalla a 120 Hz
+        public bool RitmoFijo30 = true;
         public bool RitmoFijo30SinFgNow { get { int hz = Pantalla.Hz(); return RitmoFijo30 && !RitmoVrr30SinFgNow && CapMode && FgOff && !HomeNative && !Mode120 && !NvProfiles.VsyncBroken && hz >= 118 && hz <= 122; } }
         public double RitmoMargenFg = 0;
         // ---- Las capturas de la app jugando a 4K (las que miran si se ha vuelto al menu de la consola, TrayApp.GrabTick): cada una es un

@@ -2009,7 +2009,7 @@ namespace ConsoleEnhancer
             if (NvProfiles.SmoothState != smWant)
             {
                 if (write) NvProfiles.SetSmooth(smWant);
-                changes.Add("NVIDIA Smooth Motion para Magpie.exe: " + (smWant == 4 ? "apagar, solo la sincronizacion cada 2 refrescos (30 con DLSS FG por DXGI)" :
+                changes.Add("NVIDIA Smooth Motion para Magpie.exe: " + (smWant == 4 ? "apagar, solo la sincronizacion cada 2 refrescos (el modo 30 por DXGI)" :
                                                                        smWant == 3 ? "apagar, solo la sincronizacion vertical forzada (60 sin generacion por DXGI)" :
                                                                        smWant == 2 ? "encender (sincronizacion cada 2 refrescos)" : smWant == 1 ? "encender" : "apagar"));
             }
@@ -3757,7 +3757,7 @@ namespace ConsoleEnhancer
                 Log.Write("NVIDIA: Smooth Motion para Magpie.exe " + (want == 2 ? "encendido (sincronizacion vertical cada 2 refrescos: modo 30)" :
                                                                       want == 1 ? "encendido (con sincronizacion vertical forzada)" :
                                                                       want == 3 ? "apagado, solo la sincronizacion vertical forzada (60 sin generacion por DXGI)" :
-                                                                      want == 4 ? "apagado, solo la sincronizacion cada 2 refrescos (30 con DLSS FG por DXGI)" : "apagado") +
+                                                                      want == 4 ? "apagado, solo la sincronizacion cada 2 refrescos (el modo 30 por DXGI)" : "apagado") +
                           (ok ? "" : " NO SE PUDO" + (want == 1 || want == 2 ? " (la generacion va con DLSS FG)" : want == 3 ? " (el 60 sin generacion sigue por DirectComposition)" :
                                                               want == 4 ? " (el 30 con DLSS FG sigue por DirectComposition)" : "")) +
                           " en " + sw.ElapsedMilliseconds + " ms");
