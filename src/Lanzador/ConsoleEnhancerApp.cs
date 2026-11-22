@@ -314,8 +314,13 @@ namespace ConsoleEnhancer
         // completos y el giro de la 1.0.5 encendidos -> halos; Smooth Motion de serie en RTX 40). Una vez por version (la marca
         // "# ce_ini_version=" al final): lo de arriba del plan pasa a ser el base.ini de ahora, el plan y lo de debajo se quedan, y se
         // añade la generacion de un plan nuevo de este PC (lo demas del plan, lo elegido en el asistente, no se toca). Copia: .antes-<version>
-        public const string IniVersion = "1.0.10";  // 21-11 (1.0.10): DLSS FG en RTX 30 con dlssg_sm86 (dlssg_solo_magpie); (1.0.9) capturas_120 y XeSS FG en el modo 60
+        // 22-11 (1.2.2): base.ini con valores de serie nuevos (dlss5_antiparpadeo_30_1pasada=3, magpie_nitidez_transformer, dlss_flujo_transformer,
+        // color / detalle / contener de 2-3 pasadas a 4K, enfoque_sin_reescalado, motor_uso_grafica, espera_sonda_cada_ms) y, en graficas lentas,
+        // el plan pone tabla_ligero_30* (Escalas.cs). (1.0.10): DLSS FG en RTX 30 con dlssg_sm86 (dlssg_solo_magpie); (1.0.9) capturas_120 y XeSS FG
+        public const string IniVersion = "1.2.2";
         static readonly string[] ClavesGenPlan = { "generacion_tipo", "generacion_tipo_60", "generacion_tipo_30", "motor_generacion_60", "motor_generacion_30",
+                                                   // (1.2.2, UNIVERSAL: el modo ligero de Magpie en el 30 con una grafica bastante mas lenta que la de referencia)
+                                                   "tabla_ligero_30_fg", "tabla_ligero_30", "tabla_ligero_30_fg_4k", "tabla_ligero_30_4k",
                                                    "dlssg_solo_magpie",
                                                    "generacion_lista_60", "generacion_lista_30", "generacion_60", "generacion_disponible",
                                                    // 21-11 (1.0.9; el usuario: "no hay opcion de 120fps"): los ini con el plan de antes del 20-11 no tenian
