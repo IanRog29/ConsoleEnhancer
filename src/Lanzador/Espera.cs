@@ -82,6 +82,10 @@ namespace ConsoleEnhancer
         // sonda, el proceso de la espera, el plan) sin que la tele se apague (apagada no se vuelve a encender por programa y Windows la deja
         // a 60 Hz). La heredan los procesos que abre (--espera, --ce-sonda, --inicio)
         public static readonly bool PantallaEncendida = Environment.GetEnvironmentVariable("CE_PRUEBA_PANTALLA_ENCENDIDA") == "1";
+        // (1.2.2) SOLO PRUEBAS: CE_PRUEBA_ESPERA_S=<s>: la espera termina sola a los s segundos como si Windows se apagara (vuelve el plan de
+        // antes y se borra el suyo, sin abrir la app). Sin la barra oculta no hay guarda que devuelva el plan si se mata la espera a mano
+        static readonly int PruebaFinS = LeerEntero(Environment.GetEnvironmentVariable("CE_PRUEBA_ESPERA_S"));
+        static int LeerEntero(string s) { int n; return int.TryParse(s ?? "", out n) ? n : 0; }
 
         // ------------------------------------------------------------------ lo que se cuenta en la app (asistente y bandeja)
         public static string Nombre(string modo)
@@ -329,7 +333,7 @@ namespace ConsoleEnhancer
                 Log.Write("Espera: " + SuspenderTrasMin + " min sin nada (espera_suspender_min): suspension de verdad");
                 return CeSuspension.SuspenderYVolver();
             }
-            if (porque == null || porque == "windows")
+            if (porque == null || porque == "windows" || porque == "fin de la prueba")
             {
                 Economizador(false, "fin de la espera");
                 EsperarSonda(sonda);
@@ -584,6 +588,7 @@ namespace ConsoleEnhancer
                 // La pantalla: si alguien la ha encendido (raton) y lleva 30 s sin tocar nada, otra vez apagada
                 if (Tocado() && MsSinTocar() > 30000) ApagarPantalla();
                 if (SuspenderTrasMin > 0 && reloj.Elapsed.TotalMinutes >= SuspenderTrasMin) Fin("suspender");
+                if (PruebaFinS > 0 && reloj.Elapsed.TotalSeconds >= PruebaFinS) Fin("fin de la prueba");   // (SOLO PRUEBAS: CE_PRUEBA_ESPERA_S)
             }
 
             void ApagarPantalla()
