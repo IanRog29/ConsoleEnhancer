@@ -12046,8 +12046,26 @@ namespace ConsoleEnhancer
                 if (p != null && !p.HasExited)
                 {
                     p.Refresh();
-                    if (p.MainWindowHandle != IntPtr.Zero) ForceForeground(p.MainWindowHandle);
+                    IntPtr h = p.MainWindowHandle;
+                    bool yaDelante = h != IntPtr.Zero && GetForegroundWindow() == h;
+                    if (h != IntPtr.Zero) ForceForeground(h);
                     Thread.Sleep(150);
+                    // 22-11 (1.2.2, ERRORES; pendiente de la revision de la 1.2.03): con mpv detras, pasarlo delante ya hace saltar el escalado
+                    // automatico de Magpie, y el atajo (alterna) lo paraba a los 150 ms. 22-11 03:14: dos atajos y 24 s hasta escalar (dos
+                    // DLSSNR creados). Si ha empezado, sin atajo
+                    if (!yaDelante && h != IntPtr.Zero)
+                    {
+                        Stopwatch ws = Stopwatch.StartNew();
+                        do
+                        {
+                            if (MagpieLive.IsScaling() || MagpieLive.ScalingPhase() == MagpieLive.Phase.Starting)
+                            {
+                                Log.Write("Magpie ha empezado a escalar al pasar mpv delante: sin pulsar su atajo (lo pararia)");
+                                return;
+                            }
+                            Thread.Sleep(50);
+                        } while (ws.ElapsedMilliseconds < 700);
+                    }
                 }
                 int sc = MagpieConfig.ScaleShortcut();
                 byte key = (byte)(sc & 0xFF);
@@ -13382,11 +13400,13 @@ namespace ConsoleEnhancer
             t.Start();
         }
 
-        // Espera a que Magpie empiece a escalar la ventana de mpv (su ventana de escalado) o a que pase el tiempo maximo
-        bool WaitForScaling(Process p, long logStart, int seconds = 15)
+        // Espera a que Magpie empiece a escalar la ventana de mpv (su ventana de escalado) o a que pase el tiempo maximo.
+        // tocarPrimerPlano = false (22-11, 1.2.2): justo tras pulsar el atajo de escalar, que ya lo ha empezado (o no): sin quitarle a mpv el
+        // primer plano, que lo pararia a medias antes de que el log de Magpie diga que ha empezado
+        bool WaitForScaling(Process p, long logStart, int seconds = 15, bool tocarPrimerPlano = true)
         {
             DateTime limit = DateTime.Now.AddSeconds(seconds), began = DateTime.Now;
-            bool focused = false, preparing = false;
+            bool focused = !tocarPrimerPlano, preparing = false;
             while (DateTime.Now < limit && !p.HasExited)
             {
                 // El escalado automatico de Magpie salta cuando mpv pasa a primer plano: si mpv ya estaba delante (Magpie
@@ -13397,8 +13417,9 @@ namespace ConsoleEnhancer
                     if (p.MainWindowHandle != IntPtr.Zero)
                     {
                         // 16-11: si ya ha empezado por EarlyScale (mpv delante antes de su primera imagen), sin tocar el primer plano: quitarselo
-                        // a mpv mientras Magpie prepara el escalado lo pararia a medias
-                        bool early = earlyScaled == p && MagpieLive.ScalingPhase() == MagpieLive.Phase.Starting;
+                        // a mpv mientras Magpie prepara el escalado lo pararia a medias. 22-11 (1.2.2, ERRORES): empezado por lo que sea (el
+                        // atajo, un primer plano de antes), no solo por EarlyScale
+                        bool early = MagpieLive.ScalingPhase() == MagpieLive.Phase.Starting;
                         if (!MagpieLive.IsScaling() && !early)
                         {
                             MarcoMpv.Quitar(p.MainWindowHandle, "antes del escalado de Magpie"); // (1.2.1, MarcoMpv.cs)
@@ -13561,7 +13582,7 @@ namespace ConsoleEnhancer
                 if (!MagpieQuieto()) { if (WaitForScaling(p, logStart, 8)) return true; continue; }
                 Log.Write("Magpie no ha escalado solo: se pulsa su atajo");
                 SendScaleHotkey();
-                if (WaitForScaling(p, logStart, 5)) return true;
+                if (WaitForScaling(p, logStart, 5, false)) return true;   // (22-11, 1.2.2: sin volver a tocar el primer plano, ver WaitForScaling)
             }
             string issue = MagpieLive.LastIssue(DateTime.Now.AddSeconds(-40));
             pendingWarnOsd = "Magpie no escala · " + (issue ?? "mira switch2.log");
@@ -13961,7 +13982,7 @@ namespace ConsoleEnhancer
                         // Relanzado en plena sesion la ventana nueva puede no pasar a primer plano
                         Log.Write("Magpie no ha escalado solo: se pulsa su atajo");
                         SendScaleHotkey();
-                        scaled = WaitForScaling(p, logStart, 5);
+                        scaled = WaitForScaling(p, logStart, 5, false);   // (22-11, 1.2.2: sin volver a tocar el primer plano, ver WaitForScaling)
                     }
                     if (!scaled && !p.HasExited && !userExit && File.Exists(Paths.MagpieExe))
                     {
