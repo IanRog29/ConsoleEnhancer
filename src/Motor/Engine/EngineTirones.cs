@@ -174,7 +174,7 @@ namespace ConsoleEnhancer.Motor
             double hz = DisplayHz();
             if (hz <= 0) return;
             double cap = s.FpsNum / (double)Math.Max(1, s.FpsDen);
-            double rate = (fgApplied ? FgFactor : s.SmoothMode > 0 ? 2 : 1) * cap * (s.Mode == 30 ? 0.5 : 1);   // (18-11: sm= Smooth Motion del driver tambien x2)
+            double rate = (fgApplied || ExtFgOn ? FgFactor : s.SmoothMode > 0 ? 2 : 1) * cap * (s.Mode == 30 ? 0.5 : 1);   // (18-11: sm= Smooth Motion del driver tambien x2) (1.2.4: y FSR 3 FG / XeSS FG del motor)
             double k = Math.Max(1, Math.Round(hz / rate));      // refrescos por imagen
             double spare = hz - k * rate;                        // refrescos por segundo que sobran (o faltan)
             // 20-11 (LATENCIA4): con la tele en VRR (NVAPI, EngineLatencia.cs) no hay latido: cada imagen sale al llegar (antes se decia
