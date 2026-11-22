@@ -89,6 +89,11 @@ namespace ConsoleEnhancer.Motor
         // un corte de camara cada N imagenes. Con test_vel
         MapaPrueba mapa;
         bool IsMapa { get { return image.StartsWith("mapa", StringComparison.Ordinal) && !image.Contains("."); } }
+        // 1.2.4 ronda 5 (FGCAL) test=real[f][a][z][N] (RealPrueba.cs): capturas reales de un juego (carpeta test_textura) con un personaje
+        // que sigue a la camara y su interfaz real encima; f = con verja fina delante; a = el personaje se balancea un poco; z = la camara
+        // avanza y retrocede (acercamiento); N = un corte cada N
+        RealPrueba real;
+        bool IsReal { get { return image.StartsWith("real", StringComparison.Ordinal) && !image.Contains(".") && !image.Contains("\\"); } }
 
         public string Name { get { return "prueba (" + (image.Length > 0 ? image : "barras") + (IsParallax ? string.Format(System.Globalization.CultureInfo.InvariantCulture, " cielo x{0:0.00} velocidad x{1:0.00} ruido {2}", ParRatio, ParSpeed, Noise) : "") + (Holds.Length > 0 ? ", cadencia " + Holds : ", juego a " + gameFps) + ")"; } }
 
@@ -116,6 +121,17 @@ namespace ConsoleEnhancer.Motor
                 mapa = new MapaPrueba(ParSpeed, cut);
                 frame = Marshal.AllocHGlobal(pitch * h);
                 Log.Write("Fuente de prueba: " + image + " preparada (" + Clock.SinceMs(t0).ToString("0") + " ms)");
+                return;
+            }
+            if (IsReal)
+            {
+                long t0 = Clock.Now;
+                string rest = image.Substring(4); bool fence = false, anim = false, zoomR = false;
+                while (rest.Length > 0 && (rest[0] == 'f' || rest[0] == 'a' || rest[0] == 'z')) { if (rest[0] == 'f') fence = true; else if (rest[0] == 'a') anim = true; else zoomR = true; rest = rest.Substring(1); }
+                int cut; int.TryParse(rest, out cut);
+                real = new RealPrueba(ZoomTexture, ParSpeed, cut, fence, anim, zoomR);
+                frame = Marshal.AllocHGlobal(pitch * h);
+                Log.Write("Fuente de prueba: " + image + " preparada con " + ZoomTexture + " (" + Clock.SinceMs(t0).ToString("0") + " ms)");
                 return;
             }
             if (IsFinas)
@@ -245,6 +261,7 @@ namespace ConsoleEnhancer.Motor
             if (zoom != null) { zoom.Compose(n, (byte*)frame, w, h, pitch, Noise); return; }
             if (fin != null) { fin.Compose(n, (byte*)frame, w, h, pitch, Noise); return; }
             if (mapa != null) { mapa.Compose(n, (byte*)frame, w, h, pitch, Noise); return; }   // 1.2.4 (DLSSFG)   // 22-11 (1.2.2, CALIDAD)
+            if (real != null) { real.Compose(n, (byte*)frame, w, h, pitch, Noise); return; }   // 1.2.4 ronda 5 (FGCAL)
             if (par != null)
             {
                 long t0 = Clock.Now;
