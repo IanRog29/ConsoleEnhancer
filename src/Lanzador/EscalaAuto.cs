@@ -113,7 +113,9 @@ namespace ConsoleEnhancer
         public static double Uso = 0.95;
         // dlss5_escala_grafica (1.2.3, MULTI2): lo que puede ocupar la grafica (Carga x k) del tiempo de una real. 88: antes, con el 75 % del
         // modelo de solo la grafica, era ~el 75 %; medido llegando con 77-82 % (XeSS FG x2 a 4K al 50 %, DLSS FG x4 a 1440p)
-        public static double UsoGrafica = 0.88;
+        // (1.2.4, XEFG: 92. MEDIDO el 22-11, tele 4K a 120 con VRR, 1440p + DLSS M + DLSS 5 de 1 pasada por Magpie: XeSS FG x2 al 75 % / 80 %
+        // -lo que dan 88 / 92- 29,73 / 29,71 reales con la grafica al 77 %; DLSS FG x3 al 55 % / 60 % 29,65 / 29,55, grafica 71 / 73 %)
+        public static double UsoGrafica = 0.92;
         public static volatile string Juego;      // el juego de ahora (TrayApp.PrepareCfg)
 
         static double Mp(int w, int h) { return Math.Max(0, w) * (double)Math.Max(0, h) / 1e6; }
