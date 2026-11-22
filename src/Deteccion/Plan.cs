@@ -549,9 +549,12 @@ namespace ConsoleEnhancer.Deteccion
                 string gen = k.StartsWith("60") ? p.Gen60 : p.Gen30;
                 if (fg && gen == "ninguna") continue;
                 m.TopeMs = (k.StartsWith("60") ? 1000.0 / 59.94 : 2000.0 / 59.94) * Margen;
+                // (1.2.2, UNIVERSAL) los vectores de movimiento solo si alguien los usa (EngineMotion.RecordMotion: un escalador temporal -DLSS,
+                // XeSS, FSR 4- o la generacion); con FSR 1 sin generacion no se calculan
+                double mvAqui = fg || (p.CapH > 0 && p.CapH < p.OutH && (p.Escalador == "dlss" || p.Escalador == "xess" || p.Escalador == "fsr4")) ? mv : 0;
                 // (1.2.2, UNIVERSAL: costes de la generacion con lo medido, PlanMargen.CosteGeneracion; AFMF tambien gasta)
                 double fgc = !fg ? 0 : gen == "dlssg" ? Medido(cal, p.Calibrado, "fg_dlssg", CosteGeneracion(gen, g, esc)) : gen == "smooth" ? Medido(cal, p.Calibrado, "fg_smooth", CosteGeneracion(gen, g, esc)) : CosteGeneracion(gen, g, esc);
-                double fijo = bas + mv + fgc;
+                double fijo = bas + mvAqui + fgc;
                 if (p.Escalador == "dlss")
                 {
                     List<string> orden = new List<string>();

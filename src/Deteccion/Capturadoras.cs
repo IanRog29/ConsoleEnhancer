@@ -65,6 +65,8 @@ namespace ConsoleEnhancer.Deteccion
         public bool Hdr;                  // captura HDR10 (P010) ademas de dejarlo pasar
         public string Paso = "";          // lo que deja pasar a la tele (passthrough), informativo
         public string Rarezas = "";       // lo que conviene saber (va al informe y al asistente)
+        public string Clave = "";         // nombre corto (simulaciones: DeteccionTest --simula=cap:<clave>)
+        public ModeloCaptura Id(string clave) { Clave = clave ?? ""; return this; }
         public ModeloCaptura(string marca, string modelo, int vid, int pid, string bus, string[] pat, int w, int h, double fps, bool soloComp, string formatos, string notas)
         { Marca = marca; Modelo = modelo; Vid = vid; Pid = pid; Bus = bus; Patrones = pat; MaxW = w; MaxH = h; MaxFps = fps; SoloComprimido = soloComp; Formatos = formatos; Notas = notas; }
         public ModeloCaptura Con(bool audioEnFiltro, bool noSignalPropia) { AudioEnFiltro = audioEnFiltro; HdmiSinSenalPropia = noSignalPropia; return this; }

@@ -151,6 +151,11 @@ namespace ConsoleEnhancer.Deteccion
             // 2) generacion que ni con lo mas ligero cabe en el tiempo entero de una imagen real: no se ofrece en ese modo (seria ir a tirones)
             QuitarGeneracionImposible(p, g, "60");
             QuitarGeneracionImposible(p, g, "30");
+            // 2b) ni el modo 60 sin nada cabe en el tiempo entero de una imagen (graficas integradas a 4K): que hacer, en claro
+            ModoPlan b60;
+            if (p.Modos.TryGetValue("60", out b60) && b60.CosteMs > 1000.0 / 59.94 && p.OutH > 1080)
+                p.Avisos.Add(Tx.T("Esta gráfica no llega a 60 fps pintando a " + p.OutW + "x" + p.OutH + " (" + Tx.N(b60.CosteMs, "0.0") + " ms de 16,7): pon la pantalla a 1920x1080 (Configuración > Pantalla) o usa una gráfica dedicada; si no, el modo 30",
+                                  "This GPU can't reach 60 fps rendering at " + p.OutW + "x" + p.OutH + ": set the display to 1920x1080 or use a dedicated GPU; otherwise use the 30 mode"));
             // 3) a 120 fps: hasta que captura cabe la cadena mas ligera en el 85 %
             Tope120(p, g);
             // 4) VRAM
@@ -160,13 +165,16 @@ namespace ConsoleEnhancer.Deteccion
         static string Nombre(string e) { return e == "fsr4" ? "FSR 4" : e == "xess" ? "XeSS" : e == "fsr1" ? "FSR 1" : e == "dlss" ? "DLSS" : e; }
 
         // ms de lo fijo + el escalado mas ligero para esta captura y esta salida (lo de ElegirModelos sin la generacion)
-        static double CosteLigero(PlanImagen p, GpuInfo g, int capW, int capH)
+        static double CosteLigero(PlanImagen p, GpuInfo g, int capW, int capH) { return CosteLigero(p, g, capW, capH, false); }
+
+        static double CosteLigero(PlanImagen p, GpuInfo g, int capW, int capH, bool conGeneracion)
         {
             double idx = IndicePrudente(g);
             double esc = (p.OutW * (double)p.OutH) / (3840.0 * 2160.0) / idx;
-            double mv = RefMv1440 * Math.Max(1, capW * (double)capH) / (2560.0 * 1440.0) / idx;
-            double bas = RefBase * esc;
             bool up = capH > 0 && capH < p.OutH;
+            bool temporal = up && (p.Escalador == "dlss" || p.Escalador == "xess" || p.Escalador == "fsr4");
+            double mv = conGeneracion || temporal ? RefMv1440 * Math.Max(1, capW * (double)capH) / (2560.0 * 1440.0) / idx : 0;   // (vectores: solo si alguien los usa)
+            double bas = RefBase * esc;
             double sc = !up ? 0 : p.Escalador == "dlss" ? RefDlssE * esc : CosteEscalador(p.Escalador == "ninguno" ? "fsr1" : p.Escalador, g, esc);
             return bas + mv + sc;
         }
@@ -178,12 +186,13 @@ namespace ConsoleEnhancer.Deteccion
             double periodo = (modo == "60" ? 1000.0 : 2000.0) / 59.94;
             double idx = IndicePrudente(g);
             double esc = (p.OutW * (double)p.OutH) / (3840.0 * 2160.0) / idx;
-            double fijo = CosteLigero(p, g, p.CapW, p.CapH);
-            string[] tipos = { "smooth", "dlss", "fsr3", "xess" };
-            string[] gens = { "smooth", "dlssg", "fsr3fg", "xessfg" };
+            double fijo = CosteLigero(p, g, p.CapW, p.CapH, true);
+            // (AFMF es del driver: no esta en el selector, pero el plan lo apunta para el asistente)
+            string[] tipos = { "smooth", "dlss", "fsr3", "xess", "afmf" };
+            string[] gens = { "smooth", "dlssg", "fsr3fg", "xessfg", "afmf" };
             for (int i = 0; i < tipos.Length; i++)
             {
-                if (!lista.Contains(tipos[i])) continue;
+                if (!lista.Contains(tipos[i]) && !(tipos[i] == "afmf" && gen == "afmf")) continue;
                 double c = fijo + CosteGeneracion(gens[i], g, esc);
                 if (c <= periodo) continue;
                 lista.Remove(tipos[i]);
@@ -194,6 +203,10 @@ namespace ConsoleEnhancer.Deteccion
                     if (modo == "60") { p.Gen60 = "ninguna"; p.Mult60 = 1; } else { p.Gen30 = "ninguna"; p.Mult30 = 1; }
                     gen = "ninguna";
                     if (p.Gen60 == "ninguna" && p.Gen30 == "ninguna") p.GenDeSerie = false;
+                    // (y su modo con generacion del plan, con su aviso de "ni lo mas ligero cabe")
+                    p.Modos.Remove(modo + "_fg");
+                    string pre = Tx.T("Modo ", "Mode ") + modo + "_fg";
+                    p.Avisos.RemoveAll(delegate(string a) { return a.StartsWith(pre); });
                 }
             }
         }
@@ -253,10 +266,10 @@ namespace ConsoleEnhancer.Deteccion
             if (p.Modos.TryGetValue("60", out m) && m.TopeMs > 0) l.Add(Tx.T("modo 60 al ", "60 mode at ") + Math.Round(100 * m.CosteMs / (1000.0 / 59.94)) + Tx.T(" % de la gráfica (previsto)", "% GPU (estimated)"));
             if (p.Modos.TryGetValue("60_fg", out m) && m.TopeMs > 0) l.Add(Tx.T("60 con generación al ", "60 + frame gen at ") + Math.Round(100 * m.CosteMs / (1000.0 / 59.94)) + " %");
             l.Add(Tx.T("de serie ≤ 75 %, jugando ≤ ", "default <= 75%, while playing <= ") + Math.Round(UsoMotor * 100) + " %");
-            if (p.VramTotalMb > 0) l.Add("VRAM " + Tx.N(p.VramPrevistaMb / 1024, "0.0") + "/" + Tx.N(p.VramTotalMb / 1024, "0.0") + " GB");
+            if (p.VramTotalMb > 0 && g != null && !g.Integrada) l.Add("VRAM " + Tx.N(p.VramPrevistaMb / 1024, "0.0") + "/" + Tx.N(p.VramTotalMb / 1024, "0.0") + " GB");
             if (p.Tope120Alto < 1440) l.Add(p.Tope120Alto == 0 ? Tx.T("sin 120", "no 120") : Tx.T("120 hasta ", "120 up to ") + p.Tope120Alto + "p");
             if (hw != null && hw.Sistema != null && hw.Sistema.Hilos > 0 && p.CapFormato == "MJPG") l.Add("MJPEG: CPU " + hw.Sistema.Hilos + Tx.T(" hilos (hasta ", " threads (up to ") + TopeComprimido(hw) + "p)");
-            if (g != null && g.IndiceEstimado) l.Add(Tx.T("gráfica fuera de la tabla: índice " + Tx.N(g.Indice, "0.00") + " -15 %", "GPU not in the table: index " + Tx.N(g.Indice, "0.00") + " -15%"));
+            if (g != null && g.IndiceEstimado && !g.Software) l.Add(Tx.T("gráfica fuera de la tabla: índice " + Tx.N(g.Indice, "0.00") + " -15 %", "GPU not in the table: index " + Tx.N(g.Indice, "0.00") + " -15%"));
             p.Margenes = string.Join("; ", l.ToArray());
         }
     }

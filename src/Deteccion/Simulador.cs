@@ -19,7 +19,16 @@ namespace ConsoleEnhancer.Deteccion
             "pantalla-1080p60", "monitor-1440p240", "tele-119", "hags-apagada",
             // 20-11 (HDR / RTX HDR / VRR, HdrVrr.cs)
             "tele-hdr-gsync", "monitor-hdr400", "amd-hdr-freesync", "rtx2060-driver-viejo-hdr",
+            // 22-11 (1.2.2, UNIVERSAL): mas graficas, pantallas, CPU y capturadoras del catalogo ("cap:<clave>", CatalogoCapturas.cs)
+            "rtx4060", "rtx5070", "amd-rx6600", "intel-arc-a750", "amd-780m", "cpu-4hilos",
+            "tele-4k60", "monitor-1080p144", "monitor-1440p144-vrr", "monitor-1080p60",
+            "uvc-ms2130", "cap:elgato-4kx", "cap:elgato-hd60s+", "cap:elgato-camlink4k", "cap:avermedia-gc553", "cap:avermedia-gc311", "cap:j5create-jva04",
         };
+
+        // (1.2.2) La matriz (DeteccionTest --simula=matriz): graficas x pantallas x capturadoras, con hardware inventado entero (sin detectar
+        // nada: rapido) y la revision automatica de cada plan (Revisar)
+        public static readonly string[] MatrizGpus = { "gtx1660", "rtx2060", "rtx3060", "rtx4060", "rtx4060ti", "rtx5070", "amd-rx6600", "amd-rx7800xt", "amd-rx9070xt", "intel-arc-a750", "intel-arc-b580", "intel-iris-xe", "amd-780m" };
+        public static readonly string[] MatrizPantallas = { "tele-4k120-vrr", "tele-4k60", "monitor-1440p144-vrr", "monitor-1080p144", "monitor-1080p60" };
 
         public static OpcionesDeteccion Opciones(string caso, OpcionesDeteccion baseOp)
         {
@@ -67,7 +76,103 @@ namespace ConsoleEnhancer.Deteccion
                     Gpu(h, op, 0x10DE, 0x1F08, "NVIDIA GeForce RTX 2060", 6, 0x160, 53141, 2);
                     Hdr(Pantalla(h, "Tele 4K HDR (simulada)", 3840, 2160, 60, 60, true, false, 0), 600, 0);
                     break;
+                // 22-11 (1.2.2, UNIVERSAL)
+                case "rtx4060": Gpu(h, op, 0x10DE, 0x2882, "NVIDIA GeForce RTX 4060", 8, 0x190, 61692, 2); break;
+                case "rtx4060ti": Gpu(h, op, 0x10DE, 0x2803, "NVIDIA GeForce RTX 4060 Ti", 8, 0x190, 61088, 2); break;
+                case "rtx5070": Gpu(h, op, 0x10DE, 0x2F04, "NVIDIA GeForce RTX 5070", 12, 0x1B0, 61692, 2); break;
+                case "amd-rx6600": Gpu(h, op, 0x1002, 0x73FF, "AMD Radeon RX 6600", 8, 0, 0, 2); break;
+                case "intel-arc-a750": Gpu(h, op, 0x8086, 0x56A1, "Intel(R) Arc(TM) A750 Graphics", 8, 0, 0, 2); break;
+                case "amd-780m": Gpu(h, op, 0x1002, 0x15BF, "AMD Radeon 780M Graphics", 0.5, 0, 0, 2); break;
+                case "cpu-4hilos": h.Sistema.Hilos = 4; h.Sistema.Nucleos = 4; break;
+                case "tele-4k60": Pantalla(h, "Tele 4K 60 Hz (simulada)", 3840, 2160, 60, 60, false, false, 0); break;
+                case "tele-4k120-vrr": Pantalla(h, "Tele 4K 120 Hz VRR (simulada)", 3840, 2160, 120, 120, true, true, 40); break;
+                case "monitor-1080p144": Pantalla(h, "Monitor 1080p 144 Hz (simulado)", 1920, 1080, 144, 144, false, false, 0); break;
+                case "monitor-1440p144-vrr": Pantalla(h, "Monitor 1440p 144 Hz VRR (simulado)", 2560, 1440, 144, 144, true, true, 48); break;
+                case "monitor-1080p60": Pantalla(h, "Monitor 1080p 60 Hz (simulado)", 1920, 1080, 60, 60, false, false, 0); break;
+                // MS2130 / MS2131 (USB 3.0, "USB3 Video"): YUY2 hasta 1080p60, MJPEG hasta 4K30 (lo que suelen listar)
+                case "uvc-ms2130":
+                    Captura(h, "USB3 Video", 0x345F, 0x2130, "USB", new[] { F(3840, 2160, 30, "MJPG"), F(2560, 1440, 30, "MJPG"), F(1920, 1080, 60, "MJPG"), F(1280, 720, 60, "MJPG"),
+                        F(1920, 1080, 60, "YUY2"), F(1280, 720, 60, "YUY2"), F(1920, 1080, 60, "NV12") }, "Digital Audio Interface (USB3 Video)", true);
+                    break;
+                default:
+                    if (caso.StartsWith("cap:")) CapturaCatalogo(h, caso.Substring(4));
+                    break;
             }
+        }
+
+        // Una capturadora del catalogo "abierta": sus formatos previstos como si se hubieran leido (con 60,000 fijos, como muchas UVC)
+        static void CapturaCatalogo(Hardware h, string clave)
+        {
+            ModeloCaptura m = DetectorCapturadoras.Catalogo.Find(delegate(ModeloCaptura x) { return x.Clave == clave; });
+            if (m == null) return;
+            List<FormatoCaptura> fl = new List<FormatoCaptura>();
+            foreach (FormatoCaptura f in m.Previstos()) { f.Previsto = false; f.FpsMin = f.FpsMax; fl.Add(f); }
+            string nombre = m.Patrones.Length > 0 ? m.Patrones[0] : m.Modelo;
+            Captura(h, nombre, m.Vid != 0 ? m.Vid : 0x1234, m.Pid != 0 ? m.Pid : 0x0001, m.Bus.StartsWith("PCI") ? "PCI" : "USB", fl.ToArray(), "Digital Audio Interface (" + nombre + ")", false);
+        }
+
+        // ---------------------------------------------------------------- la matriz (1.2.2)
+        public static Hardware Sintetico(OpcionesDeteccion op, string gpu, string pantalla, string captura, string extra)
+        {
+            Hardware h = new Hardware();
+            h.Sistema.Windows = "Windows 11 (simulado)"; h.Sistema.Build = 26200; h.Sistema.Windows11 = true; h.Sistema.Hilos = 12; h.Sistema.Nucleos = 6;
+            h.Simulacion = gpu + " + " + pantalla + " + " + captura + (extra.Length > 0 ? " + " + extra : "");
+            Aplicar(h, pantalla, op);
+            foreach (PantallaInfo p in h.Pantallas) p.GpuLuid = 0x1234;
+            Aplicar(h, gpu, op);
+            Aplicar(h, captura, op);
+            if (extra.Length > 0) Aplicar(h, extra, op);
+            h.Simulacion = gpu + " + " + pantalla + " + " + captura + (extra.Length > 0 ? " + " + extra : "");
+            return h;
+        }
+
+        // Lo que estaria mal en un plan (vacio = bien): lo que se pidio al agente UNIVERSAL (fluido en cualquier PC, con margen)
+        public static List<string> Revisar(Hardware h, PlanImagen p)
+        {
+            List<string> r = new List<string>();
+            CapturadoraInfo c = p.Captura;
+            GpuInfo g = p.Gpu;
+            string f = (p.CapFormato ?? "").ToUpperInvariant();
+            if (c != null && p.Motor == "propio" && f.Length > 0 && f != "AUTO" && !CapturadoraInfo.MotorLoAbre(f)) r.Add("motor propio con captura " + f + " (no la abre)");
+            List<FormatoCaptura> fl = c != null ? c.FormatosParaElegir() : null;
+            if (fl != null && fl.Count > 0)
+            {
+                FormatoCaptura elegido = fl.Find(delegate(FormatoCaptura x) { return x.Ancho == p.CapW && x.Alto == p.CapH && x.Subtipo.ToUpperInvariant() == f; });
+                if (elegido == null) r.Add("captura " + p.CapW + "x" + p.CapH + " " + f + " que la capturadora no lista");
+                else
+                {
+                    double fps = c.FpsDe(elegido);
+                    bool hay60 = fl.Exists(delegate(FormatoCaptura x) { return !x.Comprimido && x.Alto >= 720 && c.FpsDe(x) >= 59; });
+                    if (fps < 59 && hay60) r.Add("captura a " + Tx.N(fps, "0.#") + " fps habiendo 60 sin comprimir");
+                    if (elegido.Comprimido && elegido.Alto > Planificador.TopeComprimido(h)) r.Add("MJPEG a " + elegido.Alto + "p con " + h.Sistema.Hilos + " hilos");
+                    if (!elegido.Previsto && p.CapFps == "60000/1001" && elegido.FpsMin > 59.95 && Math.Abs(elegido.FpsMax - 60) < 0.05) r.Add("pide 59,94 a una capturadora que solo lista 60 (mpv no abre)");
+                    if (elegido.Comprimido && fl.Exists(delegate(FormatoCaptura x) { return !x.Comprimido && x.Alto >= 720 && c.FpsDe(x) >= Math.Min(59, fps); })) r.Add("comprimida habiendo sin comprimir");
+                }
+                if (p.HomeNativo && !fl.Exists(delegate(FormatoCaptura x) { return !x.Comprimido && x.Alto >= 2160 && c.FpsDe(x) >= 59; })) r.Add("HOME a 4K nativo sin 4K60 sin comprimir");
+            }
+            if (p.CapH > p.OutH && p.OutH > 0) r.Add("captura (" + p.CapH + "p) mayor que la pantalla (" + p.OutH + "p)");
+            // lo de serie, como mucho al 85 %; lo que solo se ofrece (generacion apagada de serie, en el selector), como mucho al 100 %
+            double limite = Planificador.UsoMotor;
+            foreach (KeyValuePair<string, ModoPlan> kv in p.Modos)
+            {
+                double periodo = (kv.Key.StartsWith("60") ? 1000.0 : 2000.0) / 59.94;
+                bool fg = kv.Key.EndsWith("_fg");
+                string gen = kv.Key.StartsWith("60") ? p.Gen60 : p.Gen30;
+                if (fg && gen == "ninguna") continue;
+                bool deSerie = !fg || p.GenDeSerie;
+                double tope = deSerie ? limite : 1.0;
+                if (kv.Value.CosteMs > tope * periodo)
+                    r.Add("modo " + kv.Key + (deSerie ? "" : " (ofrecido)") + " al " + Math.Round(100 * kv.Value.CosteMs / periodo) + " % (" + (kv.Value.Modelo.Length > 0 ? kv.Value.Modelo : p.Escalador) + ")" +
+                          (!fg && p.Avisos.Exists(delegate(string a) { return a.StartsWith(Tx.T("Esta gráfica no llega", "This GPU can't")); }) ? " [avisado: la grafica no da para esta salida]" : ""));
+            }
+            if (p.Captura != null && p.Captura.Formatos != null)
+            {
+                string fr;
+                string c120 = p.Capturas120(out fr);
+                if (c120.Length > 0 && p.Tope120Alto < 1440 && c120.Contains("2560x1440")) r.Add("120 a 1440p sin caber");
+            }
+            if (g != null && !g.Integrada && p.VramTotalMb > 256 && p.VramPrevistaMb > p.VramTotalMb * limite) r.Add("VRAM " + Math.Round(p.VramPrevistaMb) + " de " + Math.Round(p.VramTotalMb) + " MB");
+            return r;
         }
 
         static void Gpu(Hardware h, OpcionesDeteccion op, int ven, int dev, string nombre, double vramGb, int nvArq, int drvNv, int hags)
@@ -95,8 +200,12 @@ namespace ConsoleEnhancer.Deteccion
             return f;
         }
 
-        static void Captura(Hardware h, string nombre, int vid, int pid, string bus, FormatoCaptura[] fmts, string audio)
+        static void Captura(Hardware h, string nombre, int vid, int pid, string bus, FormatoCaptura[] fmts, string audio) { Captura(h, nombre, vid, pid, bus, fmts, audio, false); }
+
+        // fijos: los fps de cada formato sin rango (60,000 exactos, como muchas UVC: ffmpeg no abre 59,94 ahi)
+        static void Captura(Hardware h, string nombre, int vid, int pid, string bus, FormatoCaptura[] fmts, string audio, bool fijos)
         {
+            if (fijos) foreach (FormatoCaptura f in fmts) f.FpsMin = f.FpsMax;
             CapturadoraInfo c = new CapturadoraInfo();
             c.Simulada = true;
             c.Nombre = nombre; c.Vid = vid; c.Pid = pid; c.Bus = bus; c.EnMediaFoundation = true;
