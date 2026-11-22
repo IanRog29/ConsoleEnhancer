@@ -144,12 +144,13 @@ with help a lot too.
   otherwise FSR 3.1), plus whatever frame generation each one has (driver AFMF, FSR 3 FG, XeSS FG).
 - **Built-in image engine** (D3D12, `src\Motor`), the path the game takes whenever it can (there is nothing to choose): DirectShow
   capture; upscaling with DLSS, XeSS, FSR 3.1 / FSR 4 (with the Intel and AMD DLLs that come with Magpie) or FSR 1 (EASU + RCAS); frame
-  generation with DLSS FG (×2; ×3 / ×4 on RTX 50 through NVIDIA's official path), **XeSS FG ×2**, Smooth Motion or **FSR 3 FG on any
-  GPU**; Reflex / XeLL; and, optionally, NVIDIA RTX Dynamic Vibrance (`motor_extra=vibrancia=1`). In the 30 fps mode it gives DLSS FG
-  the picture without the still HUD, so HUDs, minimaps and text don't wobble (`fgui=0` in `motor_extra` turns it off). Only for what the
-  engine doesn't do (XeSS FG ×3 / ×4 outside Intel GPUs, DLSS FG ×3 / ×4 outside RTX 50, NVIDIA VFG, RTX Video, FSR 3 FG together with
-  DLSS) and DLSS 5 without the engine's helper, mpv + Magpie step in by themselves. Colour from YUY2 / NV12 capture cards is properly
-  reconstructed, without blocky red edges (`croma=2` in `motor_extra`; `croma=0` = as before).
+  generation with DLSS FG (×2; ×3 / ×4 on RTX 50 through NVIDIA's official path), **XeSS FG ×2**, Smooth Motion, **FSR 3 FG on any
+  GPU** and, for ×3 / ×4 on any other GPU, **its own frame generation** (shown as "x4 (own FG)"; `motor_fg_propia=0` turns it off);
+  Reflex / XeLL; and, optionally, NVIDIA RTX Dynamic Vibrance (`motor_extra=vibrancia=1`). In the 30 fps mode it gives DLSS FG the
+  picture without the still HUD, so HUDs, minimaps and text don't wobble (`fgui=0` in `motor_extra` turns it off). Only for what the
+  engine doesn't do (NVIDIA VFG, RTX Video, FSR 3 FG together with DLSS) and DLSS 5 without the engine's helper, mpv + Magpie step in by
+  themselves. Colour from YUY2 / NV12 capture cards is properly reconstructed, without blocky red edges (`croma=2` in `motor_extra`;
+  `croma=0` = as before).
 - **Scaling that adapts to your PC** (`escalas_adaptables=1`, on by default): the wizard estimates the DLSS model and percentages for
   your GPU and display; while you play, the engine measures GPU time every second and lowers quality if it can't keep up (within 2 s)
   or raises it little by little if there is headroom (after 20 s), and remembers it for next time (`data\scales_engine.txt`). With
@@ -193,9 +194,10 @@ with help a lot too.
 - **×2 / ×3 / ×4 frame generation** (DLSS FG and XeSS FG): the settings menu's *Multiplier* row, the tray or Ctrl+X. ×3 / ×4 only
   when they fit your screen (real fps × multiplier ≤ refresh rate: with a 120 Hz TV, the 30 fps mode gives 90 / 120 fps); otherwise
   they are shown locked with the reason. Saved per game and mode; if the output can't be reached, the multiplier is lowered first.
-  With DLSS 5 on, ×3 / ×4 keep it at 35 % or more; if the 30 real fps can't be held with it, DLSS 5 is removed for that multiplier
-  and the menu says so (RTX 4060 Ti, 4K: ×2 with DLSS 5 at ~35-45 %, ×3 at 35 %, ×4 without it). XeSS FG ×3 / ×4 on NVIDIA / AMD
-  (through Magpie): ×4 at 4K is offered "on trial" on an RTX 4060 Ti (~29-30 real fps, less in heavy games); with DLSS SR at 1440p, ×3.
+  ×3 / ×4 run in the engine: NVIDIA's DLSS FG ×3 / ×4 on RTX 50, Intel's XeSS FG ×3 / ×4 on Intel GPUs and, everywhere else, the
+  engine's own frame generation, which the menu shows as **"x4 (own FG)"** (measured on an RTX 4060 Ti at 4K: ×4 at 119.8 fps with every
+  frame 8.3 ms apart, also with DLSS 5 in the engine; on thin bars it is weaker than DLSS FG ×2). Only through Magpie (the fallback, e.g.
+  DLSS 5 without the engine's helper), DLSS 5 is kept at 35 % or more with ×3 / ×4, or removed for that multiplier when it doesn't fit.
 - **Protection**: if a combination can't hold the real frame rate of the mode, the app lowers what shows least (DLSS 5 scale and
   passes, multiplier, DLSS SR model...), tells you, and remembers it for that game and settings for 7 days. Picking something by hand
   always tries it. `proteccion=0` turns it off.
@@ -347,8 +349,7 @@ Short and honest (this is what the licences say; it is not legal advice):
   `engine\`), it is your file and your responsibility; the app only uses it if it is there and never fetches it.
 - What every RTX gets officially in the engine: DLSS Super Resolution, DLSS Frame Generation (RTX 40 / 50; ×3 / ×4 on RTX 50), Reflex
   and, optionally, RTX Dynamic Vibrance (it is not DLSS 5: it adds colour and clarity, it doesn't relight). The engine never alters
-  NVIDIA's or Intel's libraries, so XeSS FG ×3 / ×4 on NVIDIA / AMD only exists through Magpie (a separate program, with its own
-  compatibility mode).
+  NVIDIA's or Intel's libraries: where they don't offer ×3 / ×4, the engine uses its own frame generation (own code, legal on any GPU).
 
 ## FAQ / common problems
 
@@ -650,11 +651,12 @@ y contar en qué PC y con qué consola lo usas.
   FSR 3.1), y la generación que tenga cada una (AFMF del driver, FSR 3 FG, XeSS FG).
 - **Motor de imagen propio** (D3D12, `src\Motor`), el camino del juego siempre que se pueda (no hay nada que elegir): captura
   DirectShow; escalado con DLSS, XeSS, FSR 3.1 / FSR 4 (con las DLL de Intel y AMD que trae Magpie) o FSR 1 (EASU + RCAS); generación
-  de fotogramas con DLSS FG (×2; ×3 / ×4 en RTX 50 por la vía oficial de NVIDIA), **XeSS FG ×2**, Smooth Motion o **FSR 3 FG en
-  cualquier gráfica**; Reflex / XeLL; y, si quieres, la Vibrancia RTX de NVIDIA (`motor_extra=vibrancia=1`). En el modo 30 le da a DLSS
-  FG la imagen sin la interfaz quieta, para que la interfaz, los minimapas y los textos no tiemblen (`fgui=0` en `motor_extra` lo quita).
-  Solo para lo que el motor no hace (XeSS FG ×3 / ×4 fuera de Intel, DLSS FG ×3 / ×4 fuera de RTX 50, NVIDIA VFG, RTX Video, FSR 3 FG
-  junto con DLSS) y DLSS 5 sin el complemento del motor, entran mpv + Magpie solos. El color de las capturadoras YUY2 / NV12 se
+  de fotogramas con DLSS FG (×2; ×3 / ×4 en RTX 50 por la vía oficial de NVIDIA), **XeSS FG ×2**, Smooth Motion, **FSR 3 FG en
+  cualquier gráfica** y, para ×3 / ×4 en las demás gráficas, **su generación propia** (sale como «x4 (FG propia)»; `motor_fg_propia=0`
+  la quita); Reflex / XeLL; y, si quieres, la Vibrancia RTX de NVIDIA (`motor_extra=vibrancia=1`). En el modo 30 le da a DLSS FG la
+  imagen sin la interfaz quieta, para que la interfaz, los minimapas y los textos no tiemblen (`fgui=0` en `motor_extra` lo quita). Solo
+  para lo que el motor no hace (NVIDIA VFG, RTX Video, FSR 3 FG junto con DLSS) y DLSS 5 sin el complemento del motor, entran mpv + Magpie
+  solos. El color de las capturadoras YUY2 / NV12 se
   reconstruye bien, sin bordes rojos en escalones (`croma=2` en `motor_extra`; `croma=0` = como antes).
 - **Escalas que se adaptan a tu PC** (`escalas_adaptables=1`, de serie): el asistente estima el modelo de DLSS y los porcentajes para tu
   gráfica y tu pantalla; jugando, el motor mide el tiempo de gráfica cada segundo y baja la calidad si no llega (en 2 s) o la sube poco
@@ -699,9 +701,10 @@ y contar en qué PC y con qué consola lo usas.
 - **Generación ×2 / ×3 / ×4** (DLSS FG y XeSS FG): la fila *Multiplicador* del menú de ajustes, la bandeja o Ctrl+X. ×3 / ×4 solo si
   caben en tu pantalla (fps reales × multiplicador ≤ refresco: con una tele de 120 Hz, el modo 30 da 90 / 120 fps); si no, salen
   bloqueados con el motivo. Se guarda por juego y modo; si no se llega a la salida, lo primero que baja es el multiplicador.
-  Con DLSS 5, ×3 / ×4 lo dejan al 35 % o más; si así no se llega a las 30 reales, DLSS 5 se quita con ese multiplicador y el menú lo
-  dice (RTX 4060 Ti, 4K: ×2 con DLSS 5 al ~35-45 %, ×3 al 35 %, ×4 sin él). XeSS FG ×3 / ×4 en NVIDIA / AMD (por Magpie): ×4 a 4K
-  se ofrece «a prueba» en una RTX 4060 Ti (~29-30 reales, menos en juegos pesados); con DLSS SR a 1440p, ×3.
+  ×3 / ×4 van por el motor: DLSS FG ×3 / ×4 de NVIDIA en RTX 50, XeSS FG ×3 / ×4 de Intel en gráficas Intel y, en lo demás, la
+  generación propia del motor, que el menú enseña como **«x4 (FG propia)»** (medido en una RTX 4060 Ti a 4K: ×4 a 119,8 fps con todas a
+  8,3 ms, también con DLSS 5 en el motor; en barrotes finos, peor que DLSS FG ×2). Solo por Magpie (la reserva, p. ej. DLSS 5 sin el
+  complemento del motor), DLSS 5 se deja al 35 % o más con ×3 / ×4, o se quita con ese multiplicador si no cabe.
 - **Protección**: si una combinación no llega a las imágenes reales del modo, la app baja lo que menos se nota (escala y pasadas de
   DLSS 5, multiplicador, modelo de DLSS SR...), lo dice y lo recuerda para ese juego y ajustes 7 días. Lo elegido a mano siempre se
   prueba. `proteccion=0` la quita.
@@ -852,7 +855,7 @@ En corto y sin rodeos (es lo que dicen las licencias; no es asesoramiento legal)
   es tuyo y bajo tu responsabilidad; la app solo lo usa si está y nunca lo va a buscar.
 - Lo que tiene cualquier RTX de forma oficial en el motor: DLSS Super Resolution, DLSS Frame Generation (RTX 40 / 50; ×3 / ×4 en RTX 50),
   Reflex y, si quieres, la Vibrancia RTX (no es DLSS 5: da color y claridad, no cambia la luz). El motor nunca cambia las DLL de NVIDIA ni
-  de Intel, así que XeSS FG ×3 / ×4 en NVIDIA / AMD solo existe por Magpie (un programa aparte, con su propio modo de compatibilidad).
+  de Intel: donde ellas no dan ×3 / ×4, el motor usa su generación propia (código propio, legal en cualquier gráfica).
 
 ## Preguntas frecuentes y problemas comunes
 

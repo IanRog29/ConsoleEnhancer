@@ -13,8 +13,8 @@ publicada es una etiqueta `vX.Y.Z` de git; GitHub Actions monta su zip y copia a
   your ini on update; an old `motor_dlss5=0` no longer sends DLSS 5 to Magpie). The engine does DLSS SR / XeSS / FSR, DLSS FG ×2,
   **XeSS FG ×2 (new)**, Smooth Motion, FSR 3 FG, the 30 / 60 / 120 modes and Reflex and, with your own `engine\PrismaNr.dll`, DLSS 5
   with **1 to 3 passes** (`motor_dlss5_pasadas=3`, was 1). mpv + Magpie only step in, without a black screen and without being named,
-  for what the engine doesn't do: XeSS FG ×3 / ×4 outside Intel GPUs, DLSS FG ×3 / ×4 outside RTX 50, NVIDIA VFG, FSR 3 FG together with
-  DLSS, and DLSS 5 without that DLL. At 120 fps the frame generation picked for 60 fps no longer sends the game to Magpie. The start-up
+  for what the engine doesn't do: NVIDIA VFG, FSR 3 FG together with DLSS, and DLSS 5 without that DLL (×3 / ×4 now always go through
+  the engine, see below). At 120 fps the frame generation picked for 60 fps no longer sends the game to Magpie. The start-up
   log and `--dry-run` say which path the picture takes and why. Measured (RTX 4060 Ti, 4K 120 Hz VRR TV, from a frame arriving to it
   being on screen): 4K 30 fps mode with DLSS 5 + DLSS FG ×2, real frame **43 ms / generated 27 ms** (Magpie ~73 / ~57); 1080p → 4K with
   DLSS SR + 2 DLSS 5 passes + DLSS FG ×2, **37-40 / 20-23 ms** (Magpie ~52 / ~36), every frame shown for 2 refreshes and every real
@@ -24,7 +24,7 @@ publicada es una etiqueta `vX.Y.Z` de git; GitHub Actions monta su zip y copia a
   Magpie», lo de la bandeja, la pregunta de «Añadir DLSS 5» y la clave `motor_dlss5` (se quita del ini al actualizar). El motor hace
   DLSS SR / XeSS / FSR, DLSS FG ×2, XeSS FG ×2 (nuevo), Smooth Motion, FSR 3 FG, los modos 30 / 60 / 120, Reflex y, con tu
   `engine\PrismaNr.dll`, DLSS 5 de 1 a 3 pasadas (`motor_dlss5_pasadas=3`, antes 1). mpv + Magpie solo entran, sin telón, para lo que el
-  motor no hace (XeSS FG ×3 / ×4 fuera de Intel, DLSS FG ×3 / ×4 fuera de RTX 50, NVIDIA VFG, FSR 3 FG con DLSS, DLSS 5 sin esa DLL).
+  motor no hace (NVIDIA VFG, FSR 3 FG con DLSS, DLSS 5 sin esa DLL; ×3 / ×4 van ya siempre por el motor, ver abajo).
   Medido de que llega la imagen a que se ve: 4K modo 30 con DLSS 5 + DLSS FG ×2, 43 ms la real y 27 la inventada (Magpie ~73 / ~57);
   1080p → 4K con 2 pasadas, 37-40 / 20-23 (Magpie ~52 / ~36), todas a 2 refrescos; 4K modo 30 sin generación ~21 ms y 4K a 60 ~9 ms.*
 - **The app no longer downloads `dlssg_sm86`** ("haz lo que sea legal": that community package makes NVIDIA's NGX load DLSS Frame
@@ -53,9 +53,23 @@ publicada es una etiqueta `vX.Y.Z` de git; GitHub Actions monta su zip y copia a
   *XeSS FG en el motor propio (×2, con XeLL) con los vectores y la profundidad del motor, también con DLSS SR. Medido: 30,0 reales/s,
   todas a 2 refrescos, 31 / 15 ms; en objetos finos (verjas, cables, una caña de pescar) la mitad de error que por Magpie.*
 - **DLSS FG ×3 / ×4 in the built-in engine through Streamline's official multi frame generation**, where NVIDIA's runtime offers it
-  (RTX 50). On other cards the engine stays at ×2 and says so; ×3 / ×4 then go through Magpie as before.
-  *DLSS FG ×3 / ×4 en el motor por la vía oficial de Streamline donde el runtime de NVIDIA la da (RTX 50); en las demás, ×2 en el motor
-  y ×3 / ×4 por Magpie como antes.*
+  (RTX 50); on a 120 Hz TV the engine's ×4 in the 30 fps mode uses a fixed refresh (119.88/s).
+  *DLSS FG ×3 / ×4 en el motor por la vía oficial de Streamline donde el runtime de NVIDIA la da (RTX 50); con una tele de 120 Hz, el ×4
+  del motor en el modo 30 va con refresco fijo.*
+- **×3 / ×4 for every GPU in the built-in engine with its own frame generation** (own code with the engine's motion vectors; nothing
+  from NVIDIA, AMD or Intel: the only legal ×3 / ×4 on RTX 20 / 30 / 40 and on AMD). When you pick DLSS FG or XeSS FG ×3 / ×4, the engine
+  uses, in this order, the official path (RTX 50, or XeSS FG on Intel), a private engine helper if you have one, or its own frame
+  generation; Magpie only if none applies. The menu, the tray and the notices say it: **"x4 (FG propia)" / "x4 (own FG)"**, and the
+  protection lowers it like any other. Measured in the whole app (RTX 4060 Ti, 4K 120 Hz VRR TV, 30 fps mode, test source): ×4 at
+  119.8/s with every frame 8.3 ms apart (p99 8.8 ms), also with DLSS 5 on; ×3 at 89.8/s, 14.0 / 8.5 / 11.3 ms apart (with DLSS 5: with
+  vsync, 1 / 1 / 2 refreshes). Quality (4K test scenes): on a moving head ×3 error 1.0 (DLSS FG ×2 0.35, no interpolation 6.8), weaker
+  than DLSS FG on thin bars; real-frame delay ~27 ms at ×3 (Magpie ×3 / ×4 ~70 ms). `motor_fg_propia=0` = ×3 / ×4 through Magpie as
+  before. DLSS FG ×2 and XeSS FG ×2 are unchanged.
+  *×3 / ×4 para cualquier gráfica en el motor con su generación propia (código propio con los vectores del motor; la única ×3 / ×4 legal
+  en RTX 20 / 30 / 40 y AMD). Al elegir DLSS FG o XeSS FG ×3 / ×4 el motor usa, por orden, la vía oficial (RTX 50, XeSS FG en Intel), un
+  complemento privado del motor si lo tienes o su generación propia; Magpie solo si nada vale. El menú, la bandeja y los avisos lo
+  dicen: «x4 (FG propia)». Medido en la app entera: ×4 a 119,8/s con todas a 8,3 ms (p99 8,8), también con DLSS 5; ×3 a 89,8/s. En
+  barrotes finos, peor que DLSS FG. `motor_fg_propia=0` = como antes.*
 - **Protection for every combination** (upscaler + DLSS 5 + frame generation + multiplier): before applying, the app estimates the real
   frame rate (now with the upscaler's cost and the measured XeSS FG ×3 / ×4 pacing) and uses the next multiplier down when it is far off
   or already failed for that combination; while playing, real frames under 95 % for ~10 s lower, in order, the DLSS 5 scale and passes,
@@ -106,24 +120,26 @@ publicada es una etiqueta `vX.Y.Z` de git; GitHub Actions monta su zip y copia a
   now decides with the whole chain, and the protection above keeps such combinations from stuttering.
   *«DLSS 3 con XeSS FG ×3 a tirones»: la cuenta se guardaba sin el escalador y Magpie se abría con ×4 creyendo ×3. Ahora decide con la
   cadena entera.*
-- **XeSS FG ×4 at 4K is no longer "locked"**: measured on an RTX 4060 Ti, ×4 with a 4K capture holds 29.1-29.6 real fps (it can dip to
-  26-28 in heavy games; the old estimate said 24). It can be picked from the menu, tray and Ctrl+X, runs "on trial" with a notice and drops
-  to ×3 by itself if it doesn't hold (on NVIDIA / AMD it goes through Magpie).
-  *XeSS FG ×4 a 4K ya no sale bloqueado: se elige, va «a prueba» con aviso y baja sola a ×3 si no llega.*
+- **XeSS FG ×4 at 4K is no longer "locked"**: it can be picked from the menu, tray and Ctrl+X (on NVIDIA / AMD it is now the engine's
+  own ×4; through Magpie, the fallback, it runs "on trial" and drops to ×3 by itself if it doesn't hold: measured 29.1-29.6 real fps with
+  a 4K capture, 26-28 in heavy games).
+  *XeSS FG ×4 a 4K ya no sale bloqueado (en NVIDIA / AMD va con la generación propia del motor; por Magpie, «a prueba» y baja sola a ×3).*
 
 ### Notes / Notas
-- ConsoleEnhancer's own code and its zip never bypass NVIDIA's or Intel's checks and never alter their libraries: on RTX 40 / 30 / 20 the
-  engine has no DLSS FG ×3 / ×4 and, outside Intel GPUs, no XeSS FG ×3 / ×4 (Intel's runtime gives ×2 there). Those still exist only
-  through Magpie, a separate program the app downloads, which does them its own way (XeSS FG ×3 / ×4 with its compatibility mode; DLSS FG
-  only with a `dlssg_sm86` you add yourself). DLSS 5 is not legally available to apps today (see the README).
-  *Ni el código de ConsoleEnhancer ni su zip se saltan las comprobaciones de NVIDIA o Intel ni cambian sus DLL: en RTX 40 / 30 / 20 el
-  motor no tiene DLSS FG ×3 / ×4 y fuera de Intel no tiene XeSS FG ×3 / ×4; eso solo existe por Magpie (programa aparte que baja la app),
-  a su manera. DLSS 5 legal para otras apps hoy no existe.*
+- ConsoleEnhancer's own code and its zip never bypass NVIDIA's or Intel's checks and never alter their libraries: NVIDIA's DLSS FG
+  ×3 / ×4 only on RTX 50, Intel's XeSS FG ×3 / ×4 only on Intel GPUs, and everywhere else ×3 / ×4 come from the engine's own frame
+  generation. Magpie (a separate program the app downloads) is only a fallback, and does things its own way. DLSS 5 is not legally
+  available to apps today (see *DLSS 5 and the law* in the README). Private engine helpers (`PrismaNr.dll`, `PrismaFg.dll`) are never in
+  the repository or the zip; the engine only uses them if someone puts them in `engine\`.
+  *Ni el código de ConsoleEnhancer ni su zip se saltan las comprobaciones de NVIDIA o Intel ni cambian sus DLL: DLSS FG ×3 / ×4 de NVIDIA
+  solo en RTX 50, XeSS FG ×3 / ×4 de Intel solo en Intel, y en lo demás ×3 / ×4 salen de la generación propia del motor. Magpie (programa
+  aparte que baja la app) es solo reserva. DLSS 5 legal para otras apps hoy no existe. Los complementos privados del motor nunca van en
+  el repositorio ni en el zip.*
 - **To go back** (add the line at the end of `consoleenhancer.ini`): `motor_dlss5_pasadas=1` (2-3 DLSS 5 passes through Magpie, as in
-  1.2.3) · `motor_fg_multi=0` (XeSS FG and DLSS FG ×3 / ×4 not in the engine) · `proteccion=0` (no protection; XeSS FG ×3 / ×4 locked as
+  1.2.3) · `motor_fg_multi=0` (XeSS FG and ×3 / ×4 not in the engine) · `motor_fg_propia=0` (×3 / ×4 without the own frame generation) · `proteccion=0` (no protection; XeSS FG ×3 / ×4 locked as
   before) · `motor_extra=<yours> fgui=0` (no HUD-less image for DLSS FG) · `fg_dlss_vectores=0` (Magpie's DLSS FG without vectors) ·
   `dlss5_escala_grafica=88` and `motor_uso_grafica=85` · `motor=magpie` (everything through mpv + Magpie).
-  *Para volver atrás (la línea al final de `consoleenhancer.ini`): `motor_dlss5_pasadas=1`, `motor_fg_multi=0`, `proteccion=0`,
+  *Para volver atrás (la línea al final de `consoleenhancer.ini`): `motor_dlss5_pasadas=1`, `motor_fg_multi=0`, `motor_fg_propia=0`, `proteccion=0`,
   `fgui=0` en `motor_extra`, `fg_dlss_vectores=0`, `dlss5_escala_grafica=88` y `motor_uso_grafica=85`, `motor=magpie`.*
 
 ## [1.2.3] - 2026-11-22
