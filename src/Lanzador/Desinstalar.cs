@@ -7,7 +7,11 @@
 //  - Desinstalar: deja Windows como estaba (sin la tarea de inicio ni la entrada de Run, el escritorio normal, el plan de energia de
 //    antes si la espera lo dejo cambiado) y borra la app: solo SUS ficheros y carpetas (por si esta descomprimida dentro de Descargas o
 //    del escritorio: nunca la carpeta entera a ciegas) y, si se quiere, tus ajustes y perfiles (data\ o %LOCALAPPDATA%\ConsoleEnhancer).
-//    El exe no se puede borrar a si mismo: un PowerShell oculto espera a que la app se cierre y borra (log en %TEMP%).
+//    1.2.3 (DEFENDER): el borrado lo hace la propia app al final de su proceso (CeBorrado, abajo), sin PowerShell. Hasta la 1.2.2 lo
+//    hacia un PowerShell oculto con -ExecutionPolicy Bypass que esperaba a que se cerrara (lo que hace un programa malicioso que se
+//    borra solo; los antivirus lo miran con lupa). El exe abierto no se puede borrar pero si mover dentro del mismo disco: va a %TEMP%
+//    (ConsoleEnhancer.exe.uninstalled-*.tmp; lo quita la proxima vez que se abra cualquier copia de la app) y la carpeta, si se queda
+//    vacia, se borra. Log: %TEMP%\consoleenhancer_desinstalar.log
 //    Lo que no se toca: los perfiles de NVIDIA (Smooth Motion / RTX HDR en el perfil de Magpie y mpv: sin la app no hacen nada) y los
 //    dispositivos que se armaron para despertar el PC (Windows los trae asi de serie en los teclados).
 using System;
@@ -114,26 +118,37 @@ namespace ConsoleEnhancer
             string det;
             CeInicio.Poner(false, out det);
             Log.Write("Desinstalar: inicio con Windows quitado (" + det + ")");
-            try { Ce.IniPoner("escritorio_negro", "0"); Ce.IniPoner("apagar_pc", "0"); } catch { }
-            cfg.BlackDesktop = false; cfg.ShutdownPc = false;
+            // (1.2.3: iniciar_con_windows=0 tambien, en los ajustes que se guardan: una copia nueva que los herede no se pone sola en el inicio)
+            try { Ce.IniPoner("escritorio_negro", "0"); Ce.IniPoner("apagar_pc", "0"); Ce.IniPoner("iniciar_con_windows", "0"); } catch { }
+            cfg.BlackDesktop = false; cfg.ShutdownPc = false; cfg.StartWithWindows = 0;
             try { Escritorio.Cambiar(false); } catch (Exception ex) { Log.Error("Desinstalar: escritorio", ex); }
             CeEspera.PlanDeAntes("desinstalar");
 
-            // 2) Lo que se borra al cerrarse (solo lo de la app)
-            if (!PrepararBorrado(app, datos, borrar, Process.GetCurrentProcess().Id, true))
+            // 2) Lo que se borra (solo lo de la app): lo borra esta misma app al final, ya cerrada la bandeja (CeBorrado.AlSalir en Main),
+            // y entonces dice como ha ido
+            if (!CeBorrado.Preparar(app, datos, borrar, true))
                 MessageBox.Show(Deteccion.Tx.T("No se pudieron borrar los archivos. Cierra la app y borra la carpeta a mano:\n", "Could not delete the files. Close the app and delete the folder yourself:\n") + app,
                                 PrismaUi.AppName, MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            MessageBox.Show(Deteccion.Tx.T("ConsoleEnhancer se ha desinstalado. Gracias por probarlo.", "ConsoleEnhancer has been uninstalled. Thanks for trying it."),
-                            PrismaUi.AppName, MessageBoxButtons.OK, MessageBoxIcon.Information);
             QuitRequested();
         }
+    }
 
-        // El PowerShell oculto que espera a que se cierre el proceso pid y borra lo de la app (y los datos si borrar). Pruebas:
-        // ConsoleEnhancer.exe --ce-desinstalar-prueba=<1|0> (sin dialogos ni tocar Windows: solo el borrado de ESTA carpeta)
-        // copiaTambien (22-11, 1.2.2, ERRORES; solo desde la bandeja y el panel, nunca en la prueba): con "Sí = se borra todo", tambien la
-        // copia de seguridad de %LOCALAPPDATA%\ConsoleEnhancer\backup (Integrado.CopiaSeguridad, 1.2.07). Si no, al volver a instalar la
-        // app los heredaba de ahi (ajustes y perfiles "borrados")
-        public static bool PrepararBorrado(string app, string datos, bool borrar, int pid, bool copiaTambien = false)
+    // ------------------------------------------------------------------ el borrado de la desinstalacion (1.2.3, DEFENDER)
+    // Preparar: al pedirlo (bandeja, panel de ajustes). AlSalir: al final del proceso, con todo lo demas ya cerrado (Main tras la bandeja;
+    // PanelAjustes.Run tras el panel). Prueba: ConsoleEnhancer.exe --ce-desinstalar-prueba=<1|0> (sin dialogos ni tocar Windows: solo el
+    // borrado de ESTA carpeta, ya mismo). Sin PowerShell, scripts ni procesos de ayuda: lo hace este proceso con las funciones de ficheros
+    // de .NET. copiaTambien (22-11, 1.2.2, ERRORES; solo desde la bandeja y el panel, nunca en la prueba): con "Sí = se borra todo", tambien
+    // la copia de seguridad de %LOCALAPPDATA%\ConsoleEnhancer\backup (Integrado.CopiaSeguridad, 1.2.07). Si no, al volver a instalar la
+    // app los heredaba de ahi (ajustes y perfiles "borrados")
+    static class CeBorrado
+    {
+        static List<string> pendiente;
+        static string appDir;
+        // (el exe abierto, movido a %TEMP% al desinstalar: lo borra la proxima vez que se abra cualquier copia de la app, LimpiarRestos)
+        const string Resto = "ConsoleEnhancer.exe.uninstalled-";
+        static string LogFile { get { return Path.Combine(Path.GetTempPath(), "consoleenhancer_desinstalar.log"); } }
+
+        public static bool Preparar(string app, string datos, bool borrar, bool copiaTambien)
         {
             bool datosDentro = datos.StartsWith(app.TrimEnd('\\') + "\\", StringComparison.OrdinalIgnoreCase);
             List<string> borrarRutas = new List<string>();
@@ -152,38 +167,169 @@ namespace ConsoleEnhancer
                 try { CopiarSinLogs(datos, guardar); Log.Write("Desinstalar: ajustes y perfiles guardados en " + guardar); borrarRutas.Add(datos); }
                 catch (Exception ex) { Log.Error("Desinstalar: guardando los datos (se quedan en la carpeta)", ex); }
             }
-            StringBuilder ps = new StringBuilder();
-            ps.AppendLine("$ErrorActionPreference = 'SilentlyContinue'");
-            ps.AppendLine("$log = Join-Path $env:TEMP 'consoleenhancer_desinstalar.log'");
-            ps.AppendLine("Add-Content $log ((Get-Date).ToString('s') + ' esperando a que se cierre ConsoleEnhancer (pid " + pid + ")')");
-            ps.AppendLine("Wait-Process -Id " + pid + " -Timeout 120");
-            ps.AppendLine("Start-Sleep -Seconds 2");
-            // (1.2.1: tambien un ConsoleEnhancer.exe que quedara de esa carpeta, p. ej. la guarda de la barra de tareas: si no, el exe no se borra)
-            ps.AppendLine("foreach ($n in @('mpv','Magpie','ConsoleEnhancerEngine','ConsoleEnhancer')) { Get-Process -Name $n | Where-Object { $_.Path -like '" + app.Replace("'", "''") + "\\*' } | Stop-Process -Force }");
-            foreach (string r in borrarRutas)
+            pendiente = borrarRutas;
+            appDir = app.TrimEnd('\\');
+            Log.Write("Desinstalar: al cerrarse, la app borra sus archivos (" + borrarRutas.Count + " rutas; log en " + LogFile + ")");
+            return true;
+        }
+
+        // Al final del proceso (Main tras cerrar la bandeja; el panel al cerrarse): si hay un borrado pendiente, se hace y se dice como ha ido
+        public static void AlSalir()
+        {
+            if (pendiente == null) return;
+            List<string> quedan = Hacer();
+            if (quedan.Count == 0)
             {
-                string q = r.Replace("'", "''");
-                // (un enlace o union de carpeta, p. ej. bin\mpv -> terceros\mpv: solo el enlace, nunca lo de dentro)
-                ps.AppendLine("$i = Get-Item -LiteralPath '" + q + "' -Force");
-                ps.AppendLine("if ($i) { if ($i.Attributes -band [IO.FileAttributes]::ReparsePoint) { [IO.Directory]::Delete('" + q + "') } else { Remove-Item -LiteralPath '" + q + "' -Recurse -Force }; Add-Content $log ('borrado " + q + "') }");
+                MessageBox.Show(Deteccion.Tx.T("ConsoleEnhancer se ha desinstalado. Gracias por probarlo.", "ConsoleEnhancer has been uninstalled. Thanks for trying it."),
+                                PrismaUi.AppName, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
             }
-            // la carpeta solo si ha quedado vacia
-            ps.AppendLine("if ((Test-Path -LiteralPath '" + app.Replace("'", "''") + "') -and -not (Get-ChildItem -LiteralPath '" + app.Replace("'", "''") + "' -Force)) { Remove-Item -LiteralPath '" + app.Replace("'", "''") + "' -Force; Add-Content $log 'carpeta vacia borrada' }");
-            ps.AppendLine("Add-Content $log 'hecho'");
-            ps.AppendLine("Remove-Item -LiteralPath $MyInvocation.MyCommand.Path -Force");
+            List<string> ver = quedan.Count > 8 ? quedan.GetRange(0, 8) : quedan;
+            MessageBox.Show(Deteccion.Tx.T("ConsoleEnhancer se ha desinstalado, pero no se pudo borrar esto (bórralo a mano; se abre la carpeta):\n\n",
+                                           "ConsoleEnhancer has been uninstalled, but this could not be deleted (delete it yourself; the folder opens):\n\n") +
+                            string.Join("\n", ver.ToArray()) + (quedan.Count > ver.Count ? "\n..." : "") + "\n\n" + LogFile,
+                            PrismaUi.AppName, MessageBoxButtons.OK, MessageBoxIcon.Warning);
             try
             {
-                string f = Path.Combine(Path.GetTempPath(), "consoleenhancer_desinstalar_" + pid + ".ps1");
-                File.WriteAllText(f, ps.ToString(), new UTF8Encoding(true));
-                ProcessStartInfo psi = new ProcessStartInfo(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), @"WindowsPowerShell\v1.0\powershell.exe"),
-                                                            "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"" + f + "\"");
-                psi.UseShellExecute = false; psi.CreateNoWindow = true;
-                psi.WorkingDirectory = Path.GetTempPath();
-                Process.Start(psi);
-                Log.Write("Desinstalar: se cierra la app y se borran sus archivos (" + borrarRutas.Count + " rutas)");
+                string abrir = Directory.Exists(appDir) ? appDir : Path.GetDirectoryName(appDir);
+                if (!string.IsNullOrEmpty(abrir) && Directory.Exists(abrir)) Process.Start(new ProcessStartInfo("explorer.exe", "\"" + abrir + "\"") { UseShellExecute = true });
             }
-            catch (Exception ex) { Log.Error("Desinstalar: no se pudo preparar el borrado", ex); return false; }
-            return true;
+            catch { }
+        }
+
+        public static int Prueba(bool borrar)
+        {
+            if (!Preparar(Paths.AppDir, Paths.Datos, borrar, false)) return 1;
+            return Hacer().Count == 0 ? 0 : 1;
+        }
+
+        // Lo que no se ha podido borrar (vacio = todo bien)
+        static List<string> Hacer()
+        {
+            List<string> rutas = pendiente;
+            pendiente = null;
+            List<string> quedan = new List<string>();
+            // Desde aqui el log va a %TEMP%: Log.Write volveria a crear la carpeta de la app (y data\logs)
+            Log.Hook = delegate(string m)
+            {
+                try { File.AppendAllText(LogFile, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff") + "  " + m + "\r\n", Encoding.UTF8); } catch { }
+            };
+            Log.Write("Desinstalar: borrando " + rutas.Count + " rutas de " + appDir);
+            try { Environment.CurrentDirectory = Path.GetTempPath(); } catch { }   // (con la carpeta de trabajo dentro, no se puede borrar)
+            try { Integrado.PararCopia(); } catch { }                             // (la copia de seguridad de cada 2 min, fuera)
+            CerrarProcesos(appDir);
+            string exe = Path.GetFullPath(System.Reflection.Assembly.GetEntryAssembly().Location);
+            foreach (string r in rutas)
+                if (!Borrar(r, exe)) quedan.Add(r);
+            try
+            {
+                if (Directory.Exists(appDir) && Directory.GetFileSystemEntries(appDir).Length == 0) { Directory.Delete(appDir, false); Log.Write("Desinstalar: carpeta vacia borrada"); }
+            }
+            catch (Exception ex) { Log.Write("Desinstalar: la carpeta no se pudo borrar (" + ex.Message + ")"); }
+            Log.Write("Desinstalar: hecho" + (quedan.Count > 0 ? "; quedan " + quedan.Count + ": " + string.Join(", ", quedan.ToArray()) : ""));
+            return quedan;
+        }
+
+        // (1.2.1: tambien un ConsoleEnhancer.exe que quedara de esa carpeta, p. ej. la guarda de la barra de tareas: si no, el exe no se borra)
+        static void CerrarProcesos(string app)
+        {
+            int yo = Process.GetCurrentProcess().Id;
+            string dentro = app.TrimEnd('\\') + "\\";
+            foreach (string n in new[] { "mpv", "Magpie", "ConsoleEnhancerEngine", "ConsoleEnhancer" })
+                foreach (Process p in Process.GetProcessesByName(n))
+                    using (p)
+                    {
+                        try
+                        {
+                            if (p.Id == yo || !p.MainModule.FileName.StartsWith(dentro, StringComparison.OrdinalIgnoreCase)) continue;
+                            p.Kill();
+                            p.WaitForExit(5000);
+                            Log.Write("Desinstalar: cerrado " + n + " (pid " + p.Id + ")");
+                        }
+                        catch (Exception ex) { Log.Write("Desinstalar: " + n + " (pid " + p.Id + "): " + ex.Message); }
+                    }
+        }
+
+        static bool Borrar(string r, string exe)
+        {
+            try
+            {
+                if (string.Equals(Path.GetFullPath(r), exe, StringComparison.OrdinalIgnoreCase)) return MoverExe(exe);
+                FileAttributes a;
+                try { a = File.GetAttributes(r); }
+                catch (FileNotFoundException) { return true; }
+                catch (DirectoryNotFoundException) { return true; }
+                // (un enlace o union de carpeta, p. ej. bin\mpv -> terceros\mpv: solo el enlace, nunca lo de dentro)
+                if ((a & FileAttributes.Directory) != 0 && (a & FileAttributes.ReparsePoint) != 0) Directory.Delete(r, false);
+                else if ((a & FileAttributes.Directory) != 0) BorrarCarpeta(r);
+                else BorrarFichero(r);
+                Log.Write("borrado " + r);
+                return true;
+            }
+            catch (Exception ex) { Log.Write("no se pudo borrar " + r + ": " + ex.Message); return false; }
+        }
+
+        static void BorrarCarpeta(string d)
+        {
+            foreach (string f in Directory.GetFiles(d)) BorrarFichero(f);
+            foreach (string s in Directory.GetDirectories(d))
+            {
+                if ((File.GetAttributes(s) & FileAttributes.ReparsePoint) != 0) Directory.Delete(s, false);   // (enlace: solo el enlace)
+                else BorrarCarpeta(s);
+            }
+            Reintentar(delegate
+            {
+                DirectoryInfo di = new DirectoryInfo(d);
+                if ((di.Attributes & FileAttributes.ReadOnly) != 0) di.Attributes &= ~FileAttributes.ReadOnly;
+                di.Delete(false);
+            });
+        }
+
+        static void BorrarFichero(string f)
+        {
+            Reintentar(delegate
+            {
+                FileAttributes a = File.GetAttributes(f);
+                if ((a & FileAttributes.ReadOnly) != 0) File.SetAttributes(f, a & ~FileAttributes.ReadOnly);
+                File.Delete(f);
+            });
+        }
+
+        // (un proceso recien cerrado tarda un poco en soltar sus ficheros)
+        static void Reintentar(Action a)
+        {
+            for (int i = 0; ; i++)
+            {
+                try { a(); return; }
+                catch (IOException) { if (i >= 5) throw; }
+                catch (UnauthorizedAccessException) { if (i >= 5) throw; }
+                Thread.Sleep(300);
+            }
+        }
+
+        // El exe de este proceso no se puede borrar mientras esta abierto, pero si mover dentro del mismo disco: a %TEMP% (y ya no queda nada
+        // en la carpeta de la app). Si %TEMP% esta en otro disco, se queda (lo dice el aviso del final)
+        static bool MoverExe(string exe)
+        {
+            string a = Path.Combine(Path.GetTempPath(), Resto + DateTime.Now.ToString("yyyyMMdd-HHmmss") + "-" + Process.GetCurrentProcess().Id + ".tmp");
+            try
+            {
+                File.Move(exe, a);
+                Log.Write("el exe abierto (no se puede borrar mientras se usa) va a " + a + ": se borra la proxima vez que se abra ConsoleEnhancer");
+                return true;
+            }
+            catch (Exception ex) { Log.Write("no se pudo apartar el exe abierto " + exe + ": " + ex.Message); return false; }
+        }
+
+        // Al abrir la app: lo que dejo en %TEMP% una desinstalacion anterior (en segundo plano, CeInicio.Sincronizar)
+        public static void LimpiarRestos()
+        {
+            try
+            {
+                foreach (string f in Directory.GetFiles(Path.GetTempPath(), Resto + "*.tmp"))
+                    try { File.Delete(f); Log.Write("Restos de una desinstalacion anterior borrados: " + f); } catch { }
+            }
+            catch { }
         }
 
         static void CopiarSinLogs(string de, string a)
