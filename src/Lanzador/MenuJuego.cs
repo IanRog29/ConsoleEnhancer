@@ -112,7 +112,7 @@ namespace ConsoleEnhancer
             // 1.0.11: el menu de ajustes en pantalla (el del boton central del mando)
             ToolStripMenuItem panel = new ToolStripMenuItem(Tx.T("Menú de ajustes en pantalla…", "On-screen settings menu…"), null, delegate
             {
-                DesdeBandeja("menu de ajustes", false, delegate { OnUi(delegate { AjustesAbrir("bandeja"); }); });
+                DesdeBandeja("menu de ajustes", false, delegate { OnUi(delegate { AjustesPedir("bandeja"); }); }); // (22-11, 1.2.2: AjustesGuia.cs)
             });
             panel.ShortcutKeyDisplayString = Tx.T("Botón central / Ctrl+O", "Guide button / Ctrl+O");
             ToolStripItem[] todo = { panel, fg, tipo, modo, cap, d5, esc, tram, est };
@@ -291,7 +291,7 @@ namespace ConsoleEnhancer
                 if (userExit) return false;
                 if (!AjPrueba && !EsVentanaDeLaApp(GetForegroundWindow())) { TeclaNo("Ctrl+O", "delante no esta la imagen: " + FgOwner()); return false; }
                 if (ajustesAbierto) AjustesCerrar("Ctrl+O");
-                else if (PuedeAbrirAjustes(true)) AjustesAbrir("Ctrl+O");
+                else AjustesPedir("Ctrl+O"); // (22-11, 1.2.2: ya, en cola o diciendo por que no; AjustesGuia.cs)
                 return true;
             }
             Action a = null;

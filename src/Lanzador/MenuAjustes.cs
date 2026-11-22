@@ -230,12 +230,17 @@ namespace ConsoleEnhancer
         {
             uint bt = s.Buttons;
             bool guia = (bt & PadBtn.Guide) != 0;
-            bool guiaNueva = guia && !ajGuiaAntes;
+            // 22-11 (1.2.2, MENU): cada pulsacion cuenta aunque ya se haya soltado (PadHub.GuidePresses) y, si no se puede abrir aun, se
+            // abre en cuanto se pueda o se dice por que no (src\Lanzador\AjustesGuia.cs). Antes: solo si seguia pulsada en esta lectura y
+            // con PuedeAbrirAjustes en ese momento; si no, nada (ni en pantalla)
+            bool guiaNueva = AjGuiaNueva(s);
             ajGuiaAntes = guia;
             if (guiaNueva)
             {
                 if (ajustesAbierto) { OnUi(delegate { AjustesCerrar("boton central"); }); return true; }
-                if (PuedeAbrirAjustes(true)) { OnUi(delegate { AjustesAbrir("boton central"); }); ajAntes = bt; return true; }
+                AjGuiaPulsada("boton central");
+                ajAntes = bt;
+                return true;
             }
             if (!ajustesAbierto)
             {
@@ -287,26 +292,14 @@ namespace ConsoleEnhancer
         // (pruebas: CE_AJUSTES_PRUEBA=1 lo abre sin consola, solo para verlo; aplicar sigue pidiendo la imagen)
         static readonly bool AjPrueba = Environment.GetEnvironmentVariable("CE_AJUSTES_PRUEBA") == "1";
 
+        // 22-11 (1.2.2, MENU): lo decide AjustesPuede (src\Lanzador\AjustesGuia.cs): tambien sobre el puente / el telon mientras Magpie prepara;
+        // lo pasajero (6 s de imagen nueva, 4 s tras salir del menu de la consola, otra captura...) en cola. aviso: lo dice (log y pantalla)
         bool PuedeAbrirAjustes(bool aviso)
         {
-            if (AjPrueba && !userExit) return true;
-            string no = null;
-            if (userExit) no = "saliendo";
-            else if (!ImagenLista()) { Process p = mpv; no = "sin imagen (" + (p == null ? "sin proceso" : !lsReady ? "aun preparandose" : "proceso cerrado") + ")"; }
-            else if (!EsVentanaDeLaApp(GetForegroundWindow())) no = "la imagen no esta delante (delante: " + FgOwner() + ")";
-            else if (InHome || homeBusy)
-            {
-                if (aviso && !homeBusy) Osd(MenuTexto + " · " + Tx.T("los ajustes se cambian dentro de cada juego", "settings are changed inside each game"));
-                no = "en el menu de la consola";
-            }
-            // 1.0.12 (el usuario: "segun se abre la app ya deja darle al menu del home y desde el menu de consola tambien, no debe dejar"):
-            // nada de menu en los primeros segundos de una imagen ni justo al salir del menu de la consola (la deteccion aun decide)
-            else if ((DateTime.Now - imageStart).TotalSeconds < 6) no = "la imagen acaba de abrirse";
-            else if ((DateTime.Now - salioMenuEn).TotalSeconds < 4) no = "se acaba de salir del menu de la consola";
-            else if (passesBusy || relaunchSize != null || relaunchEngine)
-                no = "la imagen esta cambiando (" + (passesBusy ? "Magpie reabriendose" : relaunchSize != null ? "captura" : "cambio de motor") + ")";
-            if (no == null) return true;
-            if (aviso && (DateTime.Now - ajNoLog).TotalSeconds > 2) { ajNoLog = DateTime.Now; Log.Write("Menu de ajustes: no se abre: " + no); }
+            string no, txt;
+            AjPuede r = AjustesPuede(out no, out txt);
+            if (r == AjPuede.Si) return true;
+            if (aviso && (DateTime.Now - ajNoLog).TotalSeconds > 2) { ajNoLog = DateTime.Now; Log.Write("Menu de ajustes: no se abre: " + no); AjAvisoNo(txt); }
             return false;
         }
         DateTime ajNoLog = DateTime.MinValue;
@@ -338,6 +331,7 @@ namespace ConsoleEnhancer
                 }
                 ajTimer.Interval = 16;
                 ajTimer.Start();
+                if (AjCambiando()) AjSobreElPuente(); // (22-11, 1.2.2: abierto mientras Magpie prepara, src\Lanzador\AjustesGuia.cs)
                 Log.Write("Menu de ajustes abierto (" + desde + ")");
             }
             catch (Exception ex) { Log.Error("Menu de ajustes: abrir", ex); AjustesCerrar(null); }
@@ -351,15 +345,24 @@ namespace ConsoleEnhancer
                 ajFundido++;
                 double t = ajFundido / 8.0;
                 ajVentana.Mostrar((byte)Math.Round(255 * (1 - Math.Pow(1 - t, 3))));
-                if (ajFundido == 8) ajTimer.Interval = 500;
+                if (ajFundido == 8) ajTimer.Interval = AjCambiando() ? 100 : 500;
                 return;
             }
             ajVentana.Encima();
-            // La imagen se ha ido (consola apagada, cambio de motor...) o el usuario esta en otra ventana: fuera
-            if ((!ImagenLista() && !AjPrueba) || userExit) AjustesCerrar("la imagen ya no esta");
-            else if ((InHome || homeBusy) && !AjPrueba) AjustesCerrar("en el menu de la consola");
-            else AjustesRefrescar();
+            // 22-11 (1.2.2): con la imagen cambiando (el puente, el telon, la ventana de Magpie al presentar salen encima) cada 0,1 s
+            bool cambiando = AjCambiando();
+            ajTimer.Interval = cambiando ? 100 : 500;
+            // La imagen se ha ido (consola apagada...) o se ha vuelto al menu de la consola: fuera. 22-11 (1.2.2): mientras Magpie prepara
+            // (puente, telon) sigue abierto (AjustesSigue, src\Lanzador\AjustesGuia.cs)
+            string porque;
+            bool eraCambiando = ajEraCambiando;
+            ajEraCambiando = cambiando;
+            if (!AjustesSigue(out porque)) AjustesCerrar(porque);
+            else if (cambiando) { if ((DateTime.Now - ajPintadoCambiando).TotalMilliseconds > 450) { ajPintadoCambiando = DateTime.Now; AjustesRefrescar(); AjustesPintar(-1); } }
+            else { AjustesRefrescar(); if (eraCambiando && ajVentana != null) AjustesPintar(-1); }   // (sin el "preparando la imagen")
         }
+        DateTime ajPintadoCambiando = DateTime.MinValue;
+        bool ajEraCambiando;
 
         // (1.1.2, el usuario: "si se cambian los ajustes que se vean reflejados en la interfaz del boton home"): con el menu abierto, lo
         // de ahora se vuelve a mirar cada 0,5 s (botones, atajos, bandeja, otro juego, un "Aplicar" que acaba, cambios por fps bajos...):
@@ -723,9 +726,12 @@ namespace ConsoleEnhancer
 
         void AjustesPonerTodo(Dictionary<string, string> e)
         {
-            // Con algo cambiando aun (otra reapertura), se espera un poco (como el selector de generacion)
-            for (int i = 0; i < 40 && (passesBusy || relaunchSize != null || !lsReady || relaunchEngine); i++) Thread.Sleep(250);
-            if (userExit || InHome || homeBusy || !ImagenLista()) { Log.Write("Menu de ajustes: no se aplica (la imagen esta cambiando o en el menu de la consola)"); return; }
+            // 22-11 (1.2.2, MENU): con Magpie preparando (el puente o el telon a la vista; sin otra captura ni el 120) se pone ya y Magpie se
+            // reabre con lo nuevo sin esperar a que acabe (src\Lanzador\AjustesGuia.cs). Si no, con algo cambiando aun se espera a que acabe
+            // (antes 10 s como mucho y luego no se aplicaba: ahora hasta 45 s, con aviso)
+            bool enCaliente = AjEnCaliente(e);
+            if (enCaliente) Log.Write("Menu de ajustes: Magpie esta preparando la imagen: se aplica ya (en caliente)");
+            else if (!AjEsperarParaAplicar()) return;
             int modoAhora = cfg.Mode120 ? 120 : cfg.CapMode ? 30 : 60;
             string capV = AjVal(e, "cap") ?? cfg.VideoSize, modoV = AjVal(e, "modo") ?? modoAhora.ToString();
             int modo = int.Parse(modoV);
@@ -763,12 +769,21 @@ namespace ConsoleEnhancer
                     cfg.StrongDitherOn = v == "1";
                     SaveText(Paths.StrongDitherFile, v);
                 }
-                // (con otra captura, el modo solo se guarda: la reapertura de la captura lo coge todo, como los perfiles)
-                if (capCambia && modoCambia) SetModeN(modo);
+                // (con otra captura, el modo solo se guarda: la reapertura de la captura lo coge todo, como los perfiles. 1.2.2: en caliente
+                // tambien: lo coge el Magpie que se reabre)
+                if ((capCambia || enCaliente) && modoCambia) SetModeN(modo);
             }
             finally { applying = false; }
             ApplyEdgeShader();
             SaveCurProfile();
+            if (enCaliente)
+            {
+                if (AjReiniciarEnCaliente()) return;
+                // (no se pudo en caliente: al acabar lo que estaba cambiando, una reapertura con todo; el modo ya esta puesto)
+                if (!AjEsperarParaAplicar()) return;
+                RestartLs(Tx.T("Ajustes aplicados", "Settings applied"), StatusText());
+                return;
+            }
             if (capCambia) RequestCapture(capV);
             else if (modoCambia) SetModeN(modo);
             else RestartLs(Tx.T("Ajustes aplicados", "Settings applied"), StatusText());
@@ -815,6 +830,7 @@ namespace ConsoleEnhancer
                 int nc = AjCambios();
                 string sub = (curGame ?? Tx.T("Consola", "Console")) + "  ·  " + (nc == 0 ? Tx.T("todo como está", "nothing changed") :
                              nc == 1 ? Tx.T("1 cambio sin aplicar", "1 pending change") : nc + Tx.T(" cambios sin aplicar", " pending changes"));
+                if (AjCambiando()) sub += "  ·  " + Tx.T("preparando la imagen…", "preparing the picture…"); // (22-11, 1.2.2: abierto mientras Magpie prepara)
                 using (SolidBrush b = new SolidBrush(nc > 0 ? acc : det)) g.DrawString(sub, fSub, b, tx + 2 * u, y + 44 * u);
                 y = panel.Y + VentanaAjustes.Cab * u;
                 using (Pen sep = new Pen(Color.FromArgb(26, 255, 255, 255), Math.Max(1f, u))) g.DrawLine(sep, panel.X + 28 * u, y - 10 * u, panel.Right - 28 * u, y - 10 * u);

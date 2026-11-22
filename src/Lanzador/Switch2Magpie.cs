@@ -1506,6 +1506,7 @@ namespace ConsoleEnhancer
                             if (c.ParseSonidoDoble(key, val)) break; // (21-11: sonido_doble, src\SonidoDoble.cs)
                             if (c.ParseCapturaSegura(key, val)) break; // (21-11, 1.2.1: captura_segura, src\Lanzador\CapturaSegura.cs)
                             if (MarcoMpv.Parse(key, val)) break; // (22-11, 1.2.1: mpv_sin_marco, src\Lanzador\MarcoMpv.cs)
+                            if (c.ParseTiempos(key, val)) break; // (22-11, 1.2.2: motor_en_espera_al_abrir_ms, magpie_dlss_sr_solo_cadena; src\Lanzador\TiemposCarga.cs)
                             if (key.StartsWith("mando_") && PadOptions.Parse(key, val)) break; // (18-11, MANDOS: modo PC, src\Mandos.cs)
                             Log.Write("Aviso: clave desconocida en ini: " + key); break;
                     }
@@ -10608,6 +10609,7 @@ namespace ConsoleEnhancer
             Process p = mpv;
             if (p == null || p.HasExited) return;
             if (toHome) AjustesQuitarYa("al menu de la consola", false);
+            homeSwitchToHome = toHome; // (22-11, 1.2.2: entrando en un juego el menu de ajustes se puede abrir, AjustesGuia.cs)
             homeBusy = true;
             passesBusy = true;
             padRestart = false;
@@ -11275,9 +11277,16 @@ namespace ConsoleEnhancer
         // Hasta que no quede el Magpie matado (como KillMagpieNow con wait). since: desde el boton de matarlo
         void WaitMagpieGone(Stopwatch since)
         {
-            while (MagpieLive.Running && since.ElapsedMilliseconds < 6000) Thread.Sleep(20);
+            // (22-11, 1.2.2: tambien cuando suelta su candado de instancia unica, para ver si el nuevo podria abrirse antes. Medido: suelto a
+            // los 400-490 ms y fuera del todo a los 550-610 ms: abrir el nuevo con el viejo aun saliendo ahorraria ~150 ms, no compensa)
+            long lockFree = -1;
+            while (MagpieLive.Running && since.ElapsedMilliseconds < 6000)
+            {
+                if (lockFree < 0 && !MagpieLive.LockHeld()) lockFree = since.ElapsedMilliseconds;
+                Thread.Sleep(lockFree < 0 ? 5 : 20);
+            }
             Log.Write(MagpieLive.Running ? "Aviso: Magpie no se ha cerrado del todo (¿abierto como administrador?)"
-                                         : "Magpie cerrado en " + since.ElapsedMilliseconds + " ms");
+                                         : "Magpie cerrado en " + since.ElapsedMilliseconds + " ms" + (lockFree >= 0 ? " (candado suelto a los " + lockFree + " ms)" : ""));
         }
 
         static void SaveText(string path, string text)
@@ -12294,6 +12303,7 @@ namespace ConsoleEnhancer
         {
             if (magpieCopyDone) return magpieCopyOk;
             magpieCopyDone = true;
+            DllDlssSr.Poner(true, "al abrir la app"); // (22-11, 1.2.2: apartado la vez anterior; el manifiesto de Magpie lo pide. TiemposCarga.cs)
             string detail;
             Stopwatch sw = Stopwatch.StartNew();
             MagpieLive.DlssFgVsyncPacing = cfg.DlssFgVsyncPacing;
@@ -12310,7 +12320,7 @@ namespace ConsoleEnhancer
                 {
                     Stopwatch ws = Stopwatch.StartNew(); long bytes = 0;
                     byte[] buf = new byte[1 << 20];
-                    foreach (string dll in new[] { "nvngx_dlssnr.dll", "nvngx_dlss.dll", "nvngx_dlssg.dll", "nvngxruntime.dll", "cudart64_12.dll", "nvngx_vsr.dll", "nvngx_truehdr.dll" })
+                    foreach (string dll in new[] { "nvngx_dlssnr.dll", "nvngx_dlss.dll", DllDlssSr.Aparte, "nvngx_dlssg.dll", "nvngxruntime.dll", "cudart64_12.dll", "nvngx_vsr.dll", "nvngx_truehdr.dll" })
                     {
                         try { using (FileStream fs = new FileStream(Path.Combine(Paths.MagpieDir, dll), FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 1 << 20)) { int r; while ((r = fs.Read(buf, 0, buf.Length)) > 0) bytes += r; } }
                         catch { }
@@ -12342,6 +12352,7 @@ namespace ConsoleEnhancer
                     // (MagpieConfig.Needed sin mirar Config.EngineActive: el motor sigue hasta que se va)
                     if (cfg.EngineNow || cfg.HomeNative || !(cfg.UpscaleOn || !cfg.Dlss5Off || !cfg.FgOff) || !EnsureMagpieCopy()) return;
                     foreach (string c in MagpieConfig.Patch(cfg, true)) Log.Write("Cambio necesario: " + c);
+                    MagpieDlssSrSegunCadena(); // (22-11, 1.2.2: src\Lanzador\TiemposCarga.cs)
                     lsStartSw = Stopwatch.StartNew();
                     Log.Write("Iniciando Magpie (mientras se cierra el motor): " + cfg.ProfileText);
                     MagpieLive.Start();
@@ -12405,6 +12416,7 @@ namespace ConsoleEnhancer
 
             if (!MagpieLive.Running)
             {
+                MagpieDlssSrSegunCadena(); // (22-11, 1.2.2: sin DLSS SR en la cadena, NGX no carga su DLL; src\Lanzador\TiemposCarga.cs)
                 lsStartSw = Stopwatch.StartNew();
                 Log.Write("Iniciando Magpie: " + cfg.ProfileText);
                 MagpieLive.Start();
@@ -13020,6 +13032,7 @@ namespace ConsoleEnhancer
                     else if (line.Contains("\"request_id\":79")) CierresCaptura(line); // (20-11, CIERRES: switch2-captura-ms del motor)
                     else if (line.Contains("\"client-message\"") && CierresEvent(line)) { } // (20-11, CIERRES: switch2-gpu del motor)
                     else if (line.Contains("\"client-message\"") && FpsEvent(line)) { } // (21-11: switch2-fps del motor, src\Lanzador\FpsBajo.cs)
+                    else if (line.Contains("\"client-message\"") && AjPruebaEvento(line)) { } // (22-11, 1.2.2: pruebas del menu de ajustes, AjustesGuia.cs)
                     else if (line.Contains("\"client-message\"") && line.Contains("\"args\":[\"switch2-pad\""))
                     {
                         // Lo mismo que el mando, por la tuberia de mpv (para probar sin mando)
@@ -13404,12 +13417,19 @@ namespace ConsoleEnhancer
         }
 
         // Espera a que Magpie empiece a escalar la ventana de mpv (su ventana de escalado) o a que pase el tiempo maximo
-        bool WaitForScaling(Process p, long logStart, int seconds = 15)
+        // (22-11, 1.2.2: lo llama WaitForScaling, que lo cuenta, en src\Lanzador\AjustesGuia.cs)
+        bool WaitForScalingCore(Process p, long logStart, int seconds = 15)
         {
             DateTime limit = DateTime.Now.AddSeconds(seconds), began = DateTime.Now;
             bool focused = false, preparing = false;
             while (DateTime.Now < limit && !p.HasExited)
             {
+                // 22-11 (1.2.2, MENU): "Aplicar" en el menu de ajustes con Magpie preparando: reabierto ya con lo nuevo; la espera de nuevo
+                if (Thread.VolatileRead(ref ajReinicio) == 1 && AjReinicioEnEspera(p))
+                {
+                    began = DateTime.Now; limit = began.AddSeconds(Math.Max(seconds, 8)); focused = false; preparing = false;
+                    continue;
+                }
                 // El escalado automatico de Magpie salta cuando mpv pasa a primer plano: si mpv ya estaba delante (Magpie
                 // reabierto en plena partida), antes un momento el telon
                 if (!focused)
@@ -13844,6 +13864,7 @@ namespace ConsoleEnhancer
                     {
                         p = Process.Start(psi);
                         mpv = p;
+                        if (first && !eng) StandbyAlAbrir(); // (22-11, 1.2.2: el motor en espera ya, a la vez que mpv; src\Lanzador\TiemposCarga.cs)
                         if (eng) { Config.NoteEngineFixed(p); Config.NoteEngineFfx(p); }   // 20-11 (LATENCIA5)
                         if (eng) Config.EngineSmoothRunning = Config.EngineSmoothLaunched;   // 17-11 16:55 (17:15: con mpv se queda el del ultimo motor: el que pasa a espera tras el puente lo necesita; antes -1 y al motor de Smooth Motion se le mandaba fg=1)
                     }
@@ -14455,6 +14476,15 @@ namespace ConsoleEnhancer
                     int fails;
                     string rep = TrayApp.EntrySelfTest(out fails);
                     File.WriteAllText(Path.Combine(Paths.Datos, @"games\test_entrada.txt"), rep, new UTF8Encoding(false));
+                    return fails;
+                }
+                // 22-11 (1.2.2, MENU): lo que decide la Guia en cada momento de la imagen (AjustesGuia.cs) -> games\test_menu_ajustes.txt
+                if (arg == "--test-menu-ajustes")
+                {
+                    int fails;
+                    string rep = TrayApp.AjustesSelfTest(out fails);
+                    Directory.CreateDirectory(Path.Combine(Paths.Datos, "games"));
+                    File.WriteAllText(Path.Combine(Paths.Datos, @"games\test_menu_ajustes.txt"), rep, new UTF8Encoding(false));
                     return fails;
                 }
                 // 15-11: prueba de los perfiles guardados (cargar el formato de antes, cambiar nombres, juntar, escribir) sobre una COPIA:
