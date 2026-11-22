@@ -238,7 +238,9 @@ namespace ConsoleEnhancer
                     a.StartsWith("--prueba", StringComparison.OrdinalIgnoreCase) || a.StartsWith("--test", StringComparison.OrdinalIgnoreCase) ||
                     // (22-11, 1.2.2, ERRORES y ESPERA: ni el proceso de la espera ni sus ayudantes -la guarda de la barra, la sonda...-: la copia
                     // la lleva la app; la espera la hacia cada 2 min toda la noche, contra lo que dicen Espera.cs y EsperaCubierta.cs)
-                    a == "--espera" || a.StartsWith("--ce-", StringComparison.OrdinalIgnoreCase)) return;
+                    a == "--espera" || a.StartsWith("--ce-", StringComparison.OrdinalIgnoreCase) ||
+                    // (22-11, 1.2.2 REVISION: ni el residente del modo PC del mando, abierto toda la noche si se usa en vez de Joyxoff)
+                    a == "--mando-pc") return;
             if (string.Equals(Path.GetFullPath(d).TrimEnd('\\'), Path.GetFullPath(CopiaDir).TrimEnd('\\'), StringComparison.OrdinalIgnoreCase)) return;
             copiaTimer = new System.Threading.Timer(delegate { CopiaAhora(d); }, null, 5000, 120000);
         }
