@@ -13510,9 +13510,14 @@ namespace ConsoleEnhancer
                 pendingWarnOsd = "Magpie no está escalando · " + (MagpieLive.LastIssue(DateTime.Now.AddSeconds(-60)) ?? "mira switch2.log");
             if (!ShowPendingWarn() && byPad) Osd(StatusText());
             // Para el log: lo que Magpie dice de este arranque (efectos creados y errores)
+            // 22-11 (1.2.2, ERRORES): de ESTE arranque. Con Magpie reabierto en esos 3 s (otra captura nada mas escalar), el informe salia con
+            // el tiempo del nuevo y el log del viejo (02:28:00 "Arranque de Magpie (1932 ms desde que se abrio)" con el DLSSNR de 4K del de
+            // antes, ya a 1440p): el del Magpie nuevo sale luego, el suyo
+            Stopwatch swEste = lsStartSw;
             Thread t = new Thread(delegate ()
             {
                 Thread.Sleep(3000);
+                if (lsStartSw != swEste) return;
                 string text = LogSince(Paths.MagpieLog, logStart);
                 int errors = 0;
                 StringBuilder sb = new StringBuilder();
@@ -13529,7 +13534,7 @@ namespace ConsoleEnhancer
                         if (sb.Length > 1600) break;
                     }
                 }
-                Log.Write("Arranque de Magpie (" + (lsStartSw != null ? lsStartSw.ElapsedMilliseconds + " ms desde que se abrio" : "ya abierto") + "): " +
+                Log.Write("Arranque de Magpie (" + (swEste != null ? swEste.ElapsedMilliseconds + " ms desde que se abrio" : "ya abierto") + "): " +
                           errors + " errores en su log" + sb);
             });
             t.IsBackground = true;
