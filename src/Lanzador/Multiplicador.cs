@@ -465,9 +465,13 @@ namespace ConsoleEnhancer
             double b = Config.MultBase(cap30);
             string fps = "";
             for (int m = 2; m <= 4; m++) fps += (m > 2 ? " · " : "") + "x" + m + " = " + Math.Round(b * m).ToString(CultureInfo.InvariantCulture);
+            // (lo bloqueado y por que: "x3 / x4: necesita el modo 30" o, con motivos distintos, "x3: ...; x4: ...")
+            string bloq;
+            if (motivos.Count <= 1) bloq = string.Join(" / ", new List<string> { "x2", "x3", "x4" }.FindAll(delegate(string x) { return !libres.Contains(x); }).ToArray()) + ": " + (motivos.Count > 0 ? motivos[0] : "");
+            else { List<string> ps = new List<string>(); for (int m = 3; m <= 4; m++) if (f.Bloqueado(m - 2)) ps.Add("x" + m + ": " + f.Bloq[m - 2]); bloq = string.Join("; ", ps.ToArray()); }
             f.Ayuda = motivos.Count == 0
                 ? Tx.T("Imágenes por cada real (" + fps + " fps). Más = más fluido y algo más de latencia", "Frames per real one (" + fps + " fps). More = smoother, slightly more latency")
-                : Tx.T("x3 / x4: ", "x3 / x4: ") + string.Join("; ", motivos.ToArray()) + "  (" + fps + " fps)";
+                : bloq + "  (" + fps + " fps)";
         }
 
         // (AjustesOrden) lo elegido a mano en la fila
