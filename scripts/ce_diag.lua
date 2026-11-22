@@ -78,7 +78,8 @@ mp.observe_property("time-pos", "number", function(_, v)
             end
             if dp > limit and dp - sum_w / n >= 10 then over_p = over_p + 1 end
             local normal_w = mediana_ult(dw)
-            if #ult >= 8 and ((dw > 1.4 * normal_w and dw - normal_w >= 12) or (dp > 1.4 * normal_w and dp - normal_w >= 12)) then
+            -- (8 ms tarde ya cuenta: una captura de la app a 4K deja la siguiente imagen ~10-25 ms tarde, y con la generacion se nota)
+            if #ult >= 8 and ((dw > 1.2 * normal_w and dw - normal_w >= 8) or (dp > 1.2 * normal_w and dp - normal_w >= 8)) then
                 mp.commandv("script-message", "switch2-diag-hueco", string.format("%.1f %.1f %.1f", dw, dp, normal_w))
             end
         end
