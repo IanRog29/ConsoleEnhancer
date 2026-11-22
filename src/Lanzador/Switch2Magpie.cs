@@ -9444,8 +9444,9 @@ namespace ConsoleEnhancer
                 // (1.2.2: mientras Magpie prepara, tambien, para el menu y la comprobacion de la salida: CapturaPreparando)
                 // (1.2.3, JUEGO: y pasando al menu sin saber aun el juego en foco, CapturaEntrandoMenu: sin el margen de switchUntil, mpv no recarga)
                 bool entrandoMenu = CapturaEntrandoMenu;
+                bool focoMenu = entrandoMenu || (InHome && !homeBusy && !homeSwitching && FocoMenuPorLeer);   // (y ya en el menu: sin el margen)
                 bool preparando = passesBusy && (CapturaPreparando || entrandoMenu);
-                if (grabBusy || relaunchSize != null || (passesBusy && !preparando) || (now < switchUntil && !entrandoMenu) || !ipcUp) return;
+                if (grabBusy || relaunchSize != null || (passesBusy && !preparando) || (now < switchUntil && !focoMenu) || !ipcUp) return;
                 // 19-11 (src\MenuPs5.cs): con la PS5, en su menu y confirmando que se entra o se sale de el, cada 0,4-0,5 s
                 // (19-11, DETECCION: confirmando, a los 0,25 s: src\DetectorMenu.cs decide con 2 capturas seguidas, o con 1 si la hora es la del
                 // PC al minuto; antes 0,4 s jugando y 0,5 s en el menu, y 3 capturas para salir)
