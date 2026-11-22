@@ -68,6 +68,12 @@ static class DeteccionTest
             W("############ " + Tx.T("ESTE PC", "THIS PC") + " ############");
             Caso(null, op, pref, ini, true);
         }
+        if (Array.IndexOf(args, "--catalogo") >= 0)
+        {
+            // (1.2.2, UNIVERSAL) nombres y VID:PID reales -> el modelo del catalogo
+            foreach (string l in Simulador.ProbarCatalogo()) { W(l); if (l.StartsWith("MAL")) fallos++; }
+            return fallos == 0 ? 0 : 1;
+        }
         if (simula == "matriz" || simula.StartsWith("matriz:"))
         {
             Matriz(op, pref, simula.Length > 7 ? simula.Substring(7) : "");

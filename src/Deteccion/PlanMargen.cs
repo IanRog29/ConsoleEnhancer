@@ -99,18 +99,33 @@ namespace ConsoleEnhancer.Deteccion
 
         // Los fps que se piden a la capturadora con este formato: 59,94 si su rango lo admite; si solo lista 60,000 exactos (muchas UVC
         // con velocidades fijas), "60": ffmpeg (dshow) no abre una velocidad fuera del rango que lista la capturadora (mpv salia sin imagen)
-        public static string FpsPedido(FormatoCaptura f, double objetivo)
+        public static string FpsPedido(FormatoCaptura f, double objetivo) { return FpsPedido(f, objetivo, false); }
+
+        // usb: capturadora UVC (USB, o UVC detras de PCIe como la GC575). Las UVC tienen velocidades FIJAS (HD60 X, 4K S, Neo, Cam Link
+        // nueva: 60/50/30/25 y las altas, sin 59,94; DirectShow las resume como un rango): a esas se les pide el 60 que listan, no 59,94
+        // (la tarjeta convierte; una imagen repetida cada ~17 s). Las de driver propio (GC573: rango continuo) y las que dan la velocidad de
+        // la fuente (HD60 S+, Cam Link 4K original: 59,94), 59,94
+        public static string FpsPedido(FormatoCaptura f, double objetivo, bool usb)
         {
             if (f == null) return "60000/1001";
             double mx = f.FpsMax, mn = f.FpsMin > 0 ? f.FpsMin : f.FpsMax;
             if (objetivo >= 59)
             {
+                if (usb && Math.Abs(mx - 60) < 0.05) return "60";
                 if (f.Previsto || (mn <= 59.95 && mx >= 59.93)) return "60000/1001";
                 if (Math.Abs(mx - 60) < 0.05) return "60";
                 if (mx >= 59) return mx.ToString("0.###", CultureInfo.InvariantCulture);
             }
             if (mx >= 29.9 && mx <= 30.05 && mn >= 29.9) return Math.Abs(mx - 29.97) < 0.02 ? "30000/1001" : "30";
             return mx.ToString("0.###", CultureInfo.InvariantCulture);
+        }
+
+        // UVC: por el bus (USB) o por el catalogo (la GC575 es UVC detras de un puente PCIe -> USB)
+        public static bool EsUvc(CapturadoraInfo c)
+        {
+            if (c == null) return false;
+            if (c.Modelo != null && c.Modelo.Driver.Length > 0) return c.Modelo.Driver == "uvc";
+            return (c.Bus ?? "").StartsWith("USB", StringComparison.OrdinalIgnoreCase);
         }
 
         // ---------------------------------------------------------------- tras la captura: ¿puede el motor propio con ese formato?
@@ -127,6 +142,19 @@ namespace ConsoleEnhancer.Deteccion
             p.Motor = "mpv";
             p.Motivos.Add(Tx.T("La captura llega en " + f + " (el motor propio solo abre YUY2 / NV12 / RGB): la imagen va por mpv (lo descomprime) y Magpie (escalado y generación)",
                                "Capture arrives as " + f + " (the own engine only takes YUY2 / NV12 / RGB): picture goes through mpv (decodes it) and Magpie"));
+        }
+
+        // (asistente) El formato elegido a mano en la lista: los fps que se le piden (59,94 o 60 segun su rango) y si el motor propio puede
+        // con el (MJPEG / H.264 elegidos a mano: mpv + Magpie; antes el motor abria el YUY2 del mismo tamaño a 5-10 fps)
+        public static void FormatoElegido(PlanImagen p, FormatoCaptura f)
+        {
+            if (p == null || f == null) return;
+            p.CapW = f.Ancho; p.CapH = f.Alto; p.CapFormato = f.Subtipo;
+            double fps = p.Captura != null ? p.Captura.FpsDe(f) : f.FpsMax;
+            p.CapFps = FpsPedido(f, fps >= 59 ? 59.94 : fps, EsUvc(p.Captura));
+            bool antes = p.Motor == "propio";
+            MotorSegunCaptura(p);
+            if (antes && p.Motor != "propio") p.MotorEnEspera = false;
         }
 
         // ---------------------------------------------------------------- tras los modelos: escalador que no cabe, generacion imposible, 120 y VRAM

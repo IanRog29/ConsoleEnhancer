@@ -156,7 +156,7 @@ namespace ConsoleEnhancer.Deteccion
             // verdad de esa capturadora (el catalogo sabe los modos que lista y no da)
             foreach (string t in new[] { "1280x720", "1920x1080", "2560x1440" })
                 foreach (FormatoCaptura f in Captura.Formatos)
-                    if (!f.Comprimido && Captura.FpsDe(f) >= 119 && f.Alto <= Tope120Alto && (f.Ancho + "x" + f.Alto) == t)
+                    if (!f.Comprimido && f.Subtipo != "P010" && Captura.FpsDe(f) >= 119 && f.Alto <= Tope120Alto && (f.Ancho + "x" + f.Alto) == t)
                     {
                         if (!r.Contains(t)) r.Add(t);
                         if (mejor == 0 || Math.Abs(f.FpsMax - 120) < Math.Abs(mejor - 120)) mejor = f.FpsMax;
@@ -311,7 +311,7 @@ namespace ConsoleEnhancer.Deteccion
                     int antes = p.CapH;
                     p.CapW = 1920; p.CapH = 1080;
                     FormatoCaptura f = p.Captura.FormatosParaElegir() != null ? p.Captura.Mejor(1080, 59, TopeComprimido(hw)) : null;
-                    if (f != null) { p.CapW = f.Ancho; p.CapH = f.Alto; p.CapFormato = f.Subtipo; p.CapFps = FpsPedido(f, 59.94); }
+                    if (f != null) { p.CapW = f.Ancho; p.CapH = f.Alto; p.CapFormato = f.Subtipo; p.CapFps = FpsPedido(f, 59.94, EsUvc(p.Captura)); }
                     p.Avisos.RemoveAll(delegate(string a) { return a.StartsWith(Tx.T("Modo ", "Mode ")); });
                     p.Modos.Clear();
                     p.Enfoque = p.CapH <= 720 ? 0.6 : p.CapH <= 1080 ? 0.5 : 0.3;
@@ -399,15 +399,19 @@ namespace ConsoleEnhancer.Deteccion
             {
                 bool leidos = c.Formatos != null && c.Formatos.Count > 0;
                 int topeComp = TopeComprimido(hw);
+                // (orden: lo pedido con lo que la CPU descomprime; mas lento; mas grande; comprimido de mas pero del tamaño pedido; lo que haya)
                 FormatoCaptura f = c.Mejor(want, 59, topeComp);
+                if (f == null) f = c.Mejor(want, 0, topeComp);
                 if (f == null) f = c.Mejor(4320, 0, topeComp);
+                if (f == null) f = c.Mejor(want, 59, 4320);
+                if (f == null) f = c.Mejor(want, 0, 4320);
                 if (f == null) f = c.Mejor(4320, 0, 4320);
                 if (f != null)
                 {
                     double fps = c.FpsDe(f);
                     p.CapW = f.Ancho; p.CapH = f.Alto; p.CapFormato = f.Subtipo;
                     p.CapOrigen = leidos ? Tx.T("formatos de la capturadora", "device formats") : Tx.T("catálogo: ", "catalog: ") + c.Modelo.Marca + " " + c.Modelo.Modelo + Tx.T(" (se confirma al abrirla)", " (confirmed when opened)");
-                    p.CapFps = FpsPedido(f, fps >= 59 ? 59.94 : fps);
+                    p.CapFps = FpsPedido(f, fps >= 59 ? 59.94 : fps, EsUvc(c));
                     if (f.Comprimido) p.Avisos.Add(Tx.T("La capturadora solo da ", "The capture only offers ") + f.Subtipo + Tx.T(" a esa resolución: hay que descomprimir (más latencia y CPU)", " there: decoding adds latency"));
                     if (fps < 59) p.Avisos.Add(Tx.T("La capturadora no llega a 60 fps a ", "Capture can't do 60 fps at ") + f.Ancho + "x" + f.Alto + " (" + Tx.N(fps, "0.#") + ")");
                     if (f.Comprimido && f.Alto < 1080 && topeComp < 1080 && fl.Exists(delegate(FormatoCaptura x) { return x.Comprimido && x.Alto == 1080 && c.FpsDe(x) >= 59; }))

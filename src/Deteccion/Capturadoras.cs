@@ -107,7 +107,9 @@ namespace ConsoleEnhancer.Deteccion
                 int dp = tok.IndexOf(':'), eq = tok.IndexOf('=');
                 if (dp <= 0 || eq <= dp) continue;
                 int a; double f;
-                if (!int.TryParse(tok.Substring(0, dp), NumberStyles.Integer, CultureInfo.InvariantCulture, out a) || a != alto) continue;
+                string alt = tok.Substring(0, dp);
+                // ("*" = a cualquier alto: las PCIe de Elgato dan RGB24 / RGB32 que ffmpeg no sabe leer -"unknown compression"-)
+                if (alt != "*" && (!int.TryParse(alt, NumberStyles.Integer, CultureInfo.InvariantCulture, out a) || a != alto)) continue;
                 if (!string.Equals(tok.Substring(dp + 1, eq - dp - 1), sub, StringComparison.OrdinalIgnoreCase)) continue;
                 if (double.TryParse(tok.Substring(eq + 1), NumberStyles.Float, CultureInfo.InvariantCulture, out f)) return Math.Min(listado, f);
             }
@@ -158,7 +160,10 @@ namespace ConsoleEnhancer.Deteccion
             {
                 if (f.Alto > topeAlto || f.Alto < 360) continue;
                 if (f.Comprimido && f.Alto > topeComprimido) continue;
+                // (P010: ni mpv -ffmpeg dshow no tiene P010- ni el motor lo abren; es la captura HDR de 10 bits y la imagen va en SDR)
+                if (f.Subtipo == "P010") continue;
                 double fps = FpsDe(f);
+                if (fps <= 0) continue;   // (lo que el catalogo sabe que no se puede usar)
                 // (por encima de lo pedido los fps ya no cuentan: YUY2 a 60 antes que NV12 a 120 para el modo 60; pero mejor uno que admita
                 // 59,94-60 tal cual: la GC573 lista 1440p "a 120" fijos y "59,94-144"; con el de 120 fijos se pediria 120 para el modo 60)
                 double mn = f.FpsMin > 0 ? f.FpsMin : fps;
@@ -407,8 +412,15 @@ namespace ConsoleEnhancer.Deteccion
                 {
                     bool hit = false;
                     foreach (string p in m.Patrones) if (n.Contains(p.ToLowerInvariant())) { hit = true; break; }
-                    if (hit && (best == null || best.Patrones.Length == 0 || m.Vid == 0)) { best = m; break; }
+                    // (1.2.2: tambien un modelo concreto con su VID:PID en el catalogo -m.Pid != 0- gana a la generica de la marca por VID: un
+                    // PID que no esta en la tabla, p. ej. el compuesto 07CA:D553 de la GC553G2)
+                    if (hit && (best == null || best.Patrones.Length == 0 || m.Vid == 0 || m.Pid != 0)) { best = m; break; }
                 }
+            // (1.2.2, UNIVERSAL) dos modelos con el mismo VID:PID (la GC570D es 1461:0054 como la GC573, con otro subsistema): si el nombre no
+            // es el del modelo del VID:PID y si el de otro concreto de la misma marca, manda el nombre (las genericas de marca no cuentan)
+            if (best != null && best.Pid != 0 && best.Patrones.Length > 0 && !Coincide(best, n))
+                foreach (ModeloCaptura m in Catalogo)
+                    if (m != best && m.Marca == best.Marca && m.Patrones.Length > 0 && !(m.Vid != 0 && m.Pid == 0) && Coincide(m, n)) { best = m; break; }
             c.Modelo = best;
             if (best != null) { pts += best.Pid != 0 || best.Vid == 0 ? 100 : 70; why.Add(Tx.T("modelo conocido: ", "known model: ") + best.Marca + " " + best.Modelo); }
             foreach (string w in PalabrasCaptura) if (n.Contains(w)) { pts += 40; why.Add("«" + w + "»"); break; }
@@ -422,6 +434,12 @@ namespace ConsoleEnhancer.Deteccion
             c.Puntos = pts;
             c.Tipo = virt ? TipoCaptura.Virtual : pts >= 40 ? TipoCaptura.Capturadora : cam ? TipoCaptura.Webcam : TipoCaptura.Desconocido;
             c.PorQue = string.Join(", ", why.ToArray());
+        }
+
+        static bool Coincide(ModeloCaptura m, string nombreMinusculas)
+        {
+            foreach (string p in m.Patrones) if (nombreMinusculas.Contains(p.ToLowerInvariant())) return true;
+            return false;
         }
 
         // ------------------------------------------------------------------ emparejar el audio

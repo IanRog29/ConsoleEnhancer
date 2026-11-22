@@ -119,6 +119,60 @@ namespace ConsoleEnhancer.Deteccion
             Captura(h, nombre, m.Vid != 0 ? m.Vid : 0x1234, m.Pid != 0 ? m.Pid : 0x0001, m.Bus.StartsWith("PCI") ? "PCI" : "USB", fl.ToArray(), "Digital Audio Interface (" + nombre + ")", false);
         }
 
+        // ---------------------------------------------------------------- (1.2.2) el catalogo: nombres de DirectShow y VID:PID reales -> modelo
+        // (DeteccionTest --catalogo). { nombre, VID, PID, bus, la clave o el modelo esperado }
+        static readonly object[][] NombresReales =
+        {
+            new object[] { "AVerMedia HD Capture GC573 1", 0x1461, 0x0054, "PCI", "avermedia-gc573" },
+            new object[] { "AVerMedia HD Capture GC570D 1", 0x1461, 0x0054, "PCI", "avermedia-gc570d" },
+            new object[] { "Live Gamer Ultra 2.1-Video", 0x07CA, 0xD553, "USB", "avermedia-gc553g2" },
+            new object[] { "Live Gamer Ultra 2.1-Video", 0x07CA, 0x2553, "USB", "avermedia-gc553g2" },
+            new object[] { "Live Gamer Ultra-Video", 0x07CA, 0x0553, "USB", "avermedia-gc553" },
+            new object[] { "Live Gamer 4K 2.1-Video", 0x07CA, 0x0575, "USB", "avermedia-gc575" },
+            new object[] { "Live Gamer MINI", 0x07CA, 0x1311, "USB", "avermedia-gc311" },
+            new object[] { "Game Capture HD60 X", 0x0FD9, 0x0082, "USB", "elgato-hd60x" },
+            new object[] { "Game Capture HD60 S+", 0x0FD9, 0x9999, "USB", "elgato-hd60s+" },
+            new object[] { "Game Capture HD60 S", 0x0FD9, 0x9998, "USB", "elgato-hd60s" },
+            new object[] { "Game Capture 4K X", 0x0FD9, 0x9997, "USB", "elgato-4kx" },
+            new object[] { "Game Capture 4K60 Pro MK.2", 0x0FD9, 0, "PCI", "elgato-4k60promk2" },
+            new object[] { "Cam Link 4K", 0x0FD9, 0x0066, "USB", "elgato-camlink4k" },
+            new object[] { "USB Video", 0x534D, 0x2109, "USB", "ms2109" },
+            new object[] { "USB3 Video", 0x345F, 0x2130, "USB", "ms2130" },
+            new object[] { "USB3.0 Video", 0x345F, 0x2131, "USB", "ms2131" },
+            new object[] { "Live Gamer BOLT", 0x1461, 0x0054, "PCI", "avermedia-gc555" },
+            new object[] { "AVerMedia Live Gamer HD 2", 0x07CA, 0x1570, "USB", "avermedia-gc570" },
+            new object[] { "Live Streamer CAP 4K", 0x07CA, 0x1113, "USB", "avermedia-bu113" },
+            new object[] { "CAM LINK 4K", 0x32ED, 0x3701, "USB", "ezcap331" },
+            new object[] { "Elgato 4K Pro", 0x12AB, 0x0710, "PCI", "elgato-4kpro" },
+            new object[] { "Game Capture 4K60 Pro Mk.2", 0x12AB, 0x0710, "PCI", "elgato-4k60promk2" },
+            new object[] { "Elgato 4K X", 0x0FD9, 0x009B, "USB", "elgato-4kx" },
+            new object[] { "Elgato 4K S", 0x0FD9, 0x00AF, "USB", "elgato-4ks" },
+            new object[] { "Elgato Game Capture Neo", 0x0FD9, 0x008C, "USB", "elgato-neo" },
+            new object[] { "Game Capture HD60 S+", 0x0FD9, 0x006A, "USB", "elgato-hd60s+" },
+            new object[] { "Razer Ripsaw HD HDMI", 0x1532, 0x0D01, "USB", "razer-ripsawhd" },
+            new object[] { "ShadowCast", 0x298F, 0x1996, "USB", "genki-shadowcast" },
+            new object[] { "ShadowCast 2", 0x0100, 0x1996, "USB", "genki-shadowcast2" },
+            new object[] { "JVA14-Capture", 0x0711, 0x0A14, "USB", "j5create-jva14" },
+            new object[] { "XR1 Pro Capture Box Video", 0x3842, 0x310B, "USB", "evga-xr1pro" },
+            new object[] { "NZXT Signal 4K30 Video", 0x1E71, 0x2700, "USB", "nzxt-signal4k" },
+            new object[] { "00: Pro Capture HDMI 4K+", 0x1CD7, 0x0012, "PCI", "magewell-pro" },
+        };
+
+        public static List<string> ProbarCatalogo()
+        {
+            List<string> r = new List<string>();
+            foreach (object[] e in NombresReales)
+            {
+                CapturadoraInfo c = new CapturadoraInfo();
+                c.Nombre = (string)e[0]; c.Vid = (int)e[1]; c.Pid = (int)e[2]; c.Bus = (string)e[3];
+                DetectorCapturadoras.Clasificar(c);
+                string got = c.Modelo == null ? "(ninguno)" : c.Modelo.Clave.Length > 0 ? c.Modelo.Clave : c.Modelo.Modelo;
+                bool ok = got == (string)e[4];
+                r.Add((ok ? "ok  " : "MAL ") + c.Nombre + " " + c.Vid.ToString("X4") + ":" + c.Pid.ToString("X4") + " -> " + got + (ok ? "" : " (esperado " + e[4] + ")") + " [" + Hardware.Tipo(c.Tipo) + "]");
+            }
+            return r;
+        }
+
         // ---------------------------------------------------------------- la matriz (1.2.2)
         public static Hardware Sintetico(OpcionesDeteccion op, string gpu, string pantalla, string captura, string extra)
         {

@@ -45,7 +45,7 @@ namespace ConsoleEnhancer.Motor
         string tirState = "";
 
         double TirFrameMs { get { return s.FpsNum > 0 ? 1000.0 * s.FpsDen / s.FpsNum : 16.683; } }
-        double TirGpuLimit { get { return s.Mode == 30 ? (fgApplied ? 26.0 : 31.0) : s.Is120 ? 8.0 : (fgApplied ? 11.0 : 15.5); } }   // (los de AutoPresetTick; 20-11 HZ120: ~8,3 ms a 120)
+        double TirGpuLimit { get { return TopeGpu(); } }   // (los de AutoPresetTick; 20-11 HZ120: ~8,3 ms a 120; 1.2.2: el 85 %, EngineMargen.cs)
 
         void TirReset(long now)
         {
