@@ -12932,7 +12932,9 @@ namespace ConsoleEnhancer
                         if (pipe == null && !linkWarned && !quitSent && (DateTime.Now - linkStart).TotalSeconds >= 10 && !p.HasExited && mpv == p)
                         {
                             linkWarned = true;
-                            Log.Write("Sin enlace IPC con mpv (\\\\.\\pipe\\" + ipcName + ") tras 10 s: sin vigilancia de la imagen");
+                            // (22-11, 1.2.2: con el motor recien abierto es que aun arranca: Streamline y, la primera vez, sus shaders, 20-30 s)
+                            if (CapMotorArrancando(p)) Log.Write("Sin enlace IPC con el motor (\\\\.\\pipe\\" + ipcName + ") tras 10 s: aun arrancando (Streamline; la primera vez compila sus shaders)");
+                            else Log.Write("Sin enlace IPC con mpv (\\\\.\\pipe\\" + ipcName + ") tras 10 s: sin vigilancia de la imagen");
                         }
                         if (pipe != null)
                         {
