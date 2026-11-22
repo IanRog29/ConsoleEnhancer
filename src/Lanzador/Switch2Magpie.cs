@@ -956,7 +956,7 @@ namespace ConsoleEnhancer
         // va sin Streamline, sin DLSS): entonces sigue Magpie. XeSS FG y la de NVIDIA VFX, Magpie
         // (22-11, 1.2.4 SOLOMOTOR: los tipos / multiplicadores que el motor sabe, en MotorSabeGeneracion de SoloMotor.cs -MOTORFG: XeSS FG y x3 / x4-)
         public bool FgMagpieOnly { get { return !FgOff && !HomeNative && !Mode120 && ((FgTypeNow == "fsr3" && Ce.EngineUpscaler(this) == "dlss") || !MotorSabeGeneracion(FgTypeNow, MultOn && !Mode120 ? FgMultNow : 2) ||
-                                                                         (FgTypeNow == "dlss" && Ce.DlssgSoloMagpie)); } }   // (1.0.10: RTX 30 + dlssg_sm86, DLSS FG por Magpie; 1.2.2: DLSS FG x3 / x4, Multiplicador.cs)
+                                                                         (FgTypeNow == "dlss" && Ce.DlssgSoloMagpie) || MotorGenAMagpie(FgTypeNow, MultOn && !Mode120 ? FgMultNow : 2)); } }   // (1.0.10: RTX 30 + dlssg_sm86, DLSS FG por Magpie; 1.2.2: DLSS FG x3 / x4, Multiplicador.cs) (1.2.4 ronda 5, XEFGM: lo que en el motor no es fiable o no llega, XefgMotor.cs)
         // El motor con FSR 3 FG (fg_tipo=fsr3 al abrirlo: su cadena de presentacion es la de FidelityFX; no se cambia en marcha)
         public bool EngineFfxWanted { get { return !FgOff && !HomeNative && !Mode120 && FgTypeNow == "fsr3" && Ce.EngineUpscaler(this) != "dlss"; } }
         public static volatile int EngineFfxLaunched = -1;
@@ -14349,6 +14349,7 @@ namespace ConsoleEnhancer
                 if (!userExit && Config.EngineActive && p.ExitCode != 0 && p.ExitCode != MpvConst.PowerOffExitCode && !File.Exists(Paths.FlagFile))
                 {
                     engineCrashes++;
+                    MotorGenCaida(p, p.ExitCode);   // (1.2.4 ronda 5, XEFGM: con XeSS FG / la generacion propia en el, esa generacion por Magpie el resto de la sesion; XefgMotor.cs)
                     Log.Write("El motor propio se ha cerrado solo (codigo " + p.ExitCode + ", vez " + engineCrashes + "; ver data\\logs\\engine.log): " +
                               (engineCrashes >= 3 ? "el resto de la sesion mpv + Magpie" : "se vuelve a abrir"));
                     if (engineCrashes >= 3) cfg.Engine = "magpie";

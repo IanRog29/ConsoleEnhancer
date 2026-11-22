@@ -104,7 +104,8 @@ namespace ConsoleEnhancer
                                         string t = c.FgTypeNow; int m = c.FgMultNow;
                                         // lo esperado: el motor con DLSS 5 solo con PrismaNr.dll, elegido, las pasadas que hace y una generacion
                                         // que sepa hacer (1.2.4: el reparto de SoloMotor.cs / MotorFg.cs: DLSS FG x2, Smooth Motion, XeSS FG x2...)
-                                        bool motorDebe = prisma == 1 && eng && pas <= c.EngineDlss5MaxPasses && MotorSabeGeneracion(t, m) && c.Dlss5FitsNow;
+                                        bool motorDebe = prisma == 1 && eng && pas <= c.EngineDlss5MaxPasses && MotorSabeGeneracion(t, m) && c.Dlss5FitsNow &&
+                                                         !c.MotorGenAMagpie(t, m);   // (1.2.4 ronda 5, XEFGM: XeSS FG / la propia x3-x4 con DLSS 5 por Magpie, XefgMotor.cs)
                                         bool ok = ed == motorDebe && (!motorDebe || en) && (!motorDebe ? au == (c.Dlss5AutoOn && c.Dlss5InputPct == 0) : !au) &&
                                                   (motorDebe || !c.Dlss5FitsNow || !en);
                                         n++; if (!ok) fallos++;

@@ -143,7 +143,7 @@ namespace ConsoleEnhancer
                 case "proteccion_lejos": if (double.TryParse(v, NumberStyles.Float, CultureInfo.InvariantCulture, out d) && d > 0) ProteLejos = Math.Max(0.3, Math.Min(1.0, d > 1 ? d / 100 : d)); return true;
                 case "proteccion_dias": if (int.TryParse(v, out i)) ProteDias = Math.Max(0, Math.Min(365, i)); return true;
             }
-            return false;
+            return CeParseXefgm(key, val);   // (1.2.4 ronda 5, XEFGM: motor_xefg_dlss5, motor_propia_dlss5; XefgMotor.cs)
         }
 
         // La cadena con el multiplicador m y el tipo, para la prevision y la clave (sin la regla de la grafica dentro: multGpuDentro)
@@ -168,7 +168,16 @@ namespace ConsoleEnhancer
             int d5 = !Dlss5Off && Integrado.Dlss5Available ? Math.Max(1, Math.Min(3, Passes30)) : 0;
             int mod = c.Escala && c.Esc == "dlss" ? DlssModelBaseSinD5 : 0;
             string g = Escalas.GpuClave;
-            return (g.Length > 0 ? g : "-") + "|" + (string.IsNullOrEmpty(c.Juego) ? "*" : c.Juego.Replace("|", " ").Replace("\t", " ")) + "|" + c.Clave + "|m" + mod + "|d5" + d5;
+            return (g.Length > 0 ? g : "-") + "|" + (string.IsNullOrEmpty(c.Juego) ? "*" : c.Juego.Replace("|", " ").Replace("\t", " ")) + "|" + c.Clave + "|m" + mod + "|d5" + d5 + ProteVia(c.Gen, c.Mult);
+        }
+        // (1.2.4 ronda 5, XEFGM) por donde va esa generacion: "|vpropia" (la generacion propia del motor), "|vmotor" (XeSS FG / DLSS FG x3 / x4
+        // del motor) o nada (Magpie). En la prueba del usuario la generacion propia x4 (12,7 de 30 reales) quedo apuntada como "XeSS FG x4" y
+        // despues avisaba "XeSS FG x4 a prueba" con lo de la propia; lo medido con una no vale para la otra
+        string ProteVia(string tipo, int m)
+        {
+            if (m <= 2 || !MultTipo(tipo)) return "";
+            string v = MotorFgViaAhora(tipo, m);
+            return v == "propia" ? "|vpropia" : v.Length > 0 ? "|vmotor" : "";
         }
         // (el modelo elegido sin pasar por las pasadas de DLSS 5: lo que no cambia con la escala automatica)
         int DlssModelBaseSinD5 { get { string pk = DlssPick; if (pk.Length > 0) return DlssPickNum(pk); if (CapMode && DlssModel30 > 0) return DlssModel30; if (DlssModel > 0) return DlssModel; return 0; } }
@@ -243,7 +252,7 @@ namespace ConsoleEnhancer
         // motor -switch2-fps bajo, ProteMotor- sigue). Sin propiedades que vuelvan a la cuenta del multiplicador (sin recursion)
         bool ProteMotorHace(int m, string tipo)
         {
-            return Engine == "propio" && MotorSabeGeneracion(tipo, m) && (Dlss5Off || MotorDlss5Disponible);
+            return Engine == "propio" && MotorSabeGeneracion(tipo, m) && (Dlss5Off || MotorDlss5Disponible) && !MotorGenAMagpie(tipo, m);   // (1.2.4 ronda 5, XEFGM: lo que va por Magpie, con su prevision; XefgMotor.cs)
         }
 
         // Aviso de "a prueba" (se elige y va, pero justo): null = sin aviso
@@ -325,7 +334,7 @@ namespace ConsoleEnhancer
         {
             string fs = Math.Round(salida).ToString(CultureInfo.InvariantCulture), fo = Math.Round(objetivo).ToString(CultureInfo.InvariantCulture);
             string rr = real.ToString("0.0", CultureInfo.InvariantCulture), ro = Math.Round(modo).ToString(CultureInfo.InvariantCulture);
-            string nombre = cfg.FgName;
+            string nombre = cfg.FgName + cfg.MotorFgViaNota(tipo, m);   // (1.2.4 ronda 5, XEFGM: " (FG propia)" si es la del motor)
             CadenaEscala c = cfg.ProteCadena(cfg.CapMode, m, tipo);
             string clave = cfg.ProteClave(c);
             string medida = "salida " + salida.ToString("0.0", CultureInfo.InvariantCulture) + " de " + objetivo.ToString("0.0", CultureInfo.InvariantCulture) + ", reales " + rr + " de " + modo.ToString("0.00", CultureInfo.InvariantCulture);

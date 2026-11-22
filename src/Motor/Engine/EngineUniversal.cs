@@ -180,7 +180,7 @@ namespace ConsoleEnhancer.Motor
                 no = "slInit no fue bien";
             }
             Log.Write("Sin Streamline (" + no + "): DXGI y D3D12 del sistema, sin DLSS, generacion ni Reflex; escalador " +
-                      (s.Upscaler == "catrom" ? "catrom" : "fsr1") + (s.QueueMax < 0 ? ", swapchain con espera (cola de 1)" : ""));
+                      (s.Upscaler == "catrom" ? "catrom" : "fsr1") + (s.QueueMax < 0 && !FgFfx && !FgXe ? ", swapchain con espera (cola de 1)" : FgXe && s.XeQueue > 0 ? ", la cadena de XeSS FG con espera (cola de " + s.XeQueue + ")" : ""));   // (1.2.4 ronda 5, XEFGM: con XeSS FG / FSR 3 FG no hay espera)
         }
 
         // InitDevice: la grafica en la fabrica de verdad (la de Streamline si va), la misma que GpuChoice (por su LUID)

@@ -114,6 +114,7 @@ namespace ConsoleEnhancer
                                             // lo esperado: el motor si sabe la generacion y (sin DLSS 5, o DLSS 5 con PrismaNr.dll y las pasadas que hace)
                                             bool conGen = !c.FgOff && modo != 120;   // (a 120 no hay generacion: da igual la elegida)
                                             bool motorDebe = genOk && !(conGen && t == "fsr3" && Ce.EngineUpscaler(c) == "dlss") && !(conGen && t == "dlss" && Ce.DlssgSoloMagpie) &&
+                                                             !(conGen && c.MotorGenAMagpie(t, m)) &&   // (1.2.4 ronda 5, XEFGM: XeSS FG / la propia con DLSS 5 por Magpie, XefgMotor.cs)
                                                              (!d5 || (prisma == 1 && Math.Max(1, Math.Min(3, pas)) <= c.EngineDlss5MaxPasses));
                                             bool ok = en == motorDebe && ed == (motorDebe && d5);
                                             n++; if (!ok) fallos++;
