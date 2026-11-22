@@ -53,6 +53,10 @@ COMPILAR Y EMPAQUETAR (C# 5, nada que instalar)
   tests\build_deteccion.bat -> tests\bin\DeteccionTest.exe (deteccion, plan y 19 PCs simulados)
   powershell -ExecutionPolicy Bypass -File scripts\empaquetar.ps1 [-Zip] [-Version vX.Y.Z] [-Web <url>] [-Destino <carpeta>] [-Forzar]
   Todo junto: preparar.bat (y "preparar.bat paquete").
+  1.2.3 (DEFENDER): la version de los tres exe (Propiedades > Detalles) es CeVersion.Texto de src\Version.cs: CAMBIARLA AL PUBLICAR
+  (empaquetar.ps1 -Version y el CI de la etiqueta lo comprueban y paran si no coincide). Manifiestos: resources\app.manifest y
+  resources\engine.manifest. Firma opcional: scripts\firmar.ps1 -Pfx <.pfx> | -Huella <sha1> despues de compilar y antes de
+  empaquetar; en el CI, con los secretos CE_FIRMA_PFX (el .pfx en base64) y CE_FIRMA_CLAVE.
   Codigo de Prisma traido con git merge-file a tres bandas (actual de ConsoleEnhancer, instantanea base de Prisma, Prisma nuevo; bases
   base, base2, base3 en una carpeta de trabajo local): 3 fusiones limpias, la ultima con todo lo que dejaron MANDOS, INTEGRADO,
   PASADAS, NATIVO, CONSOLAS y LATENCIA el 18-11.
