@@ -32,8 +32,6 @@ namespace ConsoleEnhancer.Motor
                 case "xefg_log": { int n; if (int.TryParse(val.Trim(), out n)) XeLogLevel = n; return true; }
                 case "xefg_cola": { int n; if (int.TryParse(val.Trim(), out n)) XeQueue = Math.Max(0, Math.Min(3, n)); return true; }
                 case "xefg_prioridad": XeHighPrio = val.Trim() == "1"; return true;
-                case "xefg_init": XeInitFromSc = val.Trim() == "1"; return true;
-                case "xefg_bb_estado": { int n; if (int.TryParse(val.Trim(), out n)) XeBbState = n; return true; }
                 case "xefg_directo": XeRaw = val.Trim() != "0"; return true;
                 case "xefg_xell": XeLowLatency = val.Trim() == "1"; XeNoXell = val.Trim() == "2"; return true;
                 case "xefg_hudless": XeHudless = val.Trim() == "1"; return true;

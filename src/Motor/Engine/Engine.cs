@@ -1052,10 +1052,9 @@ namespace ConsoleEnhancer.Motor
             ID3D12Resource bb = backbuf[bi];
             if (!(xeFgOn && s.XeTagMode == 4))   // (xefg_modo=4: prueba, sin copiar a la cadena)
             {
-                D3D12_RESOURCE_STATES bbs = xeFgOn ? (D3D12_RESOURCE_STATES)s.XeBbState : D3D12_RESOURCE_STATES.PRESENT;   // (1.2.4 MOTORFG: xefg_bb_estado, prueba)
-                Barrier(bb, bbs, D3D12_RESOURCE_STATES.COPY_DEST);
+                Barrier(bb, D3D12_RESOURCE_STATES.PRESENT, D3D12_RESOURCE_STATES.COPY_DEST);
                 list.CopyResource(bb, show);
-                Barrier(bb, D3D12_RESOURCE_STATES.COPY_DEST, bbs);
+                Barrier(bb, D3D12_RESOURCE_STATES.COPY_DEST, D3D12_RESOURCE_STATES.PRESENT);
             }
             PassEnd();
             list.EndQuery(qheap, D3D12_QUERY_TYPE.TIMESTAMP, (uint)(fi * 2 + 1));

@@ -85,14 +85,12 @@ namespace ConsoleEnhancer.Motor
         public bool XeLowLatency = true;    // xefg_xell=0|1: XeLL en modo de baja latencia (como Reflex); 0 = sin dormir (solo sus marcadores)
         public bool XeHudless = false;      // xefg_hudless=1: 'final' (sin el aviso) como imagen sin interfaz para XeSS FG
         public double XeSceneThr = -1;      // xefg_corte=0..1: umbral de cambio de escena de XeSS FG (-1 = el suyo)
-        public int XeTagMode = 0;
+        public int XeTagMode = 0;           // xefg_modo=0..4 (pruebas): 0 entradas en la lista del motor (de serie), 1 sin lista hasta el Present, 2 sin entradas, 3 sin generar, 4 ni copiar a la cadena
         public bool XeRaw = true;           // xefg_directo=0|1: la cadena de XeSS FG por su puntero (sin QueryInterface)
-        public int XeBbState = 0;           // xefg_bb_estado=N (prueba): el estado de las imagenes de la cadena de XeSS FG (0 PRESENT/COMMON, 4 RENDER_TARGET)
-        public bool XeInitFromSc = false;   // xefg_init=1: XeSS FG encima de la cadena del motor (InitFromSwapChain) en vez de crearla el (InitFromSwapChainDesc)
         public bool XeHighPrio = false;     // xefg_prioridad=1: la cola de la grafica del motor en prioridad alta tambien con XeSS FG
         public bool XeNoXell = false;       // xefg_xell=2 (prueba): sin contexto de XeLL
         public int XeQueue = 0;             // xefg_cola=N: la cadena de XeSS FG con objeto de espera y como mucho N en cola; 0 = sin (de serie: medido 22-11, con 1 el motor se quedaba ~1 s parado en cada imagen)
-        public int XeLogLevel = 2;          // xefg_log=0..3 (0 = todo lo de XeSS FG al log)           // xefg_modo=0|1|2 (pruebas; ver XeFgRecord)
+        public int XeLogLevel = 2;          // xefg_log=0..3 (0 = todo lo de XeSS FG al log)
         public bool SlSoloDlss = true;      // fg_dlss_sr=0|1: con FSR 3 FG / XeSS FG y upscaler=dlss, DLSS SR por Streamline sin sus ganchos de DXGI (0 = sin Streamline, como la 1.2.3)
     }
 
@@ -106,7 +104,6 @@ namespace ConsoleEnhancer.Motor
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)] delegate int XefgCreateFn(IntPtr dev, out IntPtr h);
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)] delegate int XefgGetPropsFn(IntPtr h, out XefgProperties p);
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)] delegate int XefgInitDescFn(IntPtr h, IntPtr hwnd, DXGI_SWAP_CHAIN_DESC1* desc, IntPtr fs, IntPtr queue, IntPtr factory, ref XefgInitParams p);
-        [UnmanagedFunctionPointer(CallingConvention.Cdecl)] delegate int XefgInitScFn(IntPtr h, IntPtr queue, ref XefgInitParams p);
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)] delegate int XefgGetSwapFn(IntPtr h, ref Guid riid, out IntPtr sc);
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)] delegate int XefgTagResFn(IntPtr h, IntPtr cl, uint presentId, ref XefgResourceData d);
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)] delegate int XefgTagConstFn(IntPtr h, uint presentId, ref XefgConstants c);
@@ -206,18 +203,8 @@ namespace ConsoleEnhancer.Motor
                 ip.maxInterpolatedFrames = (uint)xeFgInterp;
                 ip.uiMode = XEFG_UI_MODE_NONE;
                 ip.initFlags = 0;   // vectores a la resolucion de la entrada, en pixeles; profundidad normal (0 cerca)
-                IDXGISwapChain1 appSc = null;
-                if (s.XeInitFromSc)
-                {
-                    // (xefg_init=1) la cadena la crea el motor (DXGI del sistema) y XeSS FG se pone encima (InitFromSwapChain)
-                    Hr.Check(factory.CreateSwapChainForHwnd(queue, hwnd, ref scd, null, null, out appSc), "CreateSwapChainForHwnd (XeSS FG)");
-                    ip.pApplicationSwapChain = Com.BorrowPtr(appSc, typeof(IDXGISwapChain1));
-                    XefgInitScFn initSc = SrNative.Fn<XefgInitScFn>(fg, "xefgSwapChainD3D12InitFromSwapChain");
-                    r = initSc == null ? -7 : initSc(xeFg, Com.BorrowPtr(queue, typeof(ID3D12CommandQueue)), ref ip);
-                }
-                else
-                    fixed (DXGI_SWAP_CHAIN_DESC1* pd = &scd)
-                        r = init(xeFg, hwnd, pd, IntPtr.Zero, Com.BorrowPtr(queue, typeof(ID3D12CommandQueue)), Com.BorrowPtr(factory, typeof(IDXGIFactory2)), ref ip);
+                fixed (DXGI_SWAP_CHAIN_DESC1* pd = &scd)
+                    r = init(xeFg, hwnd, pd, IntPtr.Zero, Com.BorrowPtr(queue, typeof(ID3D12CommandQueue)), Com.BorrowPtr(factory, typeof(IDXGIFactory2)), ref ip);
                 if (r < 0) { Log.Write("XeSS FG: la cadena no se pudo crear (" + r + "): la de siempre, sin esta generacion"); XeFgFree(); xeFgFailed = true; return false; }
                 // (la de XeSS FG pedida ya como IDXGISwapChain3, la que usa el motor: si el proxy reenviara QueryInterface a la cadena de
                 // verdad, el motor presentaria por debajo de XeSS FG)
