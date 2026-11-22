@@ -177,10 +177,8 @@ namespace ConsoleEnhancer
             Cerca(Cadena(ti, 30, "2560x1440", "2560x1440", "", "dlss", 5, false, 3840, 2160), new[] { 100, 80, 65 }, "30 sin FG, E");
             Cerca(Cadena(ti, 60, "2560x1440", "2560x1440", "dlss", "dlss", 5, true, 3840, 2160), new[] { 40, -2, -2 }, "60 + DLSS FG ligero, E");
             Cerca(Cadena(ti, 30, "2560x1440", "2560x1440", "xess", "dlss", 5, false, 3840, 2160), new[] { 70, 45, 35 }, "30 + XeSS FG, E");
-            // (M: 16-11, 70 % con la grafica al 80 %: con ese uso)
-            double uso = EscalaAuto.Uso; EscalaAuto.Uso = 0.80;
-            Cerca(Cadena(ti, 30, "2560x1440", "2560x1440", "dlss", "dlss", 13, false, 3840, 2160), new[] { 70, -2, -2 }, "30 + DLSS FG, M (16-11: M 70 % = 80 % de grafica; uso 80 %)");
-            EscalaAuto.Uso = uso;
+            // (M: 16-11, 70 % con la grafica al 80 %. 1.2.3: el uso ya es el del hilo de Magpie -92 %-: sin cambiarlo para esta)
+            Cerca(Cadena(ti, 30, "2560x1440", "2560x1440", "dlss", "dlss", 13, false, 3840, 2160), new[] { 70, -2, -2 }, "30 + DLSS FG, M (16-11: M 70 % = 80 % de grafica)");
             int ti120 = Pct(Cadena(ti, 120, "2560x1440", "2560x1440", "", "dlss", 5, false, 3840, 2160), 1);
             Ok(ti120 < 0 || ti120 <= 25, "4060 Ti a 120 fps (1440p -> 4K): DLSS 5 no cabe o al minimo (" + ti120 + "; log del 21-11 19:12: al 35 % Magpie recibia ~100 de 120)");
             int ue = Pct(Cadena(ti, 30, "2560x1440", "2560x1440", "dlss", "dlss", 5, false, 3840, 2160), 1), um = Pct(Cadena(ti, 30, "2560x1440", "2560x1440", "dlss", "dlss", 13, false, 3840, 2160), 1);
