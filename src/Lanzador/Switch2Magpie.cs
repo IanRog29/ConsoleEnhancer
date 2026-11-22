@@ -1758,7 +1758,8 @@ namespace ConsoleEnhancer
                 if (cfg.D5Num(cfg.D5DetailTable, out rv)) p["residualDetailGain"] = F(Math.Max(0, Math.Min(2, rv)));
                 if (cfg.D5Num(cfg.D5CompressTable, out rv)) p["residualLocalCompression"] = F(Math.Max(0, Math.Min(1, rv)));
                 else if (multi && cfg.Dlss5MultiContain > 0) p["residualLocalCompression"] = F(cfg.Dlss5MultiContain); // (19-11, DLSS5: el halo oscuro de 2-3 pasadas)
-                if (multi && Math.Abs(cfg.Dlss5MultiChroma - 1) > 0.001) p["residualSaturation"] = F(cfg.Dlss5MultiChroma); // (19-11, DLSS5: el color lavado de 2-3 pasadas)
+                // (19-11, DLSS5: el color lavado de 2-3 pasadas; 22-11, 1.2.2 REESCALADO: con la captura 4K su propio valor, Reescalado.cs)
+                if (multi && Math.Abs(cfg.Dlss5MultiChromaNow - 1) > 0.001) p["residualSaturation"] = F(cfg.Dlss5MultiChromaNow);
                 if (cfg.D5Num(cfg.D5DarkTable, out rv)) p["residualDarkProtection"] = F(Math.Max(0, Math.Min(1, rv)));
                 // Las pasadas 2 y 3 con el mismo nivel que la 1 (Magpie las pone a sus valores de serie si no estan). 19-11 (DLSS5): cada una
                 // con su fuerza (dlss5_fuerza_pasadas): con la misma que la 1a el efecto se acumulaba (halo oscuro, rayado, color lavado)

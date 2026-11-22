@@ -25,6 +25,8 @@
 //  3) "Sin reescalado" en el motor (Catmull-Rom) sin enfoque CAS, como en Magpie (x enfoque_sin_reescalado, de serie 0; 1 = como antes).
 //  4) DLSS SR de Magpie con L / M (transformer 2) con el flujo optico de DLSS 5 aunque el modo diga "sin flujo" (flujo_30_fg_dlss5=ninguno):
 //     sin vectores L / M borran la textura al mover la camara (dlss_flujo_transformer=nvidia de serie; vacio = como antes).
+//  5) DLSS 5 con 2-3 pasadas y la captura 4K (entrada al 35 / 30 %): menos color lavado y halo (dlss5_pasadas_color_4k=0.5 y en
+//     base.ini detalle_30[_fg]_4k_p2/_p3_dlss5=0.5, contener_30[_fg]_4k_p2/_p3_dlss5=0.85).
 // C# 5
 using System;
 using System.Globalization;
@@ -86,6 +88,13 @@ namespace ConsoleEnhancer
             }
         }
 
+        // (5) dlss5_pasadas_color_4k: Chroma Strength del residuo de DLSS 5 con 2-3 pasadas y la captura 4K (vacio = dlss5_pasadas_color, 0,7,
+        // el de antes). Con la entrada al 35 / 30 % el color salia lavado: MEDIDO 22-11 (cadena de verdad, capturas de Magpie, nivel 3):
+        // color de la salida frente a la verdad 2 pasadas 0,82 -> 0,90 y 3 pasadas 0,79 -> 0,88 (1 pasada 0,95), junto con detalle 0,5 y
+        // contener 0,85 de base.ini (detalle_30_4k_p2_dlss5...: halo claro 9,5 -> 8,5 % con 2 pasadas, error 9,5 -> 9,2)
+        public double Dlss5MultiChroma4k = 0.5;
+        public double Dlss5MultiChromaNow { get { return Win4k && Dlss5MultiChroma4k >= 0 ? Dlss5MultiChroma4k : Dlss5MultiChroma; } }
+
         bool CeParseReescalado(string key, string val)
         {
             switch (key)
@@ -93,6 +102,7 @@ namespace ConsoleEnhancer
                 case "magpie_nitidez_transformer": MagpieSharpenTransformer = Math.Max(0, Math.Min(1, ParseNum(val))); return true;
                 case "enfoque_sin_reescalado": SharpenNoScale = Math.Max(0, Math.Min(1, ParseNum(val))); return true;
                 case "dlss_flujo_transformer": SrFlowTransformer2 = val.Trim().Length == 0 ? -1 : ParseFlow(val); return true;   // (vacio = como antes)
+                case "dlss5_pasadas_color_4k": Dlss5MultiChroma4k = val.Trim().Length == 0 ? -1 : Math.Max(0, Math.Min(2, ParseNum(val))); return true;   // (vacio = como antes)
             }
             return false;
         }

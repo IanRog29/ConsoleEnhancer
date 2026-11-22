@@ -82,6 +82,15 @@ namespace ConsoleEnhancer
                                                   (sr != null ? N(Num(sr, "renderPreset")) + " flujo " + N(Num(sr, "opticalFlowMethod")) + " q" + N(Num(sr, "nvidiaOpticalFlowQuality")) : "sin DLSS SR") + " | " +
                                                   (cas != null ? N(Num(cas, "sharpness")) : "-") + " | " + cfg.ProfileText);
                                     if (nr == null) continue;
+                                    // 5) 2-3 pasadas: Chroma Strength del residuo, con la captura 4K dlss5_pasadas_color_4k
+                                    if (pasReal >= 2)
+                                    {
+                                        double cEsp = cap == "3840x2160" && cfg.Dlss5MultiChroma4k >= 0 ? cfg.Dlss5MultiChroma4k : cfg.Dlss5MultiChroma;
+                                        double cVis = nr.ContainsKey("residualSaturation") ? Num(nr, "residualSaturation") : 1;
+                                        Ok(Math.Abs(cVis - cEsp) < 0.002, cap + " modo " + modo + (fg ? " fg" : "") + " p" + pasReal + ": color de las pasadas " + N(cVis) + " = " + N(cEsp) +
+                                           (nr.ContainsKey("residualDetailGain") ? ", detalle " + N(Num(nr, "residualDetailGain")) : "") +
+                                           (nr.ContainsKey("residualLocalCompression") ? ", contener " + N(Num(nr, "residualLocalCompression")) : ""));
+                                    }
                                     // 1) modo 30: el antiparpadeo tambien con 1 pasada (el de dlss5_antiparpadeo_30_1pasada) y con 2-3 el de siempre
                                     if (modo == 30 && pasReal == 1 && cfg.Af30OnePass >= 0)
                                         Ok((int)Num(nr, "antiFlicker") == Math.Min(4, cfg.Af30OnePass), cap + " modo 30 1 pasada: antiparpadeo " + N(Num(nr, "antiFlicker")) + " = dlss5_antiparpadeo_30_1pasada " + cfg.Af30OnePass);
