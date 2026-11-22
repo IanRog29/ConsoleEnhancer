@@ -161,6 +161,17 @@ namespace ConsoleEnhancer
             ModoPlan m60;
             if (p.Modos.TryGetValue("60_fg", out m60) && m60.Modelo.Length > 0) sb.AppendLine("motor_modelo_60_dlssg=" + m60.Modelo);
             sb.AppendLine("escalas_modelo_max=" + (transformer ? "L" : "E"));
+            // 22-11 (1.2.2, UNIVERSAL): con una grafica bastante mas lenta que la de referencia (RTX 3060, 20, 3050, 4050...), el modo "ligero"
+            // de Magpie (antiparpadeo estatico, flujo optico en rendimiento, DLSS FG preset C) tambien en el modo 30: en la Ti solo hacia falta
+            // en el 60 (Config.LightTable); EscalaAuto ya cuenta lo que ahorra. Mas fps de margen antes que un poco de nitidez
+            if (r < 0.7)
+            {
+                sb.AppendLine("# Grafica lenta para la referencia: modo ligero de Magpie tambien en el modo 30 (tabla_ligero_*; 0 = como en la Ti)");
+                sb.AppendLine("tabla_ligero_30_fg=1");
+                sb.AppendLine("tabla_ligero_30=1");
+                sb.AppendLine("tabla_ligero_30_fg_4k=1");
+                sb.AppendLine("tabla_ligero_30_4k=1");
+            }
             return sb.ToString();
         }
 
