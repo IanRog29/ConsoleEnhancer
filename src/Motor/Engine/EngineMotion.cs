@@ -317,7 +317,9 @@ namespace ConsoleEnhancer.Motor
             bool on = s.Motion && newFrame && (srTemporal || fgApplied || (s.MvXessFfx && ffxFgOn) || (s.MvNativeNr && s.Nr && s.Mode == 30));   // (1.0.5: mv_nativo_dlss5, DLSS 5 a 4K nativo sin FG)
             // 22-11 (1.2.1): si solo los usa la generacion con el vector de la camara (fg_global, EngineFgGlobal.cs) y nadie mas los vectores
             // por bloque (4K nativo sin DLSS 5, o un escalador espacial), sin la busqueda por bloques: solo la piramide de luma. Medido a 4K,
-            // modo 30 + DLSS-G: la seccion de vectores 2,9 -> ~0,3 ms de grafica (tambien de retraso). fg_solo_camara=0 = como antes
+            // modo 30 + DLSS-G (3 pasadas de cada, grafica compartida): grafica por imagen real 9,1 -> 7,1 ms, la seccion de vectores 5,5 ->
+            // 2,0 ms; los vectores de la generacion, los mismos. Tambien es retraso (la grafica va entre la llegada y la pantalla).
+            // fg_solo_camara=0 = como antes
             bool onlyCam = on && FgOnlyCamNow && !srTemporal && !(s.MvNativeNr && s.Nr && s.Mode == 30);
             bool quality = on && QualityMotion && !onlyCam;
             if (quality) EnsureQualityPsos();
@@ -341,7 +343,8 @@ namespace ConsoleEnhancer.Motor
                 else if (motionValid && !frameReset)
                 {
                     // 20-11 16:15 (DLSS5VEC2): DLSS 5 + DLSS-G con la entrada de mv_ligero o mas: primero los ligeros para la generacion
-                    // (22-11 1.2.1: con fg_global la generacion no lee los ligeros, solo la piramide de luma: sin la doble pasada, ~0,7 ms menos a 1440p)
+                    // (22-11 1.2.1: con fg_global la generacion no lee los ligeros, solo la piramide de luma: sin la doble pasada; medido a 1440p con
+                    // DLSS L + DLSS-G, la seccion de vectores 2,66 -> 2,52 ms)
                     bool dual = MvLightSize && MvFullWanted && fgApplied && s.FgVec >= 2 && mvecFg != null && !s.MvFixed && !FgVecFullNow && !FgGlobalNow;   // (20-11 SR45: o DLSS SR; FGFALLOS: con fg_vectores_completos sin la doble pasada)
                     mvForceLight = dual;
                     for (int k = Levels - 1; k >= 0; k--) SearchLevel(cur, k, info && k == 0, c);
