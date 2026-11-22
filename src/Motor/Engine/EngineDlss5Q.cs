@@ -3,6 +3,7 @@ using System.Globalization;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading;
 using ConsoleEnhancer.Motor.Native;
 
 namespace ConsoleEnhancer.Motor
@@ -23,6 +24,7 @@ namespace ConsoleEnhancer.Motor
         public bool NrHold = true;      // dlss5_sosten
         public bool NrSuave = true;     // dlss5_suave=0: todo lo de DLSS5Q como en la 1.2.4 (sosten, la escala de una vez y en los cortes, la clave nueva)
         public bool NrNow = true;       // dlss5_creacion_inmediata: la imagen en que se crea DLSS 5 ya lo lleva (ver D5qFlush)
+        public bool NrAsync = true;     // dlss5_crear_aparte: las DLSSNR nuevas (otro % u otras pasadas) en otro hilo, sin parar la imagen (ver D5aPending)
         public float NrChroma = 1f;     // dlss5_color: el croma de lo que cambia DLSS 5 con 2-3 pasadas (el "Chroma Strength" del residuo de Magpie; 1 = tal cual)
 
         bool ApplyD5q(string key, string val)
@@ -33,6 +35,7 @@ namespace ConsoleEnhancer.Motor
                 case "dlss5_sosten": { string v = val.Trim().ToLowerInvariant(); NrHold = !(v == "0" || v == "no" || v == "false" || v == "off"); return true; }
                 case "dlss5_color": { double d; if (double.TryParse(val.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out d)) NrChroma = (float)Math.Max(0, Math.Min(2, d)); return true; }
                 case "dlss5_creacion_inmediata": { string v = val.Trim().ToLowerInvariant(); NrNow = !(v == "0" || v == "no" || v == "false" || v == "off"); return true; }
+                case "dlss5_crear_aparte": { string v = val.Trim().ToLowerInvariant(); NrAsync = !(v == "0" || v == "no" || v == "false" || v == "off"); return true; }
                 case "dlss5_suave": { string v = val.Trim().ToLowerInvariant(); NrSuave = !(v == "0" || v == "no" || v == "false" || v == "off"); return true; }
                 case "test_escena_quieta": { string v = val.Trim(); EscenasReales.Still = v == "1"; return true; }
                 case "test_escena_s": { double d; if (double.TryParse(val.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out d)) EscenasReales.SceneSecs = Math.Max(1, Math.Min(120, d)); return true; }
@@ -96,6 +99,129 @@ void main(uint3 id : SV_DispatchThreadID)
         bool d5qHoldBroken;
 
         int rfFi;   // la imagen (lista y su asignador) que se esta grabando (RenderFrame)
+
+        // ---- dlss5_crear_aparte (de serie 1): crear una DLSSNR (PNR_CreateN, la DLL de NVIDIA) tarda 0,4-0,6 s por instancia en la CPU
+        // (medido: 435 ms 1, 589 ms 2, 1298 ms 3) y paraba la imagen todo ese rato en cada cambio de % (la escala, el guardian) o de pasadas
+        // (el mando). Ahora las nuevas se crean en otro hilo, en el otro juego de instancias de PrismaNr (0-2 / 3-5), con su propia lista;
+        // mientras, cada imagen sigue con las de antes; cuando su lista ya se ha hecho en la grafica, el cambio es en una imagen (solo la
+        // espera a la grafica de antes de cambiar las tablas, como siempre). Cada instancia la usa un solo hilo. Si algo falla (p. ej. una
+        // PrismaNr.dll vieja con 3 instancias), se vuelve a crear como antes (y lo dice el log) el resto de la sesion
+        int nrBank;                                   // el juego de instancias en uso (0 o 3)
+        ID3D12CommandAllocator d5aAlloc;
+        ID3D12GraphicsCommandList d5aList;
+        Thread d5aThread;
+        volatile int d5aState;                        // 0 nada, 1 el hilo creando, 2 lista grabada, 3 enviada, 4 lista para el cambio, -1 fallo
+        int d5aW, d5aH, d5aPasses, d5aBank, d5aPreset;
+        ulong d5aFence;
+        double d5aCreateMs;
+        string d5aErr = "";
+        bool d5aBroken;
+        long d5aAt;
+
+        // RecordDlss5, cuando hace falta rehacer: true = sigue con las de antes (las nuevas se estan creando aparte); false = crear ya (como
+        // antes) o hacer el cambio a las creadas aparte (d5aState 4)
+        bool D5aPending(int w, int h, int passes)
+        {
+            if (!s.NrAsync || !s.NrSuave || d5aBroken) { if (d5aState != 0) D5aCancel(); return false; }
+            if (d5aState == 0)
+            {
+                // Solo si lo de ahora se puede seguir evaluando (misma captura, misma inColor) y hacen falta DLSSNR nuevas (otro tamaño o mas
+                // pasadas; menos pasadas del mismo tamaño no crea nada)
+                bool sigue = nrW != 0 && nrOuts[0] != null && nrSrcW == inW && nrSrcH == inH && ReferenceEquals(nrInColor, inColor) && nrDirect == DirectBlendNow();
+                bool nuevas = nrW != w || nrH != h || passes > nrPasses;
+                if (!sigue || !nuevas) return false;
+                try
+                {
+                    if (d5aAlloc == null)
+                    {
+                        object o;
+                        Guid iid = typeof(ID3D12CommandAllocator).GUID;
+                        Hr.Check(dev.CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE.DIRECT, ref iid, out o), "CreateCommandAllocator (DLSS 5 aparte)");
+                        d5aAlloc = (ID3D12CommandAllocator)o;
+                        iid = typeof(ID3D12GraphicsCommandList).GUID;
+                        Hr.Check(dev.CreateCommandList(0, D3D12_COMMAND_LIST_TYPE.DIRECT, d5aAlloc, null, ref iid, out o), "CreateCommandList (DLSS 5 aparte)");
+                        d5aList = (ID3D12GraphicsCommandList)o;
+                        Hr.Check(d5aList.Close(), "Close (DLSS 5 aparte)");
+                    }
+                }
+                catch (Exception ex) { d5aBroken = true; Log.Write("DLSS 5: crear aparte no disponible (" + ex.Message + "): como antes"); return false; }
+                d5aW = w; d5aH = h; d5aPasses = passes; d5aBank = nrBank == 0 ? 3 : 0; d5aPreset = s.NrPreset; d5aErr = ""; d5aAt = Clock.Now;
+                d5aState = 1;
+                d5aThread = new Thread(D5aWork);
+                d5aThread.IsBackground = true; d5aThread.Name = "DLSS 5 aparte";
+                d5aThread.Start();
+                Log.Write("DLSS 5: las DLSSNR nuevas (" + w + "x" + h + ", " + passes + " pasada(s)) se crean aparte; la imagen sigue con las de ahora");
+                return true;
+            }
+            if (d5aState == -1)
+            {
+                d5aBroken = true;
+                Log.Write("DLSS 5: crear aparte fallo (" + d5aErr + "): se crea como antes el resto de la sesion");
+                D5aCancel();
+                return false;
+            }
+            if (d5aW != w || d5aH != h || d5aPasses != passes)
+            {
+                // Lo pedido ha vuelto a cambiar mientras se creaban: cuando acabe, fuera, y se empieza otra vez con lo nuevo
+                if (d5aState == 1) return true;
+                D5aCancel();
+                return D5aPending(w, h, passes);
+            }
+            if (d5aState == 1) return true;
+            if (d5aState == 2)
+            {
+                IntPtr lp = Com.BorrowPtr(d5aList, typeof(ID3D12CommandList));
+                queue.ExecuteCommandLists(1, ref lp);
+                fenceValue++;
+                queue.Signal(fence, fenceValue);
+                d5aFence = fenceValue;
+                d5aState = 3;
+                return true;
+            }
+            if (d5aState == 3)
+            {
+                if (fence.GetCompletedValue() < d5aFence) return true;
+                d5aState = 4;
+            }
+            return false;   // 4: el cambio, en esta imagen
+        }
+
+        void D5aWork()
+        {
+            try
+            {
+                long t = Clock.Now;
+                Hr.Check(d5aAlloc.Reset(), "Allocator.Reset (DLSS 5 aparte)");
+                Hr.Check(d5aList.Reset(d5aAlloc, null), "List.Reset (DLSS 5 aparte)");
+                IntPtr cl = Com.BorrowPtr(d5aList, typeof(ID3D12GraphicsCommandList));
+                for (int i = 0; i < d5aPasses; i++)
+                    if (PrismaNr.PNR_CreateN(d5aBank + i, cl, (uint)d5aW, (uint)d5aH, d5aPreset) == 0)
+                    {
+                        d5aErr = "PNR_Create " + d5aW + "x" + d5aH + " (instancia " + (d5aBank + i) + "): " + PrismaNr.LastError();
+                        try { d5aList.Close(); } catch { }
+                        d5aState = -1;
+                        return;
+                    }
+                Hr.Check(d5aList.Close(), "Close (DLSS 5 aparte)");
+                d5aCreateMs = Clock.SinceMs(t);
+                d5aState = 2;
+            }
+            catch (Exception ex) { d5aErr = ex.Message; d5aState = -1; }
+        }
+
+        // Fuera lo creado aparte (y el hilo, si sigue). Con la grafica parada si su lista se llego a enviar
+        void D5aCancel()
+        {
+            if (d5aState == 0 && d5aThread == null) return;
+            Thread th = d5aThread;
+            if (th != null && th.IsAlive) th.Join(5000);
+            d5aThread = null;
+            int st = d5aState;
+            if (st == 3 || st == 4) WaitIdle();
+            if (st != 0) for (int i = 0; i < 3; i++) PrismaNr.PNR_ReleaseN(d5aBank + i);
+            if (st != 0 && st != -1) Log.Write("DLSS 5: las DLSSNR creadas aparte ya no hacen falta: fuera");
+            d5aState = 0;
+        }
 
         // ---- dlss5_creacion_inmediata (de serie 1): la creacion de la DLSSNR se envia ya a la grafica y se espera, y la misma imagen se
         // evalua (con la historia de cero). Antes la imagen de la creacion iba SIN DLSS 5 (PrismaNr: "hay que dejar una imagen antes del
