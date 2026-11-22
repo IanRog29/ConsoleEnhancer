@@ -50,7 +50,8 @@ if (-not (Test-Path "$Streamline\bin\x64\sl.interposer.dll")) {
 }
 foreach ($need in @("$Raiz\bin\ConsoleEnhancer.exe", "$Raiz\bin\engine\ConsoleEnhancerEngine.exe")) { if (-not (Test-Path $need)) { throw "Falta $need (compila con build.bat y build_motor.bat, o preparar.bat)" } }
 # (1.2.4) las piezas propias del motor (C++, Visual Studio; PrismaNr con las cabeceras de NGX de scripts\descargar_cabeceras_ngx.ps1)
-$propias = @(
+$propias = @('PrismaNr.dll', 'PrismaFg.dll')
+foreach ($d in $propias) { if (-not (Test-Path "$Raiz\bin\engine\$d")) { throw "Falta $Raiz\bin\engine\$d (scripts\descargar_cabeceras_ngx.ps1, build_prismanr.bat y build_prismafg.bat)" } }
 # (1.2.3, DEFENDER) la version que llevan los exe en sus propiedades (src\Version.cs) = la del paquete: que no salga una version con los
 # exe de otra, ni sin version
 $verCs = [regex]::Match((Get-Content -LiteralPath "$Raiz\src\Version.cs" -Raw -Encoding UTF8), 'const string Texto = "([^"]+)"').Groups[1].Value
@@ -167,7 +168,7 @@ Texto "$lic\README.txt" @(
     '',
     'Marcas (NVIDIA, DLSS, Reflex, GeForce RTX, AMD, FSR, FidelityFX, Intel, XeSS, Nintendo, Sony, PlayStation, Microsoft, Xbox...): de sus',
     'duenos; aqui solo describen compatibilidad. ConsoleEnhancer no esta afiliado a ninguno. / Trademarks belong to their owners.',
-    'No incluido / not included: nvngx_dlssnr.dll, runtimes\dlssg_sm86 (ver extras\README.txt).')
+    'No incluido / not included: nvngx_dlssnr.dll, runtimes\dlssg_sm86 (ver extras\README.txt). Si van / included: engine\PrismaNr.dll, engine\PrismaFg.dll.')
 Texto "$Destino\extras\README.txt" @(
     'Extras NO OFICIALES (no vienen con ConsoleEnhancer y la app funciona entera sin ellos). Solo si ya los tienes:',
     ' - nvngx_dlssnr.dll ("DLSS 5", filtro DLSSNR de Magpie): DLL de NVIDIA modificada por la comunidad, SIN FIRMA, sin licencia.',
@@ -177,7 +178,7 @@ Texto "$Destino\extras\README.txt" @(
     '   sin la comprobacion de NVIDIA. Desde la 1.2.4 la app no lo trae ni lo baja; si ya lo tienes, ponlo en extras\runtimes\dlssg_sm86.',
     'Anadir DLSS 5 los busca en ESTE PC si ya los tienes (Descargas, Escritorio, otras carpetas de la app...; solo local) y eliges tu.',
     'Con ellos, engine\PrismaNr.dll y engine\PrismaFg.dll (codigo propio de la app) los cargan sin la comprobacion de NGX de NVIDIA.',
-    'ConsoleEnhancer no reparte, no baja ni recomienda nvngx_dlssnr.dll ni dlssg_sm86: NVIDIA no los ha publicado asi y su uso puede ir'
+    'ConsoleEnhancer no reparte, no baja ni recomienda nvngx_dlssnr.dll ni dlssg_sm86: NVIDIA no los ha publicado asi y su uso puede ir',
     'contra sus condiciones. Si no sabes de donde salen, no los uses.',
     '',
     'UNOFFICIAL extras (not shipped; the app works fully without them): nvngx_dlssnr.dll (community-modified, unsigned NVIDIA DLL) and',
