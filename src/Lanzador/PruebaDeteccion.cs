@@ -256,6 +256,7 @@ namespace ConsoleEnhancer
             public int TramoSalida2 = -1;         // (o en este: la carga de Rocket League es "atenuada" en la ligera y "juego" en la gris)
             public double SalirMin, SalirMax;     // ...entre estos segundos desde que empieza ese tramo
             public int SilencioDesde = -1;        // el audio de la consola en silencio desde este tramo (-1: suena)
+            public bool De122;                    // (1.2.2) escena nueva: se compara tambien con la 1.2.1 (sin lo de la Bienvenida)
         }
 
         static int Escenas121(StringBuilder sb, List<Img> banco, List<Img> ex)
@@ -303,6 +304,17 @@ namespace ConsoleEnhancer
             e.Tramos = new Tramo[] { new Tramo(menu, 6), new Tramo(rlCarga, 4), new Tramo(rlPartido, 8) }; e.TramoSalida = 2; e.TramoSalida2 = 1; e.SalirMin = 0.9; e.SalirMax = 3.5; esc.Add(e);
             e = new Esc5(); e.Titulo = "Jugando, el menu 6 s y de vuelta al juego: entra y sale como antes"; e.EnMenu0 = false;
             e.Tramos = new Tramo[] { new Tramo(rlPartido, 6), new Tramo(menu, 6), new Tramo(rlPartido, 8) }; e.TramoSalida = 2; e.SalirMin = 0.9; e.SalirMax = 3.5; esc.Add(e);
+            // 1.2.2 (el log del usuario del 22-11 04:07:29-32, abierta desde la espera): la Bienvenida CON la hora arriba (sintetica: la de verdad
+            // no se guardo; el nombre de usuario, uno inventado) contaba como el menu de verdad y sus particulas oscuras de despues sacaban del
+            // menu al perfil de la consola con DLSS 5 y generacion. Particulas e inicio cargandose: capturas de verdad (04:07:30-32)
+            List<Img> bienvenidaHora = de("bienvenida", null), particulas = de("particulas", null);
+            e = new Esc5(); e.Titulo = "1.2.2: abierta desde la espera, la Bienvenida con la hora 3 s, sus particulas oscuras y el inicio cargandose 10 s, y el menu: no sale"; e.EnMenu0 = true; e.De122 = true;
+            e.Tramos = new Tramo[] { new Tramo(bienvenidaHora, 3, true), new Tramo(particulas, 10), new Tramo(menu, 6) }; esc.Add(e);
+            e = new Esc5(); e.Titulo = "1.2.2: con el menu ya visto (la consola se reinicia con la app abierta): menu, Bienvenida con la hora, particulas 12 s: no sale"; e.EnMenu0 = true; e.De122 = true;
+            e.Tramos = new Tramo[] { new Tramo(menu, 4), new Tramo(bienvenidaHora, 3), new Tramo(particulas, 12), new Tramo(menu, 4) }; esc.Add(e);
+            e = new Esc5(); e.Titulo = "1.2.2: Bienvenida con la hora, particulas, el menu y se arranca Rocket League: sale en el juego como siempre"; e.EnMenu0 = true; e.De122 = true;
+            e.Tramos = new Tramo[] { new Tramo(bienvenidaHora, 3, true), new Tramo(particulas, 6), new Tramo(menu, 6), new Tramo(rlPortada, 3), new Tramo(rlPartido, 8) };
+            e.TramoSalida = 3; e.TramoSalida2 = 4; e.SalirMin = 0.9; e.SalirMax = 3.5; esc.Add(e);
 
             Dictionary<string, LecturaMenu> cache = new Dictionary<string, LecturaMenu>();
             int mal = 0;
@@ -314,8 +326,8 @@ namespace ConsoleEnhancer
                     bool vacia = false;
                     foreach (Tramo tr in es.Tramos) if (tr.Imgs.Count == 0) vacia = true;
                     if (vacia) { sb.Append("  (sin imagenes) ").Append(es.Titulo).Append("\r\n"); continue; }
-                    string primera = null, porque = null, antes = null;
-                    int malas = 0, malasAntes = 0;
+                    string primera = null, porque = null, antes = null, de121 = null;
+                    int malas = 0, malasAntes = 0, malas121 = 0;
                     const int Runs = 6;
                     for (int k = 0; k < Runs; k++)
                     {
@@ -327,10 +339,18 @@ namespace ConsoleEnhancer
                         bool okA = SimulaApp(es, var, 0.17 * k, cache, true, out ev, out pq);
                         if (!okA) malasAntes++;
                         if (antes == null || (!okA && malasAntes == 1)) antes = ev;
+                        // (1.2.2: las escenas nuevas, tambien como la 1.2.1: con la salida prudente pero sin lo de la Bienvenida)
+                        if (es.De122)
+                        {
+                            bool ok1 = SimulaApp(es, var, 0.17 * k, cache, false, out ev, out pq, true);
+                            if (!ok1) malas121++;
+                            if (de121 == null || (!ok1 && malas121 == 1)) de121 = ev;
+                        }
                     }
                     if (malas > 0) mal++;
                     sb.Append(malas == 0 ? "  OK  " : "  MAL ").Append(es.Titulo).Append("\r\n      ahora: ").Append(primera)
                       .Append(porque != null ? " [" + porque + "]" : "").Append(malas > 0 ? " (MAL en " + malas + " de " + Runs + ")" : "")
+                      .Append(de121 != null ? "\r\n      1.2.1: " + de121 + (malas121 > 0 ? " (MAL en " + malas121 + " de " + Runs + ")" : " (bien)") : "")
                       .Append("\r\n      antes: ").Append(antes).Append(malasAntes > 0 ? " (MAL en " + malasAntes + " de " + Runs + ")" : " (bien)").Append("\r\n");
                 }
                 sb.Append("\r\n");
@@ -383,8 +403,15 @@ namespace ConsoleEnhancer
         // (como MenuPs5Captura); el menu de apagado: salida prudente 20 s y su negro, atenuado. true = lo que pide la escena
         static bool SimulaApp(Esc5 es, string var, double desfase, Dictionary<string, LecturaMenu> cache, bool comoAntes, out string ev, out string porque)
         {
+            return SimulaApp(es, var, desfase, cache, comoAntes, out ev, out porque, false);
+        }
+
+        // como121 (1.2.2): sin lo de la Bienvenida (EstadoBienvenida, src\VueltaJuego.cs)
+        static bool SimulaApp(Esc5 es, string var, double desfase, Dictionary<string, LecturaMenu> cache, bool comoAntes, out string ev, out string porque, bool como121)
+        {
             MaquinaMenu maq = new MaquinaMenu();
             maq.SinPrudencia = comoAntes;
+            EstadoBienvenida bienv = new EstadoBienvenida();
             DateTime t0 = new DateTime(2026, 11, 19, 12, 0, 0);
             bool enMenu = es.EnMenu0;
             double total = 0;
@@ -418,8 +445,14 @@ namespace ConsoleEnhancer
                 }
                 maq.PrudenteHasta = apagadoAt > -100 ? t0.AddSeconds(apagadoAt + 20) : DateTime.MinValue;
                 maq.Silencio = es.SilencioDesde >= 0 && ti >= es.SilencioDesde;
-                LecturaMenu lx = l;
-                if (l.Vista == VistaMenu.Plana && t - apagadoAt < 20) { lx = Copia(l); lx.Vista = VistaMenu.Oscura; }
+                LecturaMenu lx = Copia(l);
+                if (l.Vista == VistaMenu.Plana && t - apagadoAt < 20) lx.Vista = VistaMenu.Oscura;
+                // (1.2.2, como MenuPs5Captura: en el menu, la Bienvenida no es el menu de verdad y pone la salida prudente hasta verlo)
+                if (!comoAntes && !como121)
+                {
+                    if (enMenu) bienv.Observa(lx, t0.AddSeconds(t));
+                    if (bienv.Hasta > maq.PrudenteHasta) maq.PrudenteHasta = bienv.Hasta;
+                }
                 int d = maq.Observa(lx, t0.AddSeconds(t), enMenu);
                 double ms = Math.Min(l.Ms, 400);   // (la primera lectura con OCR lleva el arranque del OCR de Windows, ~2 s: la app ya lo tiene)
                 if (d != 0)

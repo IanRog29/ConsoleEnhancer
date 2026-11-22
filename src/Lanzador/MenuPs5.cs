@@ -483,7 +483,7 @@ namespace ConsoleEnhancer
         void PortadaRapida(Bitmap full, DateTime now, ConsolaPerfil c, bool inMenu)
         {
             if (!RecoJuegosActivo(c)) return;
-            if (!inMenu && (now - ps5SalidaAt).TotalSeconds > 15) { ps5RapidaPrev = null; return; }
+            if (!inMenu && (now - ps5SalidaAt).TotalSeconds > 15 && !VueltaPendiente) { ps5RapidaPrev = null; return; }
             double[] f = PortadasConsola.Firma(full);
             if (!PortadasConsola.ConDibujo(f)) { ps5RapidaPrev = null; return; }
             double d;
@@ -494,6 +494,8 @@ namespace ConsoleEnhancer
             ps5PortadaVista = p;
             ps5PortadaVistaAt = now;
             if (inMenu) return;   // (al salir del menu, MenuPs5Salir la usa)
+            // 1.2.2: con la comprobacion de la salida pendiente, la portada conocida la decide (VueltaOArranque)
+            if (VueltaPendiente) { VueltaObserva(now, f, false, false, p); return; }
             ps5PortadaHasta = DateTime.MinValue;   // (ya se sabe: la lenta no hace falta)
             string cur;
             lock (profileSync) cur = curGame;
@@ -506,9 +508,6 @@ namespace ConsoleEnhancer
         double[] ps5FirmaJuego;                         // la imagen del juego (16x9) de la ultima captura fuera del menu
         double[] ps5FirmaAntesMenu;                     // la de justo antes de abrir el menu (volver al juego = parecida)
         public const double MismaEscena = 18.0;         // por debajo: la misma escena que antes del menu
-        DateTime ps5CandidatoHasta = DateTime.MinValue;
-
-        DateTime ps5NegroDesde = DateTime.MinValue;    // negro liso seguido desde (con candidato)
 
         // 1.2.05 (el usuario: "me meto al gta despues del rocket y pone que me he metido al rocket al darle a los ajustes"): 17:38:07 se
         // cambio a 1440p/120 y el cambio de motor (sin telon, ~6 s con lsReady=false) dejo la app SIN capturas: justo entonces se abrio el
@@ -563,6 +562,7 @@ namespace ConsoleEnhancer
         void SalidaCiega(DateTime now, ConsolaPerfil c)
         {
             double s = (ps5CiegoUltimo - ps5CiegoDesde).TotalSeconds;
+            DateTime ps5CiegoPrimera = ps5CiegoDesde;
             ps5CiegoDesde = DateTime.MinValue;
             if (!RecoJuegosActivo(c)) return;
             string info, pi, cur;
@@ -579,15 +579,19 @@ namespace ConsoleEnhancer
             if (cur != null && (cur == pi || GameProfiles.SameGame(cur, pi))) { Log.Write(vis + ": en foco \"" + pi + "\", el mismo: sigue"); return; }
             if (JuegoConsola.EsAppSistema(pi)) { Log.Write(vis + ": en foco \"" + pi + "\" (app de la consola): sigue \"" + (cur ?? "ninguno") + "\""); return; }
             ps5JuegoAntesMenu = cur;
-            ps5FirmaAntesMenu = ps5FirmaAntesCiego;
+            // 1.2.2: la comprobacion de la salida (src\VueltaJuego.cs), con las imagenes del juego de antes de esa visita
+            ps5AntesMenu = VueltaAntesDe(ps5CiegoPrimera);
+            if (ps5AntesMenu.Count == 0 && ps5FirmaAntesCiego != null) ps5AntesMenu.Add(ps5FirmaAntesCiego);
+            ps5FirmaAntesMenu = ps5AntesMenu.Count > 0 ? ps5AntesMenu[ps5AntesMenu.Count - 1] : null;
             ps5Candidato = pi;
-            ps5CandidatoHasta = now.AddSeconds(25);   // (GTA VI tarda en enseñar su pantalla de carga)
-            ps5NegroDesde = DateTime.MinValue;
+            ps5Vuelta = new VueltaOArranque(cur, pi, ps5AntesMenu, now);
+            ps5VueltaCopia = null;
+            ps5ArranqueProbable = false;
             ps5SalidaAt = now;
             ps5SalidaPorIcono = false;
-            lock (homeSync) { ps5PortadaHasta = ps5CandidatoHasta; ps5PortadaPrev = null; ps5PortadaFresco = false; }
+            lock (homeSync) { ps5PortadaHasta = now.AddSeconds(25); ps5PortadaPrev = null; ps5PortadaFresco = false; }
             Log.Write(vis + ": en foco \"" + pi + "\" (" + info + "), se jugaba \"" + (cur ?? "ninguno") +
-                      "\": se pasa a el si se ve arrancar (negro, sin señal o su portada) en 25 s");
+                      "\": se pasa a el si se ve arrancar (negro, sin señal o su portada; " + VueltaOArranque.ObservarS.ToString("0", CultureInfo.InvariantCulture) + " s mirados)");
         }
 
         void PasaACandidato(string cand, string porque)
@@ -596,44 +600,6 @@ namespace ConsoleEnhancer
             Log.Write("Arranque de otro juego visto (" + porque + "): al juego del icono \"" + cand + "\"");
             lock (homeSync) { recoJuego.Pon(JuegoConsola.SinTag(cand)); ps5PortadaJuego = cand; }
             ps5SalidaPorIcono = true;
-        }
-
-        void CandidatoNegro(DateTime now, string que)
-        {
-            string cand = ps5Candidato;
-            if (cand == null || now > ps5CandidatoHasta) return;
-            if (ps5NegroDesde == DateTime.MinValue) { ps5NegroDesde = now; return; }
-            double s = (now - ps5NegroDesde).TotalSeconds;
-            if (s >= 1.2) PasaACandidato(cand, que + " " + s.ToString("0.0", CultureInfo.InvariantCulture) + " s seguidos");
-        }
-
-        void CandidatoObserva(Bitmap full, DateTime now)
-        {
-            string cand = ps5Candidato;
-            if (cand == null) return;
-            if (now > ps5CandidatoHasta)
-            {
-                ps5Candidato = null;
-                string cur; lock (profileSync) cur = curGame;
-                Log.Write("Vuelta al juego en marcha: sin pantalla de arranque en 8 s, sigue \"" + (cur ?? "?") + "\" (el icono en foco era \"" + cand + "\", no se arranco)");
-                return;
-            }
-            double[] f = PortadasConsola.Firma(full);
-            if (f == null) return;
-            // Negro liso SEGUIDO 1,2 s o mas (el de la PS5 al cerrar un juego y abrir otro, fondo 16-30, dura varios segundos; el de
-            // reabrir la capturadora al salir del menu es mas corto)
-            // La misma imagen que antes de abrir el menu: se ha vuelto al juego en marcha (no se arranco el del foco)
-            double dPre = ps5FirmaAntesMenu != null ? PortadasConsola.Dist(f, ps5FirmaAntesMenu) : 999;
-            if (dPre < MismaEscena)
-            {
-                ps5Candidato = null;
-                string cur; lock (profileSync) cur = curGame;
-                Log.Write("Vuelta al juego en marcha: la misma imagen que antes del menu (distancia " + dPre.ToString("0.0", CultureInfo.InvariantCulture) +
-                          "), sigue \"" + (cur ?? "?") + "\" (el icono en foco era \"" + cand + "\", no se arranco)");
-                return;
-            }
-            if (PortadasConsola.NegroLiso(f)) CandidatoNegro(now, "pantalla negra lisa");
-            else ps5NegroDesde = DateTime.MinValue;
         }
 
         // (con homeSync) ic = el icono en foco de esta captura (JuegoConsola.IconoFoco, calculado antes, fuera del lock)
@@ -769,6 +735,9 @@ namespace ConsoleEnhancer
         void PortadaObserva(Bitmap full, DateTime now, ConsolaPerfil c)
         {
             if (now > ps5PortadaHasta || !RecoJuegosActivo(c)) return;
+            // 1.2.2: con la comprobacion de la salida pendiente (el de antes o el del foco) lo quieto lo mira ella (VueltaOArranque: la
+            // portada nueva solo se memoriza si se ve arrancar el juego)
+            if (VueltaPendiente || ps5PortadaJuego != null) { ps5PortadaPrev = null; ps5PortadaQuietaDesde = DateTime.MinValue; return; }
             double[] f = PortadasConsola.Firma(full);
             if (!PortadasConsola.ConDibujo(f)) { ps5PortadaPrev = null; ps5PortadaQuietaDesde = DateTime.MinValue; return; }
             if (ps5PortadaPrev == null || PortadasConsola.Dist(ps5PortadaPrev, f) > PortadasConsola.Quieta)
@@ -796,26 +765,12 @@ namespace ConsoleEnhancer
             string cur;
             lock (profileSync) cur = curGame;
             string dd = dist < 900 ? dist.ToString("0.0", CultureInfo.InvariantCulture) : "-";
-            // (VUELTA) con candidato pendiente, una portada quieta es el arranque de un juego: la del candidato o una nueva -> el candidato
-            string cand = ps5Candidato;
-            double dPre = ps5FirmaAntesMenu != null ? PortadasConsola.Dist(f, ps5FirmaAntesMenu) : 999;
-            if (cand != null && visto == null && dPre < 30)
-            {
-                // Quieta pero no muy distinta de lo de antes del menu (p. ej. el menu de pausa del mismo juego al volver): no es una portada
-                ps5PortadaHasta = ps5CandidatoHasta;   // (se sigue mirando mientras dure el candidato)
-                return;
-            }
-            if (cand != null && (visto == null || visto == cand || GameProfiles.SameGame(visto, cand)))
-            {
-                PasaACandidato(cand, visto != null ? "su portada, distancia " + dd : "una portada nueva");
-                if (visto == null) { PortadasConsola.Guarda(cand, f); Log.Write("Portada del juego: nueva, memorizada para \"" + cand + "\""); }
-                return;
-            }
             if (visto != null)
             {
                 if (cur != null && (cur == visto || GameProfiles.SameGame(cur, visto)))
                 { Log.Write("Portada del juego: \"" + visto + "\" (distancia " + dd + "): ya era ese"); return; }
-                if (ps5SalidaPorIcono && cur != null && JuegoConsola.TagConsola(cur) != null)
+                // (1.2.2: solo si se arranco un juego: al volver al que estaba en marcha lo quieto es una imagen suya, no su portada)
+                if (ps5SalidaPorIcono && ps5ArranqueProbable && cur != null && JuegoConsola.TagConsola(cur) != null)
                 {
                     // El icono manda: esa portada estaba mal asociada (se arranco otro juego con el nombre viejo): pasa a este
                     PortadasConsola.Guarda(cur, f);
@@ -826,14 +781,17 @@ namespace ConsoleEnhancer
                 lock (homeSync) { recoJuego.Pon(JuegoConsola.SinTag(visto)); ps5PortadaJuego = visto; }
                 return;
             }
-            if (cur != null && (ps5SalidaPorIcono || ps5PortadaFresco) && JuegoConsola.TagConsola(cur) != null)
+            // 1.2.2: solo si se arranco un juego (no la vuelta al que estaba en marcha: 22-11 04:04:08 se memorizo como "portada" de
+            // Bloodborne una imagen quieta del juego al volver a el) y su nombre se supo (el icono en foco o la etiqueta del menu)
+            if (cur != null && ps5ArranqueProbable && (ps5SalidaPorIcono || ps5PortadaFresco) && JuegoConsola.TagConsola(cur) != null)
             {
                 PortadasConsola.Guarda(cur, f);
                 string png = GuardarDiagPs5(full, null);
                 Log.Write("Portada del juego: nueva, memorizada para \"" + cur + "\" (la mas parecida a " + dd + ")" + (png != null ? " -> " + png : ""));
                 return;
             }
-            Log.Write("Portada del juego: no es ninguna conocida (la mas parecida a " + dd + ") y el juego no se leyo en el menu: no se memoriza");
+            Log.Write("Portada del juego: no es ninguna conocida (la mas parecida a " + dd + ")" +
+                      (!ps5ArranqueProbable ? " y no se arranco ningun juego (vuelta al que estaba en marcha): no es una portada" : " y el juego no se leyo en el menu: no se memoriza"));
         }
 
         // ¿Reconocer los juegos uno a uno con esta consola? (clave del ini ps5_reconocer_juegos / xbox_reconocer_juegos)
@@ -934,22 +892,41 @@ namespace ConsoleEnhancer
             if (!noSignal) PortadaRapida(full, now, c, inMenu);
             if (!noSignal && !inMenu)
             {
-                CandidatoObserva(full, now);
                 PortadaObserva(full, now, c);
                 if (ps5Candidato == null) ps5FirmaJuego = PortadasConsola.Firma(full); // (jugando: la imagen de ahora)
             }
-            // (VUELTA) sin señal con candidato pendiente: la PS5 cambia de modo de video al arrancar otro juego (volver al de antes no)
-            if (noSignal && !inMenu && ps5Candidato != null) CandidatoNegro(now, "sin señal");
+            // (VUELTA) sin señal con la comprobacion de la salida pendiente: la PS5 cambia de modo de video al arrancar otro juego (volver al
+            // de antes no). 1.2.2: VueltaOArranque (src\VueltaJuego.cs); en el menu, confirmando la salida, se apunta para ella
+            if (noSignal && RecoJuegosActivo(c))
+            {
+                if (!inMenu) VueltaObserva(now, null, true, false, null);
+                else VueltaCapturaEnMenu(now, null, null, true);
+            }
             if (noSignal)
             {
                 LecturaMenu ns = new LecturaMenu();
                 ns.Vista = VistaMenu.SinSenal;
-                lock (homeSync) { menuMaq.PrudenteHasta = PrudenteTrasApagado(); menuMaq.Observa(ns, now, inMenu); ps5MenuHits = menuMaq.Hits; ps5OutHits = menuMaq.Outs; }
+                lock (homeSync) { menuMaq.PrudenteHasta = PrudenteHastaAhora(); menuMaq.Observa(ns, now, inMenu); ps5MenuHits = menuMaq.Hits; ps5OutHits = menuMaq.Outs; }
                 return;
             }
             // En el menu: la pantalla entera cada segundo aunque se vea la hora (el menu de apagado); sin la hora, siempre
             bool leer = inMenu && (now - ps5TextoAt).TotalSeconds >= 1.0;
             LecturaMenu l = DetectorMenu.Clasifica(full, now, c, inMenu, leer);
+            // 1.2.2: la Bienvenida / elegir usuario no es el menu de verdad (con la hora arriba contaba como el: sus particulas oscuras de
+            // despues sacaban del menu al perfil de la consola, 22-11 04:07:32)
+            if (inMenu) BienvenidaObserva(l, now);
+            // 1.2.2: las imagenes del juego (para saber al volver del menu si es el mismo) y la comprobacion de la salida
+            if (RecoJuegosActivo(c))
+            {
+                double[] fa = PortadasConsola.Firma(full);
+                if (!inMenu)
+                {
+                    // (el menu a la vista otra vez no es prueba de nada: lo decide el juego en foco al abrirlo, MenuPs5Entrar)
+                    if (l.Vista != VistaMenu.Menu && l.Vista != VistaMenu.MenuTexto) VueltaObserva(now, fa, false, l.Tenue, null);
+                    if (l.Vista == VistaMenu.Juego) VueltaRecuerda(now, fa);
+                }
+                else VueltaCapturaEnMenu(now, fa, l, false);
+            }
             if (!inMenu)
             {
                 if (l.Vista == VistaMenu.Menu)
@@ -1093,7 +1070,7 @@ namespace ConsoleEnhancer
                 VistaMenu antes = ps5UltimaVista;
                 ps5UltimaVista = l.Vista;
                 int d0 = menuMaq.Decision;
-                menuMaq.PrudenteHasta = PrudenteTrasApagado();
+                menuMaq.PrudenteHasta = PrudenteHastaAhora();   // (1.2.2: o tras la Bienvenida, hasta ver el menu de verdad)
                 menuMaq.Silencio = audioNow == "silent";
                 int d = menuMaq.Observa(l, now, inMenu);
                 // 1.2.1 (SALIDA PRUDENTE, src\DetectorMenu.cs): sin el menu visto desde que se abrio la app o tras su menu de apagado, lo que
@@ -1205,9 +1182,11 @@ namespace ConsoleEnhancer
                 ps5PortadaVista = null; ps5RapidaPrev = null;
                 menuMaq.Hecho(now, true);
             }
-            // (VUELTA) el juego que se estaba jugando al abrir el menu, y su imagen
+            // (VUELTA) el juego que se estaba jugando al abrir el menu, y su imagen. 1.2.2: sus ultimas imagenes de juego (antes la ultima
+            // captura fuera del menu, que podia ser ya el menu apareciendo)
             lock (profileSync) ps5JuegoAntesMenu = curGame;
-            ps5FirmaAntesMenu = ps5FirmaJuego;
+            VueltaAlEntrarMenu(ps5PrimerMenuAt);
+            ps5FirmaAntesMenu = ps5AntesMenu != null && ps5AntesMenu.Count > 0 ? ps5AntesMenu[ps5AntesMenu.Count - 1] : null;
             ps5CiegoDesde = DateTime.MinValue;
             // 1.2.05: el primer juego en foco es el que esta en marcha: si no es el que creia la app, manda ese
             if (RecoJuegosActivo(Consolas.Actual))
@@ -1220,8 +1199,10 @@ namespace ConsoleEnhancer
                     Log.Write("Menu de la consola: el juego en foco al abrirlo (el que esta en marcha) es \"" + pf + "\", no \"" + antes +
                               "\" (se arranco sin que la app lo viera): se toma ese como el juego de antes del menu");
                     ps5JuegoAntesMenu = pf;
+                    VueltaDevuelveAjustes(antes);   // (1.2.2: lo guardado en el de antes mientras tanto era de este)
                 }
             }
+            ps5VueltaCopia = null;
             ps5PrimerFoco = null; ps5PrimerFocoIcono = null; ps5PrimerMenuAt = DateTime.MinValue;
             pendingPassesRestart = false;
             bool sm = Config.EngineActive && Config.EngineSmoothRunning > 0;
@@ -1261,12 +1242,13 @@ namespace ConsoleEnhancer
             // 20-11 (PS5JUEGO): el perfil del juego reconocido ("PS5: <juego>" / "Xbox Series: <juego>"); si no se reconocio nada (o la clave
             // del ini esta apagada), el perfil unico de toda la consola ("Consola"), como hasta ahora
             string juego;
-            bool porUltima = false, fuerteVisita = false;
+            bool porUltima = false, fuerteVisita = false, salidaPorNegro;
             DateTime primeraFuera;
             lock (homeSync)
             {
                 ps5CiegoDesde = DateTime.MinValue;
                 primeraFuera = menuMaq.PrimeraAt;   // (1.2.1: la primera captura sin el menu: la edad del foco se mide desde ahi)
+                salidaPorNegro = salidaNegroApp || (menuMaq.Porque ?? "").StartsWith("negro");   // (1.2.2: el negro tras el menu = se arranca un juego)
                 menuMaq.Hecho(DateTime.Now, false); ps5OutHits = ps5MenuHits = 0; juego = RecoJuegosActivo(c) ? recoJuego.AlSalir(DateTime.Now, out porUltima) : null;
                 fuerteVisita = recoJuego.FuerteEnVisita;
                 // 21-11 (PORTADA): 15 s para ver la portada del juego si arranca
@@ -1286,6 +1268,7 @@ namespace ConsoleEnhancer
                 FotoFoco foto;
                 lock (homeSync) foto = TomaFoco();
                 pi = PerfilPorIcono(c, DateTime.Now, primeraFuera, foto, out infoIcono, 4);
+                RenombraFocosDeLaVisita(c, foto.Lecturas, pi);   // (1.2.2: los otros juegos en foco, con su nombre bueno)
                 // 1.2.1: sin icono y sin la etiqueta del inicio leida en esta visita, el nombre reconocido son 2 lecturas iguales de otra
                 // cosa (el centro de control: "ácil de usar" de su tarjeta "Fácil de usar"): sin un perfil con ese nombre no se crea uno
                 // nuevo ni se cambia el juego en marcha
@@ -1300,6 +1283,7 @@ namespace ConsoleEnhancer
                     lock (homeSync) { if (enM != null) recoJuego.Pon(juego); else recoJuego.Reiniciar(); }
                 }
                 ps5Candidato = null;
+                ps5Vuelta = null;
                 ps5SalidaAt = DateTime.Now;
                 string enMarcha = ps5JuegoAntesMenu;
                 string pv = ps5PortadaVista;
@@ -1311,18 +1295,46 @@ namespace ConsoleEnhancer
                     lock (homeSync) recoJuego.Pon(juego);
                     infoIcono = "por su portada, ya en pantalla" + (pi != null && pi != pv ? "; el icono decia \"" + pi + "\"" : "");
                     ps5SalidaPorIcono = true;
+                    ps5ArranqueProbable = true;
                 }
-                else if (pi != null && enMarcha != null && JuegoConsola.TagConsola(enMarcha) != null && enMarcha != pi && !GameProfiles.SameGame(enMarcha, pi))
+                else if (pi != null && enMarcha != null && JuegoConsola.TagConsola(enMarcha) != null && enMarcha != pi && !GameProfiles.SameGame(enMarcha, pi) &&
+                         !JuegoConsola.EsAppSistema(pi))
                 {
-                    // Otro juego en foco que el que se jugaba: ¿se arranca o se vuelve al de antes? Se decide al ver la imagen (CandidatoObserva)
-                    ps5Candidato = pi;
-                    ps5CandidatoHasta = DateTime.Now.AddSeconds(8);
-                    perfil = enMarcha;
-                    juego = JuegoConsola.SinTag(enMarcha);
-                    lock (homeSync) recoJuego.Pon(juego);
-                    infoIcono = "se jugaba \"" + enMarcha + "\" y el icono en foco es \"" + pi + "\" (" + infoIcono + "): sigue el de antes salvo que se vea arrancar el otro";
-                    ps5SalidaPorIcono = false;
-                    ps5NegroDesde = DateTime.MinValue;
+                    // Otro juego en foco que el que se jugaba: ¿se arranca o se vuelve al de antes? 1.2.2 (src\VueltaJuego.cs): primero con las
+                    // capturas que sacaron del menu (la imagen de antes del menu: se ha vuelto; el negro: se arranca); si no dicen nada, se sigue
+                    // con el de antes y se mira la imagen (tambien mientras Magpie prepara) hasta ver la prueba, y entonces se cambia
+                    string porqueV;
+                    string dec = VueltaEmpieza(enMarcha, pi, DateTime.Now, out porqueV);
+                    string antesInfo = "se jugaba \"" + enMarcha + "\" y el icono en foco es \"" + pi + "\" (" + infoIcono + ")";
+                    if (dec != null && dec != enMarcha && !GameProfiles.SameGame(dec, enMarcha))
+                    {
+                        perfil = dec;
+                        juego = JuegoConsola.SinTag(dec);
+                        lock (homeSync) recoJuego.Pon(juego);
+                        infoIcono = antesInfo + ": se arranca \"" + dec + "\" (" + porqueV + ")";
+                        ps5SalidaPorIcono = true;
+                        ps5ArranqueProbable = true;
+                    }
+                    else if (dec != null)
+                    {
+                        perfil = enMarcha;
+                        juego = JuegoConsola.SinTag(enMarcha);
+                        lock (homeSync) recoJuego.Pon(juego);
+                        infoIcono = antesInfo + ": se ha vuelto a el (" + porqueV + ")";
+                        ps5SalidaPorIcono = false;
+                        ps5ArranqueProbable = false;
+                    }
+                    else
+                    {
+                        // (ps5Candidato y ps5Vuelta ya puestos por VueltaEmpieza)
+                        perfil = enMarcha;
+                        juego = JuegoConsola.SinTag(enMarcha);
+                        lock (homeSync) recoJuego.Pon(juego);
+                        infoIcono = antesInfo + ": sigue el de antes salvo que se vea arrancar el otro (" + porqueV + "; se mira hasta " +
+                                    VueltaOArranque.ObservarS.ToString("0", CultureInfo.InvariantCulture) + " s, tambien mientras Magpie prepara)";
+                        ps5SalidaPorIcono = false;
+                        ps5ArranqueProbable = false;
+                    }
                 }
                 else if (pi != null)
                 {
@@ -1330,7 +1342,13 @@ namespace ConsoleEnhancer
                     juego = JuegoConsola.SinTag(pi);
                     lock (homeSync) recoJuego.Pon(juego);
                     ps5SalidaPorIcono = true;
+                    // (1.2.2: el foco en el juego en marcha es volver a el, no arrancarlo: lo quieto de despues no es su portada)
+                    ps5ArranqueProbable = salidaPorNegro || enMarcha == null || JuegoConsola.TagConsola(enMarcha) == null ||
+                                          (pi != enMarcha && !GameProfiles.SameGame(pi, enMarcha));
                 }
+                else
+                    ps5ArranqueProbable = salidaPorNegro || enMarcha == null || JuegoConsola.TagConsola(enMarcha) == null ||
+                                          (perfil != enMarcha && !GameProfiles.SameGame(perfil, enMarcha));
             }
             // 1.0.12: vuelta al juego de antes desde una app de la consola (su imagen otra vez): ese juego
             if (ps5VueltaForzada != null)
@@ -1339,7 +1357,9 @@ namespace ConsoleEnhancer
                 juego = JuegoConsola.SinTag(perfil);
                 lock (homeSync) recoJuego.Pon(juego);
                 ps5Candidato = null;
+                ps5Vuelta = null;
                 ps5SalidaPorIcono = true;
+                ps5ArranqueProbable = false;
                 infoIcono = "vuelta desde una app de la consola: su imagen de antes del menu";
                 ps5VueltaForzada = null;
             }
@@ -1350,6 +1370,7 @@ namespace ConsoleEnhancer
             if (app != null && !salidaNegroApp)
             {
                 bool cand = ps5Candidato != null && app == ps5Candidato;
+                ps5Vuelta = null;
                 ps5AppSistema = JuegoConsola.SinTag(app);
                 // (si se jugaba algo, su imagen de antes del menu dice si en realidad se ha vuelto a el con el foco en la app)
                 ps5AppVuelta = cand ? perfil : (ps5JuegoAntesMenu != null && !JuegoConsola.EsAppSistema(ps5JuegoAntesMenu) ? ps5JuegoAntesMenu : null);

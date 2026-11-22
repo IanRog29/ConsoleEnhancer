@@ -29,6 +29,7 @@ namespace ConsoleEnhancer
         // vista), y si su menu no se reconoce, sin HOME a 4K nativo y con los ajustes guardados de toda la consola
         void ConsolaAlAbrir()
         {
+            MigraNombresConsola();   // (1.2.2: nombres de juegos con basura del OCR a su nombre bueno, src\VueltaJuego.cs)
             homeIni = cfg.HomeNativeEnabled;
             Log.Write(Consolas.Iniciar());
             Consolas.Cambiada -= OnConsolaCambiada;
