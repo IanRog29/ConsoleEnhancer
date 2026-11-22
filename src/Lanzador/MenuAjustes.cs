@@ -36,7 +36,11 @@ namespace ConsoleEnhancer
         public List<string> Vals = new List<string>(), Txts = new List<string>();
         public int Sel, Orig;
         public bool Visible = true, Activa = true, Carrusel;
-        public bool Cambiada { get { return Activa && Sel != Orig; } }
+        // (1.2.2, MULTI) valores que se ven pero no se eligen (gris, con candado): el motivo de cada uno ("" = se puede). Visible cambia
+        // en marcha (la fila del multiplicador, solo con DLSS FG / XeSS FG): una fila escondida no cuenta ni se aplica
+        public List<string> Bloq = new List<string>();
+        public bool Bloqueado(int i) { return i >= 0 && i < Bloq.Count && !string.IsNullOrEmpty(Bloq[i]); }
+        public bool Cambiada { get { return Visible && Activa && Sel != Orig; } }
         public string Val { get { return Sel >= 0 && Sel < Vals.Count ? Vals[Sel] : ""; } }
         public void Poner(List<string> vals, List<string> txts, string elegido, string original)
         {
@@ -188,6 +192,8 @@ namespace ConsoleEnhancer
             Encima();
         }
         public void Repintar() { Mostrar(alpha); }
+        // (1.2.2, pruebas: lo pintado a un PNG, sin depender de una captura de pantalla; Multiplicador.cs MultPruebaPad "multpng")
+        public void GuardarPng(string path) { if (surface == null) return; GdiFlush(); surface.Save(path, ImageFormat.Png); }
         public void Encima() { if (Handle != IntPtr.Zero) SetWindowPos(Handle, new IntPtr(-1), 0, 0, 0, 0, 0x1 | 0x2 | 0x10); }
 
         protected override void WndProc(ref Message m)
@@ -315,8 +321,7 @@ namespace ConsoleEnhancer
                 AjustesModelo();
                 ajFirma = AjFirma(ajFilas, curGame);
                 IntPtr img = mpvWindow;
-                int altas = ajFilas.Count;
-                foreach (FilaAjuste f in ajFilas) if (f.Ayuda != null) altas++;
+                int altas = AjAltas(ajFilas);   // (1.2.2: sin las escondidas)
                 ajVentana = new VentanaAjustes(img, altas);
                 ajustesAbierto = true;
                 ajPie = -1; ajFoco = 0;
@@ -372,7 +377,7 @@ namespace ConsoleEnhancer
             System.Text.StringBuilder sb = new System.Text.StringBuilder(juego ?? "");
             foreach (FilaAjuste f in filas)
                 sb.Append('|').Append(f.Id).Append('=').Append(f.Orig >= 0 && f.Orig < f.Vals.Count ? f.Vals[f.Orig] : "?")
-                  .Append(f.Activa ? "" : "-").Append(':').Append(string.Join(",", f.Vals.ToArray()));
+                  .Append(f.Activa ? "" : "-").Append(':').Append(string.Join(",", f.Vals.ToArray())).Append(':').Append(string.Join(",", f.Bloq.ToArray()));
             return sb.ToString();
         }
         string ajFirma;
@@ -418,9 +423,7 @@ namespace ConsoleEnhancer
             }
             ajFirma = firma;   // (la del modelo recien hecho: si no, se volveria a refrescar cada vez)
             Log.Write("Menu de ajustes: actualizado con lo de ahora");
-            int altas = ajFilas.Count, altasAntes = viejas.Count;
-            foreach (FilaAjuste f in ajFilas) if (f.Ayuda != null) altas++;
-            foreach (FilaAjuste f in viejas) if (f.Ayuda != null) altasAntes++;
+            int altas = AjAltas(ajFilas), altasAntes = AjAltas(viejas);   // (1.2.2: sin las escondidas)
             if (altas != altasAntes)
             {
                 // Otro numero de filas: otra ventana del tamaño nuevo, ya opaca
@@ -492,6 +495,8 @@ namespace ConsoleEnhancer
 
             FilaAjuste tipo = new FilaAjuste { Id = "tipo", Nombre = Tx.T("Tipo de generación", "Frame generation type"), Carrusel = true };
             tipo.Visible = cfg.FgAvailable;
+            // (1.2.2, MULTI) x2 / x3 / x4 de DLSS FG y XeSS FG: solo se ve con esos dos (AjMultDepende), src\Lanzador\Multiplicador.cs
+            FilaAjuste mult = AjFilaMult() ?? new FilaAjuste { Id = "mult", Visible = false };
 
             FilaAjuste d5 = new FilaAjuste { Id = "d5", Nombre = "DLSS 5" };
             d5.Poner(SiNo(), SiNoTxt(), dlss5Shown ? "1" : "0", dlss5Shown ? "1" : "0");
@@ -552,7 +557,7 @@ namespace ConsoleEnhancer
             esc.Carrusel = ev.Count > 3;
             esc.Visible = ev.Count > 1;
 
-            ajFilas.AddRange(new[] { cap, mo, fg, tipo, fgno, d5, d5no, niv, pas, esc });
+            ajFilas.AddRange(new[] { cap, mo, fg, tipo, mult, fgno, d5, d5no, niv, pas, esc });
             ajFilas.RemoveAll(delegate(FilaAjuste f) { return !f.Visible; });
             AjustesDepende(true);
         }
@@ -592,6 +597,7 @@ namespace ConsoleEnhancer
                 List<string> opts = a120 ? new List<string>() : GenOptionsFor(cap30, capSel);
                 string ahora = AjTipoDe(cap30);
                 string sel = inicio ? ahora : tipo.Val;
+                string pedido = sel;   // (1.2.2: si no esta con esta captura / modo, lo que va en su lugar no es un cambio, AjTipoForzado)
                 if (!opts.Contains(sel)) sel = opts.Contains(ahora) ? ahora : opts.Count > 0 ? opts[0] : "";
                 List<string> txt = new List<string>();
                 foreach (string o in opts) txt.Add(GenLabel(o, false));
@@ -602,7 +608,10 @@ namespace ConsoleEnhancer
                 tipo.Activa = !a120 && fgSi && opts.Count > 0;
                 tipo.Nota = a120 ? Tx.T("No a 120 fps", "Not at 120 fps") : opts.Count == 0 ? Tx.T("Ninguna en este PC", "None on this PC") :
                             !fgSi ? Tx.T("Con la generación encendida", "With frame generation on") : "";
+                AjTipoForzado(tipo, pedido, cap30, capSel);   // (1.2.2: el log del usuario, 22-11 04:01: captura 1080p en el menu = XeSS FG cambiado por DLSS FG y guardado)
             }
+            // (1.2.2, MULTI) el multiplicador del modo y el tipo elegidos (Multiplicador.cs)
+            AjMultDepende(inicio, modoSel, tipo != null && tipo.Activa ? tipo.Val : "", fg == null || fg.Val == "1");
             bool d5si = d5 == null || d5.Val == "1";
             foreach (string id in new[] { "nivel", "pasadas" })
             {
@@ -633,7 +642,7 @@ namespace ConsoleEnhancer
         int AjCambios() { int n = 0; foreach (FilaAjuste f in ajFilas) if (f.Cambiada) n++; return n; }
 
         // ---------------- navegacion (hilo de la interfaz) ----------------
-        List<FilaAjuste> AjNavegables() { List<FilaAjuste> l = new List<FilaAjuste>(); foreach (FilaAjuste f in ajFilas) if (f.Activa && f.Vals.Count > 1) l.Add(f); return l; }
+        List<FilaAjuste> AjNavegables() { List<FilaAjuste> l = new List<FilaAjuste>(); foreach (FilaAjuste f in ajFilas) if (f.Visible && f.Activa && f.Vals.Count > 1) l.Add(f); return l; }
 
         void AjustesFocoValido(int dir)
         {
@@ -669,15 +678,14 @@ namespace ConsoleEnhancer
                         if (ajPie >= 0) { ajPie = ajPie == 0 ? 1 : 0; break; }
                         if (foco == null) break;
                         int d = o == AjOrden.Der ? 1 : -1;
-                        if (foco.Carrusel) foco.Sel = (foco.Sel + d + foco.Vals.Count) % foco.Vals.Count;
-                        else foco.Sel = Math.Max(0, Math.Min(foco.Vals.Count - 1, foco.Sel + d));
+                        foco.Sel = AjPaso(foco, d, foco.Carrusel);   // (1.2.2: sin pasar por los bloqueados, Multiplicador.cs)
                         AjustesTrasCambio(foco);
                         break;
                     case AjOrden.Ok:
                         if (ajPie == 0) { AjustesAplicar(); return; }
                         if (ajPie == 1) { AjustesCerrar("cancelar"); return; }
                         if (foco == null) break;
-                        foco.Sel = (foco.Sel + 1) % foco.Vals.Count;
+                        foco.Sel = AjPaso(foco, 1, true);
                         AjustesTrasCambio(foco);
                         break;
                     case AjOrden.Atras:
@@ -692,11 +700,14 @@ namespace ConsoleEnhancer
         void AjustesTrasCambio(FilaAjuste f)
         {
             FilaAjuste antes = f;
+            int altasAntes = AjAltas(ajFilas);
+            AjMultTocada(f);   // (1.2.2: el multiplicador elegido a mano se recupera si vuelve a caber)
             AjustesDepende(false);
             // (si una fila deja de ser navegable, el foco sigue en la misma)
             List<FilaAjuste> nav = AjNavegables();
             int i = nav.IndexOf(antes);
             if (i >= 0) ajFoco = i; else AjustesFocoValido(0);
+            AjRedimensionar(altasAntes);   // (1.2.2: la fila del multiplicador aparece o se va con el tipo)
         }
 
         // ---------------- aplicar (todo a la vez) ----------------
@@ -708,8 +719,9 @@ namespace ConsoleEnhancer
             bool modoCambia = fm != null && fm.Cambiada;
             foreach (FilaAjuste f in ajFilas)
             {
-                if (!f.Activa) continue;
+                if (!f.Activa || !f.Visible) continue;
                 if (f.Id == "tipo" && !f.Cambiada && !modoCambia) continue;   // (sin tocarlo: lo elegido sigue como estaba, tambien "lo del ini")
+                if (f.Id == "mult" && !f.Cambiada) continue;   // (1.2.2: el multiplicador solo si se ha tocado: lo guardado de cada modo sigue)
                 // (1.2.02) el escalador solo si se ha tocado: con R3 en un alternativo que el menu no lista (FSR 1 de AMD / Intel / GTX),
                 // aplicar otra cosa lo devolvia al normal sin decir nada
                 if (f.Id == "esc" && !f.Cambiada) continue;
@@ -764,6 +776,7 @@ namespace ConsoleEnhancer
                 {
                     if (modo == 30) SetPicks(cfg.FgPick60, v); else SetPicks(v, cfg.FgPick30);
                 }
+                AjMultPoner(e, modo);   // (1.2.2, MULTI: x2 / x3 / x4 del modo que queda, Multiplicador.cs)
                 if ((v = AjVal(e, "tram")) != null && (v == "1") != cfg.StrongDitherOn)
                 {
                     cfg.StrongDitherOn = v == "1";
@@ -843,6 +856,7 @@ namespace ConsoleEnhancer
                 StringFormat der = new StringFormat { Alignment = StringAlignment.Far, LineAlignment = StringAlignment.Center };
                 foreach (FilaAjuste f in ajFilas)
                 {
+                    if (!f.Visible) continue;   // (1.2.2: la fila del multiplicador, escondida con otros tipos)
                     if (f.Ayuda != null && !f.Activa)
                     {
                         // (1.1.2) fila de aviso: nombre y nota arriba, la explicacion debajo en dos lineas como mucho
@@ -906,17 +920,30 @@ namespace ConsoleEnhancer
                         {
                             RectangleF cr = new RectangleF(cx + i * (cw + gap), cy, cw, ch);
                             bool es = i == f.Sel, orig = i == f.Orig && f.Orig != f.Sel;
+                            bool bq = f.Bloqueado(i) && !es;   // (1.2.2: bloqueado, gris y con candado; el motivo, en la linea de debajo)
                             using (GraphicsPath cp = PrismaUi.RoundRect(cr, ch / 2))
                             {
                                 if (es) using (SolidBrush cb = new SolidBrush(sel ? acc : Color.FromArgb(215, acc.R, acc.G, acc.B))) g.FillPath(cb, cp);
-                                else using (SolidBrush cb = new SolidBrush(Color.FromArgb(sel ? 26 : 16, 255, 255, 255))) g.FillPath(cb, cp);
+                                else using (SolidBrush cb = new SolidBrush(Color.FromArgb(bq ? 7 : sel ? 26 : 16, 255, 255, 255))) g.FillPath(cb, cp);
                                 if (orig) using (Pen op = new Pen(Color.FromArgb(120, acc.R, acc.G, acc.B), Math.Max(1f, 1.5f * u)) { DashStyle = DashStyle.Dash }) g.DrawPath(op, cp);
+                                if (bq) using (Pen bp = new Pen(Color.FromArgb(40, 255, 255, 255), Math.Max(1f, 1.2f * u)) { DashStyle = DashStyle.Dot }) g.DrawPath(bp, cp);
                             }
-                            using (SolidBrush b = new SolidBrush(es ? oscuro : sel ? Color.FromArgb(225, txt) : det))
-                                g.DrawString(f.Txts[i], es ? fChipSel : fChip, b, cr, cen);
+                            if (bq) AjCandado(g, cr, u, Color.FromArgb(110, det));
+                            using (SolidBrush b = new SolidBrush(es ? oscuro : bq ? Color.FromArgb(95, det) : sel ? Color.FromArgb(225, txt) : det))
+                                g.DrawString(f.Txts[i], es ? fChipSel : fChip, b, bq ? new RectangleF(cr.X + 10 * u, cr.Y, cr.Width - 10 * u, cr.Height) : cr, cen);
                         }
                     }
                     y += rh;
+                    // (1.2.2) fila activa con su explicacion debajo (el multiplicador: lo que no cabe y por que)
+                    if (f.Ayuda != null && f.Activa)
+                    {
+                        bool hayBloq = f.Id == "tipo";   // (la del tipo solo sale si lo elegido no puede ir: aviso)
+                        for (int i = 0; i < f.Vals.Count; i++) if (f.Bloqueado(i)) hayBloq = true;
+                        RectangleF hr = new RectangleF(fr.X + 38 * u, y - 10 * u, xr - 8 * u - (fr.X + 38 * u), rh);
+                        using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Near, Trimming = StringTrimming.EllipsisCharacter })
+                        using (SolidBrush b = new SolidBrush(hayBloq ? Color.FromArgb(220, 236, 170, 70) : det)) g.DrawString(f.Ayuda, fNota, b, hr, sf);
+                        y += rh;
+                    }
                 }
 
                 // Pie: Aplicar / Cancelar

@@ -58,7 +58,7 @@ namespace ConsoleEnhancer
                 if (!cfg.FgAvailable || ((t == "smooth" || t == "dlss") && Ce.NoNvidia)) continue;
                 if (t == "dlss" && cfg.DlssFgPorMagpieSinRuntime) continue; // (1.0.10: RTX 30 sin el runtime; 1.1.2: con DLSS 5 por Magpie, sin el runtime)
                 if (t == "fsr3" && !File.Exists(Path.Combine(Paths.MagpieDir, "amd_fidelityfx_framegeneration_dx12.dll"))) continue;
-                if (t == "xess" && (!File.Exists(Path.Combine(Paths.MagpieDir, "libxess_fg.dll")) || Config.WindowFor(videoSize) == "1920x1080")) continue; // (19-11: a 1080p no arranca)
+                if (t == "xess" && (!File.Exists(Path.Combine(Paths.MagpieDir, "libxess_fg.dll")) || Config.XessNo1080(videoSize))) continue; // (19-11: a 1080p no arrancaba; 1.2.2: xess_fg_1080, Multiplicador.cs)
                 r.Add(t);
             }
             return r;
@@ -78,8 +78,15 @@ namespace ConsoleEnhancer
         {
             List<string> l = new List<string>();
             // (1.0.8: sin ▸ ◂, que la fuente del aviso del motor no tiene y salian como cuadros; « » si las tiene)
-            foreach (string t in opts) l.Add(t == sel ? "«" + GenLabel(t, engine) + "»" : GenLabel(t, engine));
+            foreach (string t in opts) l.Add(t == sel ? "«" + GenLabel(t, engine) + GenMultSufijo(t) + "»" : GenLabel(t, engine) + GenMultSufijo(t));
             return string.Join("  ", l.ToArray());
+        }
+
+        // (1.2.2, MULTI) " x4" detras de DLSS FG / XeSS FG en el selector si en este modo van con x3 / x4 (con x2, como siempre)
+        string GenMultSufijo(string t)
+        {
+            try { int m = Config.MultTipo(t) ? cfg.MultAhora(cfg.CapMode, t) : 2; return m > 2 ? " x" + m : ""; }
+            catch { return ""; }
         }
 
         // L3 (al soltarlo) o Ctrl+G
@@ -107,7 +114,7 @@ namespace ConsoleEnhancer
                 genLastPress = DateTime.Now;
                 bool engine = cfg.EngineNow && genSel != "fsr3" && genSel != "xess" && genSel != "vfg";
                 // (1.0.8: el titulo es lo de antes del primer " · "; antes salia "Generación" solo y el tipo dos veces detras)
-                string head = "Generación: " + GenLabel(genSel, engine) + (genSel == cur ? " (actual)" : "");
+                string head = "Generación: " + GenLabel(genSel, engine) + GenMultSufijo(genSel) + (genSel == cur ? " (actual)" : "");
                 string list = (opts.Count > 1 ? GenListText(opts, genSel, engine) + " · L3: cambiar" : "la única disponible en este PC");
                 lock (osdQueue) osdQueue.Add(OsdCmd(head + " · " + list, GenOpenMs.ToString(CultureInfo.InvariantCulture), false));
                 int seq = ++genSeq;
@@ -164,7 +171,7 @@ namespace ConsoleEnhancer
                           (engine != Config.EngineActive ? (engine ? ": al motor propio" : ": a mpv + Magpie (" + (cfg.Dlss5Off ? "sin DLSS 5: " : "") + "esta generacion la hace Magpie)") : ReopenNote) +
                           " · " + cfg.ProfileText);
                 SaveCurProfile();
-                string title = t == "no" ? "Generación de fotogramas desactivada" : "Generación: " + GenLabel(t, engine);
+                string title = t == "no" ? "Generación de fotogramas desactivada" : "Generación: " + GenLabel(t, engine) + GenMultSufijo(t);
                 string sub = t == "no" ? "Solo las imágenes reales de la consola" : GenDetail(t, engine);
                 RestartLs(title, sub, false, true);
             }
@@ -191,6 +198,7 @@ namespace ConsoleEnhancer
 
         void LoadPicks()
         {
+            MultCargar(); // (1.2.2, MULTI: el multiplicador de cada modo, games\framegen_mult.txt)
             string s = LoadText(Paths.FgPickFile);
             if (string.IsNullOrEmpty(s)) return;
             foreach (string raw in s.Split('\n'))
