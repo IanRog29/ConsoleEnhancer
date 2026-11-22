@@ -1305,7 +1305,8 @@ namespace ConsoleEnhancer.Motor
             // 16-11 noche: recien puesto el modelo (o cambiado el tamaño) se pierden imagenes unos segundos aunque quepa (M a 1080p con
             // generacion: 4 perdidas/s a los 2 s con la grafica en 9,8 ms de 11): no se juzga hasta los 5 s
             if (Clock.SinceMs(presetSetAt) < 5000) { overSecs = 0; return; }
-            double limit = s.Mode == 30 ? (fgApplied ? 26.0 : 31.0) : s.Is120 ? 8.0 : (fgApplied ? 11.0 : 15.5); // 20-11 (HZ120): a 120 el hueco por fotograma es ~8,3 ms
+            double limit = TopeGpu(); // 20-11 (HZ120): a 120 el hueco por fotograma es ~8,3 ms. (1.2.2, UNIVERSAL: el 85 %, EngineMargen.cs; antes 26/31/8,0/11,0/15,5 fijos)
+            TopeGpuLog();
             // 16-11 (tirones): con la generacion lo de NVIDIA no se ve en lo medido: si ademas se pierden imagenes de la captura (3 o mas
             // por segundo), tampoco cabe. Medido: 1440p + K con los vectores de calidad, 10,1 ms (p95 10,8: por debajo del tope) pero 6
             // perdidas/s, 54 reales y 13 % de imagenes dobles en la tele

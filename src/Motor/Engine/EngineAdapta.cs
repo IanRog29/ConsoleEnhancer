@@ -41,6 +41,7 @@ namespace ConsoleEnhancer.Motor
                 case "adapta_techo": AdaptaTecho = val.Trim().ToUpperInvariant(); return true;
                 case "dlls_sr": SrDlls = val.Trim(); return true;
                 case "fg_tipo": FgTipo = val.Trim().ToLowerInvariant(); return true;   // 21-11 (EngineFgFfx.cs): fsr3 = FSR 3 FG de FidelityFX   // 21-11 (EngineSr.cs): la carpeta de libxess.dll / amd_fidelityfx_*.dll (la de Magpie)
+                case "uso_grafica": case "gpu_indice": return ApplyMargen(key, val);   // (1.2.2, UNIVERSAL: EngineMargen.cs)
                 // (vrr= y vrr_fg_vsync= ya los hace el motor: Settings.Apply de Common.cs y EngineLatencia.cs, de Prisma LATENCIA4, fusion 20-11)
             }
             return false;
@@ -79,16 +80,9 @@ namespace ConsoleEnhancer.Motor
                    "|in" + inW + "x" + inH + "|out" + outW + "x" + outH + "|nr" + (s.Nr ? 1 : 0) + (s.Nr ? "p" + Math.Max(1, Math.Min(3, adPedidoPasadas > 0 ? adPedidoPasadas : s.NrPasses)) : "");
         }
 
-        double AdTope
-        {
-            get
-            {
-                // los de AutoPresetTick; con Smooth Motion (la generacion del driver no se ve aqui) algo menos
-                if (s.Is120) return 8.0;   // (fusion I, Prisma HZ120: el modo 120, sin generacion; el de AutoPresetTick)
-                if (s.SmoothMode > 0) return s.Mode == 30 ? 27.0 : 12.5;
-                return s.Mode == 30 ? (fgApplied ? 26.0 : 31.0) : (fgApplied ? 11.0 : 15.5);
-            }
-        }
+        // los de AutoPresetTick; con Smooth Motion (la generacion del driver no se ve aqui) algo menos. (1.2.2, UNIVERSAL: el 85 % del tiempo
+        // de una imagen menos lo de la generacion de NVIDIA, EngineMargen.cs; antes 15,5 / 11,0 / 12,5 / 31 / 26 / 27 / 8,0 ms fijos)
+        double AdTope { get { return TopeGpu(); } }
 
         // ApplyPending (tras los "set" del lanzador): lo pedido es el techo de lo que se sube; la clave nueva empieza por lo aprendido
         void AdaptaTrasAjustes(List<KeyValuePair<string, string>> p)

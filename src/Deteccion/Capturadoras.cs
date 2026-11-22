@@ -28,6 +28,7 @@ namespace ConsoleEnhancer.Deteccion
         public double FpsMax, FpsMin;
         public string Subtipo = "";
         public bool Comprimido;
+        public bool Previsto;             // (1.2.2) sacado del catalogo, no de la capturadora abierta
         public override string ToString()
         {
             return Ancho + "x" + Alto + " " + Subtipo + " " + Tx.N(FpsMax, "0.##") + (FpsMin > 0 && Math.Abs(FpsMin - FpsMax) > 0.5 ? " (" + Tx.N(FpsMin, "0.##") + "-" + Tx.N(FpsMax, "0.##") + ")" : "") + " fps";
@@ -55,9 +56,64 @@ namespace ConsoleEnhancer.Deteccion
         public bool SoloComprimido;       // MS2109: a 1080p solo MJPEG
         public bool HdmiSinSenalPropia;   // pinta su propia pantalla "No Signal" (AVerMedia)
         public bool AudioEnFiltro;        // el audio sale por pines del propio filtro de video (GC573: mpv "dshow:audio=<nombre>" + audio_pin_name)
+        // 22-11 (1.2.2, agente UNIVERSAL; el usuario: "aprendete como son todas las elgato, avermedia, etc"): lo que se sabe de cada modelo
+        // como DATOS (la tabla Catalogo), no como codigo por modelo. Ver CatalogoCapturas.cs para la sintaxis y las fuentes.
+        public string Driver = "";        // "uvc" (el de Windows, sin instalar nada) o el del fabricante ("propio: <nombre>")
+        public string Modos = "";         // lo que da SIN abrirla (formatos previstos): "2160p60:NV12/YUY2 1440p120:NV12 1080p60:MJPG"
+        public string Malos = "";         // lo que lista y no da: "2160:RGB24=53" (a 4K en RGB24 lista 60 y llega a 53)
+        public int LatenciaMs;            // latencia de su vista previa (fabricante o medida; 0 = no se sabe)
+        public bool Hdr;                  // captura HDR10 (P010) ademas de dejarlo pasar
+        public string Paso = "";          // lo que deja pasar a la tele (passthrough), informativo
+        public string Rarezas = "";       // lo que conviene saber (va al informe y al asistente)
         public ModeloCaptura(string marca, string modelo, int vid, int pid, string bus, string[] pat, int w, int h, double fps, bool soloComp, string formatos, string notas)
         { Marca = marca; Modelo = modelo; Vid = vid; Pid = pid; Bus = bus; Patrones = pat; MaxW = w; MaxH = h; MaxFps = fps; SoloComprimido = soloComp; Formatos = formatos; Notas = notas; }
         public ModeloCaptura Con(bool audioEnFiltro, bool noSignalPropia) { AudioEnFiltro = audioEnFiltro; HdmiSinSenalPropia = noSignalPropia; return this; }
+        // (1.2.2) los datos de la tabla: driver, modos previstos, modos malos, latencia (ms), HDR, passthrough y rarezas
+        public ModeloCaptura Datos(string driver, string modos, string malos, int latMs, bool hdr, string paso, string rarezas)
+        { Driver = driver ?? ""; Modos = modos ?? ""; Malos = malos ?? ""; LatenciaMs = latMs; Hdr = hdr; Paso = paso ?? ""; Rarezas = rarezas ?? ""; return this; }
+
+        // Los formatos previstos (Modos) como si se hubiera abierto: para elegir sin abrirla (el asistente los confirma al abrirla)
+        public List<FormatoCaptura> Previstos()
+        {
+            List<FormatoCaptura> l = new List<FormatoCaptura>();
+            foreach (string tok in Modos.Split(new char[] { ' ', ';', ',' }, StringSplitOptions.RemoveEmptyEntries))
+            {
+                int p = tok.IndexOf('p'), dp = tok.IndexOf(':');
+                if (p <= 0 || dp <= p) continue;
+                int alto; double fps;
+                if (!int.TryParse(tok.Substring(0, p), NumberStyles.Integer, CultureInfo.InvariantCulture, out alto) ||
+                    !double.TryParse(tok.Substring(p + 1, dp - p - 1), NumberStyles.Float, CultureInfo.InvariantCulture, out fps)) continue;
+                foreach (string sub in tok.Substring(dp + 1).Split('/'))
+                {
+                    if (sub.Length == 0) continue;
+                    FormatoCaptura f = new FormatoCaptura();
+                    f.Alto = alto; f.Ancho = AnchoDe(alto); f.FpsMax = fps; f.FpsMin = Math.Min(fps, 24);
+                    f.Subtipo = sub.ToUpperInvariant(); f.Comprimido = EsComprimido(f.Subtipo);
+                    f.Previsto = true;
+                    l.Add(f);
+                }
+            }
+            return l;
+        }
+
+        // Las imagenes por segundo de verdad de un formato que la tarjeta lista con 'listado' (Malos: "2160:RGB24=53")
+        public double FpsReal(int alto, string sub, double listado)
+        {
+            if (Malos.Length == 0) return listado;
+            foreach (string tok in Malos.Split(new char[] { ' ', ';', ',' }, StringSplitOptions.RemoveEmptyEntries))
+            {
+                int dp = tok.IndexOf(':'), eq = tok.IndexOf('=');
+                if (dp <= 0 || eq <= dp) continue;
+                int a; double f;
+                if (!int.TryParse(tok.Substring(0, dp), NumberStyles.Integer, CultureInfo.InvariantCulture, out a) || a != alto) continue;
+                if (!string.Equals(tok.Substring(dp + 1, eq - dp - 1), sub, StringComparison.OrdinalIgnoreCase)) continue;
+                if (double.TryParse(tok.Substring(eq + 1), NumberStyles.Float, CultureInfo.InvariantCulture, out f)) return Math.Min(listado, f);
+            }
+            return listado;
+        }
+
+        public static int AnchoDe(int alto) { return alto >= 2160 ? 3840 : alto >= 1440 ? 2560 : alto >= 1080 ? 1920 : alto >= 720 ? 1280 : alto >= 576 ? 720 : 640; }
+        public static bool EsComprimido(string sub) { return sub == "MJPG" || sub == "H264" || sub == "HEVC" || sub == "H265" || sub == "MPEG2"; }
     }
 
     public sealed class CapturadoraInfo
@@ -84,23 +140,49 @@ namespace ConsoleEnhancer.Deteccion
         public bool Simulada;
 
         // El mejor formato sin comprimir para jugar (resolucion <= tope, >= 59 fps), o comprimido si no hay otro
-        public FormatoCaptura Mejor(int topeAlto, double fpsMin)
+        public FormatoCaptura Mejor(int topeAlto, double fpsMin) { return Mejor(topeAlto, fpsMin, 1080); }
+
+        // (1.2.2, UNIVERSAL) Orden: (1) que llegue a los fps pedidos DE VERDAD (los "malos" del catalogo con sus fps reales: la GC573 a 4K
+        // en RGB24 lista 60 y da 53); (2) sin comprimir (MJPEG / H.264 cuestan CPU, una imagen de retraso y el motor propio no los abre);
+        // (3) la resolucion mas alta hasta el tope; (4) el formato: YUY2 (4:2:2) > NV12 (4:2:0, el que cabe por USB 3.0 a 4K30/1440p60) >
+        // RGB24 > RGB32 > UYVY > P010 (10 bits: HDR) > MJPEG. Comprimidos por encima de topeComprimido (alto) fuera: descomprimir MJPEG a 4K
+        // en la CPU (mpv sin hwdec) no llega a 30 en muchos PC. Los formatos previstos del catalogo (sin abrirla) cuentan igual.
+        public FormatoCaptura Mejor(int topeAlto, double fpsMin, int topeComprimido)
         {
-            if (Formatos == null || Formatos.Count == 0) return null;
+            List<FormatoCaptura> l = FormatosParaElegir();
+            if (l == null || l.Count == 0) return null;
             FormatoCaptura best = null; double bestScore = -1;
-            foreach (FormatoCaptura f in Formatos)
+            foreach (FormatoCaptura f in l)
             {
-                if (f.Alto > topeAlto) continue;
-                double s = f.Alto * 10.0 + (f.FpsMax >= fpsMin ? 100000 : 0) + (f.Comprimido ? 0 : 50000) + SubtipoPuntos(f.Subtipo) + Math.Min(f.FpsMax, 240) / 10.0;
+                if (f.Alto > topeAlto || f.Alto < 360) continue;
+                if (f.Comprimido && f.Alto > topeComprimido) continue;
+                double fps = FpsDe(f);
+                // (por encima de lo pedido los fps ya no cuentan: YUY2 a 60 antes que NV12 a 120 para el modo 60)
+                double s = (fps >= fpsMin ? 1000000 : Math.Min(fps, 240) / 10.0) + (f.Comprimido ? 0 : 500000) + f.Alto * 100.0 + SubtipoPuntos(f.Subtipo);
                 if (s > bestScore) { bestScore = s; best = f; }
             }
             return best;
         }
 
+        // Los formatos leidos o, sin abrirla, los previstos del catalogo (null si no hay ni uno ni otro)
+        public List<FormatoCaptura> FormatosParaElegir()
+        {
+            if (Formatos != null && Formatos.Count > 0) return Formatos;
+            if (Modelo != null && Modelo.Modos.Length > 0) return Modelo.Previstos();
+            return null;
+        }
+
+        // Las de verdad: lo que lista con la correccion del catalogo (Malos)
+        public double FpsDe(FormatoCaptura f) { return Modelo != null ? Modelo.FpsReal(f.Alto, f.Subtipo, f.FpsMax) : f.FpsMax; }
+
         public static int SubtipoPuntos(string s)
         {
-            switch (s) { case "NV12": return 40; case "YUY2": return 35; case "RGB24": return 30; case "RGB32": return 28; case "P010": return 20; case "UYVY": return 25; case "MJPG": return 5; default: return 0; }
+            switch (s) { case "YUY2": return 40; case "NV12": return 36; case "RGB24": return 30; case "RGB32": return 28; case "UYVY": return 25; case "P010": return 20; case "MJPG": return 5; default: return 0; }
         }
+
+        // (1.2.2) Los formatos que el motor propio sabe abrir (src\Motor\Engine\CaptureSource.cs: RGB24, RGB32, YUY2, NV12). Con otro
+        // (MJPEG, H.264, UYVY, P010...) la imagen va por mpv (que los descomprime / convierte) + Magpie
+        public static bool MotorLoAbre(string subtipo) { return subtipo == "YUY2" || subtipo == "NV12" || subtipo == "RGB24" || subtipo == "RGB32"; }
     }
 
     public static class DetectorCapturadoras

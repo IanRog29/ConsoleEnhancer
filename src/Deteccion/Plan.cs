@@ -139,6 +139,7 @@ namespace ConsoleEnhancer.Deteccion
             sb.AppendLine("  DLSS 5: " + (Dlss5Disponible ? Tx.T("disponible (apagado de serie, hasta ", "available (off by default, up to ") + Dlss5PasadasMax + Tx.T(" pasadas)", " passes)") : "no") + (Dlss5Nota.Length > 0 ? " - " + Dlss5Nota : "") +
                           Tx.T(" | Motor en espera: ", " | Engine standby: ") + Tx.SiNo(MotorEnEspera) + Tx.T(" | HOME a 4K nativo: ", " | native 4K HOME: ") + Tx.SiNo(HomeNativo) + " | VRR: " + Tx.SiNo(UsarVrr));
             sb.Append(InformeHdrVrr());   // (20-11, HdrVrr.cs)
+            sb.Append(InformeMargenes()); // (1.2.2, PlanMargen.cs)
             foreach (string m in Motivos) sb.AppendLine("  - " + m);
             foreach (string a in Avisos) sb.AppendLine("  ! " + a);
             return sb.ToString();
@@ -151,9 +152,11 @@ namespace ConsoleEnhancer.Deteccion
             if (Captura == null || Captura.Formatos == null || Captura.Formatos.Count == 0) return "";
             List<string> r = new List<string>();
             double mejor = 0;
+            // (1.2.2, UNIVERSAL) solo hasta la captura que la grafica aguanta a 120 con margen (Tope120Alto, PlanMargen.cs) y con los fps de
+            // verdad de esa capturadora (el catalogo sabe los modos que lista y no da)
             foreach (string t in new[] { "1280x720", "1920x1080", "2560x1440" })
                 foreach (FormatoCaptura f in Captura.Formatos)
-                    if (!f.Comprimido && f.FpsMax >= 119 && (f.Ancho + "x" + f.Alto) == t)
+                    if (!f.Comprimido && Captura.FpsDe(f) >= 119 && f.Alto <= Tope120Alto && (f.Ancho + "x" + f.Alto) == t)
                     {
                         if (!r.Contains(t)) r.Add(t);
                         if (mejor == 0 || Math.Abs(f.FpsMax - 120) < Math.Abs(mejor - 120)) mejor = f.FpsMax;
@@ -205,11 +208,11 @@ namespace ConsoleEnhancer.Deteccion
         }
     }
 
-    public static class Planificador
+    public static partial class Planificador   // (1.2.2, UNIVERSAL: partial; los margenes de grafica, VRAM y CPU en PlanMargen.cs)
     {
         // Lo medido en la RTX 4060 (indice 1,0) con salida 4K (bancos del motor, 15/17-11): ms por imagen real
         const double RefDlssE = 4.8, RefDlssK = 6.2, RefDlssM = 10.1, RefDlssL = 12.1, RefMv1440 = 1.3, RefBase = 1.0, RefFsr1 = 0.8;
-        const double RefFgDlss = 2.0, RefFgSmooth = 1.0, RefFgMagpie = 2.5;   // estimados (la generacion se midio junto al resto)
+        // (1.2.2: la generacion ya no sale de aqui, eran 2,0 / 1,0 / 2,5 "estimados": PlanMargen.CosteGeneracion, con lo medido)
         const double Margen = 0.75;                                           // la captura de verdad cuesta 7-15 puntos mas que la de prueba
 
         // Consolas: minimo provisional con las claves de src\Consolas.cs del agente CONSOLAS (consola=). En la fase 2 se lee su ConsolaPerfil
@@ -274,9 +277,12 @@ namespace ConsoleEnhancer.Deteccion
 
             // ---- capturadora y formato
             ElegirCaptura(hw, pref, p, consMaxH);
+            // (1.2.2, UNIVERSAL) una captura que el motor no abre (MJPEG, H.264...): mpv + Magpie, con el escalado y la generacion de la grafica
+            bool graficaUtil = p.Motor == "propio";
+            MotorSegunCaptura(p);
 
             // ---- escalado y modelos
-            if (p.Motor == "propio")
+            if (graficaUtil)
             {
                 bool up = p.CapH > 0 && p.CapH < p.OutH;
                 if (!up) { p.Escalador = "ninguno"; p.Motivos.Add(Tx.T("La captura ya es de la resolución de la pantalla: sin escalado (bordes, enfoque y generación sí)", "Capture matches display: no scaling")); }
@@ -304,8 +310,8 @@ namespace ConsoleEnhancer.Deteccion
                 {
                     int antes = p.CapH;
                     p.CapW = 1920; p.CapH = 1080;
-                    FormatoCaptura f = p.Captura.Formatos != null ? p.Captura.Mejor(1080, 59) : null;
-                    if (f != null) { p.CapW = f.Ancho; p.CapH = f.Alto; p.CapFormato = f.Subtipo; }
+                    FormatoCaptura f = p.Captura.FormatosParaElegir() != null ? p.Captura.Mejor(1080, 59, TopeComprimido(hw)) : null;
+                    if (f != null) { p.CapW = f.Ancho; p.CapH = f.Alto; p.CapFormato = f.Subtipo; p.CapFps = FpsPedido(f, 59.94); }
                     p.Avisos.RemoveAll(delegate(string a) { return a.StartsWith(Tx.T("Modo ", "Mode ")); });
                     p.Modos.Clear();
                     p.Enfoque = p.CapH <= 720 ? 0.6 : p.CapH <= 1080 ? 0.5 : 0.3;
@@ -321,7 +327,9 @@ namespace ConsoleEnhancer.Deteccion
                     ElegirModelos(p, g, pref.Calibracion);
                     p.Motivos.Add(Tx.T("Ni DLSS E cabe en el modo 60 con esta salida: FSR 1 de serie (DLSS en R3; el banco lo confirma)", "Not even DLSS E fits the 60 mode: FSR 1 by default (DLSS on R3)"));
                 }
-                p.MotorEnEspera = gb >= 8;
+                // (1.2.2, UNIVERSAL) XeSS / FSR 4 que no caben, generacion imposible, capturas a 120 y VRAM (PlanMargen.cs)
+                AjustarMargenes(hw, p, g, pref.Calibracion);
+                p.MotorEnEspera = gb >= 8 && p.Motor == "propio";
                 if (!p.MotorEnEspera) p.Motivos.Add(Tx.T("Menos de 8 GB de VRAM: el motor no se queda en espera (libera la memoria para Magpie)", "Under 8 GB VRAM: no engine standby"));
             }
 
@@ -347,13 +355,16 @@ namespace ConsoleEnhancer.Deteccion
             if (cons != null && (bool)cons[4]) p.Motivos.Add(Tx.T("Consola con tramado de 5 bits: filtro de bordes y tramado (s2_aa) encendido", "5-bit dithering console: dedither filter on"));
             if (cons != null && (bool)cons[3] && p.Pantalla != null && p.Pantalla.HzMax >= 120 && CapturaAdmite(p.Captura, Math.Min(p.CapH, 1080), 119))
                 p.Motivos.Add(Tx.T("La consola y la capturadora llegan a 120 Hz: en los juegos de 120 no hace falta generación (captura a 120)", "Console and capture reach 120 Hz: capture at 120 for 120 Hz games"));
+            ResumenMargenes(hw, p, g);   // (1.2.2, UNIVERSAL)
             return p;
         }
 
         static bool CapturaAdmite(CapturadoraInfo c, int alto, double fps)
         {
             if (c == null) return false;
-            if (c.Formatos != null && c.Formatos.Count > 0) return c.Formatos.Exists(delegate(FormatoCaptura f) { return f.Alto >= alto && f.FpsMax >= fps && !f.Comprimido; });
+            // (1.2.2, UNIVERSAL: tambien los formatos previstos del catalogo y con sus fps de verdad: los "malos")
+            List<FormatoCaptura> fl = c.FormatosParaElegir();
+            if (fl != null && fl.Count > 0) return fl.Exists(delegate(FormatoCaptura f) { return f.Alto >= alto && c.FpsDe(f) >= fps && !f.Comprimido; });
             return c.Modelo != null && c.Modelo.MaxH >= alto && (c.Modelo.MaxFps >= fps || alto < c.Modelo.MaxH && fps <= 60);
         }
 
@@ -381,16 +392,27 @@ namespace ConsoleEnhancer.Deteccion
             GpuInfo g = p.Gpu;
             if (g != null && (g.Indice < 0.35 || g.VramGb < 4) && want > 1080) { want = 1080; p.Motivos.Add(Tx.T("Gráfica modesta: captura a 1080p", "Modest GPU: 1080p capture")); }
 
-            if (c.Formatos != null && c.Formatos.Count > 0)
+            // (1.2.2, UNIVERSAL) los formatos leidos o, sin abrirla, los previstos del catalogo (CatalogoCapturas.cs); comprimidos solo hasta lo
+            // que la CPU descomprime (TopeComprimido) y lo que el catalogo sabe que no da (FpsDe)
+            List<FormatoCaptura> fl = c.FormatosParaElegir();
+            if (fl != null && fl.Count > 0)
             {
-                FormatoCaptura f = c.Mejor(want, 59);
-                if (f == null) f = c.Mejor(4320, 0);
+                bool leidos = c.Formatos != null && c.Formatos.Count > 0;
+                int topeComp = TopeComprimido(hw);
+                FormatoCaptura f = c.Mejor(want, 59, topeComp);
+                if (f == null) f = c.Mejor(4320, 0, topeComp);
+                if (f == null) f = c.Mejor(4320, 0, 4320);
                 if (f != null)
                 {
-                    p.CapW = f.Ancho; p.CapH = f.Alto; p.CapFormato = f.Subtipo; p.CapOrigen = Tx.T("formatos de la capturadora", "device formats");
-                    p.CapFps = f.FpsMax >= 59.9 && f.FpsMax < 60.5 ? "60000/1001" : f.FpsMax >= 59 ? "60000/1001" : f.FpsMax.ToString("0.###", CultureInfo.InvariantCulture);
+                    double fps = c.FpsDe(f);
+                    p.CapW = f.Ancho; p.CapH = f.Alto; p.CapFormato = f.Subtipo;
+                    p.CapOrigen = leidos ? Tx.T("formatos de la capturadora", "device formats") : Tx.T("catálogo: ", "catalog: ") + c.Modelo.Marca + " " + c.Modelo.Modelo + Tx.T(" (se confirma al abrirla)", " (confirmed when opened)");
+                    p.CapFps = FpsPedido(f, fps >= 59 ? 59.94 : fps);
                     if (f.Comprimido) p.Avisos.Add(Tx.T("La capturadora solo da ", "The capture only offers ") + f.Subtipo + Tx.T(" a esa resolución: hay que descomprimir (más latencia y CPU)", " there: decoding adds latency"));
-                    if (f.FpsMax < 59) p.Avisos.Add(Tx.T("La capturadora no llega a 60 fps a ", "Capture can't do 60 fps at ") + f.Ancho + "x" + f.Alto + " (" + Tx.N(f.FpsMax, "0.#") + ")");
+                    if (fps < 59) p.Avisos.Add(Tx.T("La capturadora no llega a 60 fps a ", "Capture can't do 60 fps at ") + f.Ancho + "x" + f.Alto + " (" + Tx.N(fps, "0.#") + ")");
+                    if (f.Comprimido && f.Alto < 1080 && topeComp < 1080 && fl.Exists(delegate(FormatoCaptura x) { return x.Comprimido && x.Alto == 1080 && c.FpsDe(x) >= 59; }))
+                        p.Motivos.Add(Tx.T("MJPEG a 1080p pide más procesador (" + hw.Sistema.Hilos + " hilos): captura a 720p", "MJPEG at 1080p needs a stronger CPU: 720p capture"));
+                    if (c.Modelo != null && c.Modelo.Rarezas.Length > 0) p.Motivos.Add(c.Modelo.Marca + " " + c.Modelo.Modelo + ": " + c.Modelo.Rarezas);
                     return;
                 }
             }
@@ -400,7 +422,7 @@ namespace ConsoleEnhancer.Deteccion
             if (m != null && m.MaxH > 0 && m.MaxH < h) h = m.MaxH;
             // (1.2.02) capturadora fuera del catalogo y sin formatos leidos: 1080p (casi todas la dan; 1440p con una USB de 1080p no abria)
             if (m == null && h > 1080) h = 1080;
-            if (m != null && m.SoloComprimido) { p.CapFormato = "mjpeg"; p.Avisos.Add(Tx.T("Capturadora USB 2.0: a 1080p solo MJPEG a 30 fps; mejor 720p60 sin comprimir o una USB 3.0", "USB 2.0 capture: 1080p MJPEG 30 only")); }
+            if (m != null && m.SoloComprimido) { p.CapFormato = "MJPG"; p.Avisos.Add(Tx.T("Capturadora USB 2.0: a 1080p solo MJPEG a 30 fps; mejor 720p60 sin comprimir o una USB 3.0", "USB 2.0 capture: 1080p MJPEG 30 only")); }
             p.CapH = h; p.CapW = h * 16 / 9;
         }
 
@@ -513,7 +535,7 @@ namespace ConsoleEnhancer.Deteccion
 
         static void ElegirModelos(PlanImagen p, GpuInfo g, Calibracion cal)
         {
-            double idx = Math.Max(0.05, g.Indice);
+            double idx = IndicePrudente(g);   // (1.2.2, UNIVERSAL: grafica fuera de la tabla, un 15 % menos; PlanMargen.cs)
             double esc = (p.OutW * (double)p.OutH) / (3840.0 * 2160.0) / idx;
             double capPx = Math.Max(1, p.CapW * (double)p.CapH);
             double factorT = g.Familia == FamiliaGpu.NvidiaRtx20 ? 1.8 : g.Familia == FamiliaGpu.NvidiaRtx30 ? 1.35 : g.Familia == FamiliaGpu.NvidiaRtx50 ? 0.85 : 1.0;
@@ -527,7 +549,8 @@ namespace ConsoleEnhancer.Deteccion
                 string gen = k.StartsWith("60") ? p.Gen60 : p.Gen30;
                 if (fg && gen == "ninguna") continue;
                 m.TopeMs = (k.StartsWith("60") ? 1000.0 / 59.94 : 2000.0 / 59.94) * Margen;
-                double fgc = !fg ? 0 : gen == "dlssg" ? Medido(cal, p.Calibrado, "fg_dlssg", RefFgDlss * esc) : gen == "smooth" ? Medido(cal, p.Calibrado, "fg_smooth", RefFgSmooth * esc) : gen == "afmf" ? 0 : RefFgMagpie * esc;
+                // (1.2.2, UNIVERSAL: costes de la generacion con lo medido, PlanMargen.CosteGeneracion; AFMF tambien gasta)
+                double fgc = !fg ? 0 : gen == "dlssg" ? Medido(cal, p.Calibrado, "fg_dlssg", CosteGeneracion(gen, g, esc)) : gen == "smooth" ? Medido(cal, p.Calibrado, "fg_smooth", CosteGeneracion(gen, g, esc)) : CosteGeneracion(gen, g, esc);
                 double fijo = bas + mv + fgc;
                 if (p.Escalador == "dlss")
                 {
@@ -546,7 +569,9 @@ namespace ConsoleEnhancer.Deteccion
                 else
                 {
                     m.Modelo = "";
-                    m.CosteMs = fijo + (p.Escalador == "fsr1" ? Medido(cal, p.Calibrado, "fsr1", RefFsr1 * esc) : 0);
+                    // (1.2.2, UNIVERSAL: XeSS y FSR 4 tambien cuestan; antes 0, pendiente conocido. Sin escalar, nada)
+                    bool sube = p.CapH > 0 && p.CapH < p.OutH;
+                    m.CosteMs = fijo + (!sube ? 0 : p.Escalador == "fsr1" ? Medido(cal, p.Calibrado, "fsr1", RefFsr1 * esc) : CosteEscalador(p.Escalador, g, esc));
                     m.Justo = m.CosteMs > m.TopeMs;
                 }
                 p.Modos[k] = m;
