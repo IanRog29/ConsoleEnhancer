@@ -17,12 +17,17 @@ namespace ConsoleEnhancer.Motor
     // interpola) y una pasada de grafica muy ligera por inventada.
     // Claves: fg_propia=0|2|3|4 (de serie 0; solo sin fg=1: DLSS-G / FSR 3 FG / XeSS FG mandan), fg_propia_umbral=0.06 (diferencia de
     // color 0-1 a partir de la cual las dos muestras "no casan"), fg_propia_vsync=-1|0|1 (auto: con sincronizacion si k x las reales pasan
-    // del 90 % del refresco de la tele; si no, con VRR, cada una a su hora sin sincronizacion).
+    // del 90 % del refresco de la tele; si no, con VRR, cada una a su hora sin sincronizacion), fg_propia_candidatos=1, fg_propia_radio=32.
+    // Medido (22-11, 4060 Ti, 4K, escenas de CALIDAD + fgcal2): cabeza x3 1,04 (halo 4,3), x4 2,4 (halo 5,7); finas x3 11,0 (fina 7,2); por el
+    // motor DLSS FG x2 0,35 / 4,0 y Magpie DLSS FG x4 0,81 / 8,3: mejor que nada y que el XeSS FG x2 de Magpie en la cabeza, peor que DLSS-G.
+    // Retraso de la real (llegada -> presentada): x3 ~27 ms, x4 31-55 ms (con sincronizacion); Magpie x3/x4 ~70 ms.
     partial class Settings
     {
         public int FgOwn = 0;
         public float FgOwnThr = 0.06f;
         public int FgOwnVsync = -1;
+        public bool FgOwnCands = true;              // fg_propia_candidatos=1 (v2)
+        public int FgOwnR = 32;                     // fg_propia_radio=32 (px de la salida; medido en la cabeza x4: 32 -> halo 5,7, 16 -> 9,6)
 
         bool ApplyFgOwn(string key, string val)
         {
@@ -31,6 +36,8 @@ namespace ConsoleEnhancer.Motor
                 case "fg_propia": { int k = I(val); FgOwn = k <= 1 ? 0 : Math.Min(4, k); return true; }
                 case "fg_propia_umbral": FgOwnThr = (float)Math.Max(0.005, Math.Min(1, D(val))); return true;
                 case "fg_propia_vsync": FgOwnVsync = I(val); return true;
+                case "fg_propia_candidatos": FgOwnCands = B(val); return true;
+                case "fg_propia_radio": FgOwnR = Math.Max(1, Math.Min(128, I(val))); return true;
             }
             return false;
         }
@@ -38,14 +45,27 @@ namespace ConsoleEnhancer.Motor
 
     unsafe partial class Engine
     {
+        // v2 (22-11 tras la 1a medida: halo 10,7 en la cabeza con x4): CANDIDATOS. Ademas del vector del punto (con su vuelta), los de 4
+        // vecinos a R px (Pad1.x; de serie 32): en el borde de lo que se mueve, el del fondo y el de la figura. Se queda el que mejor casa
+        // las dos muestras (anterior y actual, 3 puntos en horizontal): asi lo que se destapa coge el vector del fondo y no el de la figura
+        // (fg_propia_candidatos=0: como la v1, solo el del punto)
         const string FpShader = @"
-cbuffer C : register(b0) { uint W, H, IW, IH; float T, SX, SY, Thr; uint4 Pad1; uint4 Pad2; }
+cbuffer C : register(b0) { uint W, H, IW, IH; float T, SX, SY, Thr; uint R, Cands, P2, P3; uint4 Pad2; }
 Texture2D<float4> Prev : register(t0);
 Texture2D<float4> Cur : register(t1);
 Texture2D<float2> Mv : register(t2);
 RWTexture2D<unorm float4> Out : register(u0);
 SamplerState Lin : register(s0);
 float2 MvOut(float2 p) { return Mv.SampleLevel(Lin, p / float2(W, H), 0) * float2(SX, SY); }
+float Y(float3 c) { return dot(c, float3(0.299, 0.587, 0.114)); }
+float Err(float2 x, float2 v, float2 sz)
+{
+    float2 p = x - (1 - T) * v, q = x + T * v, e = float2(2, 0);
+    float a = abs(Y(Cur.SampleLevel(Lin, p / sz, 0).rgb) - Y(Prev.SampleLevel(Lin, q / sz, 0).rgb));
+    float b = abs(Y(Cur.SampleLevel(Lin, (p - e) / sz, 0).rgb) - Y(Prev.SampleLevel(Lin, (q - e) / sz, 0).rgb));
+    float c = abs(Y(Cur.SampleLevel(Lin, (p + e) / sz, 0).rgb) - Y(Prev.SampleLevel(Lin, (q + e) / sz, 0).rgb));
+    return a + b + c;
+}
 [numthreads(16, 8, 1)]
 void main(uint3 id : SV_DispatchThreadID)
 {
@@ -53,9 +73,20 @@ void main(uint3 id : SV_DispatchThreadID)
     float2 sz = float2(W, H);
     float2 x = id.xy + 0.5;
     float2 v = MvOut(x);
+    v = MvOut(x - (1 - T) * v);
+    if (Cands != 0)
+    {
+        float best = Err(x, v, sz) - 0.01;   // (un poco de ventaja al del punto)
+        float r = (float)R;
+        float2 o[4] = { float2(r, 0), float2(-r, 0), float2(0, r), float2(0, -r) };
+        [unroll] for (int i = 0; i < 4; i++)
+        {
+            float2 w = MvOut(x + o[i]);
+            float e = Err(x, w, sz);
+            if (e < best) { best = e; v = w; }
+        }
+    }
     float2 p = x - (1 - T) * v;
-    v = MvOut(p);
-    p = x - (1 - T) * v;
     float2 q = p + v;
     float3 c = Cur.SampleLevel(Lin, p / sz, 0).rgb;
     float3 a = Prev.SampleLevel(Lin, q / sz, 0).rgb;
@@ -159,7 +190,7 @@ void main(uint3 id : SV_DispatchThreadID)
             if (!fpSaid)
             {
                 fpSaid = true;
-                Log.Write("Generacion propia si (x" + s.FgOwn + ", codigo propio con los vectores del motor; umbral " + s.FgOwnThr.ToString("0.000", IC) + ")");
+                Log.Write("Generacion propia si (x" + s.FgOwn + ", codigo propio con los vectores del motor; umbral " + s.FgOwnThr.ToString("0.000", IC) + (s.FgOwnCands ? ", candidatos a " + s.FgOwnR + " px" : ", solo el vector del punto") + ")");
             }
         }
 
@@ -194,11 +225,12 @@ void main(uint3 id : SV_DispatchThreadID)
             for (int i = 0; i < 16; i++) c[i] = 0;
             c[0] = (uint)outW; c[1] = (uint)outH; c[2] = (uint)inW; c[3] = (uint)inH;
             c[4] = F(t); c[5] = F((float)outW / Math.Max(1, inW)); c[6] = F((float)outH / Math.Max(1, inH)); c[7] = F(s.FgOwnThr);
+            c[8] = (uint)s.FgOwnR; c[9] = s.FgOwnCands ? 1u : 0u;
             fpList.SetDescriptorHeaps(1, ref fpHeapPtr);
             fpList.SetComputeRootSignature(rootSig);
             fpList.SetPipelineState(psoFp);
             fpList.SetComputeRootDescriptorTable(1, fpGpu0);
-            fpList.SetComputeRoot32BitConstants(0, 8, c, 0);
+            fpList.SetComputeRoot32BitConstants(0, 12, c, 0);
             fpList.Dispatch(Groups(outW, 16), Groups(outH, 8), 1);
             FpBarrier(fpOut, D3D12_RESOURCE_STATES.UNORDERED_ACCESS, D3D12_RESOURCE_STATES.COPY_SOURCE);
             ID3D12Resource bb = backbuf[swap.GetCurrentBackBufferIndex()];
