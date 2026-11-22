@@ -39,6 +39,16 @@
 //    nada con ellas (ni Alt+F4 la cierra).
 //  - Al despertar: la pantalla lo primero (la tele tarda en encenderse; delante, negro), el plan de antes antes de abrir la app y el
 //    --inicio con su telon antes de que se cierre esta.
+//
+// 22-11 (1.2.2, el usuario: "Haz que el pc este mas dormido en el modo consola, que gaste menos"). Medido en espera (RTX 4060 Ti, Ryzen 5
+// 2600, prueba con la GC573 en "No Signal"): la grafica ya estaba en lo mas bajo (P8, 210/405 MHz, ~8,2 W con la pantalla apagada y
+// ~12 W encendida); lo que se movia era la sonda de mpv (13,5 % de un nucleo y ~405 cambios de contexto por segundo con el procesador al
+// 50 %: la capturadora mandando 60 imagenes por segundo sin parar) y la pantalla que se quedaba encendida:
+//  - La sonda sin mpv (src\Lanzador\EsperaSonda.cs, ConsoleEnhancer.exe --ce-sonda): el grafo de DirectShow montado una vez y en marcha
+//    solo un momento cada espera_sonda_cada_ms (2000 de serie); entre medias la capturadora parada. Si no se puede (codigo 3, tres
+//    veces), la de mpv como antes. La de mpv abriendo y cerrando a ratos no valia: cada apertura cuesta ~0,4 s de CPU.
+//  - La pantalla: "alguien la ha tocado" con el raton o el teclado por Raw Input (PadHub), no con GetLastInputInfo, que cuenta tambien un
+//    mando XInput encendido: con el mando del PC encima de la mesa la pantalla (la tele) no se volvia a apagar.
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -61,6 +71,9 @@ namespace ConsoleEnhancer
         public static volatile int CpuMax = 50;
         // (1.2.1) espera_sonda_fuente: solo pruebas, lo que mira la sonda en vez de la capturadora (p. ej. av://lavfi:...)
         public static string SondaFuente = "";
+        // (1.2.2) espera_sonda_cada_ms: la sonda sin mpv (src\Lanzador\EsperaSonda.cs) mira la capturadora un momento cada tantos ms
+        // (2000 de serie); 0 = la de mpv con la capturadora abierta todo el rato, como hasta la 1.2.1
+        public static volatile int SondaCadaMs = 2000;
         // (1.2.1) pruebas sin consola (--prueba-cadena, --prueba-espera-simulada): segundos hasta que la consola de mentira se enciende
         public static volatile int Simulada;
         public static volatile bool Prueba;   // (--prueba-espera: sin capturadora no se suspende el PC)
@@ -111,7 +124,7 @@ namespace ConsoleEnhancer
 "   Power: 0.5-2 W.\n\n" +
 "Closing the app yourself (Exit, Alt+F4) never shuts down or sleeps the PC.");
         }
-        static string device = "", pixfmt = "", testSource = "";
+        static string device = "", devicePath = "", pixfmt = "", testSource = "";
 
         static string Exe { get { return Path.GetFullPath(System.Reflection.Assembly.GetEntryAssembly().Location); } }
 
@@ -122,12 +135,14 @@ namespace ConsoleEnhancer
             device = cfg.Device ?? "";
             pixfmt = cfg.PixelFormat ?? "";
             testSource = cfg.TestSource ?? "";
+            devicePath = Ce.IniLeer("device_path") ?? "";
         }
 
         // (1.2.1) Lo que la espera lee del ini (en su proceso no hay Config)
         static void Leer()
         {
             if (device.Length == 0) device = Ce.IniLeer("device") ?? "";
+            if (devicePath.Length == 0) devicePath = Ce.IniLeer("device_path") ?? "";
             if (pixfmt.Length == 0) pixfmt = Ce.IniLeer("pixel_format") ?? "";
             if (testSource.Length == 0) testSource = Ce.IniLeer("test_source") ?? "";
             string v = Ce.IniLeer("espera_sonda_fuente");
@@ -135,6 +150,7 @@ namespace ConsoleEnhancer
             int n;
             if (int.TryParse(Ce.IniLeer("espera_suspender_min") ?? "", out n)) SuspenderTrasMin = Math.Max(0, n);
             if (int.TryParse(Ce.IniLeer("espera_cpu_max") ?? "", out n)) CpuMax = Math.Max(0, Math.Min(100, n));
+            if (int.TryParse(Ce.IniLeer("espera_sonda_cada_ms") ?? "", out n)) SondaCadaMs = n <= 0 ? 0 : Math.Max(250, Math.Min(30000, n));
             v = Ce.IniLeer("espera_ocultar_barra");
             if (v != null) CeBarra.Permitido = v.Trim() != "0";
         }
@@ -387,7 +403,7 @@ namespace ConsoleEnhancer
                 timer.Interval = 1000; // (1 vez por segundo: menos despertares de la CPU)
                 timer.Tick += delegate { Paso(); };
                 reapagar.Interval = 2000;
-                reapagar.Tick += delegate { reapagar.Stop(); if (Porque == null && UltimaEntrada() == entradaPantalla) { solaAntes = DateTime.UtcNow; ApagarPantalla(); } };
+                reapagar.Tick += delegate { reapagar.Stop(); if (Porque == null && !Tocado()) { solaAntes = DateTime.UtcNow; ApagarPantalla(); } };
             }
 
             protected override bool ShowWithoutActivation { get { return true; } }
@@ -424,7 +440,7 @@ namespace ConsoleEnhancer
             void PantallaCambia(int v)
             {
                 if (Porque != null || v != 1) return;
-                if (UltimaEntrada() != entradaPantalla) return;
+                if (Tocado()) return;
                 seguidasSola = (DateTime.UtcNow - solaAntes).TotalSeconds < 15 ? seguidasSola + 1 : 0;
                 int[] pasos = { 2, 10, 30, 120, 300 };
                 int s = pasos[Math.Min(seguidasSola, pasos.Length - 1)];
@@ -436,11 +452,35 @@ namespace ConsoleEnhancer
                 reapagar.Start();
             }
 
+            // (1.2.2) la sonda sin mpv (src\Lanzador\EsperaSonda.cs) con la capturadora de verdad: el grafo montado una vez y en marcha solo
+            // un momento cada SondaCadaMs. Si no puede montarlo o arrancarlo (codigo 3) 3 veces, la de mpv como antes
+            bool nativa;
+            int nativaFallos;
+            EventWaitHandle latido;          // (lo pone la sonda sin mpv en cada vez: sin el en 30 s, colgada)
+            DateTime ultimoLatido;
+
             void Lanzar()
             {
+                bool captura = fuente.StartsWith("av://dshow:", StringComparison.OrdinalIgnoreCase);
+                nativa = captura && SondaCadaMs > 0 && nativaFallos < 3;
+                if (nativa)
+                {
+                    try
+                    {
+                        string nombre = fuente.StartsWith("av://dshow:video=", StringComparison.OrdinalIgnoreCase) ? fuente.Substring(17) : device;
+                        string args = "--ce-sonda \"dispositivo=" + nombre + "\"" + (devicePath.Length > 0 ? " \"ruta=" + devicePath + "\"" : "") +
+                                      " cada_ms=" + SondaCadaMs + (pixfmt.Length > 0 ? " formato=" + pixfmt : "") + ArgsDatos();
+                        if (latido == null) try { latido = new EventWaitHandle(false, EventResetMode.AutoReset, CeSonda.Latido); } catch { latido = null; }
+                        ultimoLatido = DateTime.UtcNow;
+                        sonda = CeCubierta.Lanzar(Exe, args, true);
+                        if (sonda == null) throw new InvalidOperationException("no ha arrancado");
+                        Preparar(sonda);
+                        return;
+                    }
+                    catch (Exception ex) { Log.Error("Espera: la sonda sin mpv (sigue la de mpv)", ex); sonda = null; nativa = false; nativaFallos = 3; }
+                }
                 try
                 {
-                    bool captura = fuente.StartsWith("av://dshow:", StringComparison.OrdinalIgnoreCase);
                     // (otra capturadora que no acepte 1280x720: tras 2 fallos, lo que ella quiera)
                     string lavf = (sondaFallos % 4 < 2 ? "video_size=1280x720" + (pixfmt.Length > 0 ? ",pixel_format=" + pixfmt : "") + "," : "") + "rtbufsize=16000000";
                     // 1.2.1: sin los scripts de serie de mpv (osc, ytdl, stats, consola, perfiles...: 7 hilos menos) ni terminal; si mpv no
@@ -455,16 +495,22 @@ namespace ConsoleEnhancer
                     psi.UseShellExecute = false;
                     psi.CreateNoWindow = true;
                     sonda = Process.Start(psi);
-                    try { sonda.PriorityClass = ProcessPriorityClass.BelowNormal; } catch { }
-                    EcoQos(sonda.Handle);
-                    EngineJob.Hold(sonda, true); // (si este proceso muere, Windows cierra la sonda: la capturadora no se queda cogida)
-                    // 1.2.1: al cerrarse la sonda (la consola vista), enseguida y no en el siguiente segundo de Paso (~0,5 s de media antes);
-                    // Windows avisa (una espera en su hilo de esperas, sin sondear)
-                    Process s = sonda;
-                    s.EnableRaisingEvents = true;
-                    s.Exited += delegate { try { BeginInvoke((MethodInvoker)delegate { if (sonda == s && Porque == null) Paso(); }); } catch { } };
+                    Preparar(sonda);
                 }
                 catch (Exception ex) { Log.Error("Espera: la sonda", ex); sonda = null; }
+            }
+
+            // La sonda (de mpv o la de --ce-sonda) con poca prioridad, EcoQoS y en el job
+            void Preparar(Process p)
+            {
+                try { p.PriorityClass = ProcessPriorityClass.BelowNormal; } catch { }
+                EcoQos(p.Handle);
+                EngineJob.Hold(p, true); // (si este proceso muere, Windows cierra la sonda: la capturadora no se queda cogida)
+                // 1.2.1: al cerrarse la sonda (la consola vista), enseguida y no en el siguiente segundo de Paso (~0,5 s de media antes);
+                // Windows avisa (una espera en su hilo de esperas, sin sondear)
+                Process s = p;
+                s.EnableRaisingEvents = true;
+                s.Exited += delegate { try { BeginInvoke((MethodInvoker)delegate { if (sonda == s && Porque == null) Paso(); }); } catch { } };
             }
 
             void Paso()
@@ -480,9 +526,32 @@ namespace ConsoleEnhancer
                         try { sonda.Dispose(); } catch { }
                         sonda = null;
                         if (code == 55) { Fin("la consola"); return; }
-                        sondaFallos++;
-                        sondaOtraVez = DateTime.UtcNow.AddSeconds(Math.Min(60, 3 * sondaFallos));
-                        Log.Write("Espera: la sonda se ha cerrado (codigo " + code + "); otra vez en " + Math.Min(60, 3 * sondaFallos) + " s");
+                        if (nativa)
+                        {
+                            // (1.2.2) la sonda sin mpv: 3 = sin grafo (otra vez en 3, 6 s; a la tercera, la de mpv)
+                            nativaFallos++;
+                            sondaOtraVez = DateTime.UtcNow.AddSeconds(nativaFallos >= 3 ? 0 : 3 * nativaFallos);
+                            Log.Write("Espera: la sonda sin mpv se ha cerrado (codigo " + code + "); " + (nativaFallos >= 3 ? "sigue la de mpv" : "otra vez en " + 3 * nativaFallos + " s"));
+                        }
+                        else
+                        {
+                            sondaFallos++;
+                            sondaOtraVez = DateTime.UtcNow.AddSeconds(Math.Min(60, 3 * sondaFallos));
+                            Log.Write("Espera: la sonda se ha cerrado (codigo " + code + "); otra vez en " + Math.Min(60, 3 * sondaFallos) + " s");
+                        }
+                    }
+                    else if (nativa && latido != null)
+                    {
+                        // (1.2.2) la sonda sin mpv viva pero sin mirar (un Run o un Stop de la capturadora colgados): fuera y otra
+                        bool late = false;
+                        try { late = latido.WaitOne(0); } catch { }
+                        if (late) ultimoLatido = DateTime.UtcNow;
+                        else if ((DateTime.UtcNow - ultimoLatido).TotalSeconds > Math.Max(30, SondaCadaMs / 100))
+                        {
+                            Log.Write("Espera: la sonda sin mpv (pid " + sonda.Id + ") lleva " + (int)(DateTime.UtcNow - ultimoLatido).TotalSeconds + " s sin mirar: se cierra y se abre otra");
+                            ultimoLatido = DateTime.UtcNow;
+                            try { sonda.Kill(); } catch { }
+                        }
                     }
                 }
                 else if (fuente != null && DateTime.UtcNow >= sondaOtraVez) Lanzar();
@@ -502,16 +571,39 @@ namespace ConsoleEnhancer
                     catch { mandos = false; }
                 }
                 // La pantalla: si alguien la ha encendido (raton) y lleva 30 s sin tocar nada, otra vez apagada
-                uint ult = UltimaEntrada();
-                if (ult != entradaPantalla && (uint)Environment.TickCount - ult > 30000) ApagarPantalla();
+                if (Tocado() && MsSinTocar() > 30000) ApagarPantalla();
                 if (SuspenderTrasMin > 0 && reloj.Elapsed.TotalMinutes >= SuspenderTrasMin) Fin("suspender");
             }
 
             void ApagarPantalla()
             {
                 entradaPantalla = UltimaEntrada();
+                rawRaton = PadHub.Shared.LastMouseTick; rawTeclado = PadHub.Shared.LastKbdTick;
                 pantallaApagada = DateTime.UtcNow;
                 try { SendMessage(Handle, 0x0112, (IntPtr)0xF170, (IntPtr)2); } catch { } // WM_SYSCOMMAND, SC_MONITORPOWER, apagada
+            }
+
+            // 22-11 (1.2.2): ¿alguien ha tocado el raton o el teclado desde que se apago la pantalla? Con Raw Input (PadHub, en este proceso),
+            // solo el raton y los teclados (de verdad o inyectados); GetLastInputInfo cuenta tambien los mandos XInput (lo vio MenuJuego.cs:
+            // jugando lo cambiaban cada pocos ms) y con un mando encendido encima de la mesa la pantalla no se volvia a apagar: en el log del
+            // usuario (22-11 04:06:26), "pantalla encendida" 0,17 s despues de apagarla, con "1 mandos conectados", y asi el minuto entero
+            int rawRaton, rawTeclado;
+            bool Tocado()
+            {
+                PadHub h = PadHub.Shared;
+                if (h.RawMouseOk) return h.LastMouseTick != rawRaton || h.LastKbdTick != rawTeclado;
+                return UltimaEntrada() != entradaPantalla;
+            }
+
+            uint MsSinTocar()
+            {
+                PadHub h = PadHub.Shared;
+                uint ahora = (uint)Environment.TickCount;
+                if (!h.RawMouseOk) return ahora - UltimaEntrada();
+                uint r = uint.MaxValue;
+                if (h.LastMouseTick != rawRaton) r = Math.Min(r, ahora - (uint)h.LastMouseTick);
+                if (h.LastKbdTick != rawTeclado) r = Math.Min(r, ahora - (uint)h.LastKbdTick);
+                return r;
             }
 
             // 1.2.1: las teclas de Windows (Win y la de menu) no llegan a Windows mientras dura: la que despierta no abre Inicio encima de la
@@ -559,6 +651,7 @@ namespace ConsoleEnhancer
                 if (hKbd != IntPtr.Zero) { UnhookWindowsHookEx(hKbd); hKbd = IntPtr.Zero; }
                 try { Microsoft.Win32.SystemEvents.SessionEnding -= AlApagarWindows; } catch { }
                 QuitarSonda();
+                if (latido != null) { try { latido.Dispose(); } catch { } latido = null; }
                 base.OnFormClosed(e);
             }
         }

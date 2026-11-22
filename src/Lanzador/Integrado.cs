@@ -231,9 +231,12 @@ namespace ConsoleEnhancer
         public static void CopiaSeguridad(string d)
         {
             if (copiaTimer != null || string.IsNullOrEmpty(d)) return;
-            foreach (string a in Environment.GetCommandLineArgs())   // (pruebas con otra carpeta de datos o simulando otro PC: nada)
+            // (pruebas con otra carpeta de datos o simulando otro PC: nada. 1.2.2: tampoco en la espera ni en sus procesos de ayuda (--espera,
+            // --ce-sonda, --ce-guarda-barra...): con la app cerrada no cambia nada y la copia despertaba el disco y la CPU cada 2 min)
+            foreach (string a in Environment.GetCommandLineArgs())
                 if (a.StartsWith("--datos=", StringComparison.OrdinalIgnoreCase) || a.StartsWith("--simula", StringComparison.OrdinalIgnoreCase) ||
-                    a.StartsWith("--prueba", StringComparison.OrdinalIgnoreCase) || a.StartsWith("--test", StringComparison.OrdinalIgnoreCase)) return;
+                    a.StartsWith("--prueba", StringComparison.OrdinalIgnoreCase) || a.StartsWith("--test", StringComparison.OrdinalIgnoreCase) ||
+                    a == "--espera" || a.StartsWith("--ce-", StringComparison.OrdinalIgnoreCase)) return;
             if (string.Equals(Path.GetFullPath(d).TrimEnd('\\'), Path.GetFullPath(CopiaDir).TrimEnd('\\'), StringComparison.OrdinalIgnoreCase)) return;
             copiaTimer = new System.Threading.Timer(delegate { CopiaAhora(d); }, null, 5000, 120000);
         }
