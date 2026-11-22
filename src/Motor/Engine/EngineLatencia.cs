@@ -59,11 +59,30 @@ namespace ConsoleEnhancer.Motor
         // En el motor, sin (2) (repetidas_30=3 la pone): la nueva justo tras una copia forzada saldria 16,7 ms despues de ella y con Smooth
         // Motion esperaria en la cola de la tele (ver QueueModel) ~16 s; asi pasa su copia (con 2, por (1)) y entre dos presentaciones hay
         // siempre 2 capturas (33,4 ms). Sin Smooth Motion solo cambia el arranque del movimiento tras una imagen quieta (1 refresco)
+        // 22-11 (1.2.3 RITMO2): tenia un fallo de latencia (el mismo que el filtro de mpv, Switch2Magpie.cs FrameFilter): en cuanto pasa una
+        // copia tarde, cada imagen nueva llega 1 captura despues de la ultima que paso y tampoco puede pasar: pasa su copia, y asi SIEMPRE
+        // (todas 16,7 ms tarde) hasta una imagen de 3 refrescos. Pasa con un juego a 30 regular si el motor empieza en la segunda copia (la
+        // mitad de las veces) y tras cada par 3,1. Ahora, tras pasar una copia tarde, la nueva siguiente pasa en cuanto llega (since 1: una
+        // pareja a 16,7 ms y se vuelve a tiempo), como mucho una vez cada 40 capturas (para no pasar de 30 con un juego a 45). Con Smooth
+        // Motion no (salvo repetidas_30=3): esa pareja esperaria en la cola de la tele, como con la regla (2). Medido sin grafica con esta misma
+        // logica y la llamada de Engine.cs (motor_filtro.exe, 1200 imagenes por cadencia): 30 regular empezando en la copia 100 % de las
+        // imagenes 1 refresco tarde -> 0 %; pares 3,1 cada 20 imagenes 93-95 % -> 48 %; una de 3 refrescos cada 60 empezando en la copia
+        // 5 % -> 0 %; 1,3,1,3 igual (50 %, a 2 capturas: se sigue igualando); a 45 fps 30,0 -> 30,6 pasadas/s (perdidas 278 -> 258); imagen
+        // quieta igual; con Smooth Motion igual que antes
+        bool dup30LateCopy;            // la ultima que paso era la copia de una nueva que llego con 1 (paso 1 refresco tarde)
+        long dup30Recovery = -1000;    // capN de la ultima vuelta a tiempo
         bool Pass30(bool isNew, long since)
         {
             bool first = lastPassed < 0;
-            bool pass = first || (since >= 2 && (isNew || dup30PrevNew)) || since >= 3 || (isNew && dup30Forced && s.Dedupe30 >= 3);
-            if (pass) dup30Forced = !isNew && !dup30PrevNew && !first;
+            if (dup30Recovery > capN) dup30Recovery = -1000;   // (capN vuelve a 0 al despertar de la espera)
+            bool back = isNew && dup30LateCopy && since == 1 && capN - dup30Recovery > 40 && (s.SmoothMode == 0 || s.Dedupe30 >= 3);
+            bool pass = first || (since >= 2 && (isNew || dup30PrevNew)) || since >= 3 || (isNew && dup30Forced && s.Dedupe30 >= 3) || back;
+            if (pass)
+            {
+                dup30Forced = !isNew && !dup30PrevNew && !first;
+                dup30LateCopy = !isNew && dup30PrevNew;
+                if (back) dup30Recovery = capN;
+            }
             dup30PrevNew = isNew;
             return pass;
         }

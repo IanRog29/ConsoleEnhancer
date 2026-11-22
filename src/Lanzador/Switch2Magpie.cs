@@ -2008,11 +2008,11 @@ namespace ConsoleEnhancer
             // 16-11 04:20 (G1): y sin generacion en el modo 60, solo la sincronizacion vertical forzada (3: Magpie por DXGI, Config.VsyncNoFgNow)
             // (16-11 10:10: y el modo 30 con DLSS FG, solo la sincronizacion cada 2 refrescos: 4, Config.VsyncHalfFgNow)
             // (22-11, 1.2.2 RITMO: x3 / x4 sin VRR, con la sincronizacion vertical forzada: Config.RitmoFijo1Now)
-            int smWant = cfg.SmoothNow ? (cfg.CapMode && Pantalla.Hz() >= 100 ? 2 : 1) : cfg.VsyncNoFgNow || cfg.VrrDxgiNow || cfg.RitmoFijo1Now ? 3 : cfg.VsyncHalfFgNow ? 4 : 0;
+            int smWant = cfg.SmoothNow ? (cfg.CapMode && Pantalla.Hz() >= 100 ? 2 : 1) : cfg.VsyncNoFgNow || cfg.VrrDxgiNow || cfg.RitmoFijo1Now ? 3 : cfg.VsyncHalfFgNow || cfg.RitmoFijo30SinFgNow ? 4 : 0;   // (1.2.3 RITMO2: magpie_fijo_30)
             if (NvProfiles.SmoothState != smWant)
             {
                 if (write) NvProfiles.SetSmooth(smWant);
-                changes.Add("NVIDIA Smooth Motion para Magpie.exe: " + (smWant == 4 ? "apagar, solo la sincronizacion cada 2 refrescos (30 con DLSS FG por DXGI)" :
+                changes.Add("NVIDIA Smooth Motion para Magpie.exe: " + (smWant == 4 ? "apagar, solo la sincronizacion cada 2 refrescos (el modo 30 por DXGI)" :
                                                                        smWant == 3 ? "apagar, solo la sincronizacion vertical forzada (60 sin generacion por DXGI)" :
                                                                        smWant == 2 ? "encender (sincronizacion cada 2 refrescos)" : smWant == 1 ? "encender" : "apagar"));
             }
@@ -2115,7 +2115,7 @@ namespace ConsoleEnhancer
             // sincronizacion vertical global este forzada a desactivada (por DXGI, en pantalla completa, PresentMon ve cambios inmediatos con
             // cortes: ALLOW_TEARING en el 68-100 % con DLSS FG). Era lo que habia desde la exploracion del 15-11 (13:55, quedo puesto)
             // (16-11 04:20, G1: y el 60 sin generacion, con la sincronizacion vertical forzada en el perfil: Config.VsyncNoFgNow)
-            Set(mine, "disableDirectFlip", !(cfg.SmoothNow || cfg.ReflexNow || cfg.VsyncNoFgNow || cfg.VsyncHalfFgNow || cfg.VrrDxgiNow || cfg.RitmoFijo1Now), w, changes);
+            Set(mine, "disableDirectFlip", !(cfg.SmoothNow || cfg.ReflexNow || cfg.VsyncNoFgNow || cfg.VsyncHalfFgNow || cfg.VrrDxgiNow || cfg.RitmoFijo1Now || cfg.RitmoFijo30SinFgNow), w, changes);
             object fr;
             if (!mine.TryGetValue("frameRefresh", out fr) || !(fr is Dictionary<string, object>)) { fr = new Dictionary<string, object>(); mine["frameRefresh"] = fr; }
                 Set((Dictionary<string, object>)fr, "vrrEnabled", cfg.MagpieVrrNow, w + ".frameRefresh", changes);
@@ -3760,7 +3760,7 @@ namespace ConsoleEnhancer
                 Log.Write("NVIDIA: Smooth Motion para Magpie.exe " + (want == 2 ? "encendido (sincronizacion vertical cada 2 refrescos: modo 30)" :
                                                                       want == 1 ? "encendido (con sincronizacion vertical forzada)" :
                                                                       want == 3 ? "apagado, solo la sincronizacion vertical forzada (60 sin generacion por DXGI)" :
-                                                                      want == 4 ? "apagado, solo la sincronizacion cada 2 refrescos (30 con DLSS FG por DXGI)" : "apagado") +
+                                                                      want == 4 ? "apagado, solo la sincronizacion cada 2 refrescos (el modo 30 por DXGI)" : "apagado") +
                           (ok ? "" : " NO SE PUDO" + (want == 1 || want == 2 ? " (la generacion va con DLSS FG)" : want == 3 ? " (el 60 sin generacion sigue por DirectComposition)" :
                                                               want == 4 ? " (el 30 con DLSS FG sigue por DirectComposition)" : "")) +
                           " en " + sw.ElapsedMilliseconds + " ms");
@@ -7348,6 +7348,7 @@ namespace ConsoleEnhancer
                 }
                 string what = (Config.EngineActive ? "el motor propio" : "mpv") + " pierde el primer plano: lo coge " + who +
                               (back ? " -> devuelto al momento" : Config.EngineActive && unwanted ? " -> no se pudo devolver" : "");
+                RitmoDiag.Ventanal("otra ventana con el primer plano (" + who + ")");   // (1.2.3 RITMO2, src\Lanzador\Ritmo.cs)
                 lock (fgSync)
                 {
                     fgLossN++;
@@ -7712,6 +7713,7 @@ namespace ConsoleEnhancer
                         {
                             st.Captured = double.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture);
                             st.Shown = double.Parse(m.Groups[2].Value, CultureInfo.InvariantCulture);
+                            RitmoDiag.MagpieAnillo(line);   // (1.2.3 RITMO2: su cola llena = imagenes perdidas, src\Lanzador\Ritmo.cs)
                         }
                         else if ((m = System.Text.RegularExpressions.Regex.Match(line, @"Output cadence .*?captureFps=([0-9.]+).*?captureIntervalP95Ms=([0-9.]+).*?captureIntervalMaxMs=([0-9.]+)")).Success)
                         {
@@ -9465,6 +9467,9 @@ namespace ConsoleEnhancer
                     else if (preparando) ev = Math.Max(ev, 1.0);
                     else if (cfg.CaptureNow == "3840x2160") ev = Math.Max(ev, cfg.RitmoGrab4kSecs);   // (22-11, 1.2.2 RITMO: src\Lanzador\Ritmo.cs)
                 }
+                // (1.2.3 RITMO2) las consolas sin menu propio (otra, Xbox...) jugando a 4K: como la PS5, una cada captura_juego_4k_s (1,5 s) y no
+                // cada captura_juego_s (0,6): cada una a 4K tiene a mpv ~18 ms y su hilo ~110 ms con el PNG (2,5 veces menos)
+                else if (!Consolas.Actual.MenuPropio && cfg.CaptureNow == "3840x2160" && !preparando && !InHome) ev = Math.Max(ev, cfg.RitmoGrab4kSecs);
                 if ((now - lastGrab).TotalSeconds >= ev - 1e-6) RequestGrab(true);
                 return;
             }
@@ -13312,6 +13317,7 @@ namespace ConsoleEnhancer
                         {
                             vfFps = int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture);
                             vfNew = m.Groups[2].Value == "new";
+                            RitmoDiag.MpvRitmo(m.Groups[2].Value);   // (1.2.3 RITMO2: la imagen quieta no es un tiron, src\Lanzador\Ritmo.cs)
                             // 15-11: el motor solo cuenta imagenes que le llegan: con ritmo, ya muestra imagen aunque su aviso no llegue
                             // (19:24:53: ni uno, y el motor se cerro a los 30 s "sin imagen"). Solo el de ahora, no uno que se cierra
                             if (vfFps > 0 && Config.EngineActive && readerMpv == mpv) { signalOn = true; videoSignal = true; }
@@ -14382,12 +14388,23 @@ namespace ConsoleEnhancer
         // pasa en cuanto llega. Solo pierde las que no caben ni con 1 refresco de retraso: las mismas que el optimo sabiendo el futuro
         // (30 regular, 20 fps y 60 fps igual que antes). Registros de la expresion: 0 = la anterior era nueva, 1 = esta es nueva,
         // 2 = esta pasa, 3 = la ultima que paso era una copia forzada
+        // 22-11 (1.2.3 RITMO2): (1) tenia un fallo de latencia: una vez que pasa una copia tarde, cada imagen nueva llega 1 refresco despues
+        // de la ultima que paso y tampoco puede pasar: pasa su copia, y asi SIEMPRE, todas 16,7 ms tarde. Le pasa a un juego a 30 regular si mpv
+        // empieza en la segunda copia (la mitad de las veces) y tras cada par 3,1 (un tiron que se recupera); solo lo arregla una imagen de 3
+        // refrescos. Medido sin grafica (mpv --vo=null, 1280x720, fuente con la cadencia): 30 regular 100 % de las imagenes 1 refresco tarde,
+        // pares 3,1 cada 20 el 95 %. Ahora (registros 4, 6 y 7): tras pasar una copia tarde, la nueva siguiente pasa en cuanto llega aunque
+        // sea a 1 refresco (una pareja junta y se vuelve a tiempo), como mucho una vez cada 40 refrescos (para no pasar de 30: a 45 fps sale
+        // a 30,6/s). Medido: 30 regular 6 % tarde (solo hasta la primera vuelta), pares 3,1 46 %, caida 12 -> 0 %; 1,3,1,3 igual que antes (50 %
+        // tarde, a 2 refrescos: se sigue igualando), a 45 fps 30,6 pasadas/s y las mismas perdidas (101 frente a 107), quieta igual
+        // (repetidas_30_sin_perder=1 de siempre; test_filtro= para probar otro)
         public static string FrameFilter(Config cfg)
         {
             if (cfg.TestFrameFilter.Length > 0) return cfg.TestFrameFilter; // (solo pruebas: ini test_filtro)
             if (cfg.CapMode && cfg.Dedupe30Keep)
-                return "@s2dup:lavfi=[select='st(1,gt(scene,0));st(2,isnan(prev_selected_n)+gte(n-prev_selected_n,2)*(ld(1)+ld(0))+gte(n-prev_selected_n,3)+ld(1)*ld(3));" +
-                       "st(3,if(ld(2),eq(ld(1)+ld(0),0)*not(isnan(prev_selected_n)),ld(3)));st(0,ld(1));ld(2)']";
+                return "@s2dup:lavfi=[select='st(1,gt(scene,0));st(7,ld(1)*ld(4)*eq(n-prev_selected_n,1)*gt(n-ld(6),40));" +
+                       "st(2,isnan(prev_selected_n)+gte(n-prev_selected_n,2)*(ld(1)+ld(0))+gte(n-prev_selected_n,3)+ld(1)*ld(3)+ld(7));" +
+                       "st(3,if(ld(2),eq(ld(1)+ld(0),0)*not(isnan(prev_selected_n)),ld(3)));st(4,if(ld(2),eq(ld(1),0)*ld(0),ld(4)));" +
+                       "st(6,if(ld(7),n,ld(6)));st(0,ld(1));ld(2)']";
             return cfg.CapMode
                 ? "@s2dup:lavfi=[select='isnan(prev_selected_n)+gt(scene,0)*gte(n-prev_selected_n,2)+gte(n-prev_selected_n,3)']"
                 : "@s2dup:lavfi=[select='gt(scene,0)+isnan(prev_selected_n)+gte(n-prev_selected_n,2)']";
