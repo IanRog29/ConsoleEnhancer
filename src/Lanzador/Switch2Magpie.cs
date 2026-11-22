@@ -8065,7 +8065,8 @@ namespace ConsoleEnhancer
                 {
                     if (engSet != null) cmdQueue.Add(JsonCmd("engine", "set " + engSet));
                     cmdQueue.Add(JsonCmd("script-message", "switch2-switching", SwitchSecs.ToString(CultureInfo.InvariantCulture)));
-                    if (cfg.TestSource.Length == 0) cmdQueue.Add(JsonCmd("set", "demuxer-lavf-o", LavfOptions(cfg)));
+                    // (1.2.4 arreglos, RELEVO: en pruebas con la fuente del motor -test_motor-, el motor tambien: saca el tamaño de aqui)
+                    if (cfg.TestSource.Length == 0 || (Config.EngineActive && cfg.TestMotor.Length > 0)) cmdQueue.Add(JsonCmd("set", "demuxer-lavf-o", LavfOptions(cfg)));
                     cmdQueue.Add(JsonCmd("loadfile", SourceUrl(cfg), "replace"));
                     // (10-11: al poner los ajustes de un juego, sin aviso: lo mas discreto posible)
                     if (!applying) cmdQueue.Add(OsdCmd("Captura " + SizeName(size), OsdMs, false));
@@ -11640,6 +11641,8 @@ namespace ConsoleEnhancer
         void SendWake(Process e)
         {
             string set = EngineSessionSet(cfg, standbySmooth > 0);
+            // (1.2.4 arreglos, RELEVO: uno que no vale para la generacion de ahora -el puente tras una caida- se despierta sin ella)
+            if (IdentityDiffOf(e, standbySmooth) != null) set = LiveSinGeneracion(set);
             lock (cmdQueue)
             {
                 cmdQueue.Add(JsonCmd("engine", "set " + set));
@@ -14014,16 +14017,21 @@ namespace ConsoleEnhancer
                     string adoptIpc = null;
                     bool adoptNoImage = false;
                     Process adopted = eng ? TakeRelevoEngine(out adoptIpc, out adoptNoImage) : null;
+                    // (1.2.4 arreglos, RELEVO: tras una caida del motor, el motor en espera aunque no valga -sin generacion-, de puente: imagen en
+                    // ~0,5 s en vez del negro de un arranque; luego el relevo al bueno. RelevoMotor.cs CrashWaitMs)
+                    bool puenteCaida = eng && adopted == null && crashBridgeNext && standbyEngine != null;
+                    crashBridgeNext = false;
+                    if (puenteCaida) Log.Write("Tras la caida: el motor en espera (pid " + standbyEngine.Id + ") de puente, sin generacion, mientras se abre el que toca (" + StandbyIdentityDiff() + ")");
                     // 17-11 16:55: un motor en espera abierto con otro Smooth Motion no vale (el driver no lo cambia en marcha): uno nuevo
-                    if (eng && adopted == null && standbyEngine != null && (cfg.EngineSmoothAny || standbySmooth > 0) &&
+                    if (eng && !puenteCaida && adopted == null && standbyEngine != null && (cfg.EngineSmoothAny || standbySmooth > 0) &&
                         standbySmooth != cfg.EngineSmoothMode)
                         KillStandby("Smooth Motion: el motor en espera se abrio " + (standbySmooth > 0 ? "con el (" + standbySmooth + ")" : "sin el"));
                     // 20-11 (LATENCIA5): y uno abierto con otro refresco (fijo en el 60 con DLSS FG / VRR) tampoco
-                    if (eng && adopted == null && standbyEngine != null && Config.EngineFixedOf(standbyEngine) >= 0 &&
+                    if (eng && !puenteCaida && adopted == null && standbyEngine != null && Config.EngineFixedOf(standbyEngine) >= 0 &&
                         Config.EngineFixedOf(standbyEngine) != (cfg.EngineSmoothMode == 0 && cfg.EngineFixedWanted ? 1 : 0))
                         KillStandby("refresco: el motor en espera se abrio " + (Config.EngineFixedOf(standbyEngine) > 0 ? "con el refresco fijo" : "con VRR"));
                     // 21-11 (1.0.9): y uno abierto con otra generacion de motor (FSR 3 FG / la de siempre): la cadena no se cambia en marcha
-                    if (eng && adopted == null && standbyEngine != null && Config.EngineFfxOf(standbyEngine) >= 0 &&
+                    if (eng && !puenteCaida && adopted == null && standbyEngine != null && Config.EngineFfxOf(standbyEngine) >= 0 &&
                         !Config.ChainOk(Config.EngineFfxOf(standbyEngine), cfg.EngineFgChain))   // (1.2.4 arreglos, RELEVO: ChainOk)
                         KillStandby("generacion: el motor en espera se abrio con otra cadena (" + Config.EngineFfxOf(standbyEngine) + ", ahora " + cfg.EngineFgChain + ": 1 FSR 3 FG, 3 DLSS FG x3 / x4 con PrismaFg.dll, 2x / 3x / 4x XeSS FG x2 / x3 / x4, +1 con DLSS SR)");
                     Process woke = adopted ?? (eng ? StandbyForWake() : null);
@@ -14053,10 +14061,15 @@ namespace ConsoleEnhancer
                     if (woke != null)
                     {
                         // Ya no esta en espera: es la imagen, como un motor normal (su tuberia la usa el enlace de siempre; sin el job)
-                        standbyEngine = null;
-                        standbyReady = false;
+                        // (1.2.4 arreglos, RELEVO: el del relevo no era el de espera: el de espera ahora es el motor que se fue -RelevoOldToStandby-,
+                        // y no se suelta: antes se perdia aqui y a los 3 s QuitOldMpv lo cerraba a la fuerza)
+                        if (adopted == null || standbyEngine == woke)
+                        {
+                            standbyEngine = null;
+                            standbyReady = false;
+                            CloseStandbyPipe();
+                        }
                         if (standbyAtExit == woke) standbyAtExit = null;
-                        CloseStandbyPipe();
                         standbyAsked = null;
                         standbyGot = null;
                         EngineJob.Hold(woke, false);
@@ -14382,7 +14395,7 @@ namespace ConsoleEnhancer
                     GraceOffForRelaunch("motor cerrado");
                     int crashWait = CrashWaitMs();
                     if (crashWait > 0) Thread.Sleep(crashWait); // (tras un reinicio de la grafica, un momento para que vuelva)
-                    else Log.Write("Motor en espera listo y valido: se despierta ya (sin la espera de 1,5 s)");
+                    else Log.Write("Motor en espera listo: se despierta ya, sin la espera de 1,5 s" + (crashBridgeNext ? " (no vale para lo de ahora: de puente, sin generacion)" : ""));
                     goto relaunch;
                 }
                 // Cerrado solo (codigo 0) sin pedirlo y sin apagar la consola: la capturadora corto la señal (medido: al abrir

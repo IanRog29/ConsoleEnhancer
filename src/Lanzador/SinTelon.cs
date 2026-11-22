@@ -374,7 +374,10 @@ namespace ConsoleEnhancer
                 try
                 {
                     if (old.WaitForExit(3000)) return;
-                    if (old == standbyEngine || old == standbyGot || old == standbyAsked) return;   // (1.2.4 arreglos: paso a la espera, no se cierra)
+                    // (1.2.4 arreglos, RELEVO: el que paso a la espera no se cierra -aunque ya lo haya despertado otro relevo: en la prueba del
+                    // 22-11 23:04:41 este guardian mato al motor en espera recien despertado y salio el telon 5,2 s-; si no contesta a la espera,
+                    // ya lo cierra RunMpv a los 1,5 s)
+                    if (old == relevoSentStandby || old == standbyEngine || old == standbyGot || old == standbyAsked) return;
                     if (relevoQuit == old) relevoQuit = null;
                     Log.Write("Sin telon: el mpv de antes (pid " + old.Id + ") no se ha cerrado en 3 s: se cierra a la fuerza");
                     old.Kill();

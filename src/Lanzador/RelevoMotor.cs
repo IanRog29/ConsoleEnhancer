@@ -47,14 +47,16 @@ namespace ConsoleEnhancer
         }
 
         // El motor en espera no vale para lo que se pide: por que (null = vale o no hay). Con cfg ya preparada
-        string StandbyIdentityDiff()
+        string StandbyIdentityDiff() { return IdentityDiffOf(standbyEngine, standbySmooth); }
+
+        // Un motor abierto (en espera) con su Smooth Motion 'sm': por que no vale para lo de ahora (null = vale o no hay)
+        string IdentityDiffOf(Process e, int sm)
         {
-            Process e = standbyEngine;
             if (e == null) return null;
             int have = Config.EngineFfxOf(e), want = WantChain;
             if (have >= 0 && !Config.ChainOk(have, want)) return "cadena de generacion " + have + ", ahora " + want;
-            if ((cfg.EngineSmoothAny || standbySmooth > 0) && standbySmooth != cfg.EngineSmoothMode)
-                return "Smooth Motion " + (standbySmooth > 0 ? standbySmooth.ToString(CultureInfo.InvariantCulture) : "no") + ", ahora " + cfg.EngineSmoothMode;
+            if ((cfg.EngineSmoothAny || sm > 0) && sm != cfg.EngineSmoothMode)
+                return "Smooth Motion " + (sm > 0 ? sm.ToString(CultureInfo.InvariantCulture) : "no") + ", ahora " + cfg.EngineSmoothMode;
             int fx = Config.EngineFixedOf(e);
             if (fx >= 0 && fx != WantFixed) return "refresco " + (fx > 0 ? "fijo" : "VRR") + ", ahora " + (WantFixed > 0 ? "fijo" : "VRR");
             return null;
@@ -101,6 +103,7 @@ namespace ConsoleEnhancer
         // ---- 2. El motor que se va pasa a la espera (relevo de motor a motor) ----
 
         volatile bool relevoQuitStandby;    // QuitOldMpv: el que se va es un motor: switch2-standby en vez de quit (MpvLinkLoop)
+        volatile Process relevoSentStandby; // el ultimo motor que se va al que se le pidio la espera (QuitOldMpv no lo cierra a los 3 s)
         volatile int relevoAdoptSmooth = -1; // TakeRelevoEngine: el Smooth Motion del motor del relevo (SetStandby del que se va pisa standbySmooth)
 
         // MpvLinkLoop, con relevoQuit == p: true = se le ha pedido la espera (si no, quit como siempre)
@@ -114,6 +117,7 @@ namespace ConsoleEnhancer
             standbyAskedSw = Stopwatch.StartNew();
             standbyAsked = p;
             switchUntil = DateTime.Now.AddSeconds(3);
+            relevoSentStandby = p;
             w.WriteLine("{\"command\":[\"script-message\",\"switch2-standby\"]}");
             Log.Write("Relevo: el motor que se va (pid " + p.Id + ", cadena " + Config.EngineFfxOf(p) + ", Smooth Motion " + Config.EngineSmoothRunning +
                       ") pasa a la espera en vez de cerrarse: volver a lo de antes sera despertarlo");
@@ -202,15 +206,22 @@ namespace ConsoleEnhancer
             ShowCurtain();
         }
 
-        // RunMpv, el motor se ha cerrado solo: cuanto esperar antes de abrir otro. Con un motor en espera vivo que vale para lo de ahora (su
-        // dispositivo sigue: la grafica esta bien), nada; si no, el 1,5 s de siempre (tras un reinicio de la grafica, que vuelva)
+        // RunMpv, el motor se ha cerrado solo: cuanto esperar antes de abrir otro. Con un motor en espera vivo y listo (su dispositivo sigue:
+        // la grafica esta bien), nada: se despierta ya; si no vale para lo de ahora, de puente sin generacion (crashBridgeNext) y luego el
+        // relevo al bueno (CheckEngineFfx / Smooth / Fixed). Sin el, el 1,5 s de siempre (tras un reinicio de la grafica, que vuelva)
+        volatile bool crashBridgeNext;
         int CrashWaitMs()
         {
+            crashBridgeNext = false;
             try
             {
                 PrepareCfg();
                 Process e = standbyEngine;
-                if (e != null && !e.HasExited && standbyReady && StandbyIdentityDiff() == null) return 0;
+                if (e != null && !e.HasExited && standbyReady && cfg.EngineNow)
+                {
+                    crashBridgeNext = StandbyIdentityDiff() != null;
+                    return 0;
+                }
             }
             catch { }
             return 1500;
