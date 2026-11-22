@@ -236,11 +236,15 @@ void main(uint3 id : SV_DispatchThreadID) {
             nrOver = nrOverHard = 0;
             string key = CapKey, what;
             int curPct = nrW >= inW ? 100 : (int)Math.Round(100.0 * nrW / Math.Max(1, inW));
-            // 22-11 (1.2.4 DLSS5Q): con 2-3 pasadas, primero el % (hasta el 35 %, el minimo de la escala de Magpie con 2-3 pasadas y con
-            // x3 / x4) y luego las pasadas: quitar una pasada cambia mucho mas el aspecto (medido a 4K: 1 -> 2 pasadas, el croma del
-            // efecto de -2 a -7 niveles) que bajar el % (el usuario eligio 2-3 pasadas por su aspecto; Magpie en la 1.2.3 tambien
-            // bajaba el % y no las pasadas)
-            bool pctFirst = s.NrSuave && nrPasses > 1 && curPct > 35;
+            // 22-11 (1.2.4 DLSS5Q): con 2-3 pasadas, primero el % si con las mismas pasadas cabe al 50 % o mas, y si no, las pasadas: quitar
+            // una pasada cambia mucho mas el aspecto (medido a 4K: 1 -> 2 pasadas, el croma del efecto de -2 a -7 niveles) que bajar el %
+            // (el usuario eligio 2-3 pasadas por su aspecto; Magpie en la 1.2.3 tambien bajaba el %), pero rehacer 2-3 DLSSNR a otro
+            // tamaño para la imagen 0,6-1,3 s (medido: 589 ms 2 pasadas, 1298 ms 3) y quitar pasadas no rehace nada (se quedan las que
+            // estaban); por debajo del 50 % DLSS 5 pierde mucho detalle
+            double fijoG = p * 0.3, variaG = p - fijoG, objG = limit * 0.92;
+            int needPct = 25;
+            for (int t = curPct - 5; t >= 25; t -= 5) { needPct = t; if (fijoG + variaG * (t * (double)t) / (curPct * (double)curPct) <= objG) break; }
+            bool pctFirst = s.NrSuave && nrPasses > 1 && curPct > 50 && needPct >= 50;
             if (nrPasses > 1 && !pctFirst)
             {
                 // 22-11 (1.2.4 DLSS5Q): de una vez a las que caben (el 30 % de la grafica no depende de las pasadas): 3 -> 2 -> 1 eran dos
@@ -254,7 +258,7 @@ void main(uint3 id : SV_DispatchThreadID) {
             else
             {
                 int cur = curPct;
-                if (cur <= (pctFirst ? 35 : 50))
+                if (cur <= 50)
                 {
                     if (!nrFloorSaid) { nrFloorSaid = true; Log.Write(string.Format(IC, "DLSS 5 ya esta al minimo del guardian (1 pasada al {0} %) y la grafica sigue sin llegar (p95 {1:0.0} ms, tope {2:0.0})", cur, p, limit)); }
                     return;
@@ -269,7 +273,7 @@ void main(uint3 id : SV_DispatchThreadID) {
                     next = Math.Max(25, cur - 45);
                     for (int t = cur - 10; t >= Math.Max(25, cur - 45); t -= 5) { next = t; if (fijo + varia * (t * (double)t) / (cur * (double)cur) <= obj) break; }
                     next = Math.Min(next, cur > 75 ? 75 : Math.Max(25, cur - 10));
-                    if (pctFirst) next = Math.Max(35, next);
+                    if (pctFirst) next = Math.Max(50, next);
                 }
                 nrPctCap[key] = next;
                 what = (nrPasses > 1 ? nrPasses + " pasadas" : "1 pasada") + " al " + next + " %";
