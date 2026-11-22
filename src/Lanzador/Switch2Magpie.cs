@@ -3204,6 +3204,10 @@ namespace ConsoleEnhancer
             // 16-11 (agente S): un Magpie que se abriera mientras se salia (un reinicio de Magpie a medias) no se queda abierto solo
             try { if (MagpieLive.Running) { MagpieLive.Kill(); Log.Write("Magpie seguia abierto al salir: cerrado"); } }
             catch (Exception ex) { Log.Error("Cerrando Magpie al salir", ex); }
+            // 22-11 (1.2.2, REVISION): nvngx_dlss.dll de Magpie otra vez en su sitio al salir (src\Lanzador\TiemposCarga.cs). Una version
+            // anterior abierta despues en esta carpeta, o en otra que herede esta magpie\ (Integrado.HeredarDatos), no sabe devolverlo y su
+            // DLSS SR (captura de 1080p / 1440p) no arrancaria. Devolverlo con Magpie aun abierto no le afecta (solo lo carga al escalar)
+            DllDlssSr.Poner(true, "al salir");
             // 16-11 (revision): otra vez al final: si tras empezar esto (PowerOffNow) algo relanzo Magpie (la recuperacion de un reinicio de
             // la grafica) y volvio a poner Smooth Motion o la sincronizacion vertical en su perfil. Sin nada puesto no hace nada
             try { NvProfiles.SmoothOffAtExit(); } catch (Exception ex) { Log.Error("Quitando Smooth Motion de Magpie.exe", ex); }
