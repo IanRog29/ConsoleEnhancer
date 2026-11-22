@@ -307,6 +307,15 @@ void main(uint3 id : SV_DispatchThreadID)
             }
         }
 
+        // (1.2.4, integracion) Rota en esta sesion (FpEnsure / FpPresent fallaron): el lanzador lo sabe una vez (switch2-fgpropia rota N) y
+        // pasa x3 / x4 a otro camino. Desde EventTick (EngineMpv.cs), como XeFgFailTick
+        bool fpBrokenSaid;
+        void FpFailTick()
+        {
+            if (fpBrokenSaid || !fpBroken || s.FgOwn < 2 || mpvIpc == null) return;
+            if (mpvIpc.Event("switch2-fgpropia", "rota", s.FgOwn.ToString(IC)) > 0) { fpBrokenSaid = true; Log.Write("Generacion propia: rota, avisado el lanzador"); }
+        }
+
         string FpBench() { return s.FgOwn >= 2 ? "\tfg_propia=x" + s.FgOwn + " inventadas=" + fpGens + " reales=" + fpFrames + (fpBroken ? " rota" : "") : ""; }
     }
 }

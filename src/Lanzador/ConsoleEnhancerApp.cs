@@ -43,6 +43,7 @@ namespace ConsoleEnhancer
             if (CeParseRitmo(key, val)) return true;    // (22-11, 1.2.2: magpie_vrr_30*, magpie_fijo_30_dlss, magpie_ritmo_margen_fg..., src\Ritmo.cs)
             if (CeParseMult(key, val)) return true;     // (1.2.2: generacion_multiplicador, xess_fg_1080, src\Lanzador\Multiplicador.cs)
             if (key == "motor_fg_multi") { MotorFgMulti = val.Trim() != "0"; return true; }   // (1.2.4 MOTORFG: src\Lanzador\MotorFg.cs)
+            if (key == "motor_fg_propia") { MotorFgPropia = val.Trim() != "0"; return true; }   // (1.2.4: la generacion propia del motor para x3 / x4, MotorFg.cs)
             if (CeParseReescalado(key, val)) return true; // (22-11, 1.2.2: magpie_nitidez_transformer..., src\Lanzador\Reescalado.cs)
             switch (key)
             {

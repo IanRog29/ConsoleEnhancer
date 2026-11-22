@@ -19,16 +19,16 @@ namespace ConsoleEnhancer
     {
         // ===== EL REPARTO: ¿sabe el motor hacer esta generacion? (tipo: dlss, smooth, fsr3, xess, vfg; mult 2-4) =====
         // El resto (FgMagpieOnly, la cadena del motor, el log) ya lo mira. Lo que no este aqui va por Magpie sin decirlo.
-        // (1.2.4 integracion: XeSS FG y DLSS FG x3 / x4 los decide MOTORFG en Config.MotorFgSabe, src\Lanzador\MotorFg.cs: XeSS FG x2 en el
-        // motor -x3 / x4 solo en Intel-, DLSS FG x3 / x4 solo donde el runtime de NVIDIA los da -RTX 50-; lo demas, por Magpie)
+        // (1.2.4 integracion: XeSS FG y DLSS FG x3 / x4 los decide MotorFgVia, src\Lanzador\MotorFg.cs: XeSS FG x2 en el motor; x3 / x4 por
+        // la via oficial -RTX 50, Intel-, con PrismaFg.dll -RTX 40- o con la generacion propia del motor; Magpie solo si nada de eso vale)
         public static bool MotorSabeGeneracion(string tipo, int mult)
         {
             switch (tipo ?? "")
             {
-                case "dlss": return mult <= 2 || MotorFgSabe("dlss", mult);   // DLSS-G de Streamline en el motor: x2; x3 / x4 por la via oficial (RTX 50)
+                case "dlss": return mult <= 2 || MotorFgVia("dlss", mult) != "";   // DLSS-G de Streamline en el motor: x2; x3 / x4 por la via oficial (RTX 50), PrismaFg o la generacion propia
                 case "smooth": return true;       // Smooth Motion del driver sobre el motor
                 case "fsr3": return mult <= 2;   // FSR 3 FG del motor (EngineFgFfx.cs; con DLSS de escalador no: FgMagpieOnly)
-                case "xess": return MotorFgSabe("xess", mult);   // XeSS FG del motor (EngineFgXe.cs): x2; x3 / x4 solo en Intel
+                case "xess": return MotorFgSabe("xess", mult) || MotorFgVia("xess", mult) != "";   // XeSS FG del motor (EngineFgXe.cs): x2; x3 / x4 en Intel o con la generacion propia
                 case "vfg": return false;         // NVIDIA VFG: solo Magpie
                 default: return true;              // "" / "no": sin generacion
             }

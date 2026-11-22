@@ -1243,7 +1243,7 @@ namespace ConsoleEnhancer
                         ", entrada " + (Dlss5PctShownNow > 0 ? Dlss5PctShownNow + " %" : "adaptativa") + (EngineDlss5Now ? ", en el motor propio" : LightNow ? ", ligero" : "") +
                         (!EngineDlss5Now && Dlss5EveryNow > 1 ? ", modelo 1 de cada " + Dlss5EveryNow : "") +
                         (AntiFlickerNow > 0 ? ", antiparpadeo " + AntiFlickerNow : "")) +
-                       (FgOff ? ", sin generacion" : ", " + FgName + " x" + FgMultNow) + (RtxHdr ? ", RTX HDR " + RtxHdrNits + " nits" : "") + (ReflexNow ? ", Reflex" : "");
+                       (FgOff ? ", sin generacion" : ", " + FgName + " x" + FgMultNow + (MotorFgPropiaAhora ? " (generacion propia del motor)" : "")) + (RtxHdr ? ", RTX HDR " + RtxHdrNits + " nits" : "") + (ReflexNow ? ", Reflex" : "");
             }
         }
 
@@ -11988,6 +11988,9 @@ namespace ConsoleEnhancer
         static string EngineLive(Config cfg, bool smooth)
         {
             bool fg = !cfg.FgOff && !cfg.HomeNative && !smooth && !cfg.Mode120 && (cfg.CapMode || Pantalla.Hz() >= 100);   // (ConsoleEnhancer: modo 60 con la pantalla a 60 Hz: sin generacion)   // (17:50: tambien en el modo 30; 20-11 HZ120: a 120 sin generacion de fotogramas)
+            // (1.2.4, integracion: x3 / x4 con la generacion propia del motor -EngineFgPropia.cs-: fg=0 y fg_propia=N, MotorFgLive)
+            bool genOn = fg;   // (con Smooth Motion -el de reserva-, en el HOME o sin generacion: ni DLSS-G ni la propia)
+            if (fg && cfg.MotorFgPropiaAhora) fg = false;
             return "fg=" + (fg ? "1" : "0") + " mode=" + (cfg.Mode120 && !cfg.HomeNative ? "120" : cfg.CapMode && !cfg.HomeNative ? "30" : "60") +
                    " preset=" + cfg.EnginePresetNow + " upscaler=" + Ce.EngineUpscaler(cfg) +
                    " sharp=" + EngineSharpen(cfg).ToString("0.00", CultureInfo.InvariantCulture) +
@@ -11998,7 +12001,7 @@ namespace ConsoleEnhancer
                    " dedupe=" + (DedupeOn(cfg, !cfg.FgOff) ? "1" : "0") +
                    // 16-11 noche: la captura reducida antes de DLSS (motor_entrada_<modo>_<captura>=WxH; 0 = tal cual)
                    " entrada=" + cfg.EngineInNow + EngineDlss5Args(cfg) +
-                   cfg.MotorFgLive();   // (1.2.4 MOTORFG: el multiplicador de DLSS FG en marcha, src\Lanzador\MotorFg.cs)
+                   (genOn ? cfg.MotorFgLive() : " fg_propia=0");   // (1.2.4 MOTORFG: el multiplicador de DLSS FG en marcha, src\Lanzador\MotorFg.cs; y la generacion propia)
         }
 
         // 20-11 (DLSS 5 EN EL MOTOR): nivel, estilo, modelo, mascara e interfaz de DLSS 5 para el motor (EngineDlss5.cs); dlss5=0 si no toca

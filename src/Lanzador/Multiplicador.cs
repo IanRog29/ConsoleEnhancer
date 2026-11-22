@@ -155,8 +155,8 @@ namespace ConsoleEnhancer
                 }
             }
             // DLSS FG x3 / x4 va por Magpie, que necesita runtimes\dlssg_sm86 (tambien en RTX 40). (1.2.4, integracion: salvo donde el motor
-            // los hace por la via oficial -RTX 50, MotorFg.cs-: ahi no hace falta, y la app ya no lo baja)
-            if (tipo == "dlss" && !Integrado.MagpieDlssgOk && !(Engine == "propio" && MotorFgSabe("dlss", m)))
+            // los hace -via oficial en RTX 50, PrismaFg.dll o la generacion propia, MotorFg.cs-: ahi no hace falta, y la app ya no lo baja)
+            if (tipo == "dlss" && !Integrado.MagpieDlssgOk && MotorFgViaAhora("dlss", m) == "")
             {
                 MultPideSm86 = true;
                 if (Componentes.Sm86Bajando) { es = "preparando un componente…"; en = "getting a component ready…"; }
@@ -475,6 +475,7 @@ namespace ConsoleEnhancer
             // (1.2.3 REVISION3: con la escala automatica elegida, no Dlss5AutoAhora: con DLSS 5 en el motor -x2, engine\PrismaNr.dll- es falso y el
             // menu no avisaba de que con x3 / x4, que van por Magpie y su escala, DLSS 5 no cabe y se quita)
             if (!(Dlss5AutoOn && Dlss5InputPct == 0) || !Integrado.Dlss5Available) return true;
+            if (MotorFgViaAhora(tipo, m) != "") return true;   // (1.2.4, integracion: x3 / x4 en el motor con DLSS 5 en el motor: la escala de Magpie no cuenta)
             try
             {
                 CadenaEscala c = CadenaEscalaPara(1);
@@ -587,11 +588,11 @@ namespace ConsoleEnhancer
                 lastPadAction = DateTime.Now;
                 PrepareCfg();
                 bool engine = cfg.EngineNow;
-                Log.Write("Multiplicador: " + cfg.FgName + " x" + m + " en el modo " + (cfg.CapMode ? "30" : "60") + " (antes x" + antes + ")" +
+                Log.Write("Multiplicador: " + cfg.FgName + " x" + m + cfg.MotorFgViaNota(t, m) + " en el modo " + (cfg.CapMode ? "30" : "60") + " (antes x" + antes + ")" +
                           (engine != engineAntes ? (engine ? ": al motor propio (x" + m + ")" : ": a mpv + Magpie (el motor propio no hace " + cfg.FgName + " x" + m + " en esta grafica)") : ReopenNote) + " · " + cfg.ProfileText);
                 SaveCurProfile();
                 double b = Config.MultBase(cfg.CapMode);
-                RestartLs(cfg.FgName + " x" + m, (cfg.CapMode ? "30" : "60") + " → " + Math.Round(b * m).ToString(CultureInfo.InvariantCulture) + " fps", false, true);
+                RestartLs(cfg.FgName + " x" + m + cfg.MotorFgViaNota(t, m), (cfg.CapMode ? "30" : "60") + " → " + Math.Round(b * m).ToString(CultureInfo.InvariantCulture) + " fps", false, true);
                 if (!auto) MultAvisoPrueba(m, t);
             }
             finally { Interlocked.Exchange(ref fgBusy, 0); }
@@ -679,7 +680,7 @@ namespace ConsoleEnhancer
                         string nota = bloq ? " · " + Tx.T(es, en) : "";
                         if (!bloq && (es = cfg.ProteNoVa(cfg.CapMode, m, t, out en)) != null) nota = " · " + Tx.T(es + " (se prueba)", en + " (tried if picked)");
                         else if (!bloq && (es = cfg.ProteAviso(cfg.CapMode, m, t, out en)) != null) nota = " · " + Tx.T(es, en);
-                        ToolStripMenuItem it = new ToolStripMenuItem("x" + m + "  (" + Math.Round(b * m).ToString(CultureInfo.InvariantCulture) + " fps)" + nota, null, delegate
+                        ToolStripMenuItem it = new ToolStripMenuItem("x" + m + cfg.MotorFgViaNota(t, m) + "  (" + Math.Round(b * m).ToString(CultureInfo.InvariantCulture) + " fps)" + nota, null, delegate
                         {
                             DesdeBandeja("multiplicador x" + mm, true, delegate { MultElegir(mm, 0); });
                         });
@@ -733,6 +734,8 @@ namespace ConsoleEnhancer
             List<string> libres = new List<string>(), motivos = new List<string>();
             for (int m = 2; m <= 4; m++)
             {
+                // (1.2.4, integracion: con que va x3 / x4 si no es lo de siempre: "x4 (FG propia)", la generacion propia del motor)
+                if (m - 2 < f.Txts.Count) f.Txts[m - 2] = "x" + m + (Config.MultTipo(tipoSel) ? cfg.MotorFgViaNota(tipoSel, m) : "");
                 string r = cfg.MultMotivo(cap30, m, tipoSel);
                 f.Bloq.Add(r);
                 if (r.Length == 0) libres.Add("x" + m);

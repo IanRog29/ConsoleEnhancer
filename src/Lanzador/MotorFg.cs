@@ -32,6 +32,50 @@ namespace ConsoleEnhancer
         // Lo que el motor dijo que no puede en esta sesion ("dlss4", "xess3"...)
         static readonly HashSet<string> motorFgNo = new HashSet<string>();
 
+        // ---- (1.2.4, integracion; decision del coordinador: "todo por el motor y legal") la GENERACION PROPIA del motor (EngineFgPropia.cs,
+        // DLSS5LEGAL: codigo propio con los vectores del motor, cualquier grafica) entra en el reparto para x3 / x4. Orden para x3 / x4:
+        //   1. el motor por la via oficial (DLSS FG x3 / x4 en RTX 50 por Streamline; XeSS FG x3 / x4 en Intel) -> "oficial"
+        //   2. el motor con la pieza privada PrismaFg.dll (DLSS FG x3 / x4 en RTX 40), si esta                    -> "privada"
+        //   3. el motor con la generacion propia (x3 / x4 en RTX 20/30/40 sin la pieza, AMD / Intel sin otra)    -> "propia"
+        //   4. Magpie solo si nada de eso vale (motor_fg_propia=0, motor_fg_multi=0, o el motor dijo que no)        -> ""
+        // DLSS FG x2 / XeSS FG x2 siguen como estaban. ini motor_fg_propia=1|0 (de serie 1; 0 = x3 / x4 sin la propia: Magpie como antes)
+        public static volatile bool MotorFgPropia = true;
+        public static bool MotorFgPropiaSabe(int mult)
+        {
+            if (mult < 3 || mult > 4 || !MotorFgMulti || !MotorFgPropia) return false;
+            lock (motorFgNo) return !motorFgNo.Contains("propia" + mult);
+        }
+        // Por donde haria el motor esta generacion x mult (x3 / x4; con x2: "" = la de siempre)
+        public static string MotorFgVia(string tipo, int mult)
+        {
+            mult = Math.Max(2, Math.Min(4, mult));
+            if (mult <= 2 || (tipo != "dlss" && tipo != "xess")) return "";
+            if (MotorFgSabe(tipo, mult)) return tipo == "dlss" && MotorFgFamilia() != "rtx50" ? "privada" : "oficial";
+            return MotorFgPropiaSabe(mult) ? "propia" : "";
+        }
+        // ¿La haria el motor de verdad con lo de ahora? (DLSS 5 sin engine\PrismaNr.dll manda la imagen a Magpie: ahi no). Sin propiedades que
+        // vuelvan a la cuenta del multiplicador (se usa dentro de MultBloqueado / la prevision)
+        public string MotorFgViaAhora(string tipo, int mult)
+        {
+            if (Engine != "propio" || !(Dlss5Off || MotorDlss5Disponible)) return "";
+            return MotorFgVia(tipo, mult);
+        }
+        // La generacion propia con lo que va ahora (EngineLive: fg=0 fg_propia=N)
+        public bool MotorFgPropiaAhora
+        {
+            get
+            {
+                if (FgOff || HomeNative || Mode120 || !MultOn) return false;
+                string t = FgTypeNow;
+                return (t == "dlss" || t == "xess") && MotorFgVia(t, MotorFgMult) == "propia";
+            }
+        }
+        // " (FG propia)" / " (own FG)" para los textos del multiplicador (menu, bandeja, avisos, log)
+        public string MotorFgViaNota(string tipo, int mult)
+        {
+            return MotorFgViaAhora(tipo, mult) == "propia" ? Tx.T(" (FG propia)", " (own FG)") : "";
+        }
+
         // La familia de la grafica (la de la escala automatica: escala_gpu_familia del ini o data\hardware.txt): rtx20 / 30 / 40 / 50 / otra
         static string MotorFgFamilia()
         {
@@ -114,12 +158,14 @@ namespace ConsoleEnhancer
         }
 
         // En marcha (EngineLive): el multiplicador de DLSS FG (x3 / x4 solo si el motor lo sabe hacer; si no, 2)
+        // (1.2.4, integracion: y la generacion propia, fg_propia=N con fg=0 -EngineLive-; fg_propia=0 en lo demas, para quitarla en marcha)
         public string MotorFgLive()
         {
-            if (FgOff || FgTypeNow != "dlss") return "";
+            if (MotorFgPropiaAhora) return " fg_propia=" + MotorFgMult.ToString(CultureInfo.InvariantCulture);
+            if (FgOff || FgTypeNow != "dlss") return " fg_propia=0";
             int m = Math.Max(2, Math.Min(4, FgMultNow));
             if (m > 2 && !MotorFgSabe("dlss", m)) m = 2;
-            return " fg_mult=" + m.ToString(CultureInfo.InvariantCulture);
+            return " fg_mult=" + m.ToString(CultureInfo.InvariantCulture) + " fg_propia=0";
         }
 
         // Imagenes en la tele por cada una del juego con lo que hace el motor ahora (para el refresco fijo, ImagenCe.CeRefrescoFijoAhora):
@@ -141,8 +187,25 @@ namespace ConsoleEnhancer
     partial class TrayApp
     {
         // MpvReader: {"event":"client-message","args":["switch2-fgmult","no","<pedido>","<da>"]} del motor (EngineFgMulti.cs / EngineFgXe.cs)
+        // (1.2.4, integracion) y ["switch2-fgpropia","rota","<N>"] (EngineFgPropia.cs: la generacion propia fallo): sin ella en esta sesion
         bool MotorFgEvento(string line)
         {
+            if (line.Contains("\"args\":[\"switch2-fgpropia\""))
+            {
+                System.Text.RegularExpressions.Match mp = System.Text.RegularExpressions.Regex.Match(line, "\"switch2-fgpropia\",\"([^\"]*)\",\"(\\d)\"");
+                if (!mp.Success || mp.Groups[1].Value != "rota") return true;
+                int k = int.Parse(mp.Groups[2].Value, CultureInfo.InvariantCulture);
+                Config.MotorFgNoPuede("propia", 3); Config.MotorFgNoPuede("propia", 4);
+                Log.Write("Motor: su generacion propia (x" + k + ") ha fallado: en esta sesion x3 / x4 van por otro camino");
+                PrepareCfg();
+                if (!cfg.FgOff)
+                    System.Threading.ThreadPool.QueueUserWorkItem(delegate
+                    {
+                        try { System.Threading.Thread.Sleep(300); RestartLs(cfg.FgName + " x" + k, Tx.T("la generación propia del motor ha fallado", "the engine's own frame generation failed")); }
+                        catch (Exception ex) { Log.Error("generacion propia: otro camino", ex); }
+                    });
+                return true;
+            }
             if (!line.Contains("\"args\":[\"switch2-fgmult\"")) return false;
             System.Text.RegularExpressions.Match m = System.Text.RegularExpressions.Regex.Match(line, "\"switch2-fgmult\",\"([^\"]*)\",\"(\\d)\",\"(\\d)\"");
             if (!m.Success || m.Groups[1].Value != "no") return true;
