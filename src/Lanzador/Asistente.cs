@@ -350,12 +350,10 @@ namespace ConsoleEnhancer
                 Button d5 = BotonCuerpo(Extras.HayDlss5 ? Tx.T("Quitar DLSS 5", "Remove DLSS 5") : Tx.T("Añadir DLSS 5 (tu archivo)…", "Add DLSS 5 (your file)…"), 16, 396, delegate
                 {
                     if (soloVer) return;
-                    if (Extras.HayDlss5) { if (!Extras.Quitar(this)) return; motorDlss5 = false; }
+                    if (Extras.HayDlss5) { if (!Extras.Quitar(this)) return; }
                     else
                     {
-                        bool motor;
-                        if (!Extras.Anadir(this, out motor)) return;
-                        motorDlss5 = motor;
+                        if (!Extras.Anadir(this)) return;
                         Ce.PrepararExtras();   // (a magpie\: Magpie no esta abierto durante el asistente)
                     }
                     Extras.Redetectar(hw);
@@ -375,7 +373,6 @@ namespace ConsoleEnhancer
             cuerpo.Controls.Add(ko);
         }
 
-        bool motorDlss5;   // (20-11, PUBLICAR) DLSS 5 en el motor propio: se pone en el ini al guardar (EscribirIni lo rehace)
 
         // (20-11, PUBLICAR) mpv y Magpie (reescalado y generacion por Magpie): que esten y como volver a bajarlos
         static string Componentes_()
@@ -440,7 +437,6 @@ namespace ConsoleEnhancer
                 if (apagarPc) Ce.IniPoner("apagar_pc_modo", modoApagado);
                 if (sinAudio) Log.Write("Asistente: sin sonido de la consola");
                 GuardarImagen();   // (20-11: RTX HDR: el permiso de administrador de una vez, AsistenteImagen.cs)
-                if (motorDlss5 && Extras.HayDlss5 && Extras.MotorPuede) { Ce.IniPoner("motor_dlss5", "1"); Log.Write("Asistente: DLSS 5 en el motor propio (motor_dlss5=1)"); }
                 // (19-11) la tarea de inicio ya (si no, la pondria la app al arrancar)
                 try
                 {

@@ -318,6 +318,7 @@ namespace ConsoleEnhancer
         // 22-11 (1.2.2): base.ini con valores de serie nuevos (dlss5_antiparpadeo_30_1pasada=3, magpie_nitidez_transformer, dlss_flujo_transformer,
         // color / detalle / contener de 2-3 pasadas a 4K, enfoque_sin_reescalado, motor_uso_grafica, espera_sonda_cada_ms) y, en graficas lentas,
         // el plan pone tabla_ligero_30* (Escalas.cs). (1.0.10): DLSS FG en RTX 30 con dlssg_sm86 (dlssg_solo_magpie); (1.0.9) capturas_120 y XeSS FG
+        // 22-11 (1.2.4, SOLOMOTOR): motor_dlss5 fuera (SinClavesQuitadas, tambien de lo de abajo); motor_dlss5_pasadas=3
         // 22-11 (1.2.3): motor_dlss5=auto y motor_dlss5_pasadas (DLSS 5 en el motor con engine\PrismaNr.dll), la escala de DLSS 5 por el hilo de
         // Magpie (dlss5_escala_hilo / dlss5_escala_grafica / generacion_dlss5_minimo) y comentarios del ritmo (magpie_fijo_30*)
         public const string IniVersion = "1.2.3";
@@ -361,8 +362,10 @@ namespace ConsoleEnhancer
                 // solo escribia el 1; "Quitar DLSS 5", el 0 al quitarla): en un ini de antes de la 1.2.3 ese 0 no es una eleccion, y se quedaba
                 // encima del auto nuevo (con engine\PrismaNr.dll DLSS 5 seguia por Magpie tras actualizar; simulado con el ini del usuario: la
                 // ultima linea salia motor_dlss5=0). Desde la 1.2.3 el 0 si se elige (menu de ajustes, bandeja, "Añadir DLSS 5" -> No): se conserva
-                string md5;
-                if (elegidas.TryGetValue("motor_dlss5", out md5) && md5.Trim() == "0" && IniAnteriorA(t, 1, 2, 3)) elegidas.Remove("motor_dlss5");
+                // (1.2.4 SOLOMOTOR: motor_dlss5 ya no se elige -con engine\PrismaNr.dll DLSS 5 siempre en el motor-: fuera de todo el ini, tambien
+                // de lo del plan y de lo conservado de antes; un motor_dlss5=0 del usuario ya no lo manda a Magpie)
+                resto = SinClavesQuitadas(resto);
+                cola = SinClavesQuitadas(cola);
                 StringBuilder gen = new StringBuilder();
                 try
                 {
@@ -417,7 +420,27 @@ namespace ConsoleEnhancer
         }
 
         // (22-11, 1.2.2) lo elegido en la bandeja / el panel / el asistente que puede estar en una linea del base.ini viejo (ActualizarIni)
-        static readonly string[] ClavesElegidas = { "apagar_pc_modo", "apagar_pc_aviso_s", "motor_dlss5", "escritorio_negro" };
+        static readonly string[] ClavesElegidas = { "apagar_pc_modo", "apagar_pc_aviso_s", "escritorio_negro" };
+
+        // (22-11, 1.2.4 SOLOMOTOR) las claves que ya no existen y se quitan de todo el ini al ponerlo al dia: motor_dlss5=0|1|auto (la eleccion
+        // del DLSS 5 por el motor o por Magpie)
+        static readonly string[] ClavesQuitadas = { "motor_dlss5" };
+        public static string SinClavesQuitadasPrueba(string texto) { return SinClavesQuitadas(texto); }   // (--test-solo-motor)
+        static string SinClavesQuitadas(string texto)
+        {
+            if (string.IsNullOrEmpty(texto)) return texto;
+            StringBuilder sb = new StringBuilder();
+            string[] ls = texto.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
+            for (int n = 0; n < ls.Length; n++)
+            {
+                string l = ls[n].Trim();
+                int i = l.IndexOf('=');
+                if (i > 0 && !l.StartsWith("#") && Array.IndexOf(ClavesQuitadas, l.Substring(0, i).Trim().ToLowerInvariant()) >= 0) continue;
+                sb.Append(ls[n]);
+                if (n < ls.Length - 1) sb.Append("\r\n");
+            }
+            return sb.ToString();
+        }
 
         // (1.2.3 REVISION3) ¿La marca "# ce_ini_version=" del ini (su ultima puesta al dia) es de antes de la a.b.c? Sin marca: si (de antes
         // de la 1.0.7). Las 1.2.01-1.2.09 van entre la 1.2.0 y la 1.2.1 (el "0x" cuenta como 0)

@@ -5,8 +5,8 @@
 //    nombre esperado, se avisa una vez de que no es oficial ni la soporta NVIDIA y se copia a <app>\extras\ (donde la busca la
 //    deteccion, OpcionesDeteccion.RutasExtra, y de donde Ce.PrepararExtras la copia a magpie\). La app NO dice de donde sacarla ni
 //    enlaza ninguna descarga. "Quitar DLSS 5" lo borra de extras\ (PrepararExtras quita luego la copia de magpie\).
-//  - Encender DLSS 5: games\dlss5_on.txt (como el boton A jugando). DLSS 5 dentro del motor propio (motor_dlss5=1) solo si junto
-//    al motor esta PrismaNr.dll (de uso propio, no se publica): sin ella va por mpv + Magpie.
+//  - Encender DLSS 5: games\dlss5_on.txt (como el boton A jugando). DLSS 5 dentro del motor propio siempre que junto
+//    al motor este PrismaNr.dll (de uso propio, no se publica; 1.2.4: sin preguntar ni clave): sin ella va por mpv + Magpie.
 //  - Componentes (mpv, Magpie): comprobar y volver a bajar (--componentes-reparar, Componentes.cs).
 //  - Apoyo: Ko-fi, siempre opcional (la app es gratis y completa).
 using System;
@@ -87,10 +87,10 @@ namespace ConsoleEnhancer
 
         static void Mal(IWin32Window w, string t) { MessageBox.Show(w, t, "ConsoleEnhancer", MessageBoxButtons.OK, MessageBoxIcon.Warning); }
 
-        // El asistente de "Anadir DLSS 5". true = se ha copiado. motor: el usuario quiere DLSS 5 en el motor propio (motor_dlss5=1)
-        public static bool Anadir(IWin32Window w, out bool motor)
+        // El asistente de "Anadir DLSS 5". true = se ha copiado (1.2.4 SOLOMOTOR: sin la pregunta del motor: con engine\PrismaNr.dll DLSS 5
+        // va siempre en el motor, SoloMotor.cs)
+        public static bool Anadir(IWin32Window w)
         {
-            motor = false;
             // el aviso, una vez por cada vez que se anade
             if (!Pregunta(w, Tx.T(
                     "DLSS 5 no es una función oficial.\r\n\r\n" +
@@ -157,13 +157,6 @@ namespace ConsoleEnhancer
             bool on = Pregunta(w, Tx.T("¿Encender DLSS 5 ya? (Jugando se enciende y se apaga con el botón A del mando.)",
                                        "Turn DLSS 5 on now? (While playing, the controller's A button turns it on and off.)"), MessageBoxIcon.Question);
             PonerActivo(on);
-            if (on && MotorPuede)
-            {
-                motor = Pregunta(w, Tx.T("Junto al motor está PrismaNr.dll: ¿hacer DLSS 5 en el motor propio (menos retraso) en vez de mpv + Magpie?",
-                                         "PrismaNr.dll is next to the engine: run DLSS 5 in the built-in engine (lower latency) instead of mpv + Magpie?"), MessageBoxIcon.Question);
-                // (22-11, 1.2.3 MOTOR5: con motor_dlss5=auto de serie, el "no" tambien va al ini; el "si" lo ponen los que llaman)
-                if (!motor) Ce.IniPoner("motor_dlss5", "0");
-            }
             Integrado.Dlss5Rever();
             return true;
         }
@@ -290,7 +283,6 @@ namespace ConsoleEnhancer
                 QuitarSm86();
                 string mag = Path.Combine(Paths.MagpieDir, Integrado.Dlss5Dll);
                 try { if (File.Exists(mag + ".de_extras")) { if (File.Exists(mag)) File.Delete(mag); File.Delete(mag + ".de_extras"); } } catch { }
-                if (Ce.IniLeer("motor_dlss5") == "1") Ce.IniPoner("motor_dlss5", "0");
                 Integrado.Dlss5Rever();
                 Log.Write("DLSS 5 quitado por el usuario (extras\\)");
                 ExtrasGuardados.QuitarDlss5();   // (1.2.3 MOTOR5: y de lo guardado fuera de la app: una version nueva ya no lo recoge)
@@ -346,9 +338,7 @@ namespace ConsoleEnhancer
             menu.Items.Add(Tx.T("Componentes: comprobar / volver a descargar", "Components: check / download again"), null, delegate { MenuComponentes(); });
             ToolStripMenuItem d5 = new ToolStripMenuItem("", null, delegate
             {
-                bool motor;
-                if (!Extras.Anadir(null, out motor)) return;
-                if (motor) Ce.IniPoner("motor_dlss5", "1");
+                if (!Extras.Anadir(null)) return;
                 Ce.PrepararExtras();
                 bool asis = MessageBox.Show(Tx.T("DLSS 5 añadido. La app se vuelve a abrir para usarlo.\r\n\r\n¿Abrir antes el asistente para que ajuste DLSS 5 a tu gráfica? (recomendado)",
                                                  "DLSS 5 added. The app reopens to use it.\r\n\r\nOpen the setup wizard first so it tunes DLSS 5 for your GPU? (recommended)"),
