@@ -12,7 +12,11 @@
 // ("sin escalar": DLSSNR y la generacion, sin DLSS SR) el de DLSS SR (310.7.0) se llevaba ~1,5-2,5 s (magpie.log del usuario: buscarlo,
 // abrirlo, sus cubins). El driver no trae otro DLSS SR (solo DLSS-G en DriverStore), asi que sin el fichero NGX no lo carga. Antes de
 // abrir Magpie (EnsureLossless, PrestartMagpie) se aparta (nvngx_dlss.dll.ce-sin-uso) o se devuelve segun la cadena que se ha escrito;
-// al abrir la app se devuelve siempre (el manifiesto de Magpie lo pide). El motor propio usa el suyo (engine\), no este
+// al abrir la app se devuelve siempre (el manifiesto de Magpie lo pide). El motor propio usa el suyo (engine\), no este.
+// Medido el 22-11 (fuente de prueba a 4K, DLSS 5 nivel 2-3 con 1 pasada + DLSS FG o XeSS FG; la tele en reposo, a 60 Hz): de empezar a
+// escalar a su primera imagen 7,3-7,7 s con el DLL y 5,5-6,3 s sin el (el nucleo de NGX 4,6-5,1 s -> 3,1-3,7 s); DLSSNR igual
+// (created=true, 0 errores). Con DLSS SR en la cadena (1080p) se devuelve y va como siempre. Aplicar / entrar en un juego a 4K: ~1,5-2,4 s
+// menos. El motor en espera al abrir la app: listo a los 7,1-7,8 s (antes 7,8-8,3 s en la prueba; en el log del usuario 10,4 s)
 using System;
 using System.Collections.Generic;
 using System.Globalization;

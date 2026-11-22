@@ -11263,7 +11263,8 @@ namespace ConsoleEnhancer
         // Hasta que no quede el Magpie matado (como KillMagpieNow con wait). since: desde el boton de matarlo
         void WaitMagpieGone(Stopwatch since)
         {
-            // (22-11, 1.2.2: tambien cuando suelta su candado de instancia unica, para ver si el nuevo podria abrirse antes)
+            // (22-11, 1.2.2: tambien cuando suelta su candado de instancia unica, para ver si el nuevo podria abrirse antes. Medido: suelto a
+            // los 400-490 ms y fuera del todo a los 550-610 ms: abrir el nuevo con el viejo aun saliendo ahorraria ~150 ms, no compensa)
             long lockFree = -1;
             while (MagpieLive.Running && since.ElapsedMilliseconds < 6000)
             {
