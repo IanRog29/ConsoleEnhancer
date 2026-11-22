@@ -188,6 +188,7 @@ namespace ConsoleEnhancer.Motor
         public bool TestFine = false;              // test_fino=1 (Parallax.cs)
         public string TestTexture = "zoom_oot.png";   // 17-11 (borrosidad): test_textura=<png 4K> para test=zoom (18-11, MOTOR-CE: relativa a la carpeta del exe)
         public int TestZoomKind = 0;               // test_zoom=1: test=zoom solo con traslacion (comprobar la verdad)
+        public string TestDir = "h";              // 22-11 (1.2.2, CALIDAD) test=finas: paneo h, v o hv (Finas.cs)
         public double RejasNear = 0.5, RejasFar = 0.9;   // prof_cerca / prof_lejos: profundidad de la reja y del cielo (mvverdad=2/3)
         public int TestNoise = 0;                   // test_ruido=N
         public int InW = 0, InH = 0;                // entrada=WxH: la captura reducida a esto antes de DLSS (0 = la captura tal cual)
@@ -416,6 +417,7 @@ namespace ConsoleEnhancer.Motor
                 case "test_fino": TestFine = B(val); break;
                 case "test_textura": TestTexture = val.Trim(); break;
                 case "test_zoom": TestZoomKind = I(val); break;
+                case "test_dir": TestDir = val.Trim().ToLowerInvariant(); break;   // 22-11 (1.2.2, CALIDAD)
                 case "test_desde": TestFrom = Math.Max(0, long.Parse(val.Trim(), CultureInfo.InvariantCulture)); break;
                 case "presentar": NoPresent = !B(val); break;
                 case "prof_cerca": RejasNear = D(val); break;

@@ -630,7 +630,10 @@ namespace ConsoleEnhancer
         public int FlowQualityNv = 2;      // NVOF: 1 rendimiento, 2 equilibrado, 3 calidad, 4 alta, 5 maxima
         public int FlowQualityAmd = 1;     // AMDOF: 0 rendimiento, 1 calidad
         // 16-11 noche: vectores de movimiento para DLSS FG de Magpie en el modo 30 (0 ninguno, 1 AMD, 2 NVIDIA) y su calidad NVOF
-        public int FgFlow30 = 2, FgFlowQualityNv = 3;
+        // 22-11 (1.2.2 CALIDAD): calidad 2 y no 3. Medido (src\Lanzador\CalidadFg.cs): la 3 (rejilla 4x4 lenta) cuesta el doble (1080p 5,9 ->
+        // 3,1 ms; 1440p 11 -> 6 ms de flujo por imagen real) y da PEORES vectores en barrotes finos y en fondos que se repiten; y como Magpie
+        // usa un solo estimador para todos (la calidad mas alta pedida), DLSS 5 (que pide la 2) iba tambien con la 3. ini fg_flujo_calidad=3 = antes
+        public int FgFlow30 = 2, FgFlowQualityNv = 2;
         // 16-11 23:59 (el usuario: "otra pasadita de optimizacion, latencia y calidad", 60 con DLSS FG): lo mismo en el modo 60
         // (ini fg_flujo_60=ninguno/amd/nvidia, fg_flujo_calidad_60=1-5). 0 = como antes (sin vectores)
         public int FgFlow60 = 0, FgFlowQualityNv60 = 1;
@@ -1509,6 +1512,7 @@ namespace ConsoleEnhancer
                             if (c.ParseCapturaSegura(key, val)) break; // (21-11, 1.2.1: captura_segura, src\Lanzador\CapturaSegura.cs)
                             if (MarcoMpv.Parse(key, val)) break; // (22-11, 1.2.1: mpv_sin_marco, src\Lanzador\MarcoMpv.cs)
                             if (c.ParseTiempos(key, val)) break; // (22-11, 1.2.2: motor_en_espera_al_abrir_ms, magpie_dlss_sr_solo_cadena; src\Lanzador\TiemposCarga.cs)
+                            if (c.ParseCalidadFg(key, val)) break; // (22-11, 1.2.2 CALIDAD: flujo optico de DLSS FG / XeSS FG, src\Lanzador\CalidadFg.cs)
                             if (key.StartsWith("mando_") && PadOptions.Parse(key, val)) break; // (18-11, MANDOS: modo PC, src\Mandos.cs)
                             Log.Write("Aviso: clave desconocida en ini: " + key); break;
                     }
@@ -1846,8 +1850,9 @@ namespace ConsoleEnhancer
                                                                                   "amdOpticalFlowMode", flowAmd, "nvidiaOpticalFlowQuality", flowNv)));
                         break;
                     case "xess":
-                        fx.Add(Effect("XeSSFG\\XeSS_FrameGeneration", false, Pars("multiplier", m, "opticalFlowMethod", cfg.DlssFlow,
-                                                                                  "amdOpticalFlowMode", flowAmd, "nvidiaOpticalFlowQuality", flowNv)));
+                        // 22-11 (1.2.2 CALIDAD): sus vectores por fg_xess_flujo / fg_xess_flujo_calidad (src\Lanzador\CalidadFg.cs; vacio = como antes)
+                        fx.Add(Effect("XeSSFG\\XeSS_FrameGeneration", false, Pars("multiplier", m, "opticalFlowMethod", cfg.XessFgFlowNow,
+                                                                                  "amdOpticalFlowMode", flowAmd, "nvidiaOpticalFlowQuality", cfg.XessFgFlowQNow)));
                         break;
                     case "vfg":
                         fx.Add(Effect("NvidiaVFX\\VFG", false, Pars("multiplier", m, "model", 1, "automaticShotDetection", 1)));
@@ -1858,11 +1863,11 @@ namespace ConsoleEnhancer
                         // finas que se repiten (cesped) mezcla las dos imagenes. En el modo 30 (sobra grafica) con los vectores de NVOF en calidad
                         // (ini fg_flujo_30=ninguno/amd/nvidia, fg_flujo_calidad=1-5); en el de 60, como antes
                         // (16-11 19:12: con captura 4K NO: banco, 30 con FG y DLSS 5, 23 reales con los vectores y 29,97 sin ellos)
-                        int fgFlow = cfg.Win4k ? 0 : cfg.CapMode ? cfg.FgFlow30 : cfg.FgFlow60;
-                        int fgFlowQ = cfg.CapMode ? cfg.FgFlowQualityNv : cfg.FgFlowQualityNv60;
+                        // 22-11 (1.2.2 CALIDAD): el flujo y su calidad en Config.DlssFgFlowNow / DlssFgFlowQNow (src\Lanzador\CalidadFg.cs: con la
+                        // captura de 4K, fg_dlss_flujo_4k; si no, fg_flujo_30 / fg_flujo_60 como antes)
                         fx.Add(Effect("DLSSFG\\DLSS_FrameGeneration", false, Pars("multiplier", m, "renderPreset", cfg.DlssFgPresetNow,
-                                                                                  "opticalFlowMethod", fgFlow, "amdOpticalFlowMode", flowAmd,
-                                                                                  "nvidiaOpticalFlowQuality", fgFlow == 2 ? fgFlowQ : flowNv)));
+                                                                                  "opticalFlowMethod", cfg.DlssFgFlowNow, "amdOpticalFlowMode", flowAmd,
+                                                                                  "nvidiaOpticalFlowQuality", cfg.DlssFgFlowQNow)));
                         break;
                 }
             }

@@ -493,6 +493,7 @@ namespace ConsoleEnhancer.Motor
                     ts.Yuy2 = s.TestYuy2;   // 20-11 (LATENCIA7): test_yuy2=1 (la prueba en YUY2, como la PS5 a 4K)
                     Parallax.Fine = s.TestFine;
                     Parallax.Hud = s.TestHud && s.Test == "paralaje";   // 20-11 (FGFALLOS): interfaz quieta encima del paralaje
+                    Finas.Hud = s.TestHud && Finas.KindOf(s.Test) >= 0; ts.Dir = s.TestDir;   // 22-11 (1.2.2, CALIDAD): test=finas / cabeza
                     src = ts;
                 }
                 else

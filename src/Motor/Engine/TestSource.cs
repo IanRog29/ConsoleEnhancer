@@ -80,6 +80,11 @@ namespace ConsoleEnhancer.Motor
         public string ZoomTexture = ""; public int ZoomKind;
         ZoomScene zoom;
         bool IsZoom { get { return image == "zoom"; } }
+        // 22-11 (1.2.2, CALIDAD) test=finas / test=cabeza: cosas finas (barrotes, cables, malla, lamas, hierba) o un personaje quieto con el
+        // fondo corriendo detras (Finas.cs), con test_par, test_vel y test_dir=h|v|hv
+        public string Dir = "h";
+        Finas fin;
+        bool IsFinas { get { return Finas.KindOf(image) >= 0; } }
 
         public string Name { get { return "prueba (" + (image.Length > 0 ? image : "barras") + (IsParallax ? string.Format(System.Globalization.CultureInfo.InvariantCulture, " cielo x{0:0.00} velocidad x{1:0.00} ruido {2}", ParRatio, ParSpeed, Noise) : "") + (Holds.Length > 0 ? ", cadencia " + Holds : ", juego a " + gameFps) + ")"; } }
 
@@ -98,6 +103,14 @@ namespace ConsoleEnhancer.Motor
                 zoom = new ZoomScene(ZoomTexture, ParSpeed, ZoomKind);
                 frame = Marshal.AllocHGlobal(pitch * h);
                 Log.Write("Fuente de prueba: zoom preparada (" + Clock.SinceMs(t0).ToString("0") + " ms, " + ZoomTexture + ")");
+                return;
+            }
+            if (IsFinas)
+            {
+                long t0 = Clock.Now;
+                fin = new Finas(Finas.KindOf(image), ParRatio, ParSpeed, Dir == "v" ? 2 : Dir == "hv" ? 3 : 1);
+                frame = Marshal.AllocHGlobal(pitch * h);
+                Log.Write("Fuente de prueba: " + image + " preparada (" + Clock.SinceMs(t0).ToString("0") + " ms)");
                 return;
             }
             if (IsParallax)
@@ -217,6 +230,7 @@ namespace ConsoleEnhancer.Motor
         unsafe void Compose(long n)
         {
             if (zoom != null) { zoom.Compose(n, (byte*)frame, w, h, pitch, Noise); return; }
+            if (fin != null) { fin.Compose(n, (byte*)frame, w, h, pitch, Noise); return; }   // 22-11 (1.2.2, CALIDAD)
             if (par != null)
             {
                 long t0 = Clock.Now;
