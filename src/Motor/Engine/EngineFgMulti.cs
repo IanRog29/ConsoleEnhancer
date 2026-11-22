@@ -47,6 +47,7 @@ namespace ConsoleEnhancer.Motor
                 case "fg_privado_dir": FgPrivadoDir = val.Trim().Trim('"'); return true;
                 // (EngineFgXe.cs)
                 case "fg_dlss_sr": SlSoloDlss = val.Trim() != "0"; return true;
+                case "sl_proxy_present": SlProxyPresent = val.Trim() != "0"; return true;   // (1.2.4 ronda 5, INTEGRA5: EngineSlProxy.cs)
                 case "xefg_modo": { int n; if (int.TryParse(val.Trim(), out n)) XeTagMode = n; return true; }
                 case "xefg_log": { int n; if (int.TryParse(val.Trim(), out n)) XeLogLevel = n; return true; }
                 case "xefg_cola": { int n; if (int.TryParse(val.Trim(), out n)) XeQueue = Math.Max(0, Math.Min(3, n)); return true; }

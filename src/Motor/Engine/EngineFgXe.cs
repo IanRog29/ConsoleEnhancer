@@ -393,6 +393,7 @@ namespace ConsoleEnhancer.Motor
         int ScPresent(uint sync, uint flags)
         {
             FphDrain();   // (1.2.4 ronda 5, XEFGM: EngineFgPropiaHilo.cs)
+            if (slProxyPresent != null) return slProxyPresent(slProxySc, sync, flags);   // (1.2.4 ronda 5, INTEGRA5: Streamline ve el Present, EngineSlProxy.cs)
             if (!XeRawNow) return swap.Present(sync, (DXGI_PRESENT)flags);
             if (scPresent == null) scPresent = (ScPresentFn)Slot(xeProxySc, 8, typeof(ScPresentFn));
             return scPresent(xeProxySc, sync, flags);

@@ -248,6 +248,7 @@ namespace ConsoleEnhancer.Motor
             }
             Log.Write("Swapchain " + outW + "x" + outH + " flip x" + BackBuffers + (slOn ? " (Streamline)" : ""));
             if (xeFgOn) XeFgBackbufLog();   // (1.2.4 MOTORFG)
+            SlProxyCreate();   // (1.2.4 ronda 5, INTEGRA5: con el enganche manual, el Present por el proxy de Streamline; EngineSlProxy.cs)
         }
 
         byte[] CompileCs(string name, string src)
@@ -1462,6 +1463,7 @@ namespace ConsoleEnhancer.Motor
                 try
                 {
                     if (fgApplied) { SlDLSSGOptions g = SlDLSSGOptions.Create(); g.mode = SlDLSSGMode.eOff; Sl.DLSSGSetOptions(vp, ref g); }
+                    SlProxyRelease();   // (1.2.4 ronda 5, INTEGRA5: el proxy de la cadena, antes de slShutdown; EngineSlProxy.cs)
                     Sl.Shutdown();
                     Unbury(true);
                 }
