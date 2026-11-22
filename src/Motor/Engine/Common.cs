@@ -233,9 +233,10 @@ namespace ConsoleEnhancer.Motor
         public bool FgGuard = false;                // 21-11 (BORDE) fg_borde=1 (de serie 0: no quitaba todos los halos en GTA; se usa fg_vectores=3): la generacion con 0 en los bordes entre movimientos distintos (los halos; EngineFgBorde.cs)
         public int FgGuardRad = 6; public double FgGuardDif = 6, FgGuardRel = 0.25;   // fg_borde_radio (bloques de 8), fg_borde_dif (px), fg_borde_rel
         public int FgFillRad = 48;                  // fg_relleno_radio (bloques de 8 px)
-        public int FgUi = 0;                        // fgui=1: la generacion no deforma lo quieto con borde (UIAlpha); 2 UIColorAndAlpha; 3 NoWarpMask
+        public int FgUi = 4;                        // fgui=1: la generacion no deforma lo quieto con borde (UIAlpha); 2 UIColorAndAlpha; 3 NoWarpMask
+                                                    // (1.2.4 DLSSFG: de serie 4 = la imagen sin la interfaz quieta como HUDLess, EngineFgHud.cs; 5 = y UIColorAndAlpha; 0 = como antes)
         public bool FgMenus = false;                // fg_menus=1: DLSS-G with eEnableFullscreenMenuDetection (no generated frames over a fullscreen menu)
-        public bool FgUiRecomp = false;             // fgui_recomp=1: recomposicion de la interfaz de DLSS-G
+        public bool FgUiRecomp = true;              // fgui_recomp=1: recomposicion de la interfaz de DLSS-G (1.2.4: de serie 1, con fgui=4)
         public int FgUiFrames = 4;                  // fgui_quieto: imagenes quieto
         public double FgUiMov = 0.3, FgUiEdge = 0.08;   // fgui_mov: fraccion de la escena que se mueve; fgui_borde: contraste del borde
         // 18-11 (LATENCIA, EngineLatencia.cs): medida y ritmo de los modos 30x2

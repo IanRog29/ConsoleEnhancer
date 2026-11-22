@@ -256,7 +256,22 @@ class MapaPrueba
             b = b * (1 - sa) + vb * sa; g = g * (1 - sa) + vg * sa; r = r * (1 - sa) + vr * sa;
         }
     }
+    // En el motor (fuente de prueba en tiempo real) la composicion a 4K no llega a 30 por segundo: las CacheN primeras imagenes se hacen
+    // una vez y se repiten (el codigo Gray tambien vuelve a 0: la medida salta ese par)
+    public const int CacheN = 60;
+    byte[][] cache; int cacheW, cacheH, cachePitch;
     public unsafe void Compose(long n, byte* dst, int w, int h, int pitch, int noise)
+    {
+        if (cache == null || cacheW != w || cacheH != h || cachePitch != pitch)
+        {
+            byte[][] c = new byte[CacheN][];
+            for (int k = 0; k < CacheN; k++) { c[k] = new byte[(long)pitch * h]; fixed (byte* p = c[k]) ComposeNow(k, p, w, h, pitch); }
+            cache = c; cacheW = w; cacheH = h; cachePitch = pitch;
+        }
+        byte[] f = cache[(int)(n % CacheN)];
+        System.Runtime.InteropServices.Marshal.Copy(f, 0, (IntPtr)dst, f.Length);
+    }
+    unsafe void ComposeNow(long n, byte* dst, int w, int h, int pitch)
     {
         int fx, fy, bx, by; Offsets(n, out fx, out fy, out bx, out by);
         long dp = (long)dst; double kx = (double)W4 / w, ky = (double)H4 / h;

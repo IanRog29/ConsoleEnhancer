@@ -489,7 +489,7 @@ namespace ConsoleEnhancer.Motor
             ID3D12Resource ui = UiTarget;
             if (fgApplied && s.FgUi > 0 && uiValid && ui != null)
             {
-                SlBufferType t = s.FgUi == 2 ? SlBufferType.UIColorAndAlpha : s.FgUi == 3 ? SlBufferType.NoWarpMask : SlBufferType.UIAlpha;
+                SlBufferType t = s.FgUi == 2 || s.FgUi == 5 ? SlBufferType.UIColorAndAlpha : s.FgUi == 3 ? SlBufferType.NoWarpMask : SlBufferType.UIAlpha;
                 tags.Add(t, Com.BorrowPtr(ui, typeof(ID3D12Resource)), (uint)D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, SlResourceLifecycle.eValidUntilPresent, outExt);
             }
         }
@@ -510,10 +510,10 @@ namespace ConsoleEnhancer.Motor
             return Sl.EvaluateFeature(SlFeature.DLSS, token, vp, cl, localTags);
         }
 
-        ID3D12Resource UiTarget { get { return s.FgUi == 2 ? uiColor : s.FgUi > 0 ? uiAlpha : null; } }
+        ID3D12Resource UiTarget { get { return s.FgUi == 2 || s.FgUi == 5 ? uiColor : s.FgUi == 4 ? null : s.FgUi > 0 ? uiAlpha : null; } }
 
         // Formato de la interfaz para DLSSGOptions.uiBufferFormat (0 = sin interfaz)
-        uint UiBufferFormat() { return s.FgUi == 2 ? (uint)ColorFmt : s.FgUi > 0 ? (uint)DXGI_FORMAT.R8_UNORM : 0u; }
+        uint UiBufferFormat() { return s.FgUi == 2 || s.FgUi == 5 ? (uint)ColorFmt : s.FgUi == 4 ? 0u : s.FgUi > 0 ? (uint)DXGI_FORMAT.R8_UNORM : 0u; }
         int FgUiKey() { return s.FgUi * 10 + (s.FgUiRecomp ? 1 : 0) + (s.FgMenus ? 100 : 0); }
 
         void UiOutViews()
@@ -529,6 +529,7 @@ namespace ConsoleEnhancer.Motor
         void RecordUiOut()
         {
             if (!(fgApplied && s.FgUi > 0 && uiValid) || psoUiOut == null) return;
+            if (s.FgUi >= 4) { RecordHudless(); return; }   // 1.2.4 (DLSSFG): la imagen sin la interfaz quieta (EngineFgHud.cs)
             bool color = s.FgUi == 2;
             if ((color && uiColor == null) || (!color && uiAlpha == null))
             {
