@@ -11890,7 +11890,7 @@ namespace ConsoleEnhancer
             if (ffxDiffSince == DateTime.MinValue) { ffxDiffSince = now; return; }
             if ((now - ffxDiffSince).TotalSeconds < 0.5) return;
             ffxDiffSince = DateTime.MinValue;
-            Log.Write("Generacion del motor: " + (want == 1 ? "FSR 3 FG (FidelityFX)" : want == 2 ? "XeSS FG" : "la de siempre") + ": su cadena de presentacion se elige al abrirlo, se vuelve a abrir el motor");
+            Log.Write("Generacion del motor: " + (want == 1 ? "FSR 3 FG (FidelityFX)" : Config.ChainXess(want) ? "XeSS FG x" + (want / 10) + (want % 10 == 1 ? " con DLSS SR" : "") : "la de siempre") + " (antes " + have + "): su cadena de presentacion se elige al abrirlo, se vuelve a abrir el motor");
             ReabrirMotorSmooth(cfg.EngineSmoothMode, null, null);
         }
 
@@ -13994,7 +13994,7 @@ namespace ConsoleEnhancer
                     // 21-11 (1.0.9): y uno abierto con otra generacion de motor (FSR 3 FG / la de siempre): la cadena no se cambia en marcha
                     if (eng && adopted == null && standbyEngine != null && Config.EngineFfxOf(standbyEngine) >= 0 &&
                         Config.EngineFfxOf(standbyEngine) != cfg.EngineFgChain)
-                        KillStandby("generacion: el motor en espera se abrio con otra cadena (" + Config.EngineFfxOf(standbyEngine) + ", ahora " + cfg.EngineFgChain + ": 1 FSR 3 FG, 2 XeSS FG)");
+                        KillStandby("generacion: el motor en espera se abrio con otra cadena (" + Config.EngineFfxOf(standbyEngine) + ", ahora " + cfg.EngineFgChain + ": 1 FSR 3 FG, 2x / 3x / 4x XeSS FG x2 / x3 / x4, +1 con DLSS SR)");
                     Process woke = adopted ?? (eng ? StandbyForWake() : null);
                     if (eng && woke == null) KillStandby("se abre otro motor");
                     if (woke != null) ipc = adopted != null ? adoptIpc : standbyIpc;

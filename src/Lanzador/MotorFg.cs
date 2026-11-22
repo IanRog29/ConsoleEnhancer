@@ -56,7 +56,10 @@ namespace ConsoleEnhancer
             return false;
         }
 
-        // La "cadena" con la que se abre el motor (no se cambia en marcha): 0 la de siempre, 1 FSR 3 FG, 2 XeSS FG
+        // La "cadena" con la que se abre el motor (no se cambia en marcha): 0 la de siempre, 1 FSR 3 FG, 10 x N (+1 con DLSS de escalador)
+        // XeSS FG xN: 20, 21, 30, 31, 40, 41 (todas > 1). (1.2.4, integracion: con el multiplicador y el escalador dentro, porque XeSS FG fija
+        // sus interpoladas al crear la cadena y Streamline -solo DLSS SR- solo se carga si el motor se abre con upscaler=dlss: si cambian, el
+        // motor se vuelve a abrir -CheckEngineFfx- en vez de quedarse con lo de antes o con FSR 1 sin decirlo)
         public int EngineFgChain
         {
             get
@@ -64,16 +67,19 @@ namespace ConsoleEnhancer
                 motorFgFab = (GpuVendor ?? "").Trim().ToLowerInvariant();
                 if (FgOff || HomeNative || Mode120) return 0;
                 if (EngineFfxWanted) return 1;
-                if (MotorFgMulti && FgTypeNow == "xess" && MotorFgSabe("xess", FgMultNow)) return 2;
+                int m = MotorFgMult;
+                if (MotorFgMulti && FgTypeNow == "xess" && MotorFgSabe("xess", m)) return 10 * m + (Ce.EngineUpscaler(this) == "dlss" ? 1 : 0);
                 return 0;
             }
         }
+        // El multiplicador que cuenta para el reparto (el mismo que mira FgMagpieOnly)
+        int MotorFgMult { get { return Math.Max(2, Math.Min(4, MultOn && !Mode120 ? FgMultNow : 2)); } }
+        public static bool ChainXess(int chain) { return chain >= 2; }
 
         // Lo que se añade a los argumentos del motor al abrirlo (EngineArgs)
         public string MotorFgArgs(int chain)
         {
-            int m = Math.Max(2, Math.Min(4, FgMultNow));
-            if (chain == 2) return " fg_tipo=xess fg_mult=" + m.ToString(CultureInfo.InvariantCulture);
+            if (ChainXess(chain)) return " fg_tipo=xess fg_mult=" + Math.Max(2, Math.Min(4, chain / 10)).ToString(CultureInfo.InvariantCulture);
             return "";
         }
 
