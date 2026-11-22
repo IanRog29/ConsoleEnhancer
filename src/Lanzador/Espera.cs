@@ -77,6 +77,11 @@ namespace ConsoleEnhancer
         // (1.2.1) pruebas sin consola (--prueba-cadena, --prueba-espera-simulada): segundos hasta que la consola de mentira se enciende
         public static volatile int Simulada;
         public static volatile bool Prueba;   // (--prueba-espera: sin capturadora no se suspende el PC)
+        // 22-11 (1.2.2) SOLO PRUEBAS: con la variable de entorno CE_PRUEBA_PANTALLA_ENCENDIDA=1 la espera no apaga la pantalla (ni
+        // SC_MONITORPOWER ni la pantalla a 1 min del plan propio) ni pone la cubierta negra ni oculta la barra: para medir lo demas (la
+        // sonda, el proceso de la espera, el plan) sin que la tele se apague (apagada no se vuelve a encender por programa y Windows la deja
+        // a 60 Hz). La heredan los procesos que abre (--espera, --ce-sonda, --inicio)
+        public static readonly bool PantallaEncendida = Environment.GetEnvironmentVariable("CE_PRUEBA_PANTALLA_ENCENDIDA") == "1";
 
         // ------------------------------------------------------------------ lo que se cuenta en la app (asistente y bandeja)
         public static string Nombre(string modo)
@@ -95,7 +100,7 @@ namespace ConsoleEnhancer
             return Deteccion.Tx.T(
 "Qué hace el PC cuando apagas la consola (con suspender y apagar, antes sale un aviso de unos segundos que se cancela con el mando, una tecla o el ratón):\n\n" +
 "• MODO ESPERA, como una consola (recomendado)\n" +
-"   Cómo funciona: al apagar la consola, sin cuenta atrás, la pantalla se queda en negro y se apaga, se cierra todo y Windows pasa a un plan de bajo consumo (el procesador al mínimo y sin turbo); solo queda un vigilante muy pequeño que mira la capturadora una vez por segundo, " +
+"   Cómo funciona: al apagar la consola, sin cuenta atrás, la pantalla se queda en negro y se apaga, se cierra todo y Windows pasa a un plan de bajo consumo (el procesador al mínimo y sin turbo); solo queda un vigilante muy pequeño que mira la capturadora un momento cada 2 segundos (entre medias, parada), " +
 "los mandos y el teclado. En cuanto enciendes la consola, enciendes un mando o pulsas una tecla, vuelve la pantalla y ConsoleEnhancer se abre " +
 "solo en 2-3 segundos. Si lo despiertas y no enciendes la consola, a los 90 s vuelve a la espera.\n" +
 "   Cuánto gasta: lo que el PC sin hacer nada con la pantalla apagada, unos 30-60 W según el PC (el vigilante, menos del 1 % de la CPU). " +
@@ -110,7 +115,7 @@ namespace ConsoleEnhancer
 "Cerrar la app a mano (Salir, Alt+F4) nunca apaga ni duerme el PC.",
 "What the PC does when you turn the console off (for sleep and shut down, first a notice of a few seconds that the controller, a key or the mouse cancels):\n\n" +
 "• STANDBY, like a console (recommended)\n" +
-"   How it works: when the console turns off, with no countdown, the screen stays black and goes off, everything closes and Windows switches to a low-power plan (lowest processor speed, no boost); only a tiny watcher stays, checking the capture card once a second, " +
+"   How it works: when the console turns off, with no countdown, the screen stays black and goes off, everything closes and Windows switches to a low-power plan (lowest processor speed, no boost); only a tiny watcher stays, checking the capture card for a moment every 2 seconds (stopped in between), " +
 "the controllers and the keyboard. As soon as you turn the console on, turn a controller on or press a key, the screen comes back and " +
 "ConsoleEnhancer opens by itself in 2-3 seconds. If you wake it and don't turn the console on, it goes back to standby after 90 s.\n" +
 "   Power: what the PC uses idling with the screen off, about 30-60 W depending on the PC (the watcher, under 1% CPU). " +
@@ -160,7 +165,7 @@ namespace ConsoleEnhancer
         // dormirse / apagarse): la cubierta negra delante y la barra de tareas oculta. Con apagar_pc=0 (el PC normal) nada
         public static void AlApagarConsola(bool apagarPc)
         {
-            if (!apagarPc) return;
+            if (!apagarPc || PantallaEncendida) return;
             try
             {
                 CeCubierta.Poner("consola apagada", true);
@@ -248,7 +253,7 @@ namespace ConsoleEnhancer
             foreach (string a in args)
                 if (a.StartsWith("--prueba-simulada=")) { int s; if (int.TryParse(a.Substring(18), out s)) Simulada = Math.Max(1, s); }
             Log.Write("Espera: proceso propio (pid " + Process.GetCurrentProcess().Id + ")" + (Simulada > 0 ? " (PRUEBA: consola de mentira a los " + Simulada + " s)" : ""));
-            CeCubierta.Poner("espera", true);   // (encima de la del proceso de la app, que aun esta)
+            if (!PantallaEncendida) CeCubierta.Poner("espera", true);   // (encima de la del proceso de la app, que aun esta)
             CeBarra.Adoptar("la espera (pid " + Process.GetCurrentProcess().Id + ")");
             EventWaitHandle e;
             if (EventWaitHandle.TryOpenExisting(EventoLista, out e)) { e.Set(); e.Dispose(); }
@@ -295,8 +300,13 @@ namespace ConsoleEnhancer
                 return CeSuspension.SuspenderYVolver();
             }
             Log.Write("Consola apagada: el PC en espera (apagar_pc_modo=espera): pantalla apagada; la consola, un mando o una tecla lo encienden");
-            CeCubierta.Poner("espera", true);
-            CeBarra.Ocultar("espera");
+            if (PantallaEncendida)
+                Log.Write("Espera: PRUEBA con CE_PRUEBA_PANTALLA_ENCENDIDA=1: la pantalla no se apaga, sin cubierta negra ni la barra oculta");
+            else
+            {
+                CeCubierta.Poner("espera", true);
+                CeBarra.Ocultar("espera");
+            }
             // (1.2.1: por debajo de lo normal, no "inactiva": con algo de Windows ocupando la CPU (un analisis de Defender, una
             // actualizacion), una prioridad "inactiva" solo corre cuando nadie mas quiere la CPU: el gancho del teclado puede tardar mas de
             // lo que Windows le deja (y lo quita) y la sonda ve tarde la consola. Gastan lo mismo: casi nada)
@@ -468,7 +478,8 @@ namespace ConsoleEnhancer
                     try
                     {
                         string nombre = fuente.StartsWith("av://dshow:video=", StringComparison.OrdinalIgnoreCase) ? fuente.Substring(17) : device;
-                        string args = "--ce-sonda \"dispositivo=" + nombre + "\"" + (devicePath.Length > 0 ? " \"ruta=" + devicePath + "\"" : "") +
+                        bool laDelIni = nombre.Equals(device, StringComparison.OrdinalIgnoreCase);   // (con espera_sonda_fuente, otra: sin su ruta)
+                        string args = "--ce-sonda \"dispositivo=" + nombre + "\"" + (laDelIni && devicePath.Length > 0 ? " \"ruta=" + devicePath + "\"" : "") +
                                       " cada_ms=" + SondaCadaMs + (pixfmt.Length > 0 ? " formato=" + pixfmt : "") + ArgsDatos();
                         if (latido == null) try { latido = new EventWaitHandle(false, EventResetMode.AutoReset, CeSonda.Latido); } catch { latido = null; }
                         ultimoLatido = DateTime.UtcNow;
@@ -580,6 +591,7 @@ namespace ConsoleEnhancer
                 entradaPantalla = UltimaEntrada();
                 rawRaton = PadHub.Shared.LastMouseTick; rawTeclado = PadHub.Shared.LastKbdTick;
                 pantallaApagada = DateTime.UtcNow;
+                if (PantallaEncendida) return;   // (SOLO PRUEBAS: CE_PRUEBA_PANTALLA_ENCENDIDA=1)
                 try { SendMessage(Handle, 0x0112, (IntPtr)0xF170, (IntPtr)2); } catch { } // WM_SYSCOMMAND, SC_MONITORPOWER, apagada
             }
 
@@ -731,14 +743,15 @@ namespace ConsoleEnhancer
             Valor(p, SubProcesador, ProcesadorMax, (uint)CpuMax);
             Valor(p, SubProcesador, Turbo, 0);           // (0 = sin turbo)
             Valor(p, SubDisco, DiscoApagar, 600);   // (10 min: un disco duro que se para y arranca cada pocos minutos hace mas ruido)
-            Valor(p, SubVideo, PantallaApagar, 60);
+            Valor(p, SubVideo, PantallaApagar, PantallaEncendida ? 0u : 60u);   // (SOLO PRUEBAS con CE_PRUEBA_PANTALLA_ENCENDIDA=1: nunca)
             try
             {
                 byte[] n = Encoding.Unicode.GetBytes("ConsoleEnhancer (espera)\0");
                 PowerWriteFriendlyName(IntPtr.Zero, ref p, IntPtr.Zero, IntPtr.Zero, n, (uint)n.Length);
             }
             catch { }
-            return "copia del " + (fuente == PlanEconomizador ? "Economizador" : "plan de antes") + ", procesador al " + CpuMax + " % sin turbo, disco a los 10 min, pantalla a 1 min";
+            return "copia del " + (fuente == PlanEconomizador ? "Economizador" : "plan de antes") + ", procesador al " + CpuMax + " % sin turbo, disco a los 10 min, pantalla " +
+                   (PantallaEncendida ? "nunca (PRUEBA)" : "a 1 min");
         }
 
         static void Valor(Guid plan, Guid sub, Guid ajuste, uint v)
