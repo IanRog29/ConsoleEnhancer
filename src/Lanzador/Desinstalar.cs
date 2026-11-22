@@ -120,7 +120,7 @@ namespace ConsoleEnhancer
             CeEspera.PlanDeAntes("desinstalar");
 
             // 2) Lo que se borra al cerrarse (solo lo de la app)
-            if (!PrepararBorrado(app, datos, borrar, Process.GetCurrentProcess().Id))
+            if (!PrepararBorrado(app, datos, borrar, Process.GetCurrentProcess().Id, true))
                 MessageBox.Show(Deteccion.Tx.T("No se pudieron borrar los archivos. Cierra la app y borra la carpeta a mano:\n", "Could not delete the files. Close the app and delete the folder yourself:\n") + app,
                                 PrismaUi.AppName, MessageBoxButtons.OK, MessageBoxIcon.Warning);
             MessageBox.Show(Deteccion.Tx.T("ConsoleEnhancer se ha desinstalado. Gracias por probarlo.", "ConsoleEnhancer has been uninstalled. Thanks for trying it."),
@@ -130,10 +130,14 @@ namespace ConsoleEnhancer
 
         // El PowerShell oculto que espera a que se cierre el proceso pid y borra lo de la app (y los datos si borrar). Pruebas:
         // ConsoleEnhancer.exe --ce-desinstalar-prueba=<1|0> (sin dialogos ni tocar Windows: solo el borrado de ESTA carpeta)
-        public static bool PrepararBorrado(string app, string datos, bool borrar, int pid)
+        // copiaTambien (22-11, 1.2.2, ERRORES; solo desde la bandeja y el panel, nunca en la prueba): con "Sí = se borra todo", tambien la
+        // copia de seguridad de %LOCALAPPDATA%\ConsoleEnhancer\backup (Integrado.CopiaSeguridad, 1.2.07). Si no, al volver a instalar la
+        // app los heredaba de ahi (ajustes y perfiles "borrados")
+        public static bool PrepararBorrado(string app, string datos, bool borrar, int pid, bool copiaTambien = false)
         {
             bool datosDentro = datos.StartsWith(app.TrimEnd('\\') + "\\", StringComparison.OrdinalIgnoreCase);
             List<string> borrarRutas = new List<string>();
+            if (borrar && copiaTambien) borrarRutas.Add(Integrado.CopiaDir);
             foreach (string n in new string[] { "ConsoleEnhancer.exe", "ConsoleEnhancer.exe.config", "ConsoleEnhancer Settings.exe", "README.txt", "portable.txt", "languages", "licenses", "engine", "resources", "downloads",
                                                  "magpie", "mpv", "scripts", "extras",
                                                  // (1.2.06) los nombres de antes (en espanol)
