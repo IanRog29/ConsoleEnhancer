@@ -9365,7 +9365,7 @@ namespace ConsoleEnhancer
             // (08-11: confirmando la salida del HOME, cada 0,3 s; 09-11: recien abierta la app sin ver el HOME, cada 0,35 s)
             // (10-11: en el HOME con LS aun escalando, homeGrace, como en el HOME a 4K)
             double every = InHome ? (noLabel > 0 ? cfg.EnterGrabEvery : homeSeen == DateTime.MinValue ? cfg.StartGrabEvery : 0.5) :
-                           light ? (cfg.CaptureNow == "3840x2160" ? 1.5 : cfg.GameGrabEvery) :
+                           light ? (cfg.CaptureNow == "3840x2160" ? cfg.RitmoGrab4kSecs : cfg.GameGrabEvery) :   // (22-11, 1.2.2 RITMO)
                            homeGame != null || (now - homeSeen).TotalSeconds < 30 ? 1.5 : 4;
             if ((now - lastGrab).TotalSeconds < every) return;
             // 15-11: en el HOME, leyendo el nombre del juego seleccionado (AnalyzeGrab): entera, a toda resolucion (hasta 6 por juego)

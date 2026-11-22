@@ -51,15 +51,17 @@ end
 -- 22-11 (1.2.2, RITMO): cada imagen que sale tarde, al momento (no cada 20 s): "switch2-diag-hueco" con la hora (ms desde la anterior),
 -- la marca de la capturadora (ms) y lo normal (media movil): el lanzador lo junta con lo que ve Magpie para decir de donde viene cada
 -- tiron (src\Lanzador\Ritmo.cs). Lo normal = la mediana de las 15 ultimas (sigue sola un cambio de modo 30 <-> 60 y un tiron no la sube)
-local ult, ult_i = {}, 0
-local function mediana_ult(dw)
-    ult_i = ult_i % 15 + 1
-    ult[ult_i] = dw
+-- (y aparte la de la marca; como mucho 10 avisos por segundo, por si una fuente sin ritmo real los dispara todos)
+local function mediana_de(l, x)
+    l.i = (l.i or 0) % 15 + 1
+    l[l.i] = x
     local c = {}
-    for i = 1, #ult do c[i] = ult[i] end
+    for i = 1, #l do c[i] = l[i] end
     table.sort(c)
     return c[math.floor((#c + 1) / 2)]
 end
+local ult_w, ult_p = {}, {}
+local avisos, avisos_t = 0, 0
 
 mp.observe_property("time-pos", "number", function(_, v)
     local t = mp.get_time()
@@ -77,10 +79,14 @@ mp.observe_property("time-pos", "number", function(_, v)
                 if dp <= limit then late = late + 1 end
             end
             if dp > limit and dp - sum_w / n >= 10 then over_p = over_p + 1 end
-            local normal_w = mediana_ult(dw)
+            local normal_w, normal_p = mediana_de(ult_w, dw), mediana_de(ult_p, dp)
             -- (8 ms tarde ya cuenta: una captura de la app a 4K deja la siguiente imagen ~10-25 ms tarde, y con la generacion se nota)
-            if #ult >= 8 and ((dw > 1.2 * normal_w and dw - normal_w >= 8) or (dp > 1.2 * normal_w and dp - normal_w >= 8)) then
-                mp.commandv("script-message", "switch2-diag-hueco", string.format("%.1f %.1f %.1f", dw, dp, normal_w))
+            if #ult_w >= 8 and normal_w >= 5 and ((dw > 1.2 * normal_w and dw - normal_w >= 8) or (dp > 1.2 * normal_p and dp - normal_p >= 8)) then
+                if t - avisos_t >= 1 then avisos, avisos_t = 0, t end
+                avisos = avisos + 1
+                if avisos <= 10 then
+                    mp.commandv("script-message", "switch2-diag-hueco", string.format("%.1f %.1f %.1f %.1f", dw, dp, normal_w, normal_p))
+                end
             end
         end
     end

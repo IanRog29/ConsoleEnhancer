@@ -105,7 +105,7 @@ namespace ConsoleEnhancer
 
     static class RitmoDiag
     {
-        struct HuecoMpv { public DateTime At; public double Hora, Marca, Normal; }
+        struct HuecoMpv { public DateTime At; public double Hora, Marca, Normal, NormalMarca; }
         struct Ventana { public DateTime Desde, Hasta; public double CapMax, OutMax, CapP95; public bool Pico; }
         struct Captura { public DateTime At; public double Ms; }
         static readonly object sync = new object();
@@ -127,20 +127,21 @@ namespace ConsoleEnhancer
             double v; return double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out v) ? v : double.NaN;
         }
 
-        // "switch2-diag-hueco","<hora ms> <marca ms> <normal ms>" (scripts\ce_diag.lua)
+        // "switch2-diag-hueco","<hora ms> <marca ms> <normal ms> [<normal de la marca ms>]" (scripts\ce_diag.lua)
         public static void MpvHueco(string txt)
         {
             string[] p = (txt ?? "").Split(' ');
             if (p.Length < 3) return;
             HuecoMpv h = new HuecoMpv();
-            h.At = DateTime.Now; h.Hora = Num(p[0]); h.Marca = Num(p[1]); h.Normal = Num(p[2]);
-            if (double.IsNaN(h.Hora) || double.IsNaN(h.Marca)) return;
+            h.At = DateTime.Now; h.Hora = Num(p[0]); h.Marca = Num(p[1]); h.Normal = Num(p[2]); h.NormalMarca = p.Length > 3 ? Num(p[3]) : h.Normal;
+            if (double.IsNaN(h.Hora) || double.IsNaN(h.Marca) || double.IsNaN(h.Normal)) return;
+            if (double.IsNaN(h.NormalMarca)) h.NormalMarca = h.Normal;
             lock (sync)
             {
                 mpv.Add(h);
                 while (mpv.Count > 0 && (h.At - mpv[0].At).TotalSeconds > 60) mpv.RemoveAt(0);
                 // tarde por la hora (no por la marca) justo despues de una captura de la app
-                if (h.Hora - h.Normal >= 8 && h.Marca - h.Normal < 8)
+                if (h.Hora - h.Normal >= 8 && h.Marca - h.NormalMarca < 8)
                 {
                     if (TrasCaptura(h.At)) nCaptTarde++;
                     else { tardeSueltas.Add(h.At); while (tardeSueltas.Count > 0 && (h.At - tardeSueltas[0]).TotalSeconds > 2) tardeSueltas.RemoveAt(0); }
