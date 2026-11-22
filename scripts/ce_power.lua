@@ -976,7 +976,43 @@ local function light_frame(r)
     return table.concat(rows), ow, oh, ow * 4
 end
 
+-- 22-11 (1.2.2, RITMO): la captura por fichero (modos "light-png" / "full-png"): screenshot-to-file (PNG sin comprimir) en vez de
+-- screenshot-raw. screenshot-raw pasa la imagen a RGB y la copia con el nucleo de mpv parado; screenshot-to-file solo para el nucleo
+-- mientras coge la imagen y lo demas (RGB, PNG, el fichero) va en su propio hilo. Medido el 22-11 sin grafica (mpv 0.42, fuente
+-- yuyv422, lo que tarda en contestar el nucleo mientras dura la captura): 4K 52-56 ms (peor 68-80) -> 18-19 ms (peor 24-32); 1440p
+-- 38 -> 18 ms. El PNG es identico a screenshot-raw pixel a pixel. El lanzador lee el PNG, hace la ligera el mismo y devuelve la
+-- rejilla de 48x27 (switch2-grab-sample) para el negro, la imagen quieta y "No Signal" (sample_raw / fast_seen)
+local function do_grab_png(path, mode)
+    local gt = mp.get_time()
+    grab_gap, grab_t = gt - grab_t, gt
+    -- (22-11, tercera parte: la ruta suele ser una tuberia del lanzador, \\.\pipe\ce-grab-<pid>-<n>.png, que lee el PNG mientras se
+    -- escribe: nada al disco. Si no, <ruta>.png en %TEMP%, que el lanzador borra al leerlo)
+    local png = path:lower():match("%.png$") and path or (path .. ".png")
+    mp.commandv("script-message", "switch2-diag-captura", "png")
+    mp.command_native_async({name = "screenshot-to-file", filename = png, flags = "video"}, function(ok)
+        if not ok then
+            mp.commandv("script-message", "switch2-grabbed", "")
+            return
+        end
+        mp.commandv("script-message", "switch2-grabbed-png", path, png, mode, tostring(o.grid_w), tostring(o.grid_h),
+                    string.format("%.1f", (mp.get_time() - gt) * 1000))
+    end)
+end
+
+-- La rejilla de la captura por fichero (la calcula el lanzador con la imagen entera, como sample_raw): luma media y maxima y la
+-- huella en hexadecimal (R, G, B de cada punto, fila a fila)
+mp.register_script_message("switch2-grab-sample", function(avg, maxl, hex)
+    local a, m = tonumber(avg), tonumber(maxl)
+    if not a or not m or not hex or #hex < 6 then return end
+    local fp = hex:gsub("%x%x", function(x) return string.char(tonumber(x, 16)) end)
+    local now = mp.get_time()
+    last_shot = now
+    grab_sample = {t = now, avg = a, maxl = m, fp = fp}
+    fast_seen(fp, "captura")
+end)
+
 local function do_grab(path, mode)
+    if mode == "light-png" or mode == "full-png" then do_grab_png(path, mode); return end
     local gt = mp.get_time()
     grab_gap, grab_t = gt - grab_t, gt
     local r = mp.command_native({name = "screenshot-raw", flags = "video"})
