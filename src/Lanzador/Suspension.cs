@@ -56,6 +56,13 @@ namespace ConsoleEnhancer
                 return true;
             }
             if (key == "espera_sonda_fuente") { CeEspera.SondaFuente = val.Trim(); return true; }
+            // 22-11 (1.2.2): la sonda sin mpv, cada cuantos ms mira la capturadora (0 = la de mpv sin parar, como hasta la 1.2.1)
+            if (key == "espera_sonda_cada_ms")
+            {
+                int c;
+                if (int.TryParse(val.Trim(), out c)) CeEspera.SondaCadaMs = c <= 0 ? 0 : Math.Max(250, Math.Min(30000, c));
+                return true;
+            }
             if (key != "apagar_pc_modo") return false;
             ShutdownMode = CeSuspension.Normaliza(val);
             CeSuspension.Modo = ShutdownMode;
@@ -101,6 +108,9 @@ namespace ConsoleEnhancer
             // consola de todo el apagado (src\Lanzador\Espera.cs, src\Lanzador\EsperaCubierta.cs)
             if (arg == "--espera") return CeEspera.Proceso(Environment.GetCommandLineArgs());
             if (arg == "--ce-guarda-barra") return CeBarra.Guardian();
+            // 22-11 (1.2.2): la sonda de la espera sin mpv (src\Lanzador\EsperaSonda.cs) y su prueba con imagenes guardadas
+            if (arg == "--ce-sonda") return CeSonda.Proceso(Environment.GetCommandLineArgs());
+            if (arg.StartsWith("--ce-sonda-prueba=")) return CeSonda.Prueba(arg.Substring(18));
             if (arg == "--prueba-cadena" || arg.StartsWith("--prueba-cadena=")) return CeEspera.PruebaCadena(Segundos(arg, 20));
             if (arg.StartsWith("--prueba-cadena-aviso=")) return CeEspera.PruebaCadena(Segundos(arg, 8), true);
             if (arg == "--prueba-espera-simulada" || arg.StartsWith("--prueba-espera-simulada=")) return CeEspera.PruebaEsperaSimulada(Segundos(arg, 20));

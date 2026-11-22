@@ -231,12 +231,14 @@ namespace ConsoleEnhancer
         public static void CopiaSeguridad(string d)
         {
             if (copiaTimer != null || string.IsNullOrEmpty(d)) return;
-            foreach (string a in Environment.GetCommandLineArgs())   // (pruebas con otra carpeta de datos o simulando otro PC: nada)
+            // (pruebas con otra carpeta de datos o simulando otro PC: nada. 1.2.2: tampoco en la espera ni en sus procesos de ayuda (--espera,
+            // --ce-sonda, --ce-guarda-barra...): con la app cerrada no cambia nada y la copia despertaba el disco y la CPU cada 2 min)
+            foreach (string a in Environment.GetCommandLineArgs())
                 if (a.StartsWith("--datos=", StringComparison.OrdinalIgnoreCase) || a.StartsWith("--simula", StringComparison.OrdinalIgnoreCase) ||
                     a.StartsWith("--prueba", StringComparison.OrdinalIgnoreCase) || a.StartsWith("--test", StringComparison.OrdinalIgnoreCase) ||
-                    // (22-11, 1.2.2, ERRORES: ni el proceso de la espera ni la guarda de la barra: la copia la lleva la app; la espera la hacia cada
-                    // 2 min toda la noche, contra lo que dicen Espera.cs y EsperaCubierta.cs)
-                    a == "--espera" || a == "--ce-guarda-barra") return;
+                    // (22-11, 1.2.2, ERRORES y ESPERA: ni el proceso de la espera ni sus ayudantes -la guarda de la barra, la sonda...-: la copia
+                    // la lleva la app; la espera la hacia cada 2 min toda la noche, contra lo que dicen Espera.cs y EsperaCubierta.cs)
+                    a == "--espera" || a.StartsWith("--ce-", StringComparison.OrdinalIgnoreCase)) return;
             if (string.Equals(Path.GetFullPath(d).TrimEnd('\\'), Path.GetFullPath(CopiaDir).TrimEnd('\\'), StringComparison.OrdinalIgnoreCase)) return;
             copiaTimer = new System.Threading.Timer(delegate { CopiaAhora(d); }, null, 5000, 120000);
         }
