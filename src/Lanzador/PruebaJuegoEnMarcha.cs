@@ -87,12 +87,20 @@ namespace ConsoleEnhancer
             return r;
         }
 
+        // El banco de capturas de la deteccion (menu_ce-gta-pestanas-*.png): games\test_deteccion de la carpeta de datos, como las demas
+        // pruebas (--test-deteccion), o la carpeta de CE_BANCO_DETECCION. Sin rutas de ningun PC en el codigo (scripts\privado.txt)
+        static string Banco()
+        {
+            string e = Environment.GetEnvironmentVariable("CE_BANCO_DETECCION");
+            return !string.IsNullOrEmpty(e) ? e : Path.Combine(Paths.Datos, @"games\test_deteccion");
+        }
+
         static void Visita()
         {
             sb.Append("\r\n-- 1. El primer juego en foco de la visita (FocoVisita), con iconos de verdad --\r\n");
             // Las capturas del inicio de la PS5 con GTA VI en foco (banco: menu_ce-gta-pestanas-*)
             List<double[]> gta = new List<double[]>();
-            string banco = @"C:\Switch2Magpie\juegos\test_deteccion";
+            string banco = Banco();
             if (Directory.Exists(banco))
                 foreach (string f in Directory.GetFiles(banco, "menu_ce-gta-pestanas-*.png"))
                     using (Bitmap b = Carga(f))
@@ -223,7 +231,7 @@ namespace ConsoleEnhancer
         static void Degradadas()
         {
             sb.Append("\r\n-- 5. La etiqueta del juego en foco con el inicio a medio aparecer (fingido con las capturas del banco) --\r\n");
-            string banco = @"C:\Switch2Magpie\juegos\test_deteccion";
+            string banco = Banco();
             if (!Directory.Exists(banco)) return;
             string[] fs = Directory.GetFiles(banco, "menu_ce-gta-pestanas-*.png");
             string[] nombres = { "tal cual", "fundido 70 %", "fundido 45 %", "fundido 30 %", "baja 12 px", "baja 30 px", "sube 12 px", "agrandado 4 %", "agrandado 10 %", "desenfocado" };
