@@ -309,6 +309,7 @@ namespace ConsoleEnhancer.Deteccion
                 if (p.Escalador != "ninguno" && p.Captura != null && p.CapH > 1080 && p.Modos.TryGetValue("60", out m60) && m60.Justo)
                 {
                     int antes = p.CapH;
+                    p.CapRebajadaDe = antes;   // (1.2.2, UNIVERSAL: si luego queda FSR 1, PlanMargen.AjustarMargenes la vuelve a subir)
                     p.CapW = 1920; p.CapH = 1080;
                     FormatoCaptura f = p.Captura.FormatosParaElegir() != null ? p.Captura.Mejor(1080, 59, TopeComprimido(hw)) : null;
                     if (f != null) { p.CapW = f.Ancho; p.CapH = f.Alto; p.CapFormato = f.Subtipo; p.CapFps = FpsPedido(f, 59.94, EsUvc(p.Captura)); }

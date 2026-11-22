@@ -37,6 +37,7 @@ namespace ConsoleEnhancer.Deteccion
         // (1.2.2, UNIVERSAL) margenes del plan: VRAM prevista, capturas que caben a 120, CPU para MJPEG
         public double VramPrevistaMb, VramTotalMb;
         public int Tope120Alto = 4320;          // la captura mas alta que cabe a 120 fps (Capturas120)
+        public int CapRebajadaDe;               // la captura que se bajo a 1080p porque el escalador no cabia (0 = no se bajo)
         public string Margenes = "";            // una linea para el informe
 
         string InformeMargenes()
@@ -181,6 +182,31 @@ namespace ConsoleEnhancer.Deteccion
                 p.Motivos.Add(Tx.T("Escalado: " + Nombre(antes) + " no cabe con margen en el modo 60 a esta salida (" + Tx.N(m60.CosteMs, "0.0") + " de " + Tx.N(m60.TopeMs, "0.0") +
                                    " ms): " + Nombre(p.Escalador) + " de serie y " + Nombre(antes) + " en R3",
                                    "Scaling: " + Nombre(antes) + " does not fit the 60 mode with headroom: " + Nombre(p.Escalador) + " by default, " + Nombre(antes) + " on R3"));
+            }
+            // 1b) la captura se bajo a 1080p porque el escalador de antes no cabia y al final va FSR 1 (espacial: cuesta por la SALIDA, no por
+            // la captura, y sin vectores): se vuelve a la de antes si el modo 60 sigue cabiendo (mas nitido por lo mismo)
+            if (p.CapRebajadaDe > p.CapH && p.Escalador == "fsr1" && p.Captura != null && p.Captura.FormatosParaElegir() != null)
+            {
+                FormatoCaptura f = p.Captura.Mejor(p.CapRebajadaDe, 59, TopeComprimido(hw));
+                if (f != null && f.Alto > p.CapH && p.Captura.FpsDe(f) >= 59)
+                {
+                    int w0 = p.CapW, h0 = p.CapH; string f0 = p.CapFormato, fps0 = p.CapFps; double e0 = p.Enfoque;
+                    Dictionary<string, ModoPlan> m0 = new Dictionary<string, ModoPlan>(p.Modos);
+                    List<string> a0 = new List<string>(p.Avisos);
+                    p.CapW = f.Ancho; p.CapH = f.Alto; p.CapFormato = f.Subtipo; p.CapFps = FpsPedido(f, 59.94, EsUvc(p.Captura));
+                    p.Enfoque = p.CapH <= 720 ? 0.6 : p.CapH <= 1080 ? 0.5 : 0.3;
+                    p.Avisos.RemoveAll(delegate(string a) { return a.StartsWith(Tx.T("Modo ", "Mode ")); });
+                    p.Modos.Clear();
+                    ElegirModelos(p, g, cal);
+                    ModoPlan n60;
+                    if (p.Modos.TryGetValue("60", out n60) && !n60.Justo)
+                    {
+                        string pre = Tx.T("Con captura de ", "With ");
+                        p.Motivos.RemoveAll(delegate(string a) { return a.StartsWith(pre); });
+                        p.Motivos.Add(Tx.T("Con FSR 1 (cuesta por la salida, no por la captura) la captura vuelve a " + p.CapH + "p", "With FSR 1 (its cost goes with the output, not the capture) the capture goes back to " + p.CapH + "p"));
+                    }
+                    else { p.CapW = w0; p.CapH = h0; p.CapFormato = f0; p.CapFps = fps0; p.Enfoque = e0; p.Modos = m0; p.Avisos.Clear(); p.Avisos.AddRange(a0); }
+                }
             }
             // 2) generacion que ni con lo mas ligero cabe en el tiempo entero de una imagen real: no se ofrece en ese modo (seria ir a tirones)
             QuitarGeneracionImposible(p, g, "60");
