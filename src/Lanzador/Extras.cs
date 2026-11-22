@@ -154,8 +154,12 @@ namespace ConsoleEnhancer
                                        "Turn DLSS 5 on now? (While playing, the controller's A button turns it on and off.)"), MessageBoxIcon.Question);
             PonerActivo(on);
             if (on && MotorPuede)
+            {
                 motor = Pregunta(w, Tx.T("Junto al motor está PrismaNr.dll: ¿hacer DLSS 5 en el motor propio (menos retraso) en vez de mpv + Magpie?",
                                          "PrismaNr.dll is next to the engine: run DLSS 5 in the built-in engine (lower latency) instead of mpv + Magpie?"), MessageBoxIcon.Question);
+                // (22-11, 1.2.3 MOTOR5: con motor_dlss5=auto de serie, el "no" tambien va al ini; el "si" lo ponen los que llaman)
+                if (!motor) Ce.IniPoner("motor_dlss5", "0");
+            }
             Integrado.Dlss5Rever();
             return true;
         }
