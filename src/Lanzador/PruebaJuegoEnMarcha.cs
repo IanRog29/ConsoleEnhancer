@@ -42,6 +42,14 @@ namespace ConsoleEnhancer
             sb.Append("1.2.3 (JUEGO): el juego en marcha (src\\JuegoEnMarcha.cs). Datos: ").Append(Paths.Datos).Append("\r\n");
             try { Visita(); } catch (Exception ex) { Mira(false, "visita: " + ex); }
             try { Ritmo(); } catch (Exception ex) { Mira(false, "ritmo: " + ex); }
+            try
+            {
+                sb.Append("\r\n-- 2b. Cuando se captura para leer el primer foco (estado de la app puesto a mano) --\r\n");
+                int fc;
+                sb.Append(TrayApp.CapturasSelfTest(out fc));
+                fallos += fc;
+            }
+            catch (Exception ex) { Mira(false, "capturas: " + ex); }
             try { Modo(); } catch (Exception ex) { Mira(false, "modo: " + ex); }
             try { if (capturas != null) Hud(capturas); } catch (Exception ex) { Mira(false, "huella del HUD: " + ex); }
             sb.Insert(0, "Fallos: " + fallos + "\r\n");

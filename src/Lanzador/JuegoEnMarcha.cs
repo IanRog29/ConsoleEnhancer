@@ -150,6 +150,63 @@ namespace ConsoleEnhancer
                 Log.Write("Menu de la consola: el juego en marcha no se sabe por el foco (" + ps5Visita.Porque + ")");
         }
 
+        // (la prueba, --test-juego-en-marcha: cuando se captura para leer el primer foco, con el estado de la app puesto a mano; con la PS5 de
+        // games\console.txt de la copia de datos)
+        internal static string CapturasSelfTest(out int fallos)
+        {
+            StringBuilder sb = new StringBuilder();
+            int f = 0;
+            DateTime t0 = DateTime.Now;
+            Func<TrayApp> jugando = delegate
+            {
+                TrayApp t = new TrayApp(new Config(), true);
+                t.lsReady = true; t.cfg.HomeNative = false;
+                return t;
+            };
+            Action<string, bool, bool> mira = delegate (string que, bool got, bool quiero)
+            {
+                bool ok = got == quiero;
+                if (!ok) f++;
+                sb.Append(ok ? "  OK    " : "  FALLO ").Append(que).Append(": ").Append(got ? "si" : "no").Append(ok ? "" : " (se esperaba " + (quiero ? "si" : "no") + ")").Append("\r\n");
+            };
+            sb.Append("  (consola: ").Append(Consolas.Actual.Corto).Append(")\r\n");
+            TrayApp a = jugando();
+            mira("jugando, sin visita: capturas rapidas para el foco", a.FocoMenuPorLeer, false);
+            a.ps5Visita.Empieza(t0.AddSeconds(-0.4));
+            mira("jugando, menu visto hace 0,4 s: se busca el foco", a.FocoMenuPorLeer, true);
+            // pasando al menu (StartHomeSwitch hacia el: telon congelado, Magpie cerrandose)
+            a.homeBusy = true; a.homeSwitchToHome = true; a.passesBusy = true; a.lsReady = false; a.cfg.HomeNative = true;
+            mira("pasando al menu sin el foco: se captura", a.CapturaEntrandoMenu, true);
+            a.homeSwitching = true;
+            mira("pasando al menu con mpv recargando la captura: no", a.CapturaEntrandoMenu, false);
+            a.homeSwitching = false; a.relaunchEngine = true;
+            mira("pasando al menu reabriendo el motor: no", a.CapturaEntrandoMenu, false);
+            a.relaunchEngine = false; a.relaunchSize = "1920x1080";
+            mira("pasando al menu cambiando la captura: no", a.CapturaEntrandoMenu, false);
+            a.relaunchSize = null;
+            a.ps5CiegoDesde = t0;
+            mira("visita ciega (la app ocupada al ver el menu): no", a.CapturaEntrandoMenu, false);
+            a.ps5CiegoDesde = DateTime.MinValue;
+            a.homeSwitchToHome = false;
+            mira("del menu a un juego: no", a.CapturaEntrandoMenu, false);
+            a.homeSwitchToHome = true;
+            a.ps5Visita.Observa(t0, "Grand Theft Auto VI", null);
+            mira("con el foco ya leido: no", a.CapturaEntrandoMenu, false);
+            // ya en el menu
+            TrayApp b = jugando();
+            b.cfg.HomeNative = true;
+            b.ps5Visita.Empieza(t0.AddSeconds(-2));
+            mira("en el menu a los 2 s sin el foco: se busca", b.FocoMenuPorLeer, true);
+            b.ps5Visita.Reinicia(); b.ps5Visita.Empieza(t0.AddSeconds(-5.5));
+            mira("en el menu a los 5,5 s: ya no", b.FocoMenuPorLeer, false);
+            TrayApp c = jugando();
+            c.cfg.Ps5RecognizeGames = false;
+            c.ps5Visita.Empieza(t0);
+            mira("ps5_reconocer_juegos=0: nada", c.FocoMenuPorLeer, false);
+            fallos = f;
+            return sb.ToString();
+        }
+
         // 1.2.3: el modo guardado (games\mode.txt: 30 / 60 / 120) en un perfil nuevo de la consola (AplicarPerfilConsola, al abrir la app va
         // antes de que Worker lea el fichero). true = el perfil cambia
         static bool ModoGuardado(GameProfile p)
