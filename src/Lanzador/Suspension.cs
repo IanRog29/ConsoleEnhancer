@@ -96,7 +96,7 @@ namespace ConsoleEnhancer
         {
             if (arg == "--desde-espera") { CeEspera.DesdeEspera = true; return int.MinValue; } // (sigue: es la app normal)
             if (arg == "--ce-despertar-admin") return ArmarAdmin();
-            if (arg.StartsWith("--ce-desinstalar-prueba=")) return TrayApp.PrepararBorrado(Paths.AppDir, Paths.Datos, arg.EndsWith("=1"), Process.GetCurrentProcess().Id) ? 0 : 1;
+            if (arg.StartsWith("--ce-desinstalar-prueba=")) return CeBorrado.Prueba(arg.EndsWith("=1")); // (1.2.3: ya mismo y sin PowerShell, src\Lanzador\Desinstalar.cs)
             if (arg == "--ce-despertar") return PedirArmar(true) ? 0 : 1;
             if (arg == "--prueba-espera")
             {

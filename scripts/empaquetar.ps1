@@ -47,6 +47,15 @@ if (-not (Test-Path "$Streamline\bin\x64\sl.interposer.dll")) {
     & "$PSScriptRoot\descargar_dependencias.ps1" -Raiz $Raiz -Solo streamline
 }
 foreach ($need in @("$Raiz\bin\ConsoleEnhancer.exe", "$Raiz\bin\engine\ConsoleEnhancerEngine.exe")) { if (-not (Test-Path $need)) { throw "Falta $need (compila con build.bat y build_motor.bat, o preparar.bat)" } }
+# (1.2.3, DEFENDER) la version que llevan los exe en sus propiedades (src\Version.cs) = la del paquete: que no salga una version con los
+# exe de otra, ni sin version
+$verCs = [regex]::Match((Get-Content -LiteralPath "$Raiz\src\Version.cs" -Raw -Encoding UTF8), 'const string Texto = "([^"]+)"').Groups[1].Value
+if (-not $verCs) { throw "No se lee CeVersion.Texto en $Raiz\src\Version.cs" }
+foreach ($e in @("$Raiz\bin\ConsoleEnhancer.exe", "$Raiz\bin\ConsoleEnhancer Settings.exe", "$Raiz\bin\engine\ConsoleEnhancerEngine.exe")) {
+    $pv = [Diagnostics.FileVersionInfo]::GetVersionInfo($e).ProductVersion
+    if ($pv -ne $verCs) { throw "$e lleva la version '$pv' y src\Version.cs dice $verCs`: vuelve a compilar (build.bat y build_motor.bat)" }
+}
+if ($Version -and $Version.TrimStart('v') -ne $verCs) { throw "El paquete es la $Version y src\Version.cs dice $verCs`: pon CeVersion.Texto = `"$($Version.TrimStart('v'))`" en src\Version.cs, compila otra vez y vuelve a montarlo" }
 if (Test-Path $Destino) {
     if (@(Get-ChildItem -LiteralPath $Destino -Force).Count -gt 0) {
         if ($Forzar -and (Test-Path "$Destino\ConsoleEnhancer.exe") -and (Test-Path "$Destino\licenses")) { Remove-Item -LiteralPath $Destino -Recurse -Force }
@@ -247,4 +256,12 @@ if ($Zip) {
     $h = (Get-FileHash -Algorithm SHA256 -LiteralPath $z).Hash.ToLowerInvariant()
     [IO.File]::WriteAllText("$z.sha256", "$h  $(Split-Path $z -Leaf)`n", (New-Object Text.UTF8Encoding($false)))
     Write-Output ("Zip: $z {0:N0} MB, sha256 $h" -f ((Get-Item $z).Length / 1MB))
+    # (1.2.3, DEFENDER) el SHA-256 de cada fichero del paquete, al lado del zip (el CI lo sube a la Release): para comprobar una copia
+    # o mandar un falso positivo a Microsoft / a un antivirus con los ficheros exactos
+    $lista = "$(Split-Path $z)\$([IO.Path]::GetFileNameWithoutExtension($z)).files.sha256"
+    $lineas = foreach ($f in Get-ChildItem -LiteralPath $Destino -Recurse -File | Sort-Object FullName) {
+        (Get-FileHash -Algorithm SHA256 -LiteralPath $f.FullName).Hash.ToLowerInvariant() + '  ' + $f.FullName.Substring($Destino.Length + 1).Replace('\', '/')
+    }
+    [IO.File]::WriteAllText($lista, (($lineas -join "`n") + "`n"), (New-Object Text.UTF8Encoding($false)))
+    Write-Output "SHA-256 de cada fichero: $lista"
 }

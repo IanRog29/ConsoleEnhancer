@@ -244,6 +244,13 @@ namespace ConsoleEnhancer
             if (string.Equals(Path.GetFullPath(d).TrimEnd('\\'), Path.GetFullPath(CopiaDir).TrimEnd('\\'), StringComparison.OrdinalIgnoreCase)) return;
             copiaTimer = new System.Threading.Timer(delegate { CopiaAhora(d); }, null, 5000, 120000);
         }
+        // (1.2.3, DEFENDER) Al desinstalar, antes de borrar (CeBorrado, src\Lanzador\Desinstalar.cs): ni otra copia a los 2 min ni una a medias
+        public static void PararCopia()
+        {
+            System.Threading.Timer t = copiaTimer;
+            if (t != null) t.Change(System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite);
+            for (int i = 0; i < 50 && System.Threading.Volatile.Read(ref copiando) == 1; i++) System.Threading.Thread.Sleep(100);
+        }
         static int copiando;
         public static void CopiaAhora(string d)
         {

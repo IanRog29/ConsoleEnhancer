@@ -5,8 +5,10 @@ using System.Diagnostics;
 using System.IO;
 using System.Windows.Forms;
 
-[assembly: System.Reflection.AssemblyTitle("ConsoleEnhancer settings")]
+// (1.2.3, DEFENDER: la version, el editor y el copyright, src\Version.cs; el manifiesto, resources\app.manifest: build.bat)
+[assembly: System.Reflection.AssemblyTitle("ConsoleEnhancer Settings")]
 [assembly: System.Reflection.AssemblyProduct("ConsoleEnhancer")]
+[assembly: System.Reflection.AssemblyDescription("ConsoleEnhancer Settings: opens the settings panel of ConsoleEnhancer.exe next to it")]
 
 static class AjustesCe
 {
