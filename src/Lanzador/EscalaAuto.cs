@@ -106,7 +106,7 @@ namespace ConsoleEnhancer
     static class EscalaAuto
     {
         public const double IndiceRef = 1.2;      // RTX 4060 Ti (Gpu.cs), la grafica de las medidas
-        // dlss5_escala_uso: parte del tiempo de una imagen real que puede llevarse el hilo de la imagen de Magpie (Prevision). (1.2.3, MULTI2:
+        // dlss5_escala_hilo: parte del tiempo de una imagen real que puede llevarse el hilo de la imagen de Magpie (Prevision). (1.2.3, MULTI2:
         // 95; antes 75 con un modelo que solo miraba la grafica y no lo fijo de DLSS 5 ni el hilo en serie: elegia 45-50 % a 4K con DLSS FG
         // x2 y se quedaba en 28 reales. Con el modelo del hilo, lo medido llega hasta 31,8 ms previstos -XeSS FG x2 al 50 % a 4K, DLSS FG x2
         // al 45 % con refresco fijo de RITMO2- y no llega desde 33,8: el 95 % -31,7 ms- deja ~1,7 ms de margen)
@@ -979,9 +979,13 @@ namespace ConsoleEnhancer
             switch (key)
             {
                 case "dlss5_escala_auto": Dlss5AutoOn = !(v == "0" || v == "no" || v == "false" || v == "off"); return true;
-                case "dlss5_escala_uso":
-                    if (double.TryParse(v.TrimEnd('%', ' '), NumberStyles.Float, CultureInfo.InvariantCulture, out d) && d > 0) EscalaAuto.Uso = Math.Max(0.4, Math.Min(0.95, d > 1 ? d / 100.0 : d));
+                // (1.2.3, MULTI2) dlss5_escala_hilo: % del tiempo de una real para el hilo de la imagen de Magpie (95 de serie). La clave de la
+                // 1.2.1-1.2.2, dlss5_escala_uso (75: un modelo de solo la grafica), ya no vale con el modelo del hilo: con 75 DLSS 5 no cabria a
+                // 4K con DLSS FG. Se lee pero no se usa (el ini del usuario la trae de base.ini)
+                case "dlss5_escala_hilo":
+                    if (double.TryParse(v.TrimEnd('%', ' '), NumberStyles.Float, CultureInfo.InvariantCulture, out d) && d > 0) EscalaAuto.Uso = Math.Max(0.5, Math.Min(0.99, d > 1 ? d / 100.0 : d));
                     return true;
+                case "dlss5_escala_uso": return true;
                 case "dlss5_escala_grafica":
                     if (double.TryParse(v.TrimEnd('%', ' '), NumberStyles.Float, CultureInfo.InvariantCulture, out d) && d > 0) EscalaAuto.UsoGrafica = Math.Max(0.4, Math.Min(1.0, d > 1 ? d / 100.0 : d));
                     return true;
