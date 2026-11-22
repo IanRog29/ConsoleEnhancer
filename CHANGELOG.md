@@ -5,6 +5,162 @@ publicada es una etiqueta `vX.Y.Z` de git; GitHub Actions monta su zip y copia a
 
 ## [Sin publicar]
 
+## [1.2.2] - 2026-11-22
+
+### Added / Añadido
+- **×3 and ×4 frame generation with DLSS FG and XeSS FG.** A new **Multiplier** row in the on-screen settings menu (it only shows up
+  with DLSS FG or XeSS FG; Smooth Motion, FSR 3 FG and NVIDIA VFG stay at ×2), **Frame generation multiplier** in the tray and
+  **Ctrl+X** over the picture. It is saved per game and per mode, like the generation type. Only what fits your screen is offered:
+  real fps × multiplier can't go over the refresh rate, so with a 120 Hz TV ×3 / ×4 need the 30 fps mode (90 / 120 fps) and show up
+  **locked, with the reason**, in the 60 fps mode; 144 / 165 / 180 / 240 Hz screens get their own limits, and without VRR ×3 is locked
+  (90 fps on 120 Hz judders). Going from the 30 to the 60 fps mode drops to ×2 on the fly and says so; going back to 30 brings the
+  game's ×3 / ×4 back. ×3 / ×4 never use the "every 2 refreshes" sync (it capped the output at 60): they go through VRR, or forced
+  V-Sync without VRR. DLSS FG ×3 / ×4 runs through Magpie (the app's own engine does ×2) and needs the dlssg_sm86 component, which the
+  app now fetches by itself whenever it is needed. Measured on an RTX 4060 Ti: DLSS FG ×4 = 120 fps with every frame shown for one
+  refresh, ×3 = 90 fps. If the output can't be reached, the multiplier is the first thing lowered (4 → 3 → 2), with a notice; if Magpie
+  applies less than asked, a notice too. `generacion_multiplicador=0` goes back to ×2 only.
+  *×3 y ×4 con DLSS FG y XeSS FG: fila "Multiplicador" en el menú de ajustes (solo con esas dos), en la bandeja y con Ctrl+X, por juego y
+  por modo. Solo se ofrece lo que cabe en la pantalla: con una tele de 120 Hz, ×3 / ×4 necesitan el modo 30 (90 / 120 fps) y en el de 60
+  salen bloqueados con el motivo; sin VRR, ×3 bloqueado. Al pasar al modo 60 baja a ×2 y lo dice; al volver al 30 recupera el ×3 / ×4 del
+  juego. Si no se llega, lo primero que baja es el multiplicador.*
+- **Controls tables in the README**: every controller (Xbox, PlayStation, Nintendo) and keyboard control side by side, the settings
+  menu and the PC mode.
+  *Tablas de controles en el README: mando (Xbox, PlayStation, Nintendo) y teclado juntos, el menú de ajustes y el modo PC.*
+- **The log says where each stutter comes from** (the game, the app's own captures, mpv, Windows capture, the GPU or Magpie's
+  output) and how long frames wait in Magpie's queue, with a summary every 5 minutes (`ritmo_resumen_s`). New keys to try other
+  pacing, off by default: `magpie_ritmo_margen_fg`, `magpie_sigue_fuente_30_fg`, `magpie_fijo_30_dlss`, `magpie_vrr_30_otras`,
+  `magpie_vrr_30`.
+  *El log dice de dónde viene cada tirón (juego, capturas de la app, mpv, captura de Windows, gráfica, salida de Magpie) y cuánto esperan
+  las imágenes en la cola de Magpie. Claves nuevas para probar otro ritmo, apagadas.*
+- Self-tests without console or GPU: `--test-multiplicador`, `--test-reescalado`, `--test-menu-ajustes`; engine test scenes
+  `test=finas` (fences, wires, grass) and `test=cabeza` (a character in front of a moving city); a 4680-plan simulation of GPUs ×
+  displays × capture cards in the detection test.
+  *Pruebas nuevas sin consola ni gráfica y escenas de prueba del motor para la generación.*
+
+### Fixed / Arreglado
+- **The centre button (Xbox / PS / HOME) always opens the settings menu, or says why not.** Right after entering a game or pressing
+  Apply, while Magpie prepares the picture (7-11 s) and the engine bridge already shows the game, the button did nothing. Now the
+  menu opens on top of the bridge or the curtain ("preparing the picture…" in its header). In the few moments when it really can't
+  open yet (the first seconds of a new picture, just after leaving the console menu, a capture change) it shows "Settings · opening in
+  a moment" and opens by itself as soon as it can. Every press counts: the button is watched every 10 ms, so short presses are no
+  longer lost. And **Apply while Magpie is still preparing applies at once** (Magpie restarts right away with the new settings, with
+  the bridge on screen) instead of waiting and then doing nothing.
+  *El botón central del mando abre siempre el menú de ajustes o dice por qué no, también mientras Magpie prepara la imagen; si aún no
+  se puede, avisa y se abre solo en cuanto se puede. Ninguna pulsación corta se pierde, y "Aplicar" con Magpie preparando se aplica ya.*
+- **Leaving the console menu on another game is now told apart from going back to the one you were playing** (GTA VI → menu →
+  Bloodborne stayed as GTA VI). While Magpie prepared (~10 s) the app looked at nothing and gave up after 8 s; it now keeps watching
+  during that time and also uses the captures that took it out of the menu: the same picture as before the menu means you went back;
+  the console's black screen, a video-mode change, the game's known cover or a new cover followed by its loading screen mean the other
+  game started, and its profile is applied (even if the proof arrives once Magpie is ready). Without proof it keeps the game you were
+  playing, and settings changed meanwhile go back to the right game. A cover is only remembered when a game was really started.
+  *Al salir del menú con el foco en otro juego la app distingue si has vuelto al de antes o has arrancado el otro: sigue mirando
+  mientras Magpie prepara y cambia al perfil bueno en cuanto ve el arranque (negro, sin señal, su portada).*
+- **Console game names without OCR garbage**: the ™ / ® next to the name was read as stuck letters ("Bloodbornevy", "BloodborneJY",
+  "Rocket Leagueñ") and a profile was created with them. The name now comes from the agreement of all the reads of the label;
+  profiles, icons and covers saved with garbage are renamed (or merged with the good one, keeping the last played) when the app
+  starts, and a half-read name is fixed just by passing over that game in the console home.
+  *Nombres de juegos sin basura del OCR: el nombre sale del consenso de las lecturas y los perfiles con basura se renombran o se juntan
+  solos al abrir la app.*
+- **Waking the console no longer loads a game profile**: the PS5 "Welcome back / Who's using this controller?" screen has the clock
+  at the top and counted as the real menu, so the dark screens right after took the app out of the menu with DLSS 5 and frame
+  generation for ~10 s. The welcome and user screens now count as console screens until the real menu shows up.
+  *Al despertar la consola ya no se carga un perfil de juego: la Bienvenida / elegir usuario no cuenta como el menú.*
+- **XeSS FG no longer disappears at 1080p**: with a 1080p capture the app silently swapped XeSS FG for DLSS FG, and changing the
+  capture to 1080p in the settings menu replaced the type and saved it in the game's profile. The current Magpie runs XeSS FG at 1080p
+  (measured), so it is offered and used there (`xess_fg_1080=0` = as before). When a chosen type can't run, the menu keeps your
+  choice and says why, and a notice says what runs instead: the type is never swapped silently any more.
+  *XeSS FG ya no desaparece a 1080p: va a 1080p (medido) y, si un tipo elegido no puede ir, el menú y un aviso lo dicen y se guarda lo
+  elegido.*
+- **Micro-stutters caused by the app itself**: while you play, the app looks at the picture to notice the console menu, and each
+  look stopped mpv for 52-80 ms at 4K (more than the 33 ms between two real frames in the 30 fps mode): the next real frame came late
+  and the frame generation's pacing followed it. Now mpv hands the picture over as a PNG through a pipe written in its own thread (it
+  stops ~18 ms, below one frame), pixel-identical, and **nothing is written to disk** any more (before: up to ~26 GB per hour in the
+  console menu at 4K). `captura_png=0` = as before.
+  *Microtirones que metía la propia app: cada mirada al menú de la consola paraba a mpv 52-80 ms a 4K (más que el hueco entre dos
+  imágenes reales). Ahora mpv entrega la imagen por una tubería desde su propio hilo (~18 ms) y ya no se escribe nada en el disco.*
+- **DLSS 5 with 1 pass no longer flickers when the camera moves in the 30 fps mode**: it now uses the same optical-flow
+  anti-flicker as 2-3 passes (Magpie already computed the flow, only the anti-flicker pass is added, and the automatic DLSS 5 scale
+  counts it: about 5 points less at 4K). `dlss5_antiparpadeo_30_1pasada=0` = as before.
+  *DLSS 5 con 1 pasada ya no parpadea al mover la cámara en el modo 30: lleva el antiparpadeo con flujo de 2-3 pasadas.*
+- **No more blur and double edges when moving with DLSS 4.5 models (L / M) and DLSS 5**: Magpie's DLSS SR had no motion vectors in
+  the 30 fps mode with frame generation. L / M now get the optical flow DLSS 5 already computes, at no extra cost: fast pans keep 0.73
+  of the original detail instead of 0.48. K and E unchanged. `dlss_flujo_transformer=` (empty) = as before.
+  *Sin borrosidad ni bordes dobles al mover la cámara con L / M y DLSS 5: DLSS SR recibe el flujo óptico que DLSS 5 ya calcula.*
+- **The first start of a new version no longer drops the console to 1080p**: the app's engine compiles its shaders the first time
+  (25-35 s) and the capture safety net took that for "the capture card can't do 4K". Now a just-launched engine is judged from the
+  moment it is ready, "Turn on your console" is not shown while it starts, and the backup keeps the compiled shaders.
+  *La primera vez de una versión nueva la consola ya no se queda a 1080p (el motor compilaba sus shaders y se tomaba por "la capturadora
+  no da 4K").*
+- **Applying a setting no longer takes 24 s sometimes**: when Magpie's log rotated in the middle of a start the app didn't see the
+  scaling begin and pressed Magpie's scale shortcut, which toggles and stopped it. Now it reads the rotated log too, doesn't press the
+  shortcut once the scaling started, and leaves the foreground alone while Magpie prepares.
+  *Aplicar un ajuste ya no tarda a veces 24 s (el atajo de Magpie paraba un escalado que ya había empezado).*
+- **If the app is closed by force, mpv, Magpie and the engine close with it** instead of staying open with the capture card and the
+  NVIDIA models; a hidden engine can't survive either.
+  *Si la app se cierra a la fuerza, mpv, Magpie y el motor se cierran con ella.*
+- **Magpie used its default profile when the app's folder went through a junction or a symbolic link** (60 fps base, no VRR, no
+  automatic scaling): the profile now uses mpv's real path, the one Magpie compares.
+  *Magpie usaba su perfil de serie si la carpeta de la app pasaba por una unión o un enlace: el perfil lleva ahora la ruta real de mpv.*
+- **Standby**: the screen (the TV) turns off again even with the PC's controller switched on (a switched-on controller counted as
+  someone using the PC, so the TV stayed on in black all night); if the PC can't be suspended it is shut down as before 1.2.1
+  (it stayed on with nothing running); a shutdown cancelled during standby no longer leaves the taskbar hidden; no data backup every
+  2 minutes while in standby.
+  *Espera: la pantalla se vuelve a apagar aunque el mando del PC esté encendido; si el PC no se puede suspender se apaga como antes; la
+  barra de tareas ya no se queda oculta; sin copia de seguridad cada 2 min.*
+- Also fixed: the reserve engine starting at the wrong moment together with Magpie; "your hardware changed" with the TV off; a new
+  version "restoring" a session that had closed fine; "Uninstall, delete everything" leaving the settings backup; the engine using
+  another GPU after Windows restarts (its LUID changes); "No upscaling" in the engine being sharpened (halos); Ctrl+G now works like
+  the other shortcuts; the wizard says the picture goes to the primary display; self-tests that failed because of the PC they ran on.
+  *También: el motor de reserva a destiempo, "ha cambiado el hardware" con la tele apagada, una versión nueva que "devolvía" una sesión
+  bien cerrada, desinstalar sin borrar la copia de seguridad, la gráfica del motor tras reiniciar Windows, "sin reescalado" con enfoque,
+  Ctrl+G, el aviso de la pantalla principal y pruebas con falsos fallos.*
+
+### Changed / Cambiado
+- **Faster loading at 4K**: Magpie no longer loads DLSS Super Resolution when its chain doesn't use it (4K capture: DLSS 5 and frame
+  generation only), so it is ready ~1.5-2 s sooner every time it prepares: entering a game 8.0-8.9 s → 6.3-7.2 s, Apply 9.2-10.0 s →
+  7.0-7.7 s (the game is visible within 0.2-0.7 s thanks to the bridge). The hidden standby engine now starts together with mpv, so
+  it is ready for the first game. `magpie_dlss_sr_solo_cadena=0` and `motor_en_espera_al_abrir_ms=-1` = as before.
+  *Cargas más rápidas a 4K: Magpie ya no carga DLSS SR si su cadena no lo usa (~1,5-2 s menos cada vez que prepara) y el motor en espera
+  arranca con mpv al abrir la app.*
+- **Frame generation on fences, wires and other thin repeated detail (DLSS FG through Magpie)**: at 4K DLSS FG got no motion vectors
+  and blended the two real frames on thin detail; with DLSS 5 on it now gets the NVIDIA optical flow DLSS 5 already computes, at no
+  extra cost. With a 1080p / 1440p capture the 30 fps mode used flow quality 3, which measured worse on thin bars than quality 2 at
+  twice the cost: now 2 (5.9 → 3.1 ms per real frame at 1080p, 11 → 6 ms at 1440p). `fg_dlss_flujo_4k=ninguno` and
+  `fg_flujo_calidad=3` = as before.
+  *Generación por Magpie en vallas, cables y detalle fino: DLSS FG a 4K usa el flujo óptico que DLSS 5 ya calcula, y a 1080p/1440p la
+  calidad 2 (mejores vectores, la mitad de coste).*
+- **XeSS FG and characters' heads when the camera turns**: every optical-flow setting was measured; what breaks next to a character
+  is the background the head covers and uncovers, which no optical flow can fix without depth (Magpie gives XeSS FG a flat depth). The
+  finer grid only cleans the head's border and costs ~11 ms more at 1440p, so XeSS FG keeps quality 2; `fg_xess_flujo` /
+  `fg_xess_flujo_calidad` let you try others.
+  *XeSS FG y la cabeza al girar la cámara: lo que falla es el fondo que la cabeza tapa y destapa, que ningún flujo arregla sin
+  profundidad; claves nuevas para probar otras calidades.*
+- **Less halo around edges and text with DLSS K / L / M through Magpie** (sharpening after DLSS SR is 0.6× the old value, like the
+  engine; `magpie_nitidez_transformer=1` = as before), and **DLSS 5 with 2-3 passes and a 4K capture keeps its color** (0.82 → 0.90
+  with 2 passes, 0.79 → 0.88 with 3) with a bit less halo.
+  *Menos halo con DLSS K / L / M por Magpie y DLSS 5 con 2-3 pasadas a 4K sin el color lavado.*
+- **Headroom on every GPU**: while playing, the engine now keeps the GPU at or under **85 %** of each frame (minus NVIDIA frame
+  generation) instead of 93-96 %, and only steps up when the next step still leaves room (`motor_uso_grafica`, 93 = as before). The
+  first plan on an unknown PC is prudent: realistic costs for frame generation, XeSS and FSR 4 (they counted as almost free), GPUs
+  missing from the table count 15 % slower, what doesn't fit falls back to the next option, 120 fps only where it keeps headroom,
+  VRAM under 85 %, and much slower GPUs also use Magpie's light mode in the 30 fps mode.
+  *Margen en cualquier gráfica: jugando, el motor deja la gráfica como mucho al 85 % de cada imagen (antes 93-96 %), y el plan del primer
+  arranque es prudente en cualquier PC.*
+- **Capture cards**: a data table of ~75 real models (AVerMedia, Elgato, Magewell, j5create, Genki, Razer, EVGA, NZXT, ezcap, USB
+  dongles…) with their IDs, DirectShow names, formats per resolution, modes they list but don't deliver, and quirks. The plan picks a
+  format that really gives 59.94-60 fps, uncompressed and 16:9 first (YUY2 > NV12 > RGB), never P010; cards that only send MJPEG or
+  H.264 go through mpv + Magpie (the engine opened them at 5-10 fps), with MJPEG limited to what the CPU can decode; USB cards that
+  only list whole frame rates get 60 instead of 59.94 (the safety net tries both), and a USB 3 card that lists far less than it should
+  gets a "plug it into a motherboard USB 3 port, no hub" warning.
+  *Capturadoras: tabla con ~75 modelos reales; el plan elige un formato que dé 60 fps de verdad y sin comprimir, las que solo dan MJPEG o
+  H.264 van por mpv, y las USB que solo listan velocidades enteras reciben 60.*
+- **Standby uses less power**: instead of a hidden mpv keeping the capture card open all the time to look at one picture a second
+  (10-13 % of a core, 300-400 wake-ups/s), the card is checked for a moment every 2 seconds (under 1 % of a core, ~13 wake-ups/s,
+  CPU package ~0.6 W lower). The console is noticed ~0.5 s later on average (`espera_sonda_cada_ms`: 2000; 1000 = almost as quick as
+  before; 0 = the mpv watcher as before).
+  *La espera gasta menos: la capturadora se mira un momento cada 2 s (de ~400 despertares por segundo a ~13); la consola se ve de media
+  ~0,5 s más tarde.*
+
 ## [1.2.1] - 2026-11-22
 
 ### Fixed / Arreglado

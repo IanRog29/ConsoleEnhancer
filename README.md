@@ -186,6 +186,9 @@ with help a lot too.
   (`motor_60fg_refresco_fijo=auto`; at 144 Hz or more, at 119.88 Hz, without VRR or without NVIDIA nothing is changed).
 - **Frame generation selector**: L3 while playing (or Ctrl+G on the keyboard over the picture, the settings menu or the tray) cycles
   through the types your GPU has and remembers the choice per game. Only what can keep pace is offered.
+- **×2 / ×3 / ×4 frame generation** (DLSS FG and XeSS FG): the settings menu's *Multiplier* row, the tray or Ctrl+X. ×3 / ×4 only
+  when they fit your screen (real fps × multiplier ≤ refresh rate: with a 120 Hz TV, the 30 fps mode gives 90 / 120 fps); otherwise
+  they are shown locked with the reason. Saved per game and mode; if the output can't be reached, the multiplier is lowered first.
 - **120 fps mode (esports)**: for the console's 120 Hz games, it captures at 120 with no frame generation and the lowest latency. The
   mode button goes 30 → 60 → 120 only if the console outputs 120, the TV runs at **120 Hz or more** and the current capture is one your
   capture card provides at 120 (usually **1080p or 1440p**; the wizard reads it from the capture card, capturas_120). At 4K it stays
@@ -646,6 +649,9 @@ y contar en qué PC y con qué consola lo usas.
   más, a 119,88 Hz, sin VRR o sin NVIDIA no se toca nada).
 - **Selector de generación de fotogramas**: L3 jugando (o Ctrl+G con el teclado sobre la imagen, el menú de ajustes o la bandeja)
   recorre los tipos que tiene tu gráfica y lo recuerda por juego. Solo se ofrece lo que llega a ritmo.
+- **Generación ×2 / ×3 / ×4** (DLSS FG y XeSS FG): la fila *Multiplicador* del menú de ajustes, la bandeja o Ctrl+X. ×3 / ×4 solo si
+  caben en tu pantalla (fps reales × multiplicador ≤ refresco: con una tele de 120 Hz, el modo 30 da 90 / 120 fps); si no, salen
+  bloqueados con el motivo. Se guarda por juego y modo; si no se llega a la salida, lo primero que baja es el multiplicador.
 - **Modo 120 fps (esports)**: para los juegos de 120 Hz de la consola, captura a 120 sin generación de fotogramas y con el menor
   retraso. El botón de modo pasa 30 → 60 → 120 solo si la consola saca 120, la tele va a **120 Hz o más** y la captura de ahora es una
   que tu capturadora da a 120 (normalmente **1080p o 1440p**; el asistente lo lee de la capturadora, capturas_120). A 4K sigue 30 ↔ 60:
