@@ -393,6 +393,10 @@ namespace ConsoleEnhancer
                     object v = Microsoft.Win32.Registry.GetValue(@"HKEY_CURRENT_USER\Software\Microsoft\GameBar", "UseNexusForGameBarEnabled", null);
                     if (v is int && (int)v != 0)
                         Log.Write("Aviso: la Barra de juegos de Xbox se abre con el boton Xbox del mando (Configuracion > Juegos > Game Bar): puede tapar el menu de ajustes y quitarle el primer plano a la imagen");
+                    // (con Steam Input, Steam se puede quedar la Guia del mando: su mando virtual no la pasa)
+                    Process[] st = Process.GetProcessesByName("steam");
+                    if (st.Length > 0) Log.Write("Aviso: Steam esta abierto: si maneja este mando (Steam Input) puede quedarse la Guia (abre Steam) y el menu de ajustes no la ve");
+                    foreach (Process s in st) s.Dispose();
                 }
                 catch { }
             });

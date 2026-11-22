@@ -12273,6 +12273,7 @@ namespace ConsoleEnhancer
         {
             if (magpieCopyDone) return magpieCopyOk;
             magpieCopyDone = true;
+            DllDlssSr.Poner(true, "al abrir la app"); // (22-11, 1.2.2: apartado la vez anterior; el manifiesto de Magpie lo pide. TiemposCarga.cs)
             string detail;
             Stopwatch sw = Stopwatch.StartNew();
             MagpieLive.DlssFgVsyncPacing = cfg.DlssFgVsyncPacing;
@@ -12289,7 +12290,7 @@ namespace ConsoleEnhancer
                 {
                     Stopwatch ws = Stopwatch.StartNew(); long bytes = 0;
                     byte[] buf = new byte[1 << 20];
-                    foreach (string dll in new[] { "nvngx_dlssnr.dll", "nvngx_dlss.dll", "nvngx_dlssg.dll", "nvngxruntime.dll", "cudart64_12.dll", "nvngx_vsr.dll", "nvngx_truehdr.dll" })
+                    foreach (string dll in new[] { "nvngx_dlssnr.dll", "nvngx_dlss.dll", DllDlssSr.Aparte, "nvngx_dlssg.dll", "nvngxruntime.dll", "cudart64_12.dll", "nvngx_vsr.dll", "nvngx_truehdr.dll" })
                     {
                         try { using (FileStream fs = new FileStream(Path.Combine(Paths.MagpieDir, dll), FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 1 << 20)) { int r; while ((r = fs.Read(buf, 0, buf.Length)) > 0) bytes += r; } }
                         catch { }
@@ -12321,6 +12322,7 @@ namespace ConsoleEnhancer
                     // (MagpieConfig.Needed sin mirar Config.EngineActive: el motor sigue hasta que se va)
                     if (cfg.EngineNow || cfg.HomeNative || !(cfg.UpscaleOn || !cfg.Dlss5Off || !cfg.FgOff) || !EnsureMagpieCopy()) return;
                     foreach (string c in MagpieConfig.Patch(cfg, true)) Log.Write("Cambio necesario: " + c);
+                    MagpieDlssSrSegunCadena(); // (22-11, 1.2.2: src\Lanzador\TiemposCarga.cs)
                     lsStartSw = Stopwatch.StartNew();
                     Log.Write("Iniciando Magpie (mientras se cierra el motor): " + cfg.ProfileText);
                     MagpieLive.Start();
@@ -12384,6 +12386,7 @@ namespace ConsoleEnhancer
 
             if (!MagpieLive.Running)
             {
+                MagpieDlssSrSegunCadena(); // (22-11, 1.2.2: sin DLSS SR en la cadena, NGX no carga su DLL; src\Lanzador\TiemposCarga.cs)
                 lsStartSw = Stopwatch.StartNew();
                 Log.Write("Iniciando Magpie: " + cfg.ProfileText);
                 MagpieLive.Start();
