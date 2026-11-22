@@ -14,7 +14,11 @@ namespace ConsoleEnhancer.Motor
     // anterior, y el giro de CutGrid solo entra desde 64 px): el global salia 0 con 24 px de verdad. DLSS-G recibia un vector equivocado
     // en casi todos los movimientos de camara y tiraba de su flujo optico (o lo mezclaba con el vector malo).
     // Medido en la tele (Desktop Duplication de cada imagen presentada, la inventada contra la interpolacion ideal de las dos reales
-    // vistas, ag_FGFALLOS\tools\fgmide): con el vector exacto, paneo de 100 px 2,81 -> 0,18 de error medio y de 24 px 0,68 -> 0,48.
+    // vistas, ag_FGFALLOS\tools\fgmide): con el vector exacto (mvfijo, prueba), paneo de 100 px 2,81 -> 0,18 de error medio y de 24 px
+    // 0,68 -> 0,48. Con los vectores a 0 (como el DLSS FG de Magpie a 4K) 100 px da 1,91.
+    // Con esto (4K, modo 30 + DLSS-G, los mismos instantes antes / despues): paneo de 24 px 0,70 -> 0,47 (-33 %), 100 px 2,80 -> 0,03,
+    // 200 px 7,88 -> 0,07; alrededor de la interfaz quieta (anillo de 24 px) 100 px 11,7 -> 0,6; paralaje con interfaz (test=paralaje
+    // test_hud=1) velocidad 1 0,65 -> 0,35 (-46 %), velocidad 2 0,94 -> 0,42 (-55 %, borde reja/cielo 3,9 -> 1,6). +0,06 ms de grafica a 4K
     //
     // ARREGLO (fg_global=1, de serie): el vector de la camara se busca aparte, sin las reglas de la busqueda por bloques: diferencia media
     // (truncada: lo que se mueve distinto o la interfaz no manda) de toda la imagen entre la actual y la anterior en el nivel 3 de la
@@ -35,6 +39,8 @@ namespace ConsoleEnhancer.Motor
         public double FgQuietTex = 6, FgQuietStill = 2, FgQuietRel = 0.5;   // fg_quieto_textura / _quieto (niveles) / _rel
         // 22-11 (1.2.1) mvsr_xess_ffx=1: vectores de movimiento tambien para XeSS / FSR 3.1-4 de escalador y para FSR 3 FG (antes a 0: EngineMotion.cs RecordMotion)
         public bool MvXessFfx = true;
+        // 22-11 (1.2.1) fg_solo_camara=1: sin la busqueda por bloques cuando solo la generacion usa los vectores (EngineMotion.cs RecordMotion)
+        public bool FgCamOnly = true;
 
         bool ApplyFgGlobal(string key, string val)
         {
@@ -50,6 +56,7 @@ namespace ConsoleEnhancer.Motor
                 case "fg_quieto_quieto": FgQuietStill = Math.Max(0, Dv(val)); return true;
                 case "fg_quieto_rel": FgQuietRel = Math.Max(0.05, Math.Min(1, Dv(val))); return true;
                 case "mvsr_xess_ffx": MvXessFfx = Bv(val); return true;
+                case "fg_solo_camara": FgCamOnly = Bv(val); return true;
             }
             return false;
         }
@@ -66,11 +73,14 @@ namespace ConsoleEnhancer.Motor
         ID3D12PipelineState psoGlobA, psoGlobB, psoGlobC, psoGlobD, psoGlobOut;
         ID3D12Resource gSadA, gSadC, gPick;
         int gRx, gRy;
-        bool gSaid;
+        bool gSaid, camOnlySaid;
 
         bool FgGlobalNow { get { return s.FgGlobal && s.FgVec == 3 && Levels >= 4; } }
         // 22-11 (1.2.1): FSR 3 FG (EngineFgFfx.cs, sin Streamline) recibe los mismos vectores que recibiria DLSS-G (antes, los de mvec, a 0)
         bool FfxFgVecNow { get { return s.MvXessFfx && ffxFgOn && !fgApplied; } }
+        // 22-11 (1.2.1): la generacion es la unica que usa los vectores y le basta el de la camara (EngineMotion.cs RecordMotion, sin bloques);
+        // las pruebas y mascaras que leen los bloques (mvmask, fgui, fg_borde, completos, mvverdad, mvlog) los siguen pidiendo
+        bool FgOnlyCamNow { get { return s.FgCamOnly && FgGlobalNow && (fgApplied || FfxFgVecNow) && s.MvMask == 0 && s.FgUi == 0 && !s.FgGuard && !FgVecFullNow && s.MvTruth == 0 && !s.MvLog; } }
         // (la profundidad por capas sustituye a la de los bordes de fg_profundidad: EngineRejas.cs RecordFgDepth)
         bool FgLayerDepthNow { get { return s.FgQuiet && s.FgQuietDepth && s.FgDepth > 0 && FgGlobalNow && fgApplied; } }
 

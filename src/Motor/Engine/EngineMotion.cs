@@ -147,7 +147,7 @@ namespace ConsoleEnhancer.Motor
             // (con la entrada igual a la salida, 4K a 4K, DLSS SR no se usa: el "dlss L" de "Ajustes:" es solo lo pedido)
             if (st == 3) Log.Write("DLSS SR: entrada = salida (" + inW + "x" + inH + "): no se usa (el modelo " + s.Preset + " de Ajustes no se aplica; solo DLSS 5 y la generacion)");
             else if (st > 0) Log.Write("Vectores de DLSS SR (" + inW + "x" + inH + ", modo " + s.Mode + (fgApplied ? " + generacion" : "") + ", " + s.Preset + "): " +
-                (st == 2 ? "completos" + (MvFullForDlss5 ? " (DLSS 5)" : " (mv_completo_sr)") + (MvSrNoPx ? " sin mvpx" : "") + (fgApplied && s.FgVec >= 2 ? "; la generacion, los ligeros" : "") : "ligeros"));
+                (st == 2 ? "completos" + (MvFullForDlss5 ? " (DLSS 5)" : " (mv_completo_sr)") + (MvSrNoPx ? " sin mvpx" : "") + (fgApplied && FgGlobalNow ? "; la generacion, el vector de la camara (fg_global)" : fgApplied && s.FgVec >= 2 ? "; la generacion, los ligeros" : "") : "ligeros"));
         }
 
         // 20-11 (SR45): mv_completo_sr_px=L (de serie): en los completos solo por DLSS SR, mvpx solo con esos modelos. Paralaje 1440p, con /
@@ -315,7 +315,11 @@ namespace ConsoleEnhancer.Motor
             // mueve dejaba rastro y se emborronaba; FSR 3 FG generaba sin vectores. mvsr_xess_ffx=0 = como antes
             bool srTemporal = (inW != outW || inH != outH) && (scalerNow == "dlss" || (s.MvXessFfx && (scalerNow == "xess" || scalerNow == "ffx")));
             bool on = s.Motion && newFrame && (srTemporal || fgApplied || (s.MvXessFfx && ffxFgOn) || (s.MvNativeNr && s.Nr && s.Mode == 30));   // (1.0.5: mv_nativo_dlss5, DLSS 5 a 4K nativo sin FG)
-            bool quality = on && QualityMotion;
+            // 22-11 (1.2.1): si solo los usa la generacion con el vector de la camara (fg_global, EngineFgGlobal.cs) y nadie mas los vectores
+            // por bloque (4K nativo sin DLSS 5, o un escalador espacial), sin la busqueda por bloques: solo la piramide de luma. Medido a 4K,
+            // modo 30 + DLSS-G: la seccion de vectores 2,9 -> ~0,3 ms de grafica (tambien de retraso). fg_solo_camara=0 = como antes
+            bool onlyCam = on && FgOnlyCamNow && !srTemporal && !(s.MvNativeNr && s.Nr && s.Mode == 30);
+            bool quality = on && QualityMotion && !onlyCam;
             if (quality) EnsureQualityPsos();
             bool info = quality;    // el nivel fino escribe blockInfo (para las mascaras y la interfaz)
             int cur = motionSet;
@@ -333,10 +337,12 @@ namespace ConsoleEnhancer.Motor
                     list.Dispatch(Groups(lw[k], 16), Groups(lh[k], 8), 1);
                     Barrier(L, D3D12_RESOURCE_STATES.UNORDERED_ACCESS, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE);
                 }
-                if (motionValid && !frameReset)
+                if (motionValid && !frameReset && onlyCam) mvPrevValid = false;   // 22-11 (1.2.1): sin la busqueda por bloques (ver arriba)
+                else if (motionValid && !frameReset)
                 {
                     // 20-11 16:15 (DLSS5VEC2): DLSS 5 + DLSS-G con la entrada de mv_ligero o mas: primero los ligeros para la generacion
-                    bool dual = MvLightSize && MvFullWanted && fgApplied && s.FgVec >= 2 && mvecFg != null && !s.MvFixed && !FgVecFullNow;   // (20-11 SR45: o DLSS SR; FGFALLOS: con fg_vectores_completos sin la doble pasada)
+                    // (22-11 1.2.1: con fg_global la generacion no lee los ligeros, solo la piramide de luma: sin la doble pasada, ~0,7 ms menos a 1440p)
+                    bool dual = MvLightSize && MvFullWanted && fgApplied && s.FgVec >= 2 && mvecFg != null && !s.MvFixed && !FgVecFullNow && !FgGlobalNow;   // (20-11 SR45: o DLSS SR; FGFALLOS: con fg_vectores_completos sin la doble pasada)
                     mvForceLight = dual;
                     for (int k = Levels - 1; k >= 0; k--) SearchLevel(cur, k, info && k == 0, c);
                     if (dual)
@@ -375,6 +381,16 @@ namespace ConsoleEnhancer.Motor
             quality = quality && on;
             biasValid = false;
             if (newFrame) uiValid = false;   // imagen nueva: la interfaz vale si se rehace abajo (no en un corte ni sin movimiento)
+            if (on && onlyCam)
+            {
+                // 22-11 (1.2.1): la generacion con el vector de la camara (y lo quieto a 0) de las dos piramides; mvec no lo lee nadie
+                if (!camOnlySaid) { camOnlySaid = true; Log.Write("Vectores: solo el de la camara para la generacion (" + inW + "x" + inH + "; sin la busqueda por bloques: nadie mas la usa, fg_solo_camara=0 para tenerla)"); }
+                RecordFgVec(true, cur);
+                fgVecDone = false;
+                RecordFgDepth(cur);   // (con fg_quieto_prof la hace RecordFgVec; si no, la de los bordes de siempre)
+                QStampEnd(true);
+                return;
+            }
             if (!on && !mvecDirty) { QStampEnd(on); return; }
 
             // 16-11 (calidad): mascara por bloque. mvmask = suma de 1 (vector dudoso), 2 (borde quieto/movimiento), 4 (quieto
