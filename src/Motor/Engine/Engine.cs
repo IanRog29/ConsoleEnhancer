@@ -492,6 +492,17 @@ namespace ConsoleEnhancer.Motor
             {
                 if (source != null) { try { source.Dispose(); } catch (Exception ex) { Log.Error("Cerrando la fuente", ex); } source = null; }
                 IFrameSource src;
+                if (s.IsFileTest)
+                {
+                    // 22-11 (1.2.4 arreglos, RELEVO): test=archivo:<ruta>, un video como si fuera la capturadora (FileSource.cs)
+                    FileSource fsrc = new FileSource(s);
+                    try { fsrc.Frame += OnFrame; fsrc.Start(); }
+                    catch (Exception ex) { fsrc.Frame -= OnFrame; Log.Error("Fuente de prueba (archivo)", ex); try { fsrc.Dispose(); } catch { } return; }
+                    tirCapPrev = 0;
+                    source = fsrc;
+                    Log.Write("Fuente: " + fsrc.Name);
+                    return;
+                }
                 if (s.Test.Length > 0)
                 {
                     TestSource ts = new TestSource(s.Test, s.CapW, s.CapH, s.FpsNum, s.FpsDen, s.Mode == 30 ? 30 : 60);

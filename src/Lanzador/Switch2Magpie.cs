@@ -226,6 +226,11 @@ namespace ConsoleEnhancer
         public string StreamingCenterPath = "";   // (ConsoleEnhancer: sin programa de un fabricante de serie)
         public string TestSource = ""; // solo pruebas: fuente de mpv en lugar de la capturadora
         public string TestSourceGame = ""; // solo pruebas: la fuente cuando se esta en un juego (test_source = el HOME)
+        // 22-11 (1.2.4 arreglos, RELEVO) solo pruebas, con test_source: lo que se le pasa al motor como test= (de serie "barras"; p. ej.
+        // archivo:C:\ruta\video.y4m, la fuente del motor que hace de capturadora: src\Motor\Engine\FileSource.cs). Al abrirlo y al
+        // despertarlo (antes el despertar mandaba siempre test=barras y pisaba un test= de motor_extra)
+        public string TestMotor = "";
+        public string TestMotorArg { get { return "test=" + (TestMotor.Length > 0 ? TestMotor : "barras"); } }
         // HOME de la consola a 4K nativo y 60 fps, tal cual llega: captura a 4K, ventana de 4K y sin Magpie (ni escalado, ni
         // DLSS 5, ni generacion de imagenes, ni el filtro de repetidas ni el suavizado de bordes de mpv). Al entrar en un juego
         // vuelven sus ajustes (games\profiles.txt) y Magpie escala
@@ -1332,6 +1337,7 @@ namespace ConsoleEnhancer
                         case "test_mpv_args": c.TestMpvArgs = val; break;
                         case "test_filtro": c.TestFrameFilter = val; break;
                         case "test_source_juego": c.TestSourceGame = val; break;
+                        case "test_motor": c.TestMotor = val.Trim(); break;   // (1.2.4 arreglos, RELEVO: la fuente del motor en pruebas)
                         case "test_audio_search": c.TestAudioSearch = ParseBool(val); break;
                         case "banco_sin_capturas": c.BenchNoGrabs = ParseBool(val); break;
                         case "banco_s": c.BenchSecs = Math.Max(0, ParseInt(val)); break;
@@ -11648,7 +11654,7 @@ namespace ConsoleEnhancer
         static string EngineSessionSet(Config cfg, bool smooth)
         {
             CapFmt ef = CapturaSegura.Efectivo(cfg);   // 21-11 (1.2.1): lo que se abre de verdad (src\Lanzador\CapturaSegura.cs)
-            return "capture=" + ef.Size + " fps=" + ef.Fps + " format=" + EngineFormat(cfg) + (cfg.TestSource.Length > 0 ? " test=barras" : "") + " " + EngineLive(cfg, smooth);
+            return "capture=" + ef.Size + " fps=" + ef.Fps + " format=" + EngineFormat(cfg) + (cfg.TestSource.Length > 0 ? " " + cfg.TestMotorArg : "") + " " + EngineLive(cfg, smooth);
         }
 
         static string EngineFormat(Config cfg)
@@ -12058,7 +12064,7 @@ namespace ConsoleEnhancer
             a.Add("capture=" + capEf.Size);
             a.Add("fps=" + capEf.Fps);
             a.Add("format=" + EngineFormat(cfg));
-            if (cfg.TestSource.Length > 0) a.Add("test=barras");
+            if (cfg.TestSource.Length > 0) a.Add(cfg.TestMotorArg);
             a.Add("dedupe=" + (DedupeOn(cfg, !cfg.FgOff) ? "1" : "0"));
             a.AddRange(EngineLive(cfg, sm > 0).Split(' '));
             // 18-11 (LATENCIA): el motor sabe que va con Smooth Motion (1 sincronizacion forzada, 2 cada 2 refrescos): vigila la cola de la
