@@ -11,6 +11,9 @@
 //  El reparto (SOLOMOTOR, src\Lanzador\SoloMotor.cs: Config.MotorSabeGeneracion) llama a MotorFgSabe; el motor se abre con
 //  MotorFgArgs (fg_tipo / fg_mult) y se reabre si cambia su "cadena" (EngineFgChain), como ya pasaba con FSR 3 FG.
 //  Si el motor no puede (switch2-fgmult no <pedido> <da>), en esta sesion esa combinacion no se le vuelve a pedir.
+//  22-11 noche (pedido del usuario, "Si, pieza privada"): con engine\PrismaFg.dll (pieza privada de uso propio, NO se publica ni esta en
+//  git, como PrismaNr.dll) y el paquete dlssg_sm86 del usuario, DLSS FG x3 / x4 tambien en el motor en RTX 40 (cadena 3: el motor se abre
+//  con fg_mult=3|4 y la pieza prepara la generacion antes de Streamline). Sin la DLL, todo como arriba.
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -35,6 +38,28 @@ namespace ConsoleEnhancer
             catch { return ""; }
         }
 
+        // engine\PrismaFg.dll junto al motor y un paquete dlssg_sm86 (mirado como mucho cada 5 s)
+        static DateTime pfgAt; static bool pfgOk; static string pfgExe;
+        static readonly object pfgSync = new object();
+        public static bool MotorFgPrivada(string enginePath)
+        {
+            try
+            {
+                string exe = string.IsNullOrEmpty(enginePath) ? Paths.AppDir + @"\engine\ConsoleEnhancerEngine.exe" : enginePath;
+                lock (pfgSync)
+                {
+                    if (exe == pfgExe && (DateTime.Now - pfgAt).TotalSeconds < 5) return pfgOk;
+                    pfgExe = exe; pfgAt = DateTime.Now;
+                    string la = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+                    pfgOk = File.Exists(Path.Combine(Path.GetDirectoryName(exe), "PrismaFg.dll")) &&
+                            (File.Exists(Path.Combine(Extras.Sm86, "version.dll")) || File.Exists(Path.Combine(Paths.MagpieDir, @"runtimes\dlssg_sm86\version.dll")) ||
+                             File.Exists(Path.Combine(la, @"ConsoleEnhancer\extras\runtimes\dlssg_sm86\version.dll")));
+                    return pfgOk;
+                }
+            }
+            catch { return false; }
+        }
+
         // ¿Sabe el motor hacer esta generacion con este multiplicador en este PC? (con XeSS FG y DLSS de escalador el motor va con DLSS SR
         // sin los ganchos de Streamline: tambien vale)
         public static bool MotorFgSabe(string tipo, int mult)
@@ -47,7 +72,8 @@ namespace ConsoleEnhancer
                     if (mult <= 2) return true;
                     if (!MotorFgMulti) return false;
                     if (motorFgFab != "" && motorFgFab != "nvidia") return false;
-                    return MotorFgFamilia() == "rtx50";   // (x3 / x4 de NVIDIA por la via oficial: solo RTX 50)
+                    if (MotorFgFamilia() == "rtx50") return true;   // (x3 / x4 de NVIDIA por la via oficial: solo RTX 50)
+                    return MotorFgFamilia() == "rtx40" && MotorFgPrivada(null);   // (RTX 40 con la pieza privada PrismaFg.dll)
                 case "xess":
                     if (!MotorFgMulti) return false;
                     if (!File.Exists(Path.Combine(Paths.MagpieDir, "libxess_fg.dll")) || !File.Exists(Path.Combine(Paths.MagpieDir, "libxell.dll"))) return false;
@@ -56,7 +82,9 @@ namespace ConsoleEnhancer
             return false;
         }
 
-        // La "cadena" con la que se abre el motor (no se cambia en marcha): 0 la de siempre, 1 FSR 3 FG, 2 XeSS FG
+        // La "cadena" con la que se abre el motor (no se cambia en marcha): 0 la de siempre, 1 FSR 3 FG, 2 XeSS FG, 3 DLSS FG x3 / x4 con
+        // PrismaFg.dll (la pieza tiene que preparar la generacion antes de Streamline: de x2 a x3 / x4 o al reves se vuelve a abrir; entre
+        // x3 y x4 no)
         public int EngineFgChain
         {
             get
@@ -65,6 +93,7 @@ namespace ConsoleEnhancer
                 if (FgOff || HomeNative || Mode120) return 0;
                 if (EngineFfxWanted) return 1;
                 if (MotorFgMulti && FgTypeNow == "xess" && MotorFgSabe("xess", FgMultNow)) return 2;
+                if (MotorFgMulti && FgTypeNow == "dlss" && FgMultNow >= 3 && MotorFgFamilia() != "rtx50" && MotorFgSabe("dlss", FgMultNow)) return 3;
                 return 0;
             }
         }
@@ -74,6 +103,7 @@ namespace ConsoleEnhancer
         {
             int m = Math.Max(2, Math.Min(4, FgMultNow));
             if (chain == 2) return " fg_tipo=xess fg_mult=" + m.ToString(CultureInfo.InvariantCulture);
+            if (chain == 3) return " fg_mult=" + m.ToString(CultureInfo.InvariantCulture);
             return "";
         }
 
@@ -84,6 +114,15 @@ namespace ConsoleEnhancer
             int m = Math.Max(2, Math.Min(4, FgMultNow));
             if (m > 2 && !MotorFgSabe("dlss", m)) m = 2;
             return " fg_mult=" + m.ToString(CultureInfo.InvariantCulture);
+        }
+
+        // Imagenes en la tele por cada una del juego con lo que hace el motor ahora (para el refresco fijo, ImagenCe.CeRefrescoFijoAhora):
+        // DLSS FG x3 / x4 si el motor lo hace (RTX 50 o PrismaFg.dll); lo demas x2
+        public int MotorFgFactorRefresco()
+        {
+            if (FgOff || FgTypeNow != "dlss") return 2;
+            int m = Math.Max(2, Math.Min(4, FgMultNow));
+            return m > 2 && MotorFgSabe("dlss", m) ? m : 2;
         }
 
         // El motor dijo "switch2-fgmult no <pedido> <da>": esa combinacion no se le pide mas en esta sesion

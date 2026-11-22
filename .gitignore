@@ -38,6 +38,13 @@ build_prismanr.bat
 PrismaNr*.dll
 PrismaNrTest*.exe
 
+# PrismaFg (1.2.4 MOTORFG): DLSS FG x3 / x4 del motor en RTX 40 con el paquete comunitario dlssg_sm86 (carga su proxy, que redirige
+# la carga de NGX: la licencia de los SDK de NVIDIA RTX no lo permite). Solo para uso propio, NO se publica. El motor funciona igual sin
+# PrismaFg.dll (src/Motor/Engine/EngineFgMulti.cs solo la usa si esta: sin ella, DLSS FG x2 en RTX 40)
+src/PrismaFg/
+build_prismafg.bat
+PrismaFg*.dll
+
 # Las descargas de mpv y Magpie que hace la app la primera vez (src\Lanzador\Componentes.cs) y los ficheros a medias
 descargas/
 downloads/

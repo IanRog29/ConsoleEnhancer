@@ -974,7 +974,7 @@ namespace ConsoleEnhancer
         // pierde el ritmo: 59,94 en 120 Hz, medido 22,3 ms frente a 17,7 y saltos de 1 y 3 refrescos)
         public bool EngineFixed60Fg = true;
         public bool EngineReserve = true;   // 21-11 (1.0.9) motor_reserva=0|1: motor de reserva con la otra generacion del modo (MaybeReserveEngine)
-        public bool EngineFixedWanted { get { return EngineFixed60Fg && CeRefrescoFijoAhora() && !CapMode && !FgOff && !EngineSmoothFor(false) && !NvProfiles.EngineFixedBroken; } } // (ConsoleEnhancer: CeRefrescoFijoAhora, motor_60fg_refresco_fijo=auto, ImagenCe.cs)
+        public bool EngineFixedWanted { get { return EngineFixed60Fg && CeRefrescoFijoAhora() && (!CapMode || MotorFgFactorRefresco() == 4) && !FgOff && !EngineSmoothFor(false) && !NvProfiles.EngineFixedBroken; } } // (ConsoleEnhancer: CeRefrescoFijoAhora, motor_60fg_refresco_fijo=auto, ImagenCe.cs)
         public static volatile int EngineFixedLaunched = -1;    // el refresco fijo del ultimo motor lanzado (EngineArgs): -1 ninguno, 0 no, 1 si
         static readonly Dictionary<int, int> engineFixedByPid = new Dictionary<int, int>();
         // (justo tras Process.Start de un motor: con que refresco se abrio ese proceso)
@@ -11867,7 +11867,7 @@ namespace ConsoleEnhancer
             if (fixedDiffSince == DateTime.MinValue) { fixedDiffSince = now; return; }
             if ((now - fixedDiffSince).TotalSeconds < 0.5) return;
             fixedDiffSince = DateTime.MinValue;
-            Log.Write("Refresco del motor: " + (want > 0 ? "fijo (modo 60 con DLSS FG: sin el tope de 116 de Reflex con VRR)" : "VRR (" + (cfg.CapMode ? "modo 30" : cfg.FgOff ? "sin generacion" : "otra generacion") + ")") +
+            Log.Write("Refresco del motor: " + (want > 0 ? "fijo (" + (cfg.CapMode ? "modo 30 con DLSS FG x4 del motor" : "modo 60 con DLSS FG") + ": sin el tope de 116 de Reflex con VRR)" : "VRR (" + (cfg.CapMode ? "modo 30" : cfg.FgOff ? "sin generacion" : "otra generacion") + ")") +
                       ": el driver solo lo mira al abrirlo, se vuelve a abrir el motor");
             ReabrirMotorSmooth(cfg.EngineSmoothMode, null, null);
         }
@@ -11886,7 +11886,7 @@ namespace ConsoleEnhancer
             if (ffxDiffSince == DateTime.MinValue) { ffxDiffSince = now; return; }
             if ((now - ffxDiffSince).TotalSeconds < 0.5) return;
             ffxDiffSince = DateTime.MinValue;
-            Log.Write("Generacion del motor: " + (want == 1 ? "FSR 3 FG (FidelityFX)" : want == 2 ? "XeSS FG" : "la de siempre") + ": su cadena de presentacion se elige al abrirlo, se vuelve a abrir el motor");
+            Log.Write("Generacion del motor: " + (want == 1 ? "FSR 3 FG (FidelityFX)" : want == 2 ? "XeSS FG" : want == 3 ? "DLSS FG x3 / x4 (PrismaFg.dll)" : "la de siempre") + ": su cadena de presentacion se elige al abrirlo, se vuelve a abrir el motor");
             ReabrirMotorSmooth(cfg.EngineSmoothMode, null, null);
         }
 
@@ -13983,7 +13983,7 @@ namespace ConsoleEnhancer
                     // 21-11 (1.0.9): y uno abierto con otra generacion de motor (FSR 3 FG / la de siempre): la cadena no se cambia en marcha
                     if (eng && adopted == null && standbyEngine != null && Config.EngineFfxOf(standbyEngine) >= 0 &&
                         Config.EngineFfxOf(standbyEngine) != cfg.EngineFgChain)
-                        KillStandby("generacion: el motor en espera se abrio con otra cadena (" + Config.EngineFfxOf(standbyEngine) + ", ahora " + cfg.EngineFgChain + ": 1 FSR 3 FG, 2 XeSS FG)");
+                        KillStandby("generacion: el motor en espera se abrio con otra cadena (" + Config.EngineFfxOf(standbyEngine) + ", ahora " + cfg.EngineFgChain + ": 1 FSR 3 FG, 2 XeSS FG, 3 DLSS FG x3 / x4 con PrismaFg.dll)");
                     Process woke = adopted ?? (eng ? StandbyForWake() : null);
                     if (eng && woke == null) KillStandby("se abre otro motor");
                     if (woke != null) ipc = adopted != null ? adoptIpc : standbyIpc;
