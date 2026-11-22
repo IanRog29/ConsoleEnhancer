@@ -14,8 +14,7 @@
 //     ahora es otra; con la de siempre delante, como antes (Smooth Motion, la otra del modo).
 //  3. Tras una caida del motor (DEVICE_HUNG, codigo 3): 3,1 s en negro + 3,3 s del proceso saliendo + 1,5 s de espera. Ahora: el motor
 //     sale al momento (Program.cs), el telon es la imagen congelada (la copia de la pantalla al verla parada, como el telon congelado
-//     de la 1.2.3) y, con un motor en espera que vale, sin la espera de 1,5 s. Una caida de la grafica con XeSS FG del motor: el resto de
-//     la sesion XeSS FG va como en la 1.2.3 (por Magpie), para no caer otra vez cada minuto (log: 21:31:32 y 21:32:53).
+//     de la 1.2.3) y, con un motor en espera que vale, sin la espera de 1,5 s. (Que generacion va por Magpie tras una caida: XEFGM.)
 // C# 5. Partes de TrayApp (Switch2Magpie.cs, SinTelon.cs).
 using System;
 using System.Diagnostics;
@@ -216,30 +215,12 @@ namespace ConsoleEnhancer
             catch { }
             return 1500;
         }
-
-        // RunMpv: el motor se ha cerrado solo con la grafica perdida o parada (3 / 5) llevando XeSS FG: el resto de la sesion XeSS FG por
-        // Magpie, como en la 1.2.3 (el reparto lo ve con MotorFgNoPuede, como cuando el motor dice que no puede)
-        void CrashXessFallback(Process p, int code)
-        {
-            try
-            {
-                int ch = Config.EngineFfxOf(p);
-                if (!Config.ChainXess(ch) || (code != 3 && code != 5) || !cfg.RelevoXessFallback) return;
-                int m = Math.Max(2, Math.Min(4, ch / 10));
-                Config.MotorFgNoPuede("xess", m);
-                Log.Write("El motor con XeSS FG x" + m + " se ha caido (codigo " + code + ", la grafica perdida o parada): en esta sesion XeSS FG x" + m +
-                          " va por Magpie, como en la 1.2.3 (relevo_xess_magpie=0 lo quita)");
-            }
-            catch (Exception ex) { Log.Error("XeSS FG tras la caida", ex); }
-        }
     }
 
     partial class Config
     {
         // ini relevo_motor_espera=1|0 (de serie 1): el motor que se va en un relevo de motor a motor pasa a la espera (0 = se cierra, como la 1.2.4)
         public bool RelevoKeepOld = true;
-        // ini relevo_xess_magpie=1|0 (de serie 1): tras una caida de la grafica con XeSS FG del motor, XeSS FG por Magpie el resto de la sesion
-        public bool RelevoXessFallback = true;
 
         // Un motor abierto con la cadena 'have' vale para 'want': la misma, o XeSS FG con DLSS SR (Streamline solo para DLSS SR: 21, 31, 41)
         // para XeSS FG sin el (20, 30, 40): el escalador se cambia en marcha (FSR 1 / sin reescalado); al reves no (hace falta Streamline).
@@ -254,7 +235,6 @@ namespace ConsoleEnhancer
             switch (key)
             {
                 case "relevo_motor_espera": RelevoKeepOld = ParseBool(val); return true;
-                case "relevo_xess_magpie": RelevoXessFallback = ParseBool(val); return true;
             }
             return false;
         }

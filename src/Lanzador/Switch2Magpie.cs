@@ -14374,9 +14374,8 @@ namespace ConsoleEnhancer
                     Log.Write("El motor propio se ha cerrado solo (codigo " + p.ExitCode + ", vez " + engineCrashes + "; ver data\\logs\\engine.log): " +
                               (engineCrashes >= 3 ? "el resto de la sesion mpv + Magpie" : "se vuelve a abrir"));
                     if (engineCrashes >= 3) cfg.Engine = "magpie";
-                    // (1.2.4 arreglos, RELEVO: la imagen congelada en vez de negro; XeSS FG por Magpie tras caerse con el; sin la espera si hay
-                    // un motor en espera que vale. RelevoMotor.cs)
-                    CrashXessFallback(p, p.ExitCode);
+                    // (1.2.4 arreglos, RELEVO: la imagen congelada en vez de negro; sin la espera si hay un motor en espera que vale. RelevoMotor.cs.
+                    // Lo que va por Magpie tras una caida con XeSS FG / la FG propia del motor lo decide XEFGM, XefgMotor.cs)
                     CrashCurtain(p);
                     signalOn = false;
                     waitStart = DateTime.Now;
