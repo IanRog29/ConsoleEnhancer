@@ -1504,6 +1504,7 @@ namespace ConsoleEnhancer
                             if (c.ParseSonidoDoble(key, val)) break; // (21-11: sonido_doble, src\SonidoDoble.cs)
                             if (c.ParseCapturaSegura(key, val)) break; // (21-11, 1.2.1: captura_segura, src\Lanzador\CapturaSegura.cs)
                             if (MarcoMpv.Parse(key, val)) break; // (22-11, 1.2.1: mpv_sin_marco, src\Lanzador\MarcoMpv.cs)
+                            if (c.ParseTiempos(key, val)) break; // (22-11, 1.2.2: motor_en_espera_al_abrir_ms, src\Lanzador\TiemposCarga.cs)
                             if (key.StartsWith("mando_") && PadOptions.Parse(key, val)) break; // (18-11, MANDOS: modo PC, src\Mandos.cs)
                             Log.Write("Aviso: clave desconocida en ini: " + key); break;
                     }
@@ -11262,9 +11263,15 @@ namespace ConsoleEnhancer
         // Hasta que no quede el Magpie matado (como KillMagpieNow con wait). since: desde el boton de matarlo
         void WaitMagpieGone(Stopwatch since)
         {
-            while (MagpieLive.Running && since.ElapsedMilliseconds < 6000) Thread.Sleep(20);
+            // (22-11, 1.2.2: tambien cuando suelta su candado de instancia unica, para ver si el nuevo podria abrirse antes)
+            long lockFree = -1;
+            while (MagpieLive.Running && since.ElapsedMilliseconds < 6000)
+            {
+                if (lockFree < 0 && !MagpieLive.LockHeld()) lockFree = since.ElapsedMilliseconds;
+                Thread.Sleep(lockFree < 0 ? 5 : 20);
+            }
             Log.Write(MagpieLive.Running ? "Aviso: Magpie no se ha cerrado del todo (¿abierto como administrador?)"
-                                         : "Magpie cerrado en " + since.ElapsedMilliseconds + " ms");
+                                         : "Magpie cerrado en " + since.ElapsedMilliseconds + " ms" + (lockFree >= 0 ? " (candado suelto a los " + lockFree + " ms)" : ""));
         }
 
         static void SaveText(string path, string text)
@@ -13812,6 +13819,7 @@ namespace ConsoleEnhancer
                     {
                         p = Process.Start(psi);
                         mpv = p;
+                        if (first && !eng) StandbyAlAbrir(); // (22-11, 1.2.2: el motor en espera ya, a la vez que mpv; src\Lanzador\TiemposCarga.cs)
                         if (eng) { Config.NoteEngineFixed(p); Config.NoteEngineFfx(p); }   // 20-11 (LATENCIA5)
                         if (eng) Config.EngineSmoothRunning = Config.EngineSmoothLaunched;   // 17-11 16:55 (17:15: con mpv se queda el del ultimo motor: el que pasa a espera tras el puente lo necesita; antes -1 y al motor de Smooth Motion se le mandaba fg=1)
                     }
