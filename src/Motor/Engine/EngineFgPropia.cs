@@ -28,6 +28,7 @@ namespace ConsoleEnhancer.Motor
         public int FgOwnVsync = -1;
         public bool FgOwnCands = true;              // fg_propia_candidatos=1 (v2)
         public int FgOwnR = 32;                     // fg_propia_radio=32 (px de la salida; medido en la cabeza x4: 32 -> halo 5,7, 16 -> 9,6)
+        public int FgOwnGpuWait = -1;               // fg_propia_espera=-1|0|1 (1.2.4, integracion: ver FpPresent)
 
         bool ApplyFgOwn(string key, string val)
         {
@@ -38,6 +39,7 @@ namespace ConsoleEnhancer.Motor
                 case "fg_propia_vsync": FgOwnVsync = I(val); return true;
                 case "fg_propia_candidatos": FgOwnCands = B(val); return true;
                 case "fg_propia_radio": FgOwnR = Math.Max(1, Math.Min(128, I(val))); return true;
+                case "fg_propia_espera": FgOwnGpuWait = I(val); return true;
             }
             return false;
         }
@@ -260,7 +262,10 @@ void main(uint3 id : SV_DispatchThreadID)
             double real = 1000.0 / Math.Max(1.0, (s.FpsNum > 0 ? s.FpsNum / (double)Math.Max(1, s.FpsDen) : 59.94) * (s.Mode == 30 ? 0.5 : 1));
             double step = real / k;
             // con sincronizacion si k x las reales no caben con margen bajo el refresco (x4 de 30 en 120 Hz); si no, cada una a su hora
-            bool vs = s.FgOwnVsync == 1 || (s.FgOwnVsync < 0 && (sync > 0 || (k * 1000.0 / real) > DisplayHz() * 0.9));
+            // (1.2.4, integracion: la espera a la grafica -abajo- solo si la real cabe en el 70 % de un hueco; si no -p. ej. DLSS 5 con x3-, por
+            // VRR las inventadas se veian juntas -26 / 1,7 / 5,9 ms medido- y con sincronizacion salen a 1 / 1 / 2 refrescos: con sincronizacion)
+            bool espera = s.FgOwnGpuWait == 1 || (s.FgOwnGpuWait < 0 && stats.LastGpuP95 > 0 && stats.LastGpuP95 < step * 0.7);
+            bool vs = s.FgOwnVsync == 1 || (s.FgOwnVsync < 0 && (sync > 0 || (k * 1000.0 / real) > DisplayHz() * 0.9 || !espera));
             uint sy = vs ? 1u : 0u, fl = vs ? 0u : flags;
             long t0 = Clock.Now;
             try
@@ -274,6 +279,13 @@ void main(uint3 id : SV_DispatchThreadID)
                         if (j > 1) FpBegin();
                         FpRecordGen((float)j / k);
                         FpSubmit();
+                        // (1.2.4, integracion, medido en la app entera 22-11, 4K modo 30 x3 por VRR: las presentaciones salian cada 11,1 ms pero
+                        // en la tele 2,5 / 11,2 / 19,5 ms -con DLSS 5, 26 / 1,7 / 5,9-: la 1a inventada no se ve hasta que la grafica acaba la
+                        // real, que va delante en la cola. Con la grafica de la real por debajo del 70 % de un hueco -fg_propia_espera=-1, auto-
+                        // se espera a que la 1a inventada este hecha y el reparto empieza ahi; con mas, como estaba -si no, el hilo no llegaria a
+                        // la siguiente real-)
+                        if (j == 1 && espera)
+                        { WaitFence(fpAllocFence[fpAi]); t0 = Clock.Now; }
                         if (j > 1) FpWaitUntil(t0 + (long)((j - 1) * step / Clock.TickMs));
                         hr = swap.Present(sy, (DXGI_PRESENT)fl);
                         if (hr < 0) return hr;
