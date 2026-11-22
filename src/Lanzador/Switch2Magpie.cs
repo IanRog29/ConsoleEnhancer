@@ -2077,7 +2077,7 @@ namespace ConsoleEnhancer
             const string w = "perfil " + ProfileName;
             Set(mine, "name", ProfileName, w, changes);
             Set(mine, "packaged", false, w, changes);
-            Set(mine, "pathRule", cfg.MpvPath, w, changes);
+            Set(mine, "pathRule", RutaReal.De(cfg.MpvPath), w, changes); // (1.2.2: con las uniones resueltas, como la ve Magpie; src\RutaReal.cs)
             Set(mine, "classNameRule", "mpv", w, changes);
             Set(mine, "launcherPath", "", w, changes);
             Set(mine, "autoScale", 1, w, changes);           // escala en cuanto mpv pasa delante
