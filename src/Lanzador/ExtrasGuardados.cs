@@ -2,7 +2,7 @@
 //
 // El usuario baja cada version nueva limpia del zip a una carpeta nueva y borra la vieja: la 1.2.2 arranco "sin nvngx_dlssnr.dll: DLSS 5
 // no disponible" y tuvo que volver a añadirlo; con engine\PrismaNr.dll pasaria igual. Lo suyo (extras\nvngx_dlssnr.dll,
-// extras\runtimes\dlssg_sm86 y engine\PrismaNr.dll) se guarda tambien en %LOCALAPPDATA%\ConsoleEnhancer\extras (donde ya miran la
+// extras\runtimes\dlssg_sm86, engine\PrismaNr.dll y, desde la 1.2.4, engine\PrismaFg.dll) se guarda tambien en %LOCALAPPDATA%\ConsoleEnhancer\extras (donde ya miran la
 // deteccion -OpcionesDeteccion.RutasExtra- y Componentes.Sm86EnElPc) al añadirlo y al verlo en su sitio al arrancar, y una version nueva
 // que no lo tiene lo recoge de ahi (o de otra version de la app al lado, como HeredarDatos) antes de Ce.PrepararExtras, comprobado:
 // DLL de 64 bits y su tamaño (el apuntado al guardarla), dlssg_sm86 completo y el que pide el build-manifest.json de Magpie
@@ -41,7 +41,9 @@ namespace ConsoleEnhancer
         static Cosa Dlss5 { get { return new Cosa { Nombre = Integrado.Dlss5Dll, EnApp = Extras.Dll, Guardado = Path.Combine(Dir, Integrado.Dlss5Dll), Minimo = 8L << 20 }; } }
         static Cosa Sm86 { get { return new Cosa { Nombre = "dlssg_sm86", EnApp = Extras.Sm86, Guardado = Path.Combine(Dir, @"runtimes\dlssg_sm86"), Carpeta = true }; } }
         static Cosa Prisma { get { return new Cosa { Nombre = "PrismaNr.dll", EnApp = Extras.PrismaNr, Guardado = Path.Combine(Dir, @"engine\PrismaNr.dll"), Minimo = 16L << 10 }; } }
-        static Cosa[] Todas { get { return new[] { Dlss5, Sm86, Prisma }; } }
+        // (1.2.4: y engine\PrismaFg.dll, la otra pieza privada del motor -DLSS FG x3 / x4 en RTX 40, MotorFg.cs-, igual que PrismaNr.dll)
+        static Cosa PrismaFg { get { return new Cosa { Nombre = "PrismaFg.dll", EnApp = Extras.PrismaFg, Guardado = Path.Combine(Dir, @"engine\PrismaFg.dll"), Minimo = 16L << 10 }; } }
+        static Cosa[] Todas { get { return new[] { Dlss5, Sm86, Prisma, PrismaFg }; } }
 
         // (como Integrado.CopiaSeguridad: nada en pruebas con otra carpeta de datos o simulando, ni en la espera y sus ayudantes)
         static bool Toca()
@@ -164,7 +166,7 @@ namespace ConsoleEnhancer
             try
             {
                 string app = Path.GetFullPath(Paths.AppDir).TrimEnd('\\'), padre = Path.GetDirectoryName(app);
-                string rel = c.Carpeta ? @"extras\runtimes\dlssg_sm86" : c.Nombre == "PrismaNr.dll" ? @"engine\PrismaNr.dll" : @"extras\" + c.Nombre;
+                string rel = c.Carpeta ? @"extras\runtimes\dlssg_sm86" : c.Nombre.StartsWith("Prisma", StringComparison.OrdinalIgnoreCase) ? @"engine\" + c.Nombre : @"extras\" + c.Nombre;
                 if (!string.IsNullOrEmpty(padre) && Directory.Exists(padre))
                     foreach (string dir in Directory.GetDirectories(padre, "ConsoleEnhancer*"))
                         if (!string.Equals(dir.TrimEnd('\\'), app, StringComparison.OrdinalIgnoreCase)) de.Add(Path.Combine(dir, rel));
@@ -195,7 +197,7 @@ namespace ConsoleEnhancer
             {
                 CopiarDll(mejor, c.EnApp);
                 Log.Write("Extras guardados: " + c.Nombre + " que faltaba recogida de " + mejor + " (" + new FileInfo(c.EnApp).Length + " bytes, " + sw.ElapsedMilliseconds + " ms" +
-                          (c.Nombre == "PrismaNr.dll" ? "; de uso propio, no se distribuye" : "; DLL de NVIDIA modificada por la comunidad, SIN FIRMA, no oficial") + ")");
+                          (c.Nombre.StartsWith("Prisma", StringComparison.OrdinalIgnoreCase) ? "; de uso propio, no se distribuye" : "; DLL de NVIDIA modificada por la comunidad, SIN FIRMA, no oficial") + ")");
             }
             m[ClaveCopia(c)] = DateTime.Now.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
         }

@@ -49,6 +49,7 @@ namespace ConsoleEnhancer
         public static string Sm86Viejo { get { return Path.Combine(Dir, "dlssg_sm86"); } }
         public static string Sm86Puesto { get { return Directory.Exists(Sm86) ? Sm86 : Sm86Viejo; } }
         public static string PrismaNr { get { return Path.Combine(Paths.AppDir, @"engine\PrismaNr.dll"); } }
+        public static string PrismaFg { get { return Path.Combine(Paths.AppDir, @"engine\PrismaFg.dll"); } }   // (1.2.4 MOTORFG: DLSS FG x3 / x4 del motor en RTX 40; de uso propio, no se publica)
         public static bool HayDlss5 { get { return File.Exists(Dll); } }
         public static bool HaySm86 { get { return Directory.Exists(Sm86) || Directory.Exists(Sm86Viejo); } }
         public static bool MotorPuede { get { return File.Exists(PrismaNr); } }
