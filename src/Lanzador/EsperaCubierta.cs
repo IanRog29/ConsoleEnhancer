@@ -569,7 +569,10 @@ namespace ConsoleEnhancer
                         {
                             if (vuelta.WaitOne(4000) || !Oculta) return 0;
                             if (Dueno() != pid) continue; // (otro proceso de la app la ha cogido)
-                            if (GetSystemMetrics(0x2000) != 0) return 0;
+                            // (22-11, 1.2.2, ERRORES: con Windows apagandose se deja como esta, pero sin irse: si el apagado se cancela -un
+                            // programa lo impide y el usuario cancela-, la espera ya se habia cerrado y la barra se quedaba oculta para siempre.
+                            // Si Windows sigue, cierra este proceso con la sesion)
+                            if (GetSystemMetrics(0x2000) != 0) { if (vuelta.WaitOne(3000)) return 0; continue; }
                             Mostrar("la guarda: el proceso " + pid + " de la app ha terminado sin volver a mostrarla");
                             // (si era la espera, tampoco ha vuelto al plan de energia de antes: el procesador seguiria al 50 %)
                             CeEspera.PlanDeAntes("la guarda: la espera termino sin volver al plan de antes");
