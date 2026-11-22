@@ -281,8 +281,11 @@ namespace ConsoleEnhancer
         public static void Aplicar(Config cfg)
         {
             // (1.2.1) la escala de DLSS 5 por Magpie: automatica por la cadena entera (EscalaAuto.cs) o las tablas de aqui
-            Log.Write("Escala de DLSS 5 por Magpie: " + (cfg.Dlss5AutoAhora ? "automatica por la cadena (dlss5_escala_auto=1, " + EscalaAuto.Fichero + "; uso de la grafica " +
-                      Math.Round(EscalaAuto.Uso * 100) + " %)" : cfg.Dlss5InputPct != 0 ? "fija (dlss5_entrada)" : "las tablas tabla_dlss5_* (dlss5_escala_auto=0)"));
+            // (1.2.3 REVISION3: con lo elegido, no con Dlss5AutoAhora, que es falso mientras DLSS 5 lo hace el motor -y la linea decia "las tablas
+            // (dlss5_escala_auto=0)"-; y los dos presupuestos de MULTI2: el 95 % es el del hilo de Magpie, no de la grafica)
+            Log.Write("Escala de DLSS 5 por Magpie: " + (cfg.Dlss5AutoOn && cfg.Dlss5InputPct == 0 ? "automatica por la cadena (dlss5_escala_auto=1, " + EscalaAuto.Fichero + "; hilo de Magpie " +
+                      Math.Round(EscalaAuto.Uso * 100) + " %, grafica " + Math.Round(EscalaAuto.UsoGrafica * 100) + " %)" : cfg.Dlss5InputPct != 0 ? "fija (dlss5_entrada)" : "las tablas tabla_dlss5_* (dlss5_escala_auto=0)") +
+                      (cfg.MotorDlss5Pedido ? "; ahora DLSS 5 lo hace el motor propio (engine\\PrismaNr.dll, motor_dlss5)" : ""));
             if (!cfg.CeEscalas) return;
             Cargar();
             string g = GpuClave + "|";
