@@ -6,7 +6,9 @@
 #  - mpv ni Magpie: no los reparte ConsoleEnhancer. La app los baja la primera vez que se abre de sus releases oficiales (con su
 #    SHA-256: scripts\components.json, src\Lanzador\Componentes.cs). Asi no hay que repartir el codigo fuente de mpv / FFmpeg ni los
 #    binarios de Magpie Experimental (que llevan DLL de NVIDIA, AMD e Intel que su autor pide no volver a repartir sin revisar)
-#  - nvngx_dlssnr.dll ("DLSS 5": DLL de NVIDIA modificada, sin firma), runtimes\dlssg_sm86 (autofirmado), PrismaNr.dll, PrismaFg.dll
+#  - nvngx_dlssnr.dll ("DLSS 5": DLL de NVIDIA modificada, sin firma), runtimes\dlssg_sm86 (autofirmado) ni ninguna otra DLL de NVIDIA que
+#    no sea de las redistribuibles. (1.2.4) SI van las dos piezas propias del motor, engine\PrismaNr.dll y engine\PrismaFg.dll
+#    (build_prismanr.bat, build_prismafg.bat): cargan los archivos que pone el usuario saltandose la comprobacion de NGX (ver README)
 #  - el ini, logs, data\, games\ ni nada del PC donde se monta
 # Antes: build.bat y build_motor.bat (o preparar.bat). Streamline sale de terceros\streamline (scripts\descargar_dependencias.ps1;
 # si falta, se baja, salvo con -SinDescargar).
@@ -47,6 +49,8 @@ if (-not (Test-Path "$Streamline\bin\x64\sl.interposer.dll")) {
     & "$PSScriptRoot\descargar_dependencias.ps1" -Raiz $Raiz -Solo streamline
 }
 foreach ($need in @("$Raiz\bin\ConsoleEnhancer.exe", "$Raiz\bin\engine\ConsoleEnhancerEngine.exe")) { if (-not (Test-Path $need)) { throw "Falta $need (compila con build.bat y build_motor.bat, o preparar.bat)" } }
+# (1.2.4) las piezas propias del motor (C++, Visual Studio; PrismaNr con las cabeceras de NGX de scripts\descargar_cabeceras_ngx.ps1)
+$propias = @(
 # (1.2.3, DEFENDER) la version que llevan los exe en sus propiedades (src\Version.cs) = la del paquete: que no salga una version con los
 # exe de otra, ni sin version
 $verCs = [regex]::Match((Get-Content -LiteralPath "$Raiz\src\Version.cs" -Raw -Encoding UTF8), 'const string Texto = "([^"]+)"').Groups[1].Value
@@ -96,6 +100,7 @@ Poner "$Raiz\resources\mpv.conf" "$Destino\mpv\portable_config\mpv.conf"
 
 # ---- el motor y las DLL de produccion de Streamline (firmadas por NVIDIA) ----
 Poner "$Raiz\bin\engine\ConsoleEnhancerEngine.exe" "$Destino\engine\ConsoleEnhancerEngine.exe"
+foreach ($d in $propias) { Poner "$Raiz\bin\engine\$d" "$Destino\engine\$d" }   # (1.2.4: PrismaNr.dll / PrismaFg.dll, codigo propio)
 foreach ($d in @('sl.interposer.dll', 'sl.common.dll', 'sl.dlss.dll', 'sl.dlss_g.dll', 'sl.reflex.dll', 'sl.pcl.dll', 'nvngx_dlss.dll', 'nvngx_dlssg.dll', 'sl.deepdvc.dll', 'nvngx_deepdvc.dll')) {
     Poner "$Streamline\bin\x64\$d" "$Destino\engine\$d"
 }
@@ -211,11 +216,11 @@ Texto "$Destino\README.txt" @(
     'ConsoleEnhancer es gratis y completo. Si te es util y quieres apoyarlo (opcional): https://ko-fi.com/ianrog29')
 
 # ---- comprobaciones ----
-$noVan = @('nvngx_dlssnr.dll', 'DLSSNR-DLL-Options.zip', 'NGX_OTA_Switch.bat', 'switch2.ini', 'consoleenhancer.ini', 'hardware.txt', 'mpv.exe', 'Magpie.exe', 'PrismaNr.dll', 'PrismaNrTest.exe', 'PrismaFg.dll')
-$malos = @(Get-ChildItem -LiteralPath $Destino -Recurse -File -Force | Where-Object { $_.Name -in $noVan -or $_.Name -like 'Prisma*.dll' -or $_.FullName -like '*dlssg_sm86*' -or $_.FullName -like '*\games\*' -or $_.FullName -like '*\data\*' -or $_.FullName -like "$Destino\magpie\*" -or $_.Extension -in @('.log', '.pdb', '.obj', '.zip') })
+$noVan = @('nvngx_dlssnr.dll', 'DLSSNR-DLL-Options.zip', 'NGX_OTA_Switch.bat', 'switch2.ini', 'consoleenhancer.ini', 'hardware.txt', 'mpv.exe', 'Magpie.exe', 'PrismaNrTest.exe')
+$malos = @(Get-ChildItem -LiteralPath $Destino -Recurse -File -Force | Where-Object { $_.Name -in $noVan -or $_.FullName -like '*dlssg_sm86*' -or $_.FullName -like '*\games\*' -or $_.FullName -like '*\data\*' -or $_.FullName -like "$Destino\magpie\*" -or $_.Extension -in @('.log', '.pdb', '.obj', '.zip') })
 if ($malos.Count -gt 0) { throw ("En el paquete hay lo que no debe: " + (($malos | ForEach-Object { $_.FullName }) -join ', ')) }
-# Solo DLL firmadas por NVIDIA (las nuestras son los exe)
-foreach ($f in Get-ChildItem -LiteralPath $Destino -Recurse -File | Where-Object { $_.Extension -eq '.dll' }) {
+# Solo DLL firmadas por NVIDIA, salvo las dos propias del motor (las nuestras: los exe, PrismaNr.dll y PrismaFg.dll en engine\)
+foreach ($f in Get-ChildItem -LiteralPath $Destino -Recurse -File | Where-Object { $_.Extension -eq '.dll' -and -not ($propias -contains $_.Name -and $_.DirectoryName -eq "$Destino\engine") }) {
     $s = Get-AuthenticodeSignature -LiteralPath $f.FullName
     if ($s.Status -ne 'Valid' -or $s.SignerCertificate.Subject -notmatch 'NVIDIA') { throw "DLL sin la firma valida de NVIDIA: $($f.FullName) ($($s.Status))" }
 }
@@ -223,7 +228,7 @@ foreach ($f in Get-ChildItem -LiteralPath $Destino -Recurse -File | Where-Object
 $personal = @($env:USERNAME, $env:COMPUTERNAME, $env:USERPROFILE)
 if (Test-Path "$Raiz\scripts\privado.txt") { $personal += @(Get-Content -LiteralPath "$Raiz\scripts\privado.txt" -Encoding UTF8 | Where-Object { $_ -and -not $_.StartsWith('#') } | ForEach-Object { $_.Trim() }) }
 $personal = @($personal | Where-Object { $_ -and $_.Length -ge 3 } | Select-Object -Unique)
-$mirar = @("$Destino\ConsoleEnhancer.exe", "$Destino\engine\ConsoleEnhancerEngine.exe") + @(Get-ChildItem -LiteralPath $Destino -Recurse -File | Where-Object { $_.Extension -in @('.txt', '.ini', '.lua', '.glsl', '.conf', '.config', '.md', '.json') -and $_.FullName -notlike "$lic\streamline\*" } | ForEach-Object { $_.FullName })
+$mirar = @("$Destino\ConsoleEnhancer.exe", "$Destino\engine\ConsoleEnhancerEngine.exe", "$Destino\engine\PrismaNr.dll", "$Destino\engine\PrismaFg.dll") + @(Get-ChildItem -LiteralPath $Destino -Recurse -File | Where-Object { $_.Extension -in @('.txt', '.ini', '.lua', '.glsl', '.conf', '.config', '.md', '.json') -and $_.FullName -notlike "$lic\streamline\*" } | ForEach-Object { $_.FullName })
 $avisos = 0
 foreach ($e in $mirar) {
     $b = [IO.File]::ReadAllBytes($e)
@@ -242,7 +247,7 @@ Write-Output ("Paquete: $Destino - $script:n ficheros, {0:N0} MB, {1:N1} s" -f (
 foreach ($d in Get-ChildItem -LiteralPath $Destino -Directory) { $s = (Get-ChildItem -LiteralPath $d.FullName -Recurse -File | Measure-Object Length -Sum).Sum; Write-Output ("  {0,-10} {1,8:N1} MB" -f $d.Name, ($s / 1MB)) }
 foreach ($k in ($firmas.Keys | Sort-Object)) { Write-Output ("  firma {0}: {1}" -f $k, (($firmas[$k] | Sort-Object) -join ', ')) }
 if ($avisos -gt 0) { throw "$avisos datos de este PC en el paquete (arriba): quitalos antes de publicarlo" }
-Write-Output 'Comprobado: nada no redistribuible, ni mpv ni Magpie, solo DLL firmadas por NVIDIA y ningun dato de este PC'
+Write-Output 'Comprobado: nada no redistribuible, ni mpv ni Magpie, solo DLL firmadas por NVIDIA (y las dos propias del motor) y ningun dato de este PC'
 if ($Zip) {
     $z = "$(Split-Path $Destino)\ConsoleEnhancer$(if ($Version) { '-' + $Version }).zip"
     if (Test-Path $z) { Remove-Item -LiteralPath $z -Force }
