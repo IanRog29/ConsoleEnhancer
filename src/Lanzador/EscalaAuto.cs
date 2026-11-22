@@ -898,7 +898,8 @@ namespace ConsoleEnhancer
         [ThreadStatic] static int autoDentro;
 
         // (no con DLSS 5 en el motor propio, motor_dlss5=1: su coste es otro y lo ajusta el motor, EngineAdapta.cs)
-        public bool Dlss5AutoAhora { get { return Dlss5AutoOn && Dlss5InputPct == 0 && !(EngineDlss5 && Engine == "propio"); } }
+        // (22-11, 1.2.3 MOTOR5: solo si DLSS 5 lo hace de verdad el motor; con x3 / x4, 2-3 pasadas o XeSS FG va por Magpie y con esto)
+        public bool Dlss5AutoAhora { get { return Dlss5AutoOn && Dlss5InputPct == 0 && !MotorDlss5Pedido; } }
 
         // El modelo de DLSS SR de Magpie con DLSS 5 y estas pasadas (lo de DlssModelNow sin pasar por Dlss5PassesNow), con el tope de la vigilancia
         int ModeloPara(int pasadas, string clave)
