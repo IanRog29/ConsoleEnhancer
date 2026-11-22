@@ -39,7 +39,7 @@ namespace ConsoleEnhancer
         public const double TempranoS = 1.5;   // (1.2.05) leido en este tiempo desde la primera captura con el menu: el juego en marcha
         public const double PlazoS = 5.0;      // despues ya no se busca (y las capturas vuelven a su ritmo)
 
-        public DateTime Desde = DateTime.MinValue;   // la primera captura con el menu de esta visita (desde un juego)
+        public DateTime Desde = DateTime.MinValue;   // la primera captura con el menu de esta visita (desde un juego); con el inicio, VeInicio
         public string Nombre;                        // el primer foco (la etiqueta) o null
         public double[] Icono;                       // su icono (puede ser null)
         public DateTime At = DateTime.MinValue;
@@ -112,7 +112,7 @@ namespace ConsoleEnhancer
             if (icono != null) foreach (double[] e in tempranos) mejor = Math.Min(mejor, JuegoConsola.DistHuella(e, icono));
             if (mejor < JuegoConsola.MismoIcono)
             {
-                Pon(t, nombre, icono, "leido a los " + ss + " s, con el mismo icono en foco que al ver el menu (distancia " +
+                Pon(t, nombre, icono, "leido a los " + ss + " s, con el mismo icono en foco que al ver " + (InicioVisto ? "el inicio" : "el menu") + " (distancia " +
                     mejor.ToString("0.0", CultureInfo.InvariantCulture) + ")");
                 return true;
             }
