@@ -11,9 +11,9 @@ publicada es una etiqueta `vX.Y.Z` de git; GitHub Actions monta su zip y copia a
 - **No more "engine or Magpie" choice: the game goes through the built-in engine whenever it can.** The settings-menu row *DLSS 5
   through: Engine / Magpie*, the tray items and the *Add DLSS 5* question are gone, and so is the `motor_dlss5` setting (removed from
   your ini on update; an old `motor_dlss5=0` no longer sends DLSS 5 to Magpie). The engine does DLSS SR / XeSS / FSR, DLSS FG ×2,
-  **XeSS FG ×2 (new)**, Smooth Motion, FSR 3 FG, the 30 / 60 / 120 modes and Reflex and, with your own `engine\PrismaNr.dll`, DLSS 5
-  with **1 to 3 passes** (`motor_dlss5_pasadas=3`, was 1). mpv + Magpie only step in, without a black screen and without being named,
-  for what the engine doesn't do: NVIDIA VFG, FSR 3 FG together with DLSS, and DLSS 5 without that DLL (×3 / ×4 now always go through
+  **XeSS FG ×2 (new)**, Smooth Motion, FSR 3 FG, the 30 / 60 / 120 modes and Reflex and, with your own `nvngx_dlssnr.dll` (through `engine\PrismaNr.dll`, which now
+  ships), DLSS 5 with **1 to 3 passes** (`motor_dlss5_pasadas=3`, was 1). mpv + Magpie only step in, without a black screen and without being named,
+  for what the engine doesn't do: NVIDIA VFG, FSR 3 FG together with DLSS, and DLSS 5 when the engine can't run it (×3 / ×4 now always go through
   the engine, see below). At 120 fps the frame generation picked for 60 fps no longer sends the game to Magpie. The start-up
   log and `--dry-run` say which path the picture takes and why. Measured (RTX 4060 Ti, 4K 120 Hz VRR TV, from a frame arriving to it
   being on screen): 4K 30 fps mode with DLSS 5 + DLSS FG ×2, real frame **43 ms / generated 27 ms** (Magpie ~73 / ~57); 1080p → 4K with
@@ -23,8 +23,8 @@ publicada es una etiqueta `vX.Y.Z` de git; GitHub Actions monta su zip y copia a
   *Ya no se elige entre el motor y Magpie: el juego va por el motor propio siempre que pueda. Fuera la fila «DLSS 5 por: Motor /
   Magpie», lo de la bandeja, la pregunta de «Añadir DLSS 5» y la clave `motor_dlss5` (se quita del ini al actualizar). El motor hace
   DLSS SR / XeSS / FSR, DLSS FG ×2, XeSS FG ×2 (nuevo), Smooth Motion, FSR 3 FG, los modos 30 / 60 / 120, Reflex y, con tu
-  `engine\PrismaNr.dll`, DLSS 5 de 1 a 3 pasadas (`motor_dlss5_pasadas=3`, antes 1). mpv + Magpie solo entran, sin telón, para lo que el
-  motor no hace (NVIDIA VFG, FSR 3 FG con DLSS, DLSS 5 sin esa DLL; ×3 / ×4 van ya siempre por el motor, ver abajo).
+  `nvngx_dlssnr.dll` (por `engine\PrismaNr.dll`, que ahora viene con la app), DLSS 5 de 1 a 3 pasadas (`motor_dlss5_pasadas=3`, antes 1). mpv + Magpie solo entran, sin telón, para lo que el
+  motor no hace (NVIDIA VFG, FSR 3 FG con DLSS, DLSS 5 cuando el motor no puede; ×3 / ×4 van ya siempre por el motor, ver abajo).
   Medido de que llega la imagen a que se ve: 4K modo 30 con DLSS 5 + DLSS FG ×2, 43 ms la real y 27 la inventada (Magpie ~73 / ~57);
   1080p → 4K con 2 pasadas, 37-40 / 20-23 (Magpie ~52 / ~36), todas a 2 refrescos; 4K modo 30 sin generación ~21 ms y 4K a 60 ~9 ms.*
 - **The app no longer downloads `dlssg_sm86`** ("haz lo que sea legal": that community package makes NVIDIA's NGX load DLSS Frame
