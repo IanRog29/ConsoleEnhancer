@@ -18,6 +18,7 @@ namespace ConsoleEnhancer.Motor
     class EscenasReales
     {
         public static double SceneSecs = 5;   // test_escena_s
+        public static bool Still;             // test_escena_quieta=1: la imagen entera, quieta (solo el ruido): para comparar con Magpie
         readonly List<byte[]> imgs = new List<byte[]>();   // BGR24 a sw x sh (la captura + margen para el paneo)
         readonly List<string> names = new List<string>();
         readonly int w, h, sw, sh, gameFps;
@@ -86,6 +87,7 @@ namespace ConsoleEnhancer.Motor
             long k = n / per; int f = (int)(n % per);
             scene = (int)(k % Math.Max(1, imgs.Count));
             double t = f / (double)gameFps, ph = k * 1.7;
+            if (Still) { zoom = sw / (double)w; cx = sw / 2.0; cy = sh / 2.0; gain = 1; return; }
             // acercamiento lento: se ve del 86 al 100 % del ancho guardado / margen
             zoom = 0.93 + 0.07 * Math.Sin(2 * Math.PI * t / 7.0 + ph);
             double vw = w * zoom, vh = h * zoom;

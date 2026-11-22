@@ -235,11 +235,11 @@ namespace ConsoleEnhancer.Motor
                     int antes = s.NrPct;
                     // 22-11 (1.2.4 DLSS5Q): de una vez hasta lo que cabe (como la subida), no -10 cada 2 s: cada cambio rehace DLSS 5 (paron de
                     // 0,15-0,3 s y otro aspecto) y el usuario vio 65 -> 55 -> 45 en 10 s (21:29:55-21:30:05). Prudente: el 30 % del tiempo de
-                    // grafica no depende del % (generacion, vectores...) y lo demas va con el cuadrado del %; al menos -10, como mucho -25
+                    // grafica no depende del % (generacion, vectores...) y lo demas va con el cuadrado del %; al menos -10, como mucho -40
                     double fijo = p95 * 0.3, varia = p95 - fijo, obj = tope * 0.92;
                     int sig = antes - 10;
                     if (s.NrSuave)   // (dlss5_suave=0: -10 como en la 1.2.4)
-                    for (int t = antes - 10; t >= Math.Max(25, antes - 25); t -= 5) { sig = t; if (fijo + varia * (t * (double)t) / (antes * (double)antes) <= obj) break; }
+                    for (int t = antes - 10; t >= Math.Max(25, antes - 40); t -= 5) { sig = t; if (fijo + varia * (t * (double)t) / (antes * (double)antes) <= obj) break; }
                     s.NrPct = Math.Max(25, sig);
                     Log.Write(string.Format(CultureInfo.InvariantCulture, "Adapta: no cabe (grafica p95 {0:0.0} ms, tope {1:0.0}): DLSS 5 al {2} % -> {3} %", p95, tope, antes, s.NrPct));
                 }

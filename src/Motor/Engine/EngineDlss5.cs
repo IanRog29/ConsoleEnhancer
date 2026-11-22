@@ -254,6 +254,16 @@ void main(uint3 id : SV_DispatchThreadID) {
                     return;
                 }
                 int next = cur > 75 ? 75 : 50;
+                if (s.NrSuave)
+                {
+                    // 22-11 (1.2.4 DLSS5Q): de una vez al % que cabe (el 30 % de la grafica no depende del %; lo demas, con su cuadrado), no a
+                    // 75 y luego a 50: cada paso rehace DLSS 5 (paron y otro aspecto). Medido con poca grafica (tope 14,6 ms, 4K al 90 %):
+                    // antes 90 -> 75 -> 65 -> 55 -> 45 en 33 s (4 paradas), ahora 90 -> 45
+                    double fijo = p * 0.3, varia = p - fijo, obj = limit * 0.92;
+                    next = Math.Max(25, cur - 45);
+                    for (int t = cur - 10; t >= Math.Max(25, cur - 45); t -= 5) { next = t; if (fijo + varia * (t * (double)t) / (cur * (double)cur) <= obj) break; }
+                    next = Math.Min(next, cur > 75 ? 75 : Math.Max(25, cur - 10));
+                }
                 nrPctCap[key] = next;
                 what = "1 pasada al " + next + " %";
             }
@@ -364,8 +374,10 @@ void main(uint3 id : SV_DispatchThreadID) {
                 else { SrvTex(TNr, 0, inColor, ColorFmt); SrvTex(TNr, 1, af > 0 ? afOut : rawC, ColorFmt); SrvTex(TNr, 2, src, ColorFmt); UavTex(TNr, U0, nrBlend, ColorFmt); }
                 if (psoNrBlend == null) psoNrBlend = Pso(CompileCs("nrblend2", NrBlendShader));
                 nrDirect = direct;
+                long tc = Clock.Now;   // (22-11 DLSS5Q: lo que tarda crear, en el log: es el paron de cada cambio de % o de pasadas)
                 for (int i = keep; i < passes; i++)
                     if (PrismaNr.PNR_CreateN(i, cl, (uint)w, (uint)h, s.NrPreset) == 0) { nrW = 0; NrFail("PNR_Create " + w + "x" + h + " (pasada " + (i + 1) + "): " + PrismaNr.LastError()); return; }
+                double createMs = Clock.SinceMs(tc);
                 nrW = w; nrH = h; nrSrcW = inW; nrSrcH = inH; nrPasses = passes; nrAf = af; nrReset = true; nrInColor = inColor;
                 nrCreatedAt = Clock.Now; nrOver = nrOverHard = 0;
                 Log.Write("DLSS 5 (DLSSNR) creado a " + w + "x" + h + (small ? " (" + pct + " % de " + inW + "x" + inH + ")" : "") + ", " + passes + " pasada(s)" +
@@ -373,7 +385,8 @@ void main(uint3 id : SV_DispatchThreadID) {
                           ", antiparpadeo " + af + (af > 0 ? " (" + s.NrAntiFlickerMs + " ms)" : "") + " (modelo " + s.NrPreset +
                           ", estilo " + s.NrStyle + ", nivel " + s.NrIntensity + "," + s.NrTone + "," + s.NrStructure + "," + s.NrSkin + ", fuerza " + s.NrStrength + ")" +
                           (hadAny ? string.Format(IC, "; antes, la grafica acabando lo de antes: {0:0} ms{1}", waited, keep > 0 ? ", " + keep + " reutilizada(s)" : "") : "") +
-                          (held ? "; esta imagen con la correccion de la anterior (sosten)" : ""));
+                          (held ? "; esta imagen con la correccion de la anterior (sosten)" : "") +
+                          string.Format(IC, "; crear {0:0} ms ({1} instancia(s))", createMs, passes - keep));
                 // 22-11 (1.2.4 DLSS5Q, dlss5_creacion_inmediata): la creacion a la grafica ya y esta misma imagen con DLSS 5 (EngineDlss5Q.cs)
                 if (held || !D5qFlush()) return;
                 Log.Write(string.Format(IC, "DLSS 5: creacion enviada y hecha en {0:0} ms; esta imagen ya lleva DLSS 5", d5qFlushMs));

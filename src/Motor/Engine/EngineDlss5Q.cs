@@ -34,6 +34,7 @@ namespace ConsoleEnhancer.Motor
                 case "dlss5_color": { double d; if (double.TryParse(val.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out d)) NrChroma = (float)Math.Max(0, Math.Min(2, d)); return true; }
                 case "dlss5_creacion_inmediata": { string v = val.Trim().ToLowerInvariant(); NrNow = !(v == "0" || v == "no" || v == "false" || v == "off"); return true; }
                 case "dlss5_suave": { string v = val.Trim().ToLowerInvariant(); NrSuave = !(v == "0" || v == "no" || v == "false" || v == "off"); return true; }
+                case "test_escena_quieta": { string v = val.Trim(); EscenasReales.Still = v == "1"; return true; }
                 case "test_escena_s": { double d; if (double.TryParse(val.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out d)) EscenasReales.SceneSecs = Math.Max(1, Math.Min(120, d)); return true; }
             }
             return false;
