@@ -58,7 +58,6 @@ namespace ConsoleEnhancer
                 case "xess_fg_1080": XessFg1080 = val.Trim() != "0"; return true;
                 case "xess_fg_x4": XessX4 = val.Trim().ToLowerInvariant(); return true;
                 case "xess_fg_multi_cabe": XessMultiCabe = val.Trim() != "0"; return true;   // (1.2.3, MULTI2: ver MultXessCabe)
-                case "generacion_dlss5_minimo": { int v; if (int.TryParse(val.Trim().TrimEnd('%', ' '), out v)) MultD5Min = Math.Max(0, Math.Min(100, v)); } return true;   // (1.2.3)
                 // (solo pruebas: la pantalla como si fuera a N Hz para las reglas del multiplicador; p. ej. el menu con la tele apagada)
                 case "prueba_multiplicador_hz": { int h; if (int.TryParse(val.Trim(), out h)) multHzPrueba = Math.Max(0, h); } return true;
             }
@@ -160,23 +159,10 @@ namespace ConsoleEnhancer
                 else { es = "falta el componente dlssg_sm86"; en = "needs the dlssg_sm86 component"; }
                 return true;
             }
-            // (1.2.3, MULTI2) con DLSS 5 encendido, x3 / x4 solo si DLSS 5 se queda en generacion_dlss5_minimo (% de entrada) o mas: si no, va el
-            // multiplicador mas alto que lo deja ahi (lo dicen el menu y el aviso). Sin DLSS 5 (o con generacion_dlss5_minimo=0), sin esta regla
-            if (MultD5Min > 0 && !multGpuDentro)
-            {
-                int p = MultD5Pct(cap30, m, tipo);
-                if (p == -1 || (p > 0 && p < MultD5Min))
-                {
-                    if (p < 0) { es = "DLSS 5 no cabría (se quitaría)"; en = "DLSS 5 wouldn't fit (it'd be removed)"; }
-                    else { es = "DLSS 5 bajaría al " + p + " %"; en = "DLSS 5 would drop to " + p + "%"; }
-                    return true;
-                }
-            }
+            // (1.2.3, MULTI2: con DLSS 5, x3 / x4 no se bloquean por el: la escala automatica le pone como poco generacion_dlss5_minimo -30 %- y,
+            // si no cabe, lo quita y el menu lo dice -"x4: DLSS 5 no cabe (se quita)"-; EscalaAuto.Suelo)
             return false;
         }
-
-        // generacion_dlss5_minimo=N: el % de entrada de DLSS 5 por debajo del cual x3 / x4 no se ponen con DLSS 5 encendido (0 = sin minimo)
-        public static volatile int MultD5Min = 0;
         public bool MultBloqueado(bool cap30, int m, string tipo) { string es, en; return MultBloqueado(cap30, m, tipo, out es, out en); }
 
         // ---- (1.2.3, MULTI2) XeSS FG x3 / x4 de compatibilidad: ¿cabe la cadena (sin DLSS 5) en T/m? (EscalaAuto.XessCompat, Presupuesto)
@@ -239,9 +225,8 @@ namespace ConsoleEnhancer
             bool vrrAntes = CeImagen.VrrAhora;
             string x4Antes = XessX4;
             bool cabeAntes = XessMultiCabe;
-            int d5MinAntes = MultD5Min;
             XessX4 = "1";   // (la tabla, sin el arreglo de XeSS FG x4: ese va aparte, abajo)
-            XessMultiCabe = false; MultD5Min = 0;   // (1.2.3: y sin la grafica -XeSS FG x3 / x4, DLSS 5 minimo-, que van aparte: MultPruebaGrafica)
+            XessMultiCabe = false;   // (1.2.3: y sin la cuenta de la grafica de XeSS FG x3 / x4, que va aparte: MultPruebaGrafica)
             // esperado: "hz vrr modo" -> los que caben de x2 x3 x4 (DLSS FG con el componente o XeSS FG)
             Dictionary<string, string> esp = new Dictionary<string, string>
             {
@@ -322,7 +307,7 @@ namespace ConsoleEnhancer
                 sb.AppendLine((okp ? "      " : "FALLO ") + "perfil: \"dlss,xess,0,4\" -> " + p.Pick60 + "/" + p.Pick30 + " x" + p.Mult60 + "/x" + p.Mult30 + " -> \"" + p.PickText + "\"; \"smooth,\" -> \"" + q.PickText + "\"");
             }
             catch (Exception ex) { fallos++; sb.AppendLine("EXCEPCION: " + ex); }
-            finally { multHzPrueba = 0; CeImagen.VrrAhora = vrrAntes; XessX4 = x4Antes; XessMultiCabe = cabeAntes; MultD5Min = d5MinAntes; }
+            finally { multHzPrueba = 0; CeImagen.VrrAhora = vrrAntes; XessX4 = x4Antes; XessMultiCabe = cabeAntes; }
             try { fallos += MultPruebaGrafica(sb); } catch (Exception ex) { fallos++; sb.AppendLine("EXCEPCION (grafica): " + ex); }
             sb.AppendLine(fallos == 0 ? "OK" : fallos + " fallos");
             string f = string.IsNullOrEmpty(informe) ? Path.Combine(Paths.Datos, @"games\test_multiplicador.txt") : informe;
@@ -386,35 +371,6 @@ namespace ConsoleEnhancer
             return fallos;
         }
 
-        // ---- (1.2.3, MULTI2) DLSS 5 con x3 / x4: el % de entrada que pondria la escala automatica con m en ese modo (1 pasada; -1 = no
-        // cabe ni al minimo: se quitaria; -2 = no aplica: DLSS 5 apagado, no por Magpie o sin la escala automatica)
-        public int MultD5Pct(bool cap30, int m, string tipo)
-        {
-            if (Dlss5Off || !Dlss5AutoAhora || !Integrado.Dlss5Available || HomeNative) return -2;
-            string key = (cap30 ? 30 : 60) + "|" + m + "|" + tipo + "|" + VideoSize + "|" + Passes30 + "|" + DlssPick;
-            lock (multXeSync)
-            {
-                int v;
-                if ((DateTime.UtcNow - multD5Calc).TotalSeconds < 2 && multD5Cache.TryGetValue(key, out v)) return v;
-                if ((DateTime.UtcNow - multD5Calc).TotalSeconds >= 2) { multD5Cache.Clear(); multD5Calc = DateTime.UtcNow; }
-            }
-            int r = -2;
-            multGpuDentro = true;
-            try
-            {
-                CadenaEscala c = CadenaEscalaPara(1);
-                c.Gen = tipo; c.Mult = m;
-                c.Modo = cap30 ? 30 : 60; c.Objetivo = MultBase(cap30);
-                c.Modelo = ModeloPara(1, c.Clave);
-                r = EscalaAuto.PctPara(c, 1);
-            }
-            catch (Exception ex) { Log.Error("Multiplicador: DLSS 5 con x" + m, ex); r = -2; }
-            finally { multGpuDentro = false; }
-            lock (multXeSync) multD5Cache[key] = r;
-            return r;
-        }
-        static readonly Dictionary<string, int> multD5Cache = new Dictionary<string, int>();
-        static DateTime multD5Calc = DateTime.MinValue;
 
         // ¿Cabe DLSS 5 (1 pasada, al minimo) en la cadena de ahora con este tipo y multiplicador? (escala automatica de DLSS 5; sin ella, si).
         // MEDIDO el 22-11: 1440p, DLSS L, DLSS FG x4 sin DLSS 5 = 81 % de grafica; con DLSS 5 encendido la app lo quita ("NO CABE")

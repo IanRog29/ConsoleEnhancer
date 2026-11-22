@@ -175,7 +175,11 @@ namespace ConsoleEnhancer
             // Lo medido en Prisma (4060 Ti con OC, imagen de Ocarina en movimiento, 1440p -> 4K, DLSS SR E): +-15 puntos
             Cerca(Cadena(ti, 30, "2560x1440", "2560x1440", "dlss", "dlss", 5, false, 3840, 2160), new[] { 85, 60, 50 }, "30 + DLSS FG, E");
             Cerca(Cadena(ti, 30, "2560x1440", "2560x1440", "", "dlss", 5, false, 3840, 2160), new[] { 100, 80, 65 }, "30 sin FG, E");
-            Cerca(Cadena(ti, 60, "2560x1440", "2560x1440", "dlss", "dlss", 5, true, 3840, 2160), new[] { 40, -2, -2 }, "60 + DLSS FG ligero, E");
+            // (1.2.3, MULTI2: con lo fijo de DLSS 5 en el hilo de Magpie -el flujo a 1440p ~5 ms, CALIDAD 1.2.2- el 60 + DLSS FG no tiene sitio
+            // para DLSS 5 en el modelo nuevo: el 40 % de Prisma fue con su Magpie de entonces. Sin medir con la 0.6.12 -la tele se fue a su
+            // reposo a las 12:00-; aqui solo que no pase de aquel 40 %)
+            int p60fg = Pct(Cadena(ti, 60, "2560x1440", "2560x1440", "dlss", "dlss", 5, true, 3840, 2160), 1);
+            Ok(p60fg <= 40, "4060 Ti 60 + DLSS FG ligero, E, 1 pasada: como mucho el 40 % de Prisma (" + p60fg + " %; -1 = no cabe)");
             // (1.2.3, MULTI2: XeSS FG genera en su propia cola -no alarga el hilo de Magpie-; lo de Prisma -70/45/35- era con el XeSS FG de
             // entonces. MEDIDO el 22-11 a 4K, abajo)
             // MEDIDO el 22-11 (tele 4K a 120 con VRR, captura 4K sin escalar, fuente de 30 en 59,94, DLSS 5 nivel 3 de 1 pasada; reales que

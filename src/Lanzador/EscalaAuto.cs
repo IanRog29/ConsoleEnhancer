@@ -85,6 +85,7 @@ namespace ConsoleEnhancer
         public string Familia = "rtx40";    // rtx20 | rtx30 | rtx40 | rtx50 | otra
         public bool Intel;                  // (1.2.3, MULTI2) grafica Intel: XeSS FG x3 / x4 por su camino nativo (EscalaAuto.XessCompat)
         public double FlujoD5 = 1;          // (1.2.3) el flujo optico de DLSS 5: 1 = NVIDIA calidad 2, 0,8 = calidad 1 (ligero), 0 = sin flujo
+        public bool Vrr = true;             // (1.2.3) Magpie presenta por VRR (Config.MagpieVrrNow); false = refresco fijo (DXGI cada 2 refrescos)
         public double VramGb = 8;
         public string Juego = "";           // el perfil del juego ("" = sin saber)
 
@@ -106,9 +107,10 @@ namespace ConsoleEnhancer
     {
         public const double IndiceRef = 1.2;      // RTX 4060 Ti (Gpu.cs), la grafica de las medidas
         // dlss5_escala_uso: parte del tiempo de una imagen real que puede llevarse el hilo de la imagen de Magpie (Prevision). (1.2.3, MULTI2:
-        // 92; antes 75 con un modelo que solo miraba la grafica y no lo fijo de DLSS 5 ni el hilo en serie: elegia 45-50 % a 4K con DLSS FG
-        // x2 y se quedaba en 28 reales; con el modelo del hilo, el 92 % deja ~2,7 ms de margen y lo medido llega)
-        public static double Uso = 0.92;
+        // 95; antes 75 con un modelo que solo miraba la grafica y no lo fijo de DLSS 5 ni el hilo en serie: elegia 45-50 % a 4K con DLSS FG
+        // x2 y se quedaba en 28 reales. Con el modelo del hilo, lo medido llega hasta 31,8 ms previstos -XeSS FG x2 al 50 % a 4K, DLSS FG x2
+        // al 45 % con refresco fijo de RITMO2- y no llega desde 33,8: el 95 % -31,7 ms- deja ~1,7 ms de margen)
+        public static double Uso = 0.95;
         // dlss5_escala_grafica (1.2.3, MULTI2): lo que puede ocupar la grafica (Carga x k) del tiempo de una real. 88: antes, con el 75 % del
         // modelo de solo la grafica, era ~el 75 %; medido llegando con 77-82 % (XeSS FG x2 a 4K al 50 %, DLSS FG x4 a 1440p)
         public static double UsoGrafica = 0.88;
@@ -152,7 +154,7 @@ namespace ConsoleEnhancer
         // RTX 4060 Ti (indice 1,2): DLSS FG ocupa ~5 por inventada (x4 sin DLSS 5 a 4K: nvidia-smi 69 %, 23 ms por real) pero en el hilo
         // la primera ~5 y cada una de mas ~1,5 (DLSS-G reutiliza el flujo del par); XeSS FG ocupa ~8 por inventada pero las genera en su
         // propia cola (x2 con DLSS 5 al 50 % a 4K llega: 29,9): en el hilo ~1. ini: escala_coste_dlss_fg / _mas, escala_coste_xess_fg / _hilo
-        public static double CosteDlssFg = 5.0, CosteDlssFgMas = 1.5, CosteXessFg = 8.0, CosteXessFgHilo = 1.0;
+        public static double CosteDlssFg = 5.0, CosteDlssFgMas = 1.5, CosteXessFg = 8.0, CosteXessFgHilo = 1.0, CreditoFijoDlss = 2.0;
 
         // lo que ocupa la grafica (el % de grafica lo ve: NuevoK)
         public static double CosteGeneracion(CadenaEscala c) { return CosteGeneracion(c, false); }
@@ -169,6 +171,10 @@ namespace ConsoleEnhancer
                 case "vfg": v = 10.0 * g * f; break;
                 default:   // DLSS FG (+ los vectores NVOF de Magpie fuera de 4K)
                     v = (hilo ? CosteDlssFg + CosteDlssFgMas * (g - 1) : CosteDlssFg * g) * f + (c.VectoresFg ? 0.55 * Mp(c.VenW, c.VenH) : 0);
+                    // (x2 con refresco fijo -DXGI cada 2 refrescos, sin la cola por VRR de Magpie-: el hilo espera menos a la cola de
+                    // presentacion. RITMO2, 22-11, 4K al 45 %: por VRR 28,6 reales, fijo 29,68 de 29,73; por VRR Magpie anota
+                    // "excludedRingWait" ~6 ms con x2 y ~0 con x4. escala_credito_fijo_dlss)
+                    if (hilo && g == 1 && !c.Vrr) v = Math.Max(0, v - CreditoFijoDlss * f);
                     break;
             }
             if (c.Ligero) v *= 0.85;
@@ -246,8 +252,13 @@ namespace ConsoleEnhancer
         public static int Suelo(CadenaEscala c)
         {
             int s = (int)Math.Ceiling(32400.0 / Math.Max(1, c.VenH) / 5.0) * 5;
+            // (1.2.3, MULTI2) con x3 / x4, como poco generacion_dlss5_minimo (30 %): con 3 de cada 4 imagenes inventadas lo de DLSS 5 a muy poca
+            // entrada (al 25 % de 4K, 960x540; log del usuario, 22-11 10:28-10:30, "fallos visuales" con DLSS FG x4 llegando a 30 / 120) se ve
+            // en todas; si no cabe ni asi, DLSS 5 fuera (el menu lo dice: "x4: DLSS 5 no cabe (se quita)")
+            if (c.Mult >= 3 && c.Gen.Length > 0 && c.Modo < 100 && SueloMulti > 0) s = Math.Max(s, SueloMulti);
             return Math.Max(25, Math.Min(100, s));
         }
+        public static int SueloMulti = 30;        // generacion_dlss5_minimo (0 = el suelo de siempre)
 
         // El mayor % que cabe con estas pasadas (de 5 en 5); -1 = ni el minimo. Al minimo "a prueba" si le falta poco (<= 15 %): si luego
         // no llega, la vigilancia lo quita
@@ -981,6 +992,8 @@ namespace ConsoleEnhancer
                 case "escala_coste_dlss_fg_mas": if (double.TryParse(v.Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out d) && d >= 0) EscalaAuto.CosteDlssFgMas = Math.Min(30, d); return true;
                 case "escala_coste_xess_fg_hilo": if (double.TryParse(v.Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out d) && d >= 0) EscalaAuto.CosteXessFgHilo = Math.Min(30, d); return true;
                 case "escala_coste_dlss5_fijo": if (double.TryParse(v.Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out d) && d >= 0) EscalaAuto.CosteDlss5FijoMp = Math.Min(10, d); return true;
+                case "escala_credito_fijo_dlss": if (double.TryParse(v.Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out d) && d >= 0) EscalaAuto.CreditoFijoDlss = Math.Min(10, d); return true;
+                case "generacion_dlss5_minimo": { int iv; if (int.TryParse(v.TrimEnd('%', ' '), out iv)) EscalaAuto.SueloMulti = Math.Max(0, Math.Min(100, iv)); } return true;   // (1.2.3)
                 // (1.2.3, MULTI2) XeSS FG x3 / x4 de compatibilidad (no Intel): parte de T/m para la cadena (95 de serie)
                 case "xess_fg_multi_uso":
                     if (double.TryParse(v.TrimEnd('%', ' '), NumberStyles.Float, CultureInfo.InvariantCulture, out d) && d > 0) EscalaAuto.UsoXess = Math.Max(0.5, Math.Min(1.5, d > 2 ? d / 100.0 : d));
@@ -1037,6 +1050,7 @@ namespace ConsoleEnhancer
                 c.Intel = GpuVendor == "intel";
                 int f5 = Dlss5FlowNow;   // (1.2.3: el flujo de DLSS 5 -0 ninguno, 1 AMD, 2 NVIDIA- y su calidad: lo fijo de DLSS 5 en el hilo)
                 c.FlujoD5 = f5 <= 0 ? 0 : f5 == 2 && FlowQualityNvNow <= 1 ? 0.8 : 1.0;
+                c.Vrr = MagpieVrrNow;    // (1.2.3: DLSS FG x2 con refresco fijo espera menos a la cola de presentacion)
                 EscalaAuto.GpuPara(c);
                 c.Juego = EscalaAuto.Juego ?? "";
                 c.Modelo = ModeloPara(pasadas, c.Clave);
