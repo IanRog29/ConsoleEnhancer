@@ -29,6 +29,7 @@ namespace ConsoleEnhancer.Motor
         public bool Adapta = false;
         public string AdaptaClave = "", AdaptaFichero = "scales_engine.txt", AdaptaTecho = "";
         public int AdaptaNrSubeS = 45, AdaptaNrPaso = 15;   // 22-11 (1.2.3, MOTOR5): adapta_dlss5_sube_s / adapta_dlss5_paso (ver AdaptaSubir)
+        public int AdaptaNrCorteS = 90;   // 22-11 (1.2.4 DLSS5Q): adapta_dlss5_corte_s, la subida del % espera a un corte de escena (como mucho esto; 0 = sin esperar)
         public string SrDlls = "";
 
         // Claves de ConsoleEnhancer que el Apply de siempre no conoce (false = desconocida, como antes)
@@ -42,6 +43,7 @@ namespace ConsoleEnhancer.Motor
                 case "adapta_techo": AdaptaTecho = val.Trim().ToUpperInvariant(); return true;
                 case "adapta_dlss5_sube_s": { int n; if (int.TryParse(val.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out n)) AdaptaNrSubeS = Math.Max(20, Math.Min(600, n)); return true; }   // (1.2.3 MOTOR5)
                 case "adapta_dlss5_paso": { int n; if (int.TryParse(val.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out n)) AdaptaNrPaso = Math.Max(5, Math.Min(50, n)); return true; }
+                case "adapta_dlss5_corte_s": { int n; if (int.TryParse(val.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out n)) AdaptaNrCorteS = Math.Max(0, Math.Min(600, n)); return true; }   // (1.2.4 DLSS5Q)
                 case "dlls_sr": SrDlls = val.Trim(); return true;
                 case "fg_tipo": FgTipo = val.Trim().ToLowerInvariant(); return true;   // 21-11 (EngineFgFfx.cs): fsr3 = FSR 3 FG de FidelityFX   // 21-11 (EngineSr.cs): la carpeta de libxess.dll / amd_fidelityfx_*.dll (la de Magpie)
                 case "uso_grafica": case "gpu_indice": return ApplyMargen(key, val);   // (1.2.2, UNIVERSAL: EngineMargen.cs)
@@ -79,8 +81,29 @@ namespace ConsoleEnhancer.Motor
 
         string AdaptaClaveAhora()
         {
-            return (s.AdaptaClave.Length > 0 ? s.AdaptaClave : "-") + "|" + s.Mode + "|fg" + (s.Fg ? 1 : 0) + "|sm" + s.SmoothMode + "|" + s.CapW + "x" + s.CapH +
-                   "|in" + inW + "x" + inH + "|out" + outW + "x" + outH + "|nr" + (s.Nr ? 1 : 0) + (s.Nr ? "p" + Math.Max(1, Math.Min(3, adPedidoPasadas > 0 ? adPedidoPasadas : s.NrPasses)) : "");
+            // 22-11 (1.2.4, 5a ronda DLSS5Q): (1) la entrada que va a tener el motor con la captura pedida: al despertar inW era 0 y al cambiar de
+            // captura aun la de antes; la clave salia "in0x0" o con la entrada vieja, se creaba DLSS 5 con lo pedido y al llegar la imagen se
+            // rehacia con lo aprendido (dos paradas y dos cambios de aspecto en 0,3-0,7 s: log del usuario 21:32:48-49 y 21:37:31-32).
+            // (2) el tipo de generacion y el multiplicador: con "fg1" para todo, lo aprendido con DLSS FG x2 (70 % a 4K) valia para XeSS FG
+            // (8 ms por inventada) y lo de la FG propia x4 (45 %) para "sin generacion": el % saltaba en cuanto se media. DLSS FG x2 y sin
+            // generacion siguen con la clave de antes (fg1 / fg0): lo aprendido se conserva
+            int iw = inW, ih = inH;
+            if (!s.NrSuave)   // (dlss5_suave=0: la clave de la 1.2.4)
+                return (s.AdaptaClave.Length > 0 ? s.AdaptaClave : "-") + "|" + s.Mode + "|fg" + (s.Fg ? 1 : 0) + "|sm" + s.SmoothMode + "|" + s.CapW + "x" + s.CapH +
+                       "|in" + inW + "x" + inH + "|out" + outW + "x" + outH + "|nr" + (s.Nr ? 1 : 0) + (s.Nr ? "p" + Math.Max(1, Math.Min(3, adPedidoPasadas > 0 ? adPedidoPasadas : s.NrPasses)) : "");
+            if (inW <= 0 || inH <= 0 || capW != s.CapW || capH != s.CapH) AdaptaEntradaPrevista(out iw, out ih);
+            string fg = s.Fg ? "fg1" + (s.FgTipo == "xess" || s.FgTipo == "xefg" ? "x" : s.FgTipo == "fsr3" ? "f" : "") + (s.FgMult > 2 ? "m" + s.FgMult : "")
+                             : "fg0" + (s.FgOwn > 1 ? "p" + s.FgOwn : "");
+            return (s.AdaptaClave.Length > 0 ? s.AdaptaClave : "-") + "|" + s.Mode + "|" + fg + "|sm" + s.SmoothMode + "|" + s.CapW + "x" + s.CapH +
+                   "|in" + iw + "x" + ih + "|out" + outW + "x" + outH + "|nr" + (s.Nr ? 1 : 0) + (s.Nr ? "p" + Math.Max(1, Math.Min(3, adPedidoPasadas > 0 ? adPedidoPasadas : s.NrPasses)) : "");
+        }
+
+        // (DLSS5Q) la de EnsureInputResources (Engine.cs) con la captura pedida
+        void AdaptaEntradaPrevista(out int iw, out int ih)
+        {
+            iw = s.CapW; ih = s.CapH;
+            if (s.InW > 0 && s.InH > 0 && iw > s.InW && ih > s.InH && !(iw >= s.OutW && ih >= s.OutH)) { iw = s.InW; ih = s.InH; }
+            if (iw <= 0 || ih <= 0) { iw = inW; ih = inH; }
         }
 
         // los de AutoPresetTick; con Smooth Motion (la generacion del driver no se ve aqui) algo menos. (1.2.2, UNIVERSAL: el 85 % del tiempo
@@ -127,6 +150,15 @@ namespace ConsoleEnhancer.Motor
                 bool sobra = !mal && p95 < tope * 0.70 && lost == 0;
                 adMal = mal ? adMal + 1 : 0;
                 adBien = sobra ? adBien + 1 : 0;
+                if (mal) adSubirCorte = 0;   // (DLSS5Q: la subida que esperaba un corte ya no vale)
+                if (adSubirCorte != 0 && Clock.SinceMs(adSubirCorte) > s.AdaptaNrCorteS * 1000.0)
+                {
+                    // (DLSS5Q) sin corte de escena en adapta_dlss5_corte_s: se sube igual
+                    adSubirCorte = 0;
+                    Log.Write("Adapta: sin corte de escena en " + s.AdaptaNrCorteS + " s: se sube ya");
+                    AdaptaSubir(p95, tope);
+                    return;
+                }
                 if (adMal >= 2)
                 {
                     adMal = 0;
@@ -136,10 +168,29 @@ namespace ConsoleEnhancer.Motor
                 else if (adBien >= (AdNrActivo && s.NrPct < 100 ? Math.Max(20, s.AdaptaNrSubeS) : 20))   // (22-11, 1.2.3 MOTOR5: ver AdaptaSubir)
                 {
                     adBien = 0;
-                    AdaptaSubir(p95, tope);
+                    // 22-11 (1.2.4 DLSS5Q): subir el % de DLSS 5 la rehace (paron de 0,15-0,3 s y el efecto cambia de aspecto): no hay prisa
+                    // (sobra grafica), asi que se hace en el proximo corte de escena (AdaptaCorte, desde RecordDlss5), donde la imagen cambia
+                    // igual, o como mucho a los adapta_dlss5_corte_s. Bajar (no cabe) sigue siendo enseguida
+                    if (AdNrActivo && s.NrPct < 100 && s.AdaptaNrCorteS > 0 && s.NrSuave)
+                    {
+                        if (adSubirCorte == 0) { adSubirCorte = Clock.Now; Log.Write(string.Format(CultureInfo.InvariantCulture, "Adapta: sobra grafica (p95 {0:0.0} ms de {1:0.0}): la subida de DLSS 5 espera a un corte de escena (como mucho {2} s)", p95, tope, s.AdaptaNrCorteS)); }
+                    }
+                    else AdaptaSubir(p95, tope);
                 }
             }
             catch (Exception ex) { Log.Error("Adapta", ex); s.Adapta = false; }
+        }
+
+        // 22-11 (1.2.4 DLSS5Q): la subida pendiente, en el corte de escena (RecordDlss5, antes de mirar si hay que rehacer DLSS 5)
+        long adSubirCorte;
+        void AdaptaCorte()
+        {
+            if (adSubirCorte == 0 || !frameReset || !s.Adapta) return;
+            adSubirCorte = 0;
+            double p95 = stats.LastGpuP95, tope = AdTope;
+            if (p95 <= 0 || p95 > tope * 0.70) { Log.Write("Adapta: en el corte de escena ya no sobra grafica: no se sube"); return; }
+            Log.Write("Adapta: corte de escena: se sube DLSS 5 ahora");
+            AdaptaSubir(p95, tope);
         }
 
         // Clave nueva (otro modo, generacion, captura...): lo aprendido de ella, sin pasar de lo pedido en pasadas
@@ -149,7 +200,7 @@ namespace ConsoleEnhancer.Motor
             string k = AdaptaClaveAhora();
             if (k == adClave && !forzar) return;
             bool nueva = k != adClave;
-            adClave = k; adMal = adBien = 0; adSubida = "";
+            adClave = k; adMal = adBien = 0; adSubida = ""; adSubirCorte = 0;
             // (con la misma clave tambien: el lanzador vuelve a mandar lo pedido con cualquier cambio y se volveria a lo pedido)
             AdaptaFila f;
             if (!adTabla.TryGetValue(k, out f)) { if (nueva) Log.Write("Adapta: clave nueva " + k + " (se empieza por lo pedido: " + s.Preset + (s.Nr ? ", DLSS 5 al " + s.NrPct + " %" : "") + ")"); return; }
@@ -182,7 +233,14 @@ namespace ConsoleEnhancer.Motor
                 else if (s.NrPct > 25)
                 {
                     int antes = s.NrPct;
-                    s.NrPct = Math.Max(25, s.NrPct - 10);
+                    // 22-11 (1.2.4 DLSS5Q): de una vez hasta lo que cabe (como la subida), no -10 cada 2 s: cada cambio rehace DLSS 5 (paron de
+                    // 0,15-0,3 s y otro aspecto) y el usuario vio 65 -> 55 -> 45 en 10 s (21:29:55-21:30:05). Prudente: el 30 % del tiempo de
+                    // grafica no depende del % (generacion, vectores...) y lo demas va con el cuadrado del %; al menos -10, como mucho -25
+                    double fijo = p95 * 0.3, varia = p95 - fijo, obj = tope * 0.92;
+                    int sig = antes - 10;
+                    if (s.NrSuave)   // (dlss5_suave=0: -10 como en la 1.2.4)
+                    for (int t = antes - 10; t >= Math.Max(25, antes - 25); t -= 5) { sig = t; if (fijo + varia * (t * (double)t) / (antes * (double)antes) <= obj) break; }
+                    s.NrPct = Math.Max(25, sig);
                     Log.Write(string.Format(CultureInfo.InvariantCulture, "Adapta: no cabe (grafica p95 {0:0.0} ms, tope {1:0.0}): DLSS 5 al {2} % -> {3} %", p95, tope, antes, s.NrPct));
                 }
                 else

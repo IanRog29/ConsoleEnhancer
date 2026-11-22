@@ -235,8 +235,13 @@ void main(uint3 id : SV_DispatchThreadID) {
             string key = CapKey, what;
             if (nrPasses > 1)
             {
-                nrPassCap[key] = nrPasses - 1;
-                what = (nrPasses - 1) + (nrPasses - 1 > 1 ? " pasadas" : " pasada");
+                // 22-11 (1.2.4 DLSS5Q): de una vez a las que caben (el 30 % de la grafica no depende de las pasadas): 3 -> 2 -> 1 eran dos
+                // cambios de aspecto en 28 s (log del usuario 21:35:04 y 21:35:32, 1440p con 3 pasadas: p95 54 ms de 30)
+                int to = nrPasses - 1;
+                double porPasada = p * 0.7 / nrPasses;
+                while (s.NrSuave && to > 1 && p * 0.3 + porPasada * to > limit) to--;
+                nrPassCap[key] = to;
+                what = to + (to > 1 ? " pasadas" : " pasada");
             }
             else
             {
@@ -279,6 +284,7 @@ void main(uint3 id : SV_DispatchThreadID) {
             TestHangStep();   // 20-11 (CIERRES): prueba_cuelgue_ms (EngineCuelgue.cs)
             if (!s.Nr && nrW != 0 && newFrame) ReleaseDlss5("DLSS 5 apagado");
             if (!s.Nr || nrBroken || !newFrame || inColor == null || mvec == null || depth == null) return;
+            if (frameReset) AdaptaCorte();   // 22-11 (1.2.4 DLSS5Q): la subida del % que esperaba un corte de escena (EngineAdapta.cs)
             IntPtr cl = Com.BorrowPtr(list, typeof(ID3D12GraphicsCommandList));
             if (!nrInited)
             {
@@ -306,6 +312,10 @@ void main(uint3 id : SV_DispatchThreadID) {
                 if (hadAny) WaitIdle();
                 double waited = Clock.SinceMs(tw);
                 bool sameSize = hadAny && nrW == w && nrH == h && nrSrcW == inW && nrSrcH == inH && ReferenceEquals(nrInColor, inColor);
+                // 22-11 (1.2.4 DLSS5Q, dlss5_sosten=1: EngineDlss5Q.cs): esta imagen, con la correccion de DLSS 5 de la anterior en vez de sin
+                // DLSS 5 (un destello con el color de la captura cada vez que la escala, el guardian o el menu cambian el % o las pasadas)
+                bool held = hadAny && D5qHoldRecord();
+                d5qCreated = true;
                 int keep = sameSize ? Math.Min(nrPasses, passes) : 0;
                 foreach (ID3D12Resource r in new[] { nrOuts[0], nrOuts[1], nrOuts[2], nrBlend, nrIn, nrMv, nrDepth, afOut, afGuide, afHist[0], afHist[1] }) if (r != null) Bury(r);
                 nrOuts[0] = nrOuts[1] = nrOuts[2] = nrBlend = nrIn = nrMv = nrDepth = afOut = afGuide = afHist[0] = afHist[1] = null;
@@ -360,7 +370,8 @@ void main(uint3 id : SV_DispatchThreadID) {
                           (passes > 1 ? " (fuerzas " + s.NrPassStrength[0] + "," + s.NrPassStrength[1] + "," + s.NrPassStrength[2] + ")" : "") +
                           ", antiparpadeo " + af + (af > 0 ? " (" + s.NrAntiFlickerMs + " ms)" : "") + " (modelo " + s.NrPreset +
                           ", estilo " + s.NrStyle + ", nivel " + s.NrIntensity + "," + s.NrTone + "," + s.NrStructure + "," + s.NrSkin + ", fuerza " + s.NrStrength + ")" +
-                          (hadAny ? string.Format(IC, "; antes, la grafica acabando lo de antes: {0:0} ms{1}", waited, keep > 0 ? ", " + keep + " reutilizada(s)" : "") : ""));
+                          (hadAny ? string.Format(IC, "; antes, la grafica acabando lo de antes: {0:0} ms{1}", waited, keep > 0 ? ", " + keep + " reutilizada(s)" : "") : "") +
+                          (held ? "; esta imagen con la correccion de la anterior (sosten)" : ""));
                 return;
             }
             Dlss5GuardTick();   // 20-11 (CIERRES)
@@ -407,6 +418,7 @@ void main(uint3 id : SV_DispatchThreadID) {
                 }
             }
             nrFails = 0; nrReset = false; nrFrames++;
+            d5qApplied = true; d5qReset = reset;   // (22-11 DLSS5Q, dlss5_medida=)
             ID3D12Resource raw = nrOuts[nrPasses - 1];
             UavBarrier(raw);
             Barrier(raw, D3D12_RESOURCE_STATES.UNORDERED_ACCESS, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE);
@@ -417,6 +429,7 @@ void main(uint3 id : SV_DispatchThreadID) {
                 double dt = afLastTick == 0 ? 1 : (now - afLastTick) / (double)Stopwatch.Frequency;
                 afLastTick = now;
                 float weight = reset || dt > 0.25 ? 0f : (float)Math.Exp(-dt / (Math.Max(10, s.NrAntiFlickerMs) * 0.001));
+                d5qWeight = weight;   // (DLSS5Q)
                 ID3D12Resource readH = afHist[afPing], writeH = afHist[1 - afPing];
                 c[0] = (uint)nrW; c[1] = (uint)nrH; c[2] = nrAf >= 2 ? 1u : 0u; c[3] = (uint)nrAf; c[4] = F(weight); c[5] = 0; c[6] = 0; c[7] = 0;
                 BindCompute(psoNrAf, afPing == 0 ? TNrAf0 : TNrAf1, c, 8);
@@ -470,6 +483,7 @@ void main(uint3 id : SV_DispatchThreadID) {
 
         void DisposeDlss5()
         {
+            D5qClose();   // (22-11 DLSS5Q, dlss5_medida=)
             try { if (nrInited) PrismaNr.PNR_Shutdown(); } catch { }
             nrInited = false;
         }

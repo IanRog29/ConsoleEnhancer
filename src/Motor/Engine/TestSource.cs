@@ -89,6 +89,9 @@ namespace ConsoleEnhancer.Motor
         // un corte de camara cada N imagenes. Con test_vel
         MapaPrueba mapa;
         bool IsMapa { get { return image.StartsWith("mapa", StringComparison.Ordinal) && !image.Contains("."); } }
+        // 22-11 (1.2.4, 5a ronda, DLSS5Q) test=escenas:<carpeta | lista.txt>: capturas reales de la consola en secuencia (EscenasReales.cs)
+        EscenasReales esc;
+        bool IsEscenas { get { return image.StartsWith("escenas:", StringComparison.Ordinal); } }
 
         public string Name { get { return "prueba (" + (image.Length > 0 ? image : "barras") + (IsParallax ? string.Format(System.Globalization.CultureInfo.InvariantCulture, " cielo x{0:0.00} velocidad x{1:0.00} ruido {2}", ParRatio, ParSpeed, Noise) : "") + (Holds.Length > 0 ? ", cadencia " + Holds : ", juego a " + gameFps) + ")"; } }
 
@@ -101,6 +104,14 @@ namespace ConsoleEnhancer.Motor
         void Build()
         {
             pitch = (w * 3 + 3) & ~3;
+            if (IsEscenas)
+            {
+                long t0 = Clock.Now;
+                esc = new EscenasReales(image.Substring(8), w, h, gameFps);
+                frame = Marshal.AllocHGlobal(pitch * h);
+                Log.Write("Fuente de prueba: " + esc.Count + " escenas reales (" + esc.Names + "), " + EscenasReales.SceneSecs + " s cada una, preparadas en " + Clock.SinceMs(t0).ToString("0") + " ms");
+                return;
+            }
             if (IsZoom)
             {
                 long t0 = Clock.Now;
@@ -242,6 +253,7 @@ namespace ConsoleEnhancer.Motor
 
         unsafe void Compose(long n)
         {
+            if (esc != null) { esc.Compose(n, (byte*)frame, w, h, pitch, Noise); return; }   // 22-11 (DLSS5Q)
             if (zoom != null) { zoom.Compose(n, (byte*)frame, w, h, pitch, Noise); return; }
             if (fin != null) { fin.Compose(n, (byte*)frame, w, h, pitch, Noise); return; }
             if (mapa != null) { mapa.Compose(n, (byte*)frame, w, h, pitch, Noise); return; }   // 1.2.4 (DLSSFG)   // 22-11 (1.2.2, CALIDAD)

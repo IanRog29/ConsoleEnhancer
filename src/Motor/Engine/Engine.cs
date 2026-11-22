@@ -49,7 +49,7 @@ namespace ConsoleEnhancer.Motor
         double tsFreq;
 
         // Tablas de 4 descriptores [t0 t1 u0 u1]
-        const int TUnpack = 0, TScale = 3, TCasOut = 4, TCasIn = 5, TOsd = 6, TLuma = 7, TSearch = 15, TExpand = 23, TAa = 24, TDown = TQBase + TQCount, TablesCount = TQBase + TQCount + 1 + TRCount + 7;   // (20-11: + TLinIn, TLinOut, EngineLinear.cs) (16-11: TQ* = las de calidad, EngineMotion.cs; 17-11: TR* = las de las rejas, EngineRejas.cs; 20-11: + TNr, TNrDown, TNrPrep, TNrAf0/1, EngineDlss5.cs)
+        const int TUnpack = 0, TScale = 3, TCasOut = 4, TCasIn = 5, TOsd = 6, TLuma = 7, TSearch = 15, TExpand = 23, TAa = 24, TDown = TQBase + TQCount, TablesCount = TQBase + TQCount + 1 + TRCount + 9;   // (22-11 DLSS5Q: + TD5qMed, TD5qHold, EngineDlss5Q.cs) (20-11: + TLinIn, TLinOut, EngineLinear.cs) (16-11: TQ* = las de calidad, EngineMotion.cs; 17-11: TR* = las de las rejas, EngineRejas.cs; 20-11: + TNr, TNrDown, TNrPrep, TNrAf0/1, EngineDlss5.cs)
         const int U0 = Shaders.SlotU0;
 
         // ---- Recursos
@@ -969,8 +969,10 @@ namespace ConsoleEnhancer.Motor
             CpuMark(0);
             RecordMotion(slot >= 0);
             CpuMark(1);
+            D5qMeasure(slot >= 0, 0);   // 22-11 (1.2.4 DLSS5Q, dlss5_medida=: EngineDlss5Q.cs) el color antes de DLSS 5
             RecordDlss5(slot >= 0);   // 20-11 (DLSS 5 EN EL MOTOR, EngineDlss5.cs): DLSSNR sobre inColor antes de DLSS SR
             RecordDvc(slot >= 0, token);   // 22-11 (1.2.4, DLSS5LEGAL: EngineDvc.cs): Vibrancia RTX (oficial de NVIDIA) en el mismo sitio, si no va DLSS 5
+            D5qMeasure(slot >= 0, 1);   // (DLSS5Q) y despues
             CpuMark(2);
             PassMark(3);
 
@@ -1206,6 +1208,7 @@ namespace ConsoleEnhancer.Motor
                 fenceValue++;
                 queue.Signal(fence, fenceValue);
                 allocFence[fi] = fenceValue;
+                D5qSubmitted(fenceValue);   // (22-11 DLSS5Q, dlss5_medida=)
                 if (slot >= 0) lock (slotLock) slotFence[slot] = fenceValue;
                 if (pclOk && token != IntPtr.Zero) { Sl.PCLSetMarker(SlPCLMarker.eRenderSubmitEnd, token); Sl.PCLSetMarker(SlPCLMarker.ePresentStart, token); }
                 // 17-11 15:45 (vsync_fg=0): con la generacion y la sincronizacion, Reflex limita la salida a 116 (120 - 120^2/3600): 58 reales de
