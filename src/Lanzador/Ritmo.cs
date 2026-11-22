@@ -40,55 +40,121 @@ namespace ConsoleEnhancer
     partial class Config
     {
         public bool GrabPng = true;
+        // captura_png=1 (de serie): todas las capturas de la app por PNG a la tuberia (tambien en el menu de la consola: con screenshot-raw
+        // la ligera de 3,7 MB iba al disco cada 0,5 s, ~26 GB por hora en el menu a 4K; el PNG por la tuberia tarda casi lo mismo: 105-150
+        // ms a 4K frente a 90-110); captura_png=juego: solo jugando con Magpie; captura_png=0: screenshot-raw como antes. La imagen
+        // congelada del telon sigue siempre con screenshot-raw
+        public bool GrabPngTodas = true;
     }
 
     partial class TrayApp
     {
-        // Por fichero: jugando (Magpie ya escala, fuera del menu y sin estar confirmandolo, que pide capturas cada 0,25 s), por mpv (el
-        // motor contesta las capturas el mismo) y a 4K / 1440p (a 1080p screenshot-raw para 16-34 ms y el fichero no gana claro)
+        // Por PNG: jugando (Magpie ya escala, fuera del menu y sin estar confirmandolo, que pide capturas cada 0,25 s y quiere la respuesta
+        // enseguida) y por mpv (el motor contesta las capturas el mismo). (22-11, tercera parte: tambien a 1080p, por la tuberia no cuesta
+        // disco y con la imagen quieta el nucleo de mpv no se para nada)
         bool UsaCapturaPng()
         {
-            return cfg.GrabPng && !Config.EngineActive && lsReady && !InHome && !menuMaq.Confirmando &&
-                   (cfg.CaptureNow == "3840x2160" || cfg.CaptureNow == "2560x1440");
+            return cfg.GrabPng && !Config.EngineActive && (cfg.GrabPngTodas || (lsReady && !InHome && !menuMaq.Confirmando));
         }
 
-        // "switch2-grabbed-png","<raw>","<png>","<modo>","<rejilla w>","<rejilla h>","<ms hasta el fichero>"
+        // ---- 22-11 (tercera parte, el coordinador: "25 MB cada 1,5 s son ~60 GB por hora de juego escritos en el SSD"): el PNG no va a
+        // un fichero sino a una tuberia con nombre que abre la app (\\.\pipe\ce-grab-<pid>-<n>.png: mpv la abre como un fichero y elige el
+        // formato por la extension). La app lee el PNG de la tuberia mientras mpv lo escribe y la ligera pasa a AnalyzeGrab en memoria:
+        // NADA al disco (antes, con screenshot-raw, el .raw de la ligera: 3,7 MB por captura, ~9 GB/hora a 4K cada 1,5 s y ~12 GB/hora a
+        // 1080p cada 0,6 s). Sin compresion: con compresion 1 el PNG de una imagen de juego de verdad a 4K tarda 522 ms en estar (13,4 MB)
+        // frente a 113 ms (25 MB); a 1440p 247 frente a 63. Si la tuberia no se puede crear, el PNG va a %TEMP%\switch2_grab.raw.png (un
+        // solo fichero, se sobrescribe y se borra al leerlo)
+        int pngN; bool rejillaDicha;
+        [ThreadStatic] static byte[] grabEnMemoria;   // (AnalyzeGrab: la ligera ya en memoria, sin leer el .raw)
+
+        // La ruta para mpv: la tuberia (con su lector ya esperando) o, si no se puede, el fichero de siempre
+        string DestinoCapturaPng(bool light)
+        {
+            try
+            {
+                string name = "ce-grab-" + System.Diagnostics.Process.GetCurrentProcess().Id.ToString(CultureInfo.InvariantCulture) + "-" + (++pngN).ToString(CultureInfo.InvariantCulture) + ".png";
+                System.IO.Pipes.NamedPipeServerStream ps = new System.IO.Pipes.NamedPipeServerStream(name, System.IO.Pipes.PipeDirection.In, 1,
+                    System.IO.Pipes.PipeTransmissionMode.Byte, System.IO.Pipes.PipeOptions.Asynchronous, 1 << 22, 1 << 12);
+                DateTime pedida = lastGrab;
+                Thread t = new Thread(delegate () { LeeTuberiaPng(ps, light, pedida); });
+                t.IsBackground = true;
+                t.Priority = ThreadPriority.BelowNormal;
+                t.Start();
+                return @"\\.\pipe\" + name;
+            }
+            catch (Exception ex) { Log.Error("Captura por PNG: no se pudo crear la tuberia (va por fichero)", ex); return GrabPath + ".png"; }
+        }
+
+        void LeeTuberiaPng(System.IO.Pipes.NamedPipeServerStream ps, bool light, DateTime pedida)
+        {
+            bool analizada = false;
+            try
+            {
+                IAsyncResult ar = ps.BeginWaitForConnection(null, null);
+                if (!ar.AsyncWaitHandle.WaitOne(4000)) return;   // (mpv no la abrio: ya contesto "switch2-grabbed" vacio)
+                ps.EndWaitForConnection(ar);
+                // (con un bufer de 1 MB: leyendo a trozos de 8 KB la tuberia tardaba 520 ms a 4K; asi 128 ms, lo mismo que por fichero)
+                PngCaptura c;
+                using (BufferedStream bs = new BufferedStream(ps, 1 << 20))
+                {
+                    c = PngCaptura.LeeFlujo(bs, light, 48, 27);   // (la rejilla de ce_power.lua: grid_w / grid_h de serie)
+                    try { byte[] resto = new byte[1 << 16]; while (bs.Read(resto, 0, resto.Length) > 0) { } } catch { }   // (que mpv acabe de escribir)
+                }
+                analizada = UsaPng(c, null, light);
+            }
+            catch (Exception ex) { Log.Error("Captura por PNG (tuberia)", ex); }
+            finally
+            {
+                try { ps.Dispose(); } catch { }
+                if (!analizada && lastGrab == pedida) grabBusy = false;
+            }
+        }
+
+        // La imagen leida: la rejilla a mpv y la ligera a AnalyzeGrab (en memoria). false = no se pudo
+        int pngFallos;
+        bool UsaPng(PngCaptura c, string origen, bool light)
+        {
+            if (c == null)
+            {
+                // (3 seguidas sin poder leerla: el resto de la sesion como antes, con screenshot-raw)
+                if (++pngFallos >= 3 && cfg.GrabPng) { cfg.GrabPng = false; Log.Write("Captura por PNG: no se puede leer el PNG de mpv (" + PngCaptura.Ultimo + "): se vuelve a screenshot-raw en esta sesion"); }
+                return false;
+            }
+            pngFallos = 0;
+            lock (cmdQueue) cmdQueue.Add(JsonCmd("script-message", "switch2-grab-sample", c.Avg.ToString("0.###", CultureInfo.InvariantCulture),
+                                                 c.MaxL.ToString("0.###", CultureInfo.InvariantCulture), c.HuellaHex));
+            grabEnMemoria = c.Bgr0;
+            AnalyzeGrab(GrabPath, c.W, c.H, c.W * 4, "bgr0");   // (pone grabBusy=false al acabar)
+            return true;
+        }
+
+        // "switch2-grabbed-png","<raw>","<png>","<modo>","<rejilla w>","<rejilla h>","<ms hasta el PNG>": con la tuberia, solo el tiempo
+        // (la imagen ya la lee LeeTuberiaPng); con el fichero, se lee aqui
         void CapturaPngLista(string line)
         {
             Match m = Regex.Match(line, "switch2-grabbed-png\",\"((?:[^\"\\\\]|\\\\.)+)\",\"((?:[^\"\\\\]|\\\\.)+)\",\"([^\"]*)\",\"(\\d+)\",\"(\\d+)\",\"([0-9.]+)\"");
             if (!m.Success) { grabBusy = false; return; }
-            string raw = m.Groups[1].Value.Replace("\\\\", "\\"), png = m.Groups[2].Value.Replace("\\\\", "\\");
+            string png = m.Groups[2].Value.Replace("\\\\", "\\");
             bool light = m.Groups[3].Value.StartsWith("light", StringComparison.Ordinal);
             int gw = int.Parse(m.Groups[4].Value, CultureInfo.InvariantCulture), gh = int.Parse(m.Groups[5].Value, CultureInfo.InvariantCulture);
-            double ms = double.Parse(m.Groups[6].Value, CultureInfo.InvariantCulture);
-            RitmoDiag.PngListo(ms);
-            Thread t = new Thread(delegate () { CapturaPngProcesa(raw, png, light, gw, gh); });
+            RitmoDiag.PngListo(double.Parse(m.Groups[6].Value, CultureInfo.InvariantCulture));
+            if (png.StartsWith(@"\\.\pipe\", StringComparison.OrdinalIgnoreCase))
+            {
+                // (la tuberia se lee con la rejilla de 48x27 de ce_power.lua; si alguna vez cambia, la huella no casaria: se avisa una vez)
+                if ((gw != 48 || gh != 27) && !rejillaDicha) { rejillaDicha = true; Log.Write("Captura por PNG: la rejilla de mpv es " + gw + "x" + gh + " y no 48x27: el negro / No Signal de las capturas por PNG no valen"); }
+                return;
+            }
+            Thread t = new Thread(delegate () { CapturaPngProcesa(png, light, gw, gh); });
             t.IsBackground = true;
             t.Priority = ThreadPriority.BelowNormal;
             t.Start();
         }
 
-        int pngFallos;
-        void CapturaPngProcesa(string raw, string png, bool light, int gw, int gh)
+        void CapturaPngProcesa(string png, bool light, int gw, int gh)
         {
             bool analizada = false;
-            try
-            {
-                PngCaptura c = PngCaptura.Lee(png, light, gw, gh);
-                if (c == null)
-                {
-                    // (3 seguidas sin poder leerla: el resto de la sesion como antes, con screenshot-raw)
-                    if (++pngFallos >= 3 && cfg.GrabPng) { cfg.GrabPng = false; Log.Write("Captura por fichero: no se puede leer el PNG de mpv (" + PngCaptura.Ultimo + "): se vuelve a screenshot-raw en esta sesion"); }
-                    return;
-                }
-                pngFallos = 0;
-                File.WriteAllBytes(raw, c.Bgr0);
-                lock (cmdQueue) cmdQueue.Add(JsonCmd("script-message", "switch2-grab-sample", c.Avg.ToString("0.###", CultureInfo.InvariantCulture),
-                                                     c.MaxL.ToString("0.###", CultureInfo.InvariantCulture), c.HuellaHex));
-                analizada = true;
-                AnalyzeGrab(raw, c.W, c.H, c.W * 4, "bgr0");   // (pone grabBusy=false al acabar)
-            }
-            catch (Exception ex) { Log.Error("Captura por fichero", ex); }
+            try { analizada = UsaPng(PngCaptura.Lee(png, light, gw, gh), png, light); }
+            catch (Exception ex) { Log.Error("Captura por PNG (fichero)", ex); }
             finally
             {
                 if (!analizada) grabBusy = false;
@@ -248,7 +314,19 @@ namespace ConsoleEnhancer
 
         static PngCaptura Rapido(string file, bool light, int gw, int gh)
         {
-            using (FileStream f = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 1 << 20))
+            using (FileStream f = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 1 << 20)) return Rapido(f, light, gw, gh);
+        }
+
+        // De un flujo que solo se lee hacia delante (la tuberia de mpv): sin la imagen entera en memoria. null = no se pudo (no hay GDI+:
+        // el flujo ya no se puede volver a leer)
+        public static PngCaptura LeeFlujo(Stream s, bool light, int gw, int gh)
+        {
+            try { return Rapido(s, light, gw, gh); }
+            catch (Exception ex) { Ultimo = ex.Message; return null; }
+        }
+
+        static PngCaptura Rapido(Stream f, bool light, int gw, int gh)
+        {
             {
                 byte[] h = new byte[8];
                 if (ReadFull(f, h, 0, 8) < 8 || h[0] != 0x89 || h[1] != (byte)'P' || h[2] != (byte)'N' || h[3] != (byte)'G') { Ultimo = "no es PNG"; return null; }
@@ -354,7 +432,7 @@ namespace ConsoleEnhancer
                 case "magpie_vrr_30_otras": RitmoVrr30Otras = si; return true;
                 case "magpie_fijo_30_dlss": RitmoFijo30Dlss = si; return true;
                 case "magpie_sigue_fuente_30_fg": RitmoSigue30Fg = si; return true;
-                case "captura_png": GrabPng = si; return true;   // (22-11, 1.2.2: 0 = las capturas de la app con screenshot-raw, como antes)
+                case "captura_png": GrabPng = si || v == "juego"; GrabPngTodas = si; return true;   // (22-11, 1.2.2: 1 todas, juego, 0 = screenshot-raw como antes)
                 case "ritmo_resumen_s":
                     {
                         int n;

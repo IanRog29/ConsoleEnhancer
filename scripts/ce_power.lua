@@ -985,7 +985,9 @@ end
 local function do_grab_png(path, mode)
     local gt = mp.get_time()
     grab_gap, grab_t = gt - grab_t, gt
-    local png = path .. ".png"
+    -- (22-11, tercera parte: la ruta suele ser una tuberia del lanzador, \\.\pipe\ce-grab-<pid>-<n>.png, que lee el PNG mientras se
+    -- escribe: nada al disco. Si no, <ruta>.png en %TEMP%, que el lanzador borra al leerlo)
+    local png = path:lower():match("%.png$") and path or (path .. ".png")
     mp.commandv("script-message", "switch2-diag-captura", "png")
     mp.command_native_async({name = "screenshot-to-file", filename = png, flags = "video"}, function(ok)
         if not ok then

@@ -9385,8 +9385,11 @@ namespace ConsoleEnhancer
         {
             lastGrab = DateTime.Now;
             grabBusy = true;
-            // (22-11, 1.2.2 RITMO: jugando con Magpie a 4K / 1440p, por fichero: mpv no se para a pasarla a RGB; src\Lanzador\Ritmo.cs)
-            lock (cmdQueue) cmdQueue.Add(JsonCmd("script-message", "switch2-grab", GrabPath, (light ? "light" : "full") + (UsaCapturaPng() ? "-png" : "")));
+            // (22-11, 1.2.2 RITMO: jugando con Magpie, por PNG a una tuberia: mpv no se para a pasarla a RGB y no se escribe nada al disco;
+            // src\Lanzador\Ritmo.cs)
+            bool png = UsaCapturaPng();
+            string dest = png ? DestinoCapturaPng(light) : GrabPath;
+            lock (cmdQueue) cmdQueue.Add(JsonCmd("script-message", "switch2-grab", dest, (light ? "light" : "full") + (png ? "-png" : "")));
         }
 
         // La imagen que ha volcado el script Lua: ¿es el HOME? ¿que juego esta seleccionado?
@@ -9471,7 +9474,8 @@ namespace ConsoleEnhancer
             double diagDark = -1; // 10-11: parte casi negra de la imagen jugando (diagnostico del tramado, MaybeDitherBurst)
             try
             {
-                byte[] data = File.ReadAllBytes(path);
+                byte[] data = grabEnMemoria ?? File.ReadAllBytes(path);   // (22-11, 1.2.2 RITMO: la del PNG ya viene en memoria, Ritmo.cs)
+                grabEnMemoria = null;
                 if (data.Length < (long)stride * h) return;
                 if (cfg.DiagDither > 0 && ditherBursts < cfg.DiagDither && !InHome && cfg.HomeNativeEnabled)
                     diagDark = DarkShare(data, w, h, stride, format);
