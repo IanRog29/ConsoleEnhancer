@@ -227,7 +227,8 @@ namespace ConsoleEnhancer
             {
                 AjColaQuitar();
                 Log.Write("Menu de ajustes: el pedido de hace " + ms + " ms ya no se abre: " + porque);
-                AjAvisoNo(aviso);
+                // (vuelto al menu de la consola mientras esperaba: sin el aviso de siempre, que nadie ha pedido ahora)
+                if (aviso == AjAvisoHome) AjAvisoFuera(); else AjAvisoNo(aviso);
                 return;
             }
             ajPedidoPorque = porque;
