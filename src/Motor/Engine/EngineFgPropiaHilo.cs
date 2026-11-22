@@ -17,9 +17,15 @@ namespace ConsoleEnhancer.Motor
     // Las inventadas salen igual de separadas aunque la grafica tarde (antes, con DLSS 5, la 1a salia cuando la grafica acababa la real y
     // las otras detras: 26 / 1,7 / 5,9 ms medido por la integracion). Coste: 2 texturas mas (x3) o 3 (x4) de la salida y la copia de la real.
     // fg_propia_hilo=0: como antes (todo en el hilo de pintado).
+    // Medido 22-11 noche (tele 3840x2160@120 VRR; motor solo; video de escenas reales de la PS5 de RELEVO, test=archivo, 4K a 59,94 con el
+    // juego a 30; x4; por cada 20 s): sin DLSS 5, antes 29,4 reales/s (minimo 25,2) y 10-11 perdidas -> con el hilo 29,93 (min 29,1) y 0;
+    // con DLSS 5 al 45 %, antes 25,2 (min 15,6) y 64-97 perdidas -> con el hilo 29,4-29,6 y 3-21 (en los tramos en que la grafica sube a
+    // ~21 ms por imagen). Lo que queda: la cola de la grafica es una sola (la de la cadena) y la real siguiente (~21 ms con DLSS 5) se pone
+    // delante de las copias de las ultimas inventadas: salen tarde y juntas. Arreglarlo del todo = la imagen en otra cola (no hecho). Por
+    // eso con DLSS 5 la generacion propia x3 / x4 va por Magpie (lanzador, XefgMotor.cs; motor_propia_dlss5=1 = por el motor).
     partial class Settings
     {
-        public bool FgOwnThread = false;  // fg_propia_hilo=0|1 (EngineFgPropia.cs ApplyFgOwn)
+        public bool FgOwnThread = true;   // fg_propia_hilo=0|1 (EngineFgPropia.cs ApplyFgOwn)
     }
 
     unsafe partial class Engine
@@ -49,6 +55,9 @@ namespace ConsoleEnhancer.Motor
         volatile int fphHr;               // el ultimo Present que fallo (lo devuelve el hilo de pintado)
         long fphLate;                     // (banco) reales que el hilo de presentacion empezo tarde
         double fphGpuWaitMs;              // (banco) lo que espero a la grafica de media
+        long fphPrevReal;                 // (hilo de presentacion) la hora prevista de la ultima real
+        double fphHz; long fphHzAt;       // el refresco de la pantalla (mirado cada 2 s)
+        long fphSqueezed;                 // (banco) reales con las inventadas apretadas (la grafica acabo tarde)
 
         void FphEnsure()
         {
@@ -143,7 +152,8 @@ namespace ConsoleEnhancer.Motor
             double step = real / k;
             // sincronizacion: si k x las reales no caben con margen bajo el refresco (x4 de 30 en 120 Hz); con el hilo esperar un refresco
             // no frena el pintado. Sin ella (VRR), cada una a su hora
-            bool vs = s.FgOwnVsync == 1 || (s.FgOwnVsync < 0 && (sync > 0 || (k * 1000.0 / real) > DisplayHz() * 0.9));
+            if (fphHzAt == 0 || Clock.SinceMs(fphHzAt) > 2000) { fphHz = DisplayHz(); fphHzAt = Clock.Now; }   // (QueryDisplayConfig cada 2 s, no en cada imagen)
+            bool vs = s.FgOwnVsync == 1 || (s.FgOwnVsync < 0 && (sync > 0 || (k * 1000.0 / real) > fphHz * 0.9));
             uint sy = vs ? 1u : 0u, fl = vs ? 0u : flags;
             try
             {
@@ -219,19 +229,34 @@ namespace ConsoleEnhancer.Motor
                     }
                     double wms = Clock.SinceMs(tw);
                     fphGpuWaitMs = fphGpuWaitMs * 0.95 + wms * 0.05;
-                    long t0 = Clock.Now;
+                    long g = Clock.Now;
+                    // La hora de la real (R): lo natural es tras las k-1 inventadas a su paso; pero si la grafica acabo tarde (un pico de la
+                    // escena) la real no pasa de la cadencia (la anterior + un intervalo real): se aprietan las inventadas (hasta la mitad del paso)
+                    // en vez de retrasar la real, que retrasaria tambien la siguiente (y el hilo de pintado esperaria: perdidas). Medido 22-11 con
+                    // escenas reales: sin esto 6-7 perdidas cada 20 s en los picos de la grafica
+                    double realMs = step * k, full = gen ? (k - 1) * step : 0;
+                    long R = g + (long)(full / Clock.TickMs);
+                    if (fphPrevReal != 0 && Clock.Ms(fphPrevReal, g) < 3 * realMs)
+                    {
+                        // (con 4 ms de holgura y hasta 3/4 del paso: sin holgura se quedaba apretada para siempre -medido con x3: 5,7 / 5,7 / 22 ms-;
+                        // asi, tras un pico, vuelve al paso entero en unas imagenes)
+                        long hi = fphPrevReal + (long)((realMs + 4) / Clock.TickMs);
+                        if (R > hi) { R = Math.Max(hi, g + (long)(0.75 * full / Clock.TickMs)); fphSqueezed++; }
+                    }
+                    double s2 = gen && k > 1 ? Math.Min(step, Math.Max(0, Clock.Ms(g, R)) / (k - 1)) : 0;
                     int hr = 0;
                     if (gen)
                         for (int j = 1; j < k && hr >= 0; j++)
                         {
-                            if (j > 1) FpWaitUntil(t0 + (long)((j - 1) * step / Clock.TickMs));
+                            FpWaitUntil(R - (long)((k - j) * s2 / Clock.TickMs));
                             hr = FphCopyPresent(fphOut[j - 1], fphJSy, fphJFl, false);
                             if (hr >= 0) fpGens++;
                         }
                     if (hr >= 0)
                     {
-                        if (gen) FpWaitUntil(t0 + (long)((k - 1) * step / Clock.TickMs));
+                        FpWaitUntil(R);
                         hr = FphCopyPresent(fphReal, gen ? fphJSy : fphJSyReal, gen ? fphJFl : fphJFlReal, true);
+                        fphPrevReal = R;
                     }
                     if (hr < 0) { fphHr = hr; fphFree.Set(); }
                 }
@@ -268,6 +293,6 @@ namespace ConsoleEnhancer.Motor
             return swap.Present(sy, (DXGI_PRESENT)fl);
         }
 
-        string FphBench() { return fphThread != null ? " hilo=1 espera_grafica=" + fphGpuWaitMs.ToString("0.0", IC) + "ms" : ""; }
+        string FphBench() { return fphThread != null ? " hilo=1 espera_grafica=" + fphGpuWaitMs.ToString("0.0", IC) + "ms apretadas=" + fphSqueezed : ""; }
     }
 }
