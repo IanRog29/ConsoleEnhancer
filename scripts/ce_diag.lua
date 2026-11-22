@@ -48,6 +48,19 @@ local function reset()
     q_max, q_sum, q_n, q_over = 0, 0, 0, 0
 end
 
+-- 22-11 (1.2.2, RITMO): cada imagen que sale tarde, al momento (no cada 20 s): "switch2-diag-hueco" con la hora (ms desde la anterior),
+-- la marca de la capturadora (ms) y lo normal (media movil): el lanzador lo junta con lo que ve Magpie para decir de donde viene cada
+-- tiron (src\Lanzador\Ritmo.cs). Lo normal = la mediana de las 15 ultimas (sigue sola un cambio de modo 30 <-> 60 y un tiron no la sube)
+local ult, ult_i = {}, 0
+local function mediana_ult(dw)
+    ult_i = ult_i % 15 + 1
+    ult[ult_i] = dw
+    local c = {}
+    for i = 1, #ult do c[i] = ult[i] end
+    table.sort(c)
+    return c[math.floor((#c + 1) / 2)]
+end
+
 mp.observe_property("time-pos", "number", function(_, v)
     local t = mp.get_time()
     if not v then last_w, last_p = nil, nil; return end
@@ -64,6 +77,10 @@ mp.observe_property("time-pos", "number", function(_, v)
                 if dp <= limit then late = late + 1 end
             end
             if dp > limit and dp - sum_w / n >= 10 then over_p = over_p + 1 end
+            local normal_w = mediana_ult(dw)
+            if #ult >= 8 and ((dw > 1.4 * normal_w and dw - normal_w >= 12) or (dp > 1.4 * normal_w and dp - normal_w >= 12)) then
+                mp.commandv("script-message", "switch2-diag-hueco", string.format("%.1f %.1f %.1f", dw, dp, normal_w))
+            end
         end
     end
     last_w, last_p = t, v

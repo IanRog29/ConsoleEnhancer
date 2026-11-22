@@ -7632,6 +7632,7 @@ namespace ConsoleEnhancer
                             // (19-11, FLUIDEZ) el resumen de la grafica (Backend publication) va justo antes en el log
                             double normal = want30 || cfg.CapMode ? 33.4 : 16.7;
                             bool spike = st.FenceMax > 2 * st.FenceAvg && st.FenceMax > st.FenceAvg + 15;
+                            RitmoDiag.MagpieVentana(line, spike);   // (22-11, 1.2.2 RITMO: de donde viene cada tiron, src\Lanzador\Ritmo.cs)
                             st.Windows++;
                             if (spike) st.GpuSpikes++;
                             if (mx > normal * 1.6) { st.Gaps++; if (spike) st.GapsWithSpike++; }
@@ -11926,6 +11927,7 @@ namespace ConsoleEnhancer
             {
                 lsPidSeen = pid;
                 lsLogPos = -1;
+                RitmoDiag.Limpia();   // (22-11, 1.2.2 RITMO)
                 if (pid > 0) Log.Write("Magpie: " + cfg.ProfileText);
             }
             LsStats st = ReadLsStats();
@@ -11957,11 +11959,21 @@ namespace ConsoleEnhancer
             }
             else { ritmoWin = ritmoGaps = ritmoSpikes = ritmoBoth = 0; ritmoSince = DateTime.MinValue; }
             // Tirones sueltos que la media no ve: dos imagenes reales separadas por 1,45 veces lo normal y 20 ms mas
+            // 22-11 (1.2.2, RITMO): y de donde vienen (juego, mpv, captura, grafica o la salida de Magpie: src\Lanzador\Ritmo.cs); cada
+            // 5 min, todos por origen
             double normal = want30 || cfg.CapMode ? 33.4 : 16.7;
-            if (st.CapMax > 0 && st.CapMax >= normal * 1.45 && st.CapMax - normal >= 20 && st.CapMax < 300 && (now - lastHitchLog).TotalSeconds >= 15)
+            double peorRitmo;
+            string origen = RitmoDiag.Repasa(normal, normal / Math.Max(1, cfg.FgOff ? 1 : cfg.FgMultNow), out peorRitmo);
+            if (pid > 0 && origen.Length > 0 && (now - lastHitchLog).TotalSeconds >= 15)
             {
                 lastHitchLog = now;
-                Log.Write("Tirones sueltos: Magpie estuvo " + Ms(Math.Round(st.CapMax, 1)) + " ms sin imagen nueva (p95 " + Ms(Math.Round(st.CapP95, 1)) + ")");
+                Log.Write("Tirones sueltos: " + (st.CapMax >= normal * 1.45 ? "Magpie estuvo " + Ms(Math.Round(st.CapMax, 1)) + " ms sin imagen nueva (p95 " + Ms(Math.Round(st.CapP95, 1)) + ")" : "peor " + Ms(Math.Round(peorRitmo)) + " ms") +
+                          " -> " + origen);
+            }
+            if (pid > 0 && (now - ritmoOrigenSince).TotalMinutes >= 5)
+            {
+                if (ritmoOrigenSince != DateTime.MinValue) { string r = RitmoDiag.Resumen(); if (r != null) Log.Write("Tirones por origen (5 min, " + cfg.ProfileText + "): " + r); }
+                ritmoOrigenSince = now;
             }
             // Modo 60 con generacion: si Magpie recibe bastante menos de 60 reales con mpv dandole 60, la grafica no llega
             if (st.Captured > 0)
@@ -11978,6 +11990,7 @@ namespace ConsoleEnhancer
         }
         int lockWins;
         int ritmoWin, ritmoGaps, ritmoSpikes, ritmoBoth;   // (19-11, FLUIDEZ: el resumen de ritmo de cada 5 min)
+        DateTime ritmoOrigenSince = DateTime.MinValue;     // (22-11, 1.2.2 RITMO: el resumen por origen, src\Lanzador\Ritmo.cs)
         DateTime ritmoSince = DateTime.MinValue;
         DateTime lastLockLog = DateTime.MinValue, lastErrLog = DateTime.MinValue;
 
@@ -13140,6 +13153,12 @@ namespace ConsoleEnhancer
                             line, "\"switch2-diag\",\"([^\"]*)\"");
                         if (m.Success && lsReady && !cfg.HomeNative) Log.Write("mpv: " + m.Groups[1].Value);
                         if (m.Success) EscalaNotaDiag(m.Groups[1].Value); // (1.2.1: las imagenes que da mpv de verdad, EscalaAuto.cs)
+                    }
+                    else if (line.Contains("\"client-message\"") && line.Contains("\"args\":[\"switch2-diag-hueco\""))
+                    {
+                        // 22-11 (1.2.2, RITMO): una imagen que mpv saco tarde, al momento (de donde vienen los tirones: src\Lanzador\Ritmo.cs)
+                        System.Text.RegularExpressions.Match m = System.Text.RegularExpressions.Regex.Match(line, "\"switch2-diag-hueco\",\"([^\"]*)\"");
+                        if (m.Success && readerMpv == mpv) RitmoDiag.MpvHueco(m.Groups[1].Value);
                     }
                     else if (line.Contains("\"client-message\"") && line.Contains("\"args\":[\"switch2-signal\""))
                     {
