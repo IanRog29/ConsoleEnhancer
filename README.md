@@ -30,7 +30,7 @@ Created and maintained by **IanRog29** · [Source and downloads](https://github.
 
 ## Quick start
 
-1. Download the latest **`ConsoleEnhancer-v1.2.2.zip`** (or newer) from
+1. Download the latest **`ConsoleEnhancer-v1.2.3.zip`** (or newer) from
    **[Releases](https://github.com/IanRog29/ConsoleEnhancer/releases)** (not the green "Code" button: that is the source code).
 2. **Unzip** it into one of your own folders: Documents, the Desktop, `D:\Juegos`... (not in *Program Files*).
 3. Open **`ConsoleEnhancer.exe`** and follow the wizard. Done: turn the console on.
@@ -189,6 +189,9 @@ with help a lot too.
 - **×2 / ×3 / ×4 frame generation** (DLSS FG and XeSS FG): the settings menu's *Multiplier* row, the tray or Ctrl+X. ×3 / ×4 only
   when they fit your screen (real fps × multiplier ≤ refresh rate: with a 120 Hz TV, the 30 fps mode gives 90 / 120 fps); otherwise
   they are shown locked with the reason. Saved per game and mode; if the output can't be reached, the multiplier is lowered first.
+  With DLSS 5 on, ×3 / ×4 keep it at 35 % or more; if the 30 real fps can't be held with it, DLSS 5 is removed for that multiplier
+  and the menu says so (RTX 4060 Ti, 4K: ×2 with DLSS 5 at ~35-45 %, ×3 at 35 %, ×4 without it). XeSS FG ×3 / ×4 on NVIDIA / AMD only
+  where the chain fits (Magpie's compatibility pacing): on a 4060 Ti at 4K, ×3 yes and ×4 locked.
 - **120 fps mode (esports)**: for the console's 120 Hz games, it captures at 120 with no frame generation and the lowest latency. The
   mode button goes 30 → 60 → 120 only if the console outputs 120, the TV runs at **120 Hz or more** and the current capture is one your
   capture card provides at 120 (usually **1080p or 1440p**; the wizard reads it from the capture card, capturas_120). At 4K it stays
@@ -312,17 +315,28 @@ If you already have your own file, adding it takes one click:
 
 To remove it: tray icon > **Remove DLSS 5** (deletes the copy in `extras\`; your original file is not touched).
 
+Your DLSS 5 files are also kept in `%LOCALAPPDATA%\ConsoleEnhancer\extras`, so a new version unzipped into a new folder picks them up
+by itself. If you also have the engine's optional native helper (`engine\PrismaNr.dll`, not shipped either), DLSS 5 can run inside
+the app's own engine instead of Magpie: much lower latency (measured at 4K, 30 fps mode + DLSS FG ×2: 43 ms instead of ~72 ms for the
+real frame) and a steadier pace. The settings menu row **DLSS 5 through: Engine / Magpie** picks it (Engine by default when the helper
+is there); ×3 / ×4, XeSS FG and 2-3 passes always go through Magpie.
+
 ## FAQ / common problems
 
-**Windows or the antivirus won't let me open it.** The exe is not signed. SmartScreen: *More info > Run anyway*. If the antivirus
-quarantines it, restore it and add the folder to its exclusions; or build it yourself (see *For developers*).
+**Windows or the antivirus won't let me open it / Microsoft Defender removed ConsoleEnhancer.exe.** The exes are not code-signed yet,
+so every new version starts with no reputation. SmartScreen ("Windows protected your PC"): *More info > Run anyway*. Microsoft
+Defender: on 21-11-2026 it quarantined versions 1.2.07 and 1.2.09 a few seconds after they were opened, when they added themselves to
+the Windows startup (*Behavior:Win32/Persistence.A!ml*, *Trojan:Win32/Bearfoos.A!ml*). It is a false positive: the same files scan
+clean. Since **1.2.3** the app never adds itself to the startup on its own (a new copy asks first, and only when you open it
+yourself), it runs no PowerShell or `schtasks.exe`, and the exes carry their version and publisher. If Defender still removes it:
+Windows Security > Virus & threat protection > **Protection history** > the ConsoleEnhancer entry > **Restore**; if it happens
+again, add **only the app folder** as an exclusion (*Manage settings > Exclusions > Add an exclusion > Folder*; the tray item
+**Microsoft Defender: exclusion for the app...** opens that page with the folder copied), and please report the false positive at
+https://www.microsoft.com/wdsi/filesubmission ("Incorrectly detected as malware/malicious"). Each release lists the SHA-256 of the
+zip and of every file in it (`.files.sha256`), and you can build it yourself (see *For developers*).
 
-**The picture stays but there is no sound and the controller does nothing / ConsoleEnhancer.exe disappeared.** Microsoft Defender
-closed the app (versions before 1.2.08 with *Start with Windows* on: Defender took its logon task for malware, a false positive).
-Windows Security > Virus & threat protection > **Protection history** > the ConsoleEnhancer entry > **Restore**, then open 1.2.08 or
-later (it uses a Startup folder shortcut instead and removes the old task). If it happens again: *Manage settings > Exclusions > Add an
-exclusion > Folder* with the app folder (the tray item **Microsoft Defender: exclusion for the app...** opens that page with the
-folder copied).
+**The picture stays but there is no sound and the controller does nothing.** Microsoft Defender closed the app while mpv and Magpie
+kept showing the picture: see the previous answer (the app also explains it the next time it opens).
 
 **The mpv / Magpie download fails.** Internet is needed once. Behind a proxy or offline: download the two zips linked in that window
 (also in `licenses\VERSIONS.txt`) on another PC and put them in a `downloads\` folder next to `ConsoleEnhancer.exe`; they are checked
@@ -416,7 +430,7 @@ build.bat                       :: bin\ConsoleEnhancer.exe (src\Lanzador + src\D
 build_motor.bat                 :: bin\engine\ConsoleEnhancerEngine.exe (src\Motor) + DLL de Streamline
 tests\build_deteccion.bat       :: tests\bin\DeteccionTest.exe
 tests\bin\DeteccionTest.exe --simula=todo --sin-d3d12 --salida=deteccion.txt   :: 23 PCs simulados
-powershell -ExecutionPolicy Bypass -File scripts\empaquetar.ps1 -Zip -Version v1.2.2   :: dist\ConsoleEnhancer\ y dist\ConsoleEnhancer-v1.2.2.zip
+powershell -ExecutionPolicy Bypass -File scripts\empaquetar.ps1 -Zip -Version v1.2.3   :: dist\ConsoleEnhancer\ y dist\ConsoleEnhancer-v1.2.3.zip
 ```
 
 - **Dependencies**: the table `scripts\components.json` (version, URL, SHA-256 and what is taken from each zip) is used by
@@ -493,7 +507,7 @@ Creado y mantenido por **IanRog29** · [Código y descargas](https://github.com/
 
 ## Inicio rápido
 
-1. Baja el último **`ConsoleEnhancer-v1.2.2.zip`** (o uno más nuevo) de
+1. Baja el último **`ConsoleEnhancer-v1.2.3.zip`** (o uno más nuevo) de
    **[Releases](https://github.com/IanRog29/ConsoleEnhancer/releases)** (no el botón verde "Code": eso es el código fuente).
 2. **Descomprímelo** en una carpeta tuya: Documentos, el Escritorio, `D:\Juegos`... (no en *Archivos de programa*).
 3. Abre **`ConsoleEnhancer.exe`** y sigue el asistente. Ya está: enciende la consola.
@@ -652,6 +666,9 @@ y contar en qué PC y con qué consola lo usas.
 - **Generación ×2 / ×3 / ×4** (DLSS FG y XeSS FG): la fila *Multiplicador* del menú de ajustes, la bandeja o Ctrl+X. ×3 / ×4 solo si
   caben en tu pantalla (fps reales × multiplicador ≤ refresco: con una tele de 120 Hz, el modo 30 da 90 / 120 fps); si no, salen
   bloqueados con el motivo. Se guarda por juego y modo; si no se llega a la salida, lo primero que baja es el multiplicador.
+  Con DLSS 5, ×3 / ×4 lo dejan al 35 % o más; si así no se llega a las 30 reales, DLSS 5 se quita con ese multiplicador y el menú lo
+  dice (RTX 4060 Ti, 4K: ×2 con DLSS 5 al ~35-45 %, ×3 al 35 %, ×4 sin él). XeSS FG ×3 / ×4 en NVIDIA / AMD solo donde la cadena cabe
+  (el ritmo de compatibilidad de Magpie): en una 4060 Ti a 4K, ×3 sí y ×4 bloqueado.
 - **Modo 120 fps (esports)**: para los juegos de 120 Hz de la consola, captura a 120 sin generación de fotogramas y con el menor
   retraso. El botón de modo pasa 30 → 60 → 120 solo si la consola saca 120, la tele va a **120 Hz o más** y la captura de ahora es una
   que tu capturadora da a 120 (normalmente **1080p o 1440p**; el asistente lo lee de la capturadora, capturas_120). A 4K sigue 30 ↔ 60:
@@ -775,17 +792,29 @@ Si ya tienes tu propio archivo, añadirlo es un clic:
 
 Para quitarlo: icono de la bandeja > **Quitar DLSS 5** (borra la copia de `extras\`; tu archivo original no se toca).
 
+Tus archivos de DLSS 5 se guardan también en `%LOCALAPPDATA%\ConsoleEnhancer\extras`, así que una versión nueva descomprimida en otra
+carpeta los recoge sola. Si además tienes el complemento nativo opcional del motor (`engine\PrismaNr.dll`, que tampoco se distribuye),
+DLSS 5 puede ir dentro del motor propio de la app en vez de Magpie: mucho menos retraso (medido a 4K, modo 30 + DLSS FG ×2: 43 ms en
+vez de ~72 ms la imagen real) y un ritmo más regular. La fila del menú de ajustes **DLSS 5 por: Motor / Magpie** lo elige (Motor de
+serie si está el complemento); ×3 / ×4, XeSS FG y 2-3 pasadas van siempre por Magpie.
+
 ## Preguntas frecuentes y problemas comunes
 
-**Windows o el antivirus no me deja abrirlo.** El exe no está firmado. SmartScreen: *Más información > Ejecutar de todas formas*.
-Si el antivirus lo pone en cuarentena, restáuralo y añade la carpeta a sus exclusiones; o compílalo tú (ver *Para desarrolladores*).
+**Windows o el antivirus no me deja abrirlo / Microsoft Defender ha borrado ConsoleEnhancer.exe.** Los exe aún no van firmados, así
+que cada versión nueva empieza sin reputación. SmartScreen ("Windows protegió su PC"): *Más información > Ejecutar de todas formas*.
+Microsoft Defender: el 21-11-2026 puso en cuarentena las versiones 1.2.07 y 1.2.09 a los pocos segundos de abrirlas, al ponerse en el
+inicio de Windows (*Behavior:Win32/Persistence.A!ml*, *Trojan:Win32/Bearfoos.A!ml*). Es un falso positivo: los mismos ficheros salen
+limpios al analizarlos. Desde la **1.2.3** la app nunca se pone sola en el inicio (una copia nueva lo pregunta antes, y solo si la
+abres tú), no lanza PowerShell ni `schtasks.exe`, y los exe llevan su versión y su editor. Si aun así Defender la quita: Seguridad de
+Windows > Protección antivirus y contra amenazas > **Historial de protección** > la entrada de ConsoleEnhancer > **Restaurar**; si
+vuelve a pasar, añade **solo la carpeta de la app** a las exclusiones (*Administrar la configuración > Exclusiones > Agregar una
+exclusión > Carpeta*; la opción de la bandeja **Microsoft Defender: excepción para la app...** abre esa página con la carpeta
+copiada) y, si puedes, avisa a Microsoft del falso positivo en https://www.microsoft.com/wdsi/filesubmission ("Incorrectly detected
+as malware/malicious"). Cada release publica el SHA-256 del zip y de cada fichero de dentro (`.files.sha256`), y puedes compilarlo tú
+(ver *Para desarrolladores*).
 
-**Se queda la imagen pero sin sonido y el mando no hace nada / ha desaparecido ConsoleEnhancer.exe.** Microsoft Defender cerró la app
-(versiones anteriores a la 1.2.08 con *Iniciar con Windows*: tomó su tarea de inicio por un virus, un falso positivo). Seguridad de
-Windows > Protección antivirus y contra amenazas > **Historial de protección** > la entrada de ConsoleEnhancer > **Restaurar**, y abre la
-1.2.08 o posterior (usa un acceso directo en la carpeta Inicio y quita la tarea vieja). Si vuelve a pasar: *Administrar la configuración
-> Exclusiones > Agregar una exclusión > Carpeta* con la carpeta de la app (la opción de la bandeja **Microsoft Defender: excepción para
-la app...** abre esa página con la carpeta copiada).
+**Se queda la imagen pero sin sonido y el mando no hace nada.** Microsoft Defender cerró la app mientras mpv y Magpie seguían
+enseñando la imagen: mira la respuesta anterior (la app también lo explica la próxima vez que se abre).
 
 **La descarga de mpv / Magpie falla.** Hace falta internet una vez. Con proxy o sin conexión: baja los dos zip que enlaza la ventana
 (también en `licenses\VERSIONS.txt`) en otro PC y ponlos en una carpeta `downloads\` junto a `ConsoleEnhancer.exe`; se comprueban
@@ -878,7 +907,7 @@ build.bat                       :: bin\ConsoleEnhancer.exe (src\Lanzador + src\D
 build_motor.bat                 :: bin\engine\ConsoleEnhancerEngine.exe (src\Motor) + DLL de Streamline
 tests\build_deteccion.bat       :: tests\bin\DeteccionTest.exe
 tests\bin\DeteccionTest.exe --simula=todo --sin-d3d12 --salida=deteccion.txt   :: 23 PCs simulados
-powershell -ExecutionPolicy Bypass -File scripts\empaquetar.ps1 -Zip -Version v1.2.2   :: dist\ConsoleEnhancer\ y dist\ConsoleEnhancer-v1.2.2.zip
+powershell -ExecutionPolicy Bypass -File scripts\empaquetar.ps1 -Zip -Version v1.2.3   :: dist\ConsoleEnhancer\ y dist\ConsoleEnhancer-v1.2.3.zip
 ```
 
 - **Dependencias**: la tabla `scripts\components.json` (versión, URL, SHA-256 y qué se coge de cada zip) la usan

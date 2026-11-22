@@ -5,6 +5,103 @@ publicada es una etiqueta `vX.Y.Z` de git; GitHub Actions monta su zip y copia a
 
 ## [Sin publicar]
 
+## [1.2.3] - 2026-11-22
+
+### Added / Añadido
+- **DLSS 5 in the app's own engine, the lowest-latency path**, on PCs that have the engine's optional native helper
+  (`engine\PrismaNr.dll`, not shipped: without it nothing changes or shows up). With it, DLSS 5 (1 pass) is done by the engine straight
+  from the capture card instead of mpv + Windows capture + Magpie, and that is the default there (`motor_dlss5=auto`). Measured on an
+  RTX 4060 Ti with a 4K 120 Hz VRR TV, 30 fps mode + DLSS FG ×2, DLSS 5 level 2: **4K real frame 43 ms / generated 27 ms, every frame
+  shown for 2 refreshes** (5329 of 5330 in 100 s), against ~70-73 / ~56-59 ms and a much less regular pace through Magpie; 1440p → 4K
+  42 / 25 ms; at 4K it also fits more DLSS 5 input (70 % vs 40-45 %). New row in the settings menu, **DLSS 5 through: Engine · lower
+  latency / Magpie · more options**, and in the tray. What the engine doesn't do (2-3 passes, ×3 / ×4, XeSS FG, NVIDIA VFG) still goes
+  through Magpie without a black screen, and the row says so.
+  *DLSS 5 en el motor propio, la vía con menos retraso, en los PC que tengan su complemento nativo (`engine\PrismaNr.dll`, no se
+  distribuye; sin él nada cambia ni se ve). Medido (RTX 4060 Ti, tele 4K 120 Hz con VRR, modo 30 + DLSS FG ×2): a 4K 43 ms la imagen
+  real y 27 la inventada, todas a 2 refrescos, frente a ~70-73 / ~56-59 ms y un ritmo mucho menos regular por Magpie. Fila nueva en el
+  menú de ajustes, "DLSS 5 por: Motor · menos retraso / Magpie · más opciones", y en la bandeja. Lo que el motor no hace (2-3 pasadas,
+  ×3 / ×4, XeSS FG) sigue por Magpie sin telón.*
+- **Your DLSS 5 files survive a clean update**: `extras\nvngx_dlssnr.dll`, `extras\runtimes\dlssg_sm86` and `engine\PrismaNr.dll` are
+  also kept in `%LOCALAPPDATA%\ConsoleEnhancer\extras`, and a new version unzipped into a new folder picks them up by itself (checked:
+  64-bit DLL and its size, dlssg_sm86 against Magpie's manifest), saying so in the log. *Add DLSS 5* also takes `PrismaNr.dll` when it is
+  next to the chosen DLL; *Remove DLSS 5* and uninstalling with "delete everything" remove that copy too.
+  *Tus archivos de DLSS 5 sobreviven a una actualización limpia: se guardan también en `%LOCALAPPDATA%\ConsoleEnhancer\extras` y una
+  versión nueva en otra carpeta los recoge sola (comprobados), y lo dice el log.*
+- **Version and publisher in the exes** (*Properties > Details*, Task Manager, Startup apps): ConsoleEnhancer.exe, ConsoleEnhancer
+  Settings.exe and ConsoleEnhancerEngine.exe carry version 1.2.3, publisher IanRog29 and the licence, plus their own application
+  manifest (current user, Windows 10/11, the same DPI handling as before); they were 0.0.0.0 with no publisher. Each release also
+  lists the **SHA-256 of every file** (`ConsoleEnhancer-vX.Y.Z.files.sha256`). For maintainers: optional code signing in the release
+  workflow and `scripts\firmar.ps1`.
+  *Versión y editor en las propiedades de los tres exe, con su manifiesto (antes 0.0.0.0 sin editor), y el SHA-256 de cada fichero de
+  la release. Para mantenedores: firma de código opcional.*
+
+### Fixed / Arreglado
+- **Microsoft Defender no longer has a reason to remove a freshly downloaded version.** Up to 1.2.2 a new copy that inherited *Start
+  with Windows* pointed the Startup shortcut to itself a fraction of a second after opening; for a new, unsigned exe that is exactly
+  what Defender's behaviour detection blocks (it quarantined 1.2.07 and 1.2.09 that way on 21-11; the very same files scan clean).
+  Now the app never adds itself to the startup on its own: with *Start with Windows* on and the entry pointing to another copy (or
+  missing), it asks once when you open it yourself (Yes = this copy, No = off). The old logon task is checked and removed through the
+  Task Scheduler API (no more `schtasks.exe` on every start), and **uninstalling no longer uses PowerShell**: the app deletes its own
+  files when it closes (its running exe goes to the temporary folder and is deleted the next time any copy opens) and says what it
+  could not delete. Without a code-signing certificate a new exe can still start without reputation: see the FAQ.
+  *Microsoft Defender ya no tiene motivo para borrar una versión recién bajada: hasta la 1.2.2 una copia nueva que heredaba «Iniciar con
+  Windows» cambiaba el acceso directo de Inicio a sí misma nada más abrirse, justo lo que Defender bloquea en un exe nuevo sin firmar.
+  Ahora nunca se pone sola: pregunta una vez al abrirla tú. Y desinstalar ya no usa PowerShell.*
+- **16.7 ms less latency in the 30 fps mode in many cases**: mpv's repeated-frame filter could stay one refresh late for good (every
+  frame 16.7 ms late) once it had passed a late copy: with a steady 30 fps game whenever mpv started on the second copy of a frame
+  (half of the time) and after every uneven frame pair. It now gets back on time with the next frame (steady 30 fps: 100 % of frames
+  late → 6 %).
+  *16,7 ms menos de latencia en el modo 30 en muchos casos: el filtro de repetidas de mpv podía quedarse un refresco tarde para siempre;
+  ahora vuelve a tiempo en la imagen siguiente.*
+- **DLSS FG ×3 / ×4 at 30 fps: no more real-frame drops with DLSS 5, and much better generated frames at 4K.** What kept the 30 fps
+  mode from 30 real frames was not a full GPU (50-77 % busy) but Magpie's image thread, which runs in series (capture, optical flow,
+  DLSS 5, then each generated frame). The automatic DLSS 5 scale now models that thread and picks a scale that holds 30 (4K: ~35-45 %
+  with ×2, 35 % with ×3, measured 29.96 real fps); with ×3 / ×4 DLSS 5 never goes below 35 % (at 25 % of 4K it was a 960x540
+  picture, part of the artefacts) and is removed when it doesn't fit, which the menu says. DLSS FG ×3 / ×4 at 4K now gets NVIDIA
+  optical-flow vectors even without DLSS 5: without them its generated frames had about 3× the error. Measured: DLSS FG ×4 29.94 /
+  119.9 fps with 98 % of the frames on one refresh.
+  *DLSS FG ×3 / ×4 a 30 fps: sin imágenes reales perdidas con DLSS 5 y mejores inventadas a 4K. La escala de DLSS 5 cuenta ahora el hilo
+  de Magpie (en serie), DLSS 5 no baja del 35 % con ×3 / ×4 (al 25 % era una imagen de 960x540) y DLSS FG ×3 / ×4 a 4K recibe vectores
+  de NVIDIA también sin DLSS 5 (sin ellos, 3 veces más error).*
+- **XeSS FG ×3 / ×4 stutter**: on NVIDIA / AMD, Magpie paces XeSS FG ×3 / ×4 in a compatibility mode that waits inside each present,
+  so the rest of the chain only gets 1/3 or 1/4 of a frame; when it doesn't fit, real frames drop (×4 at 4K on an RTX 4060 Ti: 27.4 of
+  30). ×3 / ×4 are now offered only where the chain fits (4K on a 4060 Ti: ×3 yes, ×4 no); otherwise they show up locked with the
+  reason. `xess_fg_multi_cabe=0` = as before.
+  *XeSS FG ×3 / ×4 a saltos: ahora solo donde la cadena cabe (a 4K en una 4060 Ti, ×3 sí y ×4 no); si no, bloqueados con el motivo.*
+- **Opening the app with a game already running: one trip to the console home is enough to know which game it is.** When you open
+  the PS5 home, the game in focus is the one running; before, a short visit (2-3 s) often read nothing (the home was still appearing,
+  and while the app switched to the menu it took no captures at all). Now it keeps reading the game in focus while switching and every
+  0.25 s until it knows it, and that game becomes the running one: leaving the menu applies its profile. Recognising a game without
+  any menu visit was tried and not shipped: it couldn't be made reliable enough. A new console profile also keeps the saved 30 / 60 /
+  120 mode (it was created with mode 60).
+  *Abrir la app con un juego ya en marcha: basta con ir una vez al inicio de la consola (antes una visita corta no leía nada). Reconocer
+  el juego sin pasar por el menú se probó y no se activa: no salía fiable. Y un perfil nuevo de la consola respeta el modo guardado.*
+- **The stutter log no longer blames Windows capture for what isn't a stutter**: Magpie's first seconds after (re)opening, the settings
+  menu or another window over the picture, a still picture and frames Magpie drops itself with its queue full are told apart.
+  *El log de tirones ya no culpa a la captura de Windows de lo que no es un tirón.*
+- Also: with DLSS 5 in the engine and ×3 / ×4 or 2-3 passes, Magpie ran without its automatic DLSS 5 scale; the engine bridging to
+  Magpie drops its own DLSS 5 meanwhile (8 GB cards); if the engine's DLSS 5 fails, DLSS 5 goes through Magpie for that session; the
+  engine's DLSS 5 % goes up in one step instead of 5 points every 20 s (each change froze the picture ~0.2 s); consoles without their
+  own menu at 4K check it every 1.5 s instead of 0.6 s.
+  *También: el reparto de casos con DLSS 5 en el motor, el puente suelta su DLSS 5, el % de DLSS 5 del motor sube de una vez y las
+  consolas sin menú propio a 4K lo miran cada 1,5 s.*
+
+### Changed / Cambiado
+- **Smoother 30 fps mode through Magpie on 120 Hz screens**: DLSS FG ×2 now uses the same fixed "every 2 refreshes" sync as XeSS FG
+  instead of VRR, and the 30 fps mode without frame generation uses it too instead of Windows composition. Measured on a 4K 120 Hz
+  VRR TV with a PS5-like 30 fps source and DLSS 5: with DLSS FG ×2, 97 % of the shown frames land on time (67 % with VRR), the worst
+  gaps drop from ~49 to 25-33 ms and Magpie loses 0.2 % of the real frames instead of 4 %, with the same latency; without frame
+  generation the worst gaps drop from 67-75 to 33 ms. ×3 / ×4 keep VRR, and so does any refresh rate other than 120 Hz.
+  `magpie_fijo_30_dlss=0` / `magpie_fijo_30=0` = as before.
+  *El modo 30 por Magpie, más fluido con pantallas de 120 Hz: DLSS FG ×2 (y el modo 30 sin generación) con la sincronización fija "cada
+  2 refrescos" de XeSS FG en vez de VRR: 97 % de las imágenes a su sitio (67 % por VRR) y el 0,2 % de reales perdidas en vez del 4 %.*
+- **More GPU used where it really is free**: the automatic DLSS 5 scale lets the GPU fill up to 88 % (was ~75 %) and Magpie's image
+  thread up to 95 % of each real frame (`dlss5_escala_hilo`, `dlss5_escala_grafica`; the old `dlss5_escala_uso` no longer applies), so
+  at 1440p DLSS 5 goes up (e.g. XeSS FG ×2 55 → 65 %, DLSS FG ×3 25 → 40 %) and at 4K it is the scale that actually reaches 30 real
+  fps. What was learned with the old model is relearned.
+  *La escala de DLSS 5 usa más gráfica donde sobra de verdad (88 % de gráfica, 95 % del hilo de Magpie): a 1440p sube; a 4K es la que
+  llega a las 30 reales.*
+
 ## [1.2.2] - 2026-11-22
 
 ### Added / Añadido
