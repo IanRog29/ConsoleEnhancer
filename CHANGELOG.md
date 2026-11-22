@@ -107,6 +107,12 @@ publicada es una etiqueta `vX.Y.Z` de git; GitHub Actions monta su zip y copia a
   2 minutes while in standby.
   *Espera: la pantalla se vuelve a apagar aunque el mando del PC esté encendido; si el PC no se puede suspender se apaga como antes; la
   barra de tareas ya no se queda oculta; sin copia de seguridad cada 2 min.*
+- **Updating to a new version no longer loses settings**: the one-time settings update of a new version dropped every line the app had
+  added after the previous update (so the Microsoft Defender notice could come back) and reset choices made in the tray or the
+  settings app whose line was in the old defaults (what the PC does when the console turns off, the black desktop, DLSS 5 in the
+  engine). Now they are kept. (The PC-mode controller resident no longer makes the 2-minute data backup either.)
+  *Actualizar a una versión nueva ya no pierde ajustes: se conservan las líneas que la app había añadido (el aviso de Defender ya no
+  vuelve a salir) y lo elegido en la bandeja (qué hace el PC al apagar la consola, el escritorio negro, DLSS 5 en el motor).*
 - Also fixed: the reserve engine starting at the wrong moment together with Magpie; "your hardware changed" with the TV off; a new
   version "restoring" a session that had closed fine; "Uninstall, delete everything" leaving the settings backup; the engine using
   another GPU after Windows restarts (its LUID changes); "No upscaling" in the engine being sharpened (halos); Ctrl+G now works like
