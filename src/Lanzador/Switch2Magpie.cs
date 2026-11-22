@@ -1504,7 +1504,7 @@ namespace ConsoleEnhancer
                             if (c.ParseSonidoDoble(key, val)) break; // (21-11: sonido_doble, src\SonidoDoble.cs)
                             if (c.ParseCapturaSegura(key, val)) break; // (21-11, 1.2.1: captura_segura, src\Lanzador\CapturaSegura.cs)
                             if (MarcoMpv.Parse(key, val)) break; // (22-11, 1.2.1: mpv_sin_marco, src\Lanzador\MarcoMpv.cs)
-                            if (c.ParseTiempos(key, val)) break; // (22-11, 1.2.2: motor_en_espera_al_abrir_ms, src\Lanzador\TiemposCarga.cs)
+                            if (c.ParseTiempos(key, val)) break; // (22-11, 1.2.2: motor_en_espera_al_abrir_ms, magpie_dlss_sr_solo_cadena; src\Lanzador\TiemposCarga.cs)
                             if (key.StartsWith("mando_") && PadOptions.Parse(key, val)) break; // (18-11, MANDOS: modo PC, src\Mandos.cs)
                             Log.Write("Aviso: clave desconocida en ini: " + key); break;
                     }

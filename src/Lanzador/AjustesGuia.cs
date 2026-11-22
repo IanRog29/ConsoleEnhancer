@@ -582,7 +582,8 @@ namespace ConsoleEnhancer
                     float tw = mg.MeasureString(tit, fT).Width, dw = det.Length > 0 ? mg.MeasureString(det, fD).Width : 0;
                     w = (int)Math.Min(scr.Width - 40 * u, tw + dw + 96 * u);
                     h = (int)(64 * u);
-                    at = new Pt { X = scr.X + (scr.Width - w) / 2, Y = scr.Y + (int)(48 * u) };
+                    // (debajo de donde salen los avisos de mpv y del motor: el puente puede estar ensenando el suyo, "preparando…")
+                    at = new Pt { X = scr.X + (scr.Width - w) / 2, Y = scr.Y + (int)(128 * u) };
                     BmpInfo bi = new BmpInfo { Size = Marshal.SizeOf(typeof(BmpInfo)), Width = w, Height = -h, Planes = 1, BitCount = 32 };
                     IntPtr bits, screen = GetDC(IntPtr.Zero);
                     try { memDc = CreateCompatibleDC(screen); dib = CreateDIBSection(screen, ref bi, 0, out bits, IntPtr.Zero, 0); }
