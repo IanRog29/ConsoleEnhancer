@@ -223,6 +223,15 @@ namespace ConsoleEnhancer
                 int viejo = c.MultAhora(true, "vfg");
                 if (viejo != 4) fallos++;
                 sb.AppendLine((viejo != 4 ? "FALLO " : "      ") + "generacion_multiplicador=0 (como antes): VFG con modo30_generacion=4 va x" + viejo + " (esperado x4)");
+                // la salida de XeSS FG desde sus lineas del log de Magpie (las de la prueba xess4_1440 del 22-11: PresentMon dio 63,1/s)
+                double t1 = 0, t2 = 0; long f1 = 0, s1 = 0, f2 = 0, s2 = 0;
+                bool okx = TrayApp.MultXessLinea("2026-11-22 05:48:24.014|info|XeSSFGPresenter.cpp:1|Log|XeSSFG SDK output: requested=4x frames=477 submissions=120 partialBursts=1 lastFrames=4 lastFGResult=0 motionFrames=119 (not display events)", out t1, out f1, out s1) &&
+                           TrayApp.MultXessLinea("2026-11-22 05:48:31.636|info|XeSSFGPresenter.cpp:1|Log|XeSSFG SDK output: requested=4x frames=957 submissions=240 partialBursts=1 lastFrames=4 lastFGResult=0 motionFrames=239 (not display events)", out t2, out f2, out s2);
+                double xo = okx ? (f2 - f1) / (t2 - t1) : 0, xr = okx ? (s2 - s1) / (t2 - t1) : 0;
+                okx = okx && Math.Abs(xo - 62.97) < 0.1 && Math.Abs(xr - 15.74) < 0.05;
+                if (!okx) fallos++;
+                sb.AppendLine((okx ? "      " : "FALLO ") + "XeSS FG desde \"XeSSFG SDK output\": salida " + xo.ToString("0.00", CultureInfo.InvariantCulture) + "/s, reales " +
+                              xr.ToString("0.00", CultureInfo.InvariantCulture) + "/s (esperado 62,97 y 15,74)");
                 // la columna del perfil
                 GameProfile p = new GameProfile();
                 p.ParsePick("dlss,xess,0,4");
@@ -594,6 +603,20 @@ namespace ConsoleEnhancer
         // XeSS FG: las imagenes que saca no estan en el "Output cadence" de Magpie (generated=0: las presenta la cadena de Intel; medido el
         // 22-11, x2 a 1440p: nuevas 721, inventadas 0, y PresentMon 57,9 imagenes/s con la mitad "Intel XeSS-FG"). Si, cada ~4 s, "XeSSFG SDK
         // output: requested=2x frames=1439 submissions=720" (acumuladas): de dos seguidas, la salida (frames/s) y las reales (submissions/s)
+        // Una linea "2026-11-22 05:48:24.014|info|...|XeSSFG SDK output: requested=4x frames=477 submissions=120 ..." -> hora (s), frames, submissions
+        public static bool MultXessLinea(string line, out double ts, out long frames, out long subs)
+        {
+            ts = 0; frames = subs = 0;
+            if (line == null || line.IndexOf("XeSSFG SDK output", StringComparison.Ordinal) < 0) return false;
+            Match m = Regex.Match(line, @"^(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d\.\d+)\|.*XeSSFG SDK output: requested=\dx frames=(\d+) submissions=(\d+)");
+            DateTime t;
+            if (!m.Success || !DateTime.TryParse(m.Groups[1].Value, CultureInfo.InvariantCulture, DateTimeStyles.None, out t)) return false;
+            ts = t.Ticks / 1e7;
+            frames = long.Parse(m.Groups[2].Value, CultureInfo.InvariantCulture);
+            subs = long.Parse(m.Groups[3].Value, CultureInfo.InvariantCulture);
+            return true;
+        }
+
         long multLogPos = -1;
         double multXeT = -1, multXeOut = -1, multXeReal = -1;
         long multXeFrames = -1, multXeSubs = -1;
@@ -616,12 +639,8 @@ namespace ConsoleEnhancer
                 multLogPos += end + 1;
                 foreach (string line in System.Text.Encoding.UTF8.GetString(buf, 0, end + 1).Split('\n'))
                 {
-                    if (line.IndexOf("XeSSFG SDK output", StringComparison.Ordinal) < 0) continue;
-                    Match m = Regex.Match(line, @"^(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d\.\d+)\|.*XeSSFG SDK output: requested=\dx frames=(\d+) submissions=(\d+)");
-                    DateTime t;
-                    if (!m.Success || !DateTime.TryParse(m.Groups[1].Value, CultureInfo.InvariantCulture, DateTimeStyles.None, out t)) continue;
-                    double ts = t.Ticks / 1e7;
-                    long f = long.Parse(m.Groups[2].Value, CultureInfo.InvariantCulture), s = long.Parse(m.Groups[3].Value, CultureInfo.InvariantCulture);
+                    double ts; long f, s;
+                    if (!MultXessLinea(line, out ts, out f, out s)) continue;
                     if (multXeT > 0 && f >= multXeFrames && s >= multXeSubs && ts > multXeT + 1 && ts < multXeT + 30)
                     {
                         multXeOut = (f - multXeFrames) / (ts - multXeT);
