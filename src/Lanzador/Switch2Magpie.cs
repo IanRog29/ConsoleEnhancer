@@ -12853,6 +12853,7 @@ namespace ConsoleEnhancer
                         {
                             if (linkWarned) Log.Write("Enlace IPC con mpv establecido");
                             linkWarned = false;
+                            CapEnlace(p); // (22-11, 1.2.2: el motor recien abierto ya ha arrancado; la captura segura cuenta desde aqui, CapturaSegura.cs)
                             w = new StreamWriter(pipe, new UTF8Encoding(false));
                             w.AutoFlush = true;
                             w.NewLine = "\n";
@@ -13299,7 +13300,9 @@ namespace ConsoleEnhancer
                 // Margen de 3 s para no mostrar el aviso si la consola ya esta encendida
                 // (el motor propio tarda ~4 s en dar su primera imagen: NVIDIA prepara DLSS y la generacion)
                 // (21-11, 1.2.1: mientras se vigila un formato nuevo con la consola encendida, no: no es que este apagada)
-                if (!waitAsked && capVigilado == null && (DateTime.Now - waitStart).TotalSeconds >= (Config.EngineActive ? 6 : 3))
+                // (22-11, 1.2.2: ni con el motor aun arrancando, sin abrir la capturadora: la primera vez compila sus shaders 20-30 s y salia
+                // "Enciende la consola" con la consola encendida)
+                if (!waitAsked && capVigilado == null && !CapMotorArrancando(p) && (DateTime.Now - waitStart).TotalSeconds >= (Config.EngineActive ? 6 : 3))
                 {
                     waitAsked = true;
                     Log.Write("Sin senal de la consola: esperando a que se encienda");

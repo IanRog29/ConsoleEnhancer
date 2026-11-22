@@ -253,12 +253,30 @@ namespace ConsoleEnhancer
             catch (Exception ex) { Log.Error("Captura segura (al lanzar)", ex); capVigilado = null; }
         }
 
+        // 22-11 (1.2.2, ERRORES): el enlace (la tuberia) del mpv / motor de ahora, y cuando se hizo (MpvLinkLoop al conectar). El motor recien
+        // abierto la crea al acabar de arrancar, justo antes de abrir la capturadora
+        volatile Process capEnlaceDe;
+        DateTime capEnlaceAt = DateTime.MinValue;
+        void CapEnlace(Process p) { capEnlaceAt = DateTime.Now; capEnlaceDe = p; }
+        // ¿El motor p, recien abierto, sigue arrancando (Streamline, shaders) sin haber abierto aun la capturadora?
+        bool CapMotorArrancando(Process p) { return Config.EngineActive && capLanzEng && !capLanzWoke && capEnlaceDe != p; }
+
         // WaitForSignal, mientras no hay imagen: true = este formato no da imagen (se cierra y se relanza con el repuesto ya puesto)
         bool CapSinImagen(Process p)
         {
             if (!cfg.CapturaSegura || capLanzWoke) return false;
             CapSonidoPrueba(DateTime.Now);
             double ms = (DateTime.Now - imageStart).TotalMilliseconds;
+            // 22-11 (1.2.2, ERRORES): el motor recien abierto no abre la capturadora hasta acabar de arrancar (Streamline ~4 s y, la primera vez
+            // en un PC o en una version nueva sin la cache, compilar sus shaders: 22-11 01:50:06, 4K sin imagen a los 20 s compilando aun ->
+            // "la capturadora no da 4K", 1080p el resto de la sesion y el aviso en pantalla, con la PS5 dando 4K). Hasta su enlace no cuenta;
+            // desde el (abre la capturadora a los ~0,2 s), como mpv. Uno que no llega a arrancar lo cierra WaitForSignal a los 30 s
+            bool desdeEnlace = capLanzEng;
+            if (desdeEnlace)
+            {
+                if (capEnlaceDe != p) return false;
+                ms = (DateTime.Now - capEnlaceAt).TotalMilliseconds;
+            }
             bool sonando = (DateTime.Now - capSonido).TotalSeconds < 3;
             // mpv sin nada abierto (no pudo abrir la capturadora con este formato; mpv.exe se queda esperando en vez de salir): ya, sin esperar
             bool sinNada = mpvSinNada == p && !capLanzEng && ms > 300;
@@ -269,23 +287,24 @@ namespace ConsoleEnhancer
                 // Sin vigilar (al abrir la app, o sin ver antes la consola) pero la consola suena y no llega ni una imagen en el doble de tiempo:
                 // tambien es el formato (p. ej. uno que la capturadora no da guardado en el perfil del juego de la ultima vez)
                 if (capPedido != null || !sonando) return false;
-                if (!sinNada && ms < 1000 * cfg.CapturaSeguraSecs * (capLanzEng ? 3.3 : 2)) return false;
+                if (!sinNada && ms < 1000 * cfg.CapturaSeguraSecs * 2) return false;   // (el motor tambien: ms ya va desde su enlace)
                 CapFmt pedido = CapturaSegura.Pedido(cfg);
                 if (pedido.Key == capRendidoKey && (DateTime.Now - capRendidoAt).TotalSeconds < 60) return false;
                 v = CapturaSegura.Efectivo(cfg);
                 capPedido = pedido;
                 capProbados.Clear();
                 capProbados.Add(v.Key);
-                return CapSiguiente(v, "sin ninguna imagen en " + (int)ms + " ms con la consola sonando");
+                return CapSiguiente(v, "sin ninguna imagen en " + (int)ms + " ms" + (desdeEnlace ? " desde que arranco el motor" : "") + " con la consola sonando");
             }
-            if (ms < capVigilaMs) return false;
+            int vigilaMs = desdeEnlace ? (int)(1000 * cfg.CapturaSeguraSecs) : capVigilaMs;   // (desde el enlace del motor: lo de mpv)
+            if (ms < vigilaMs) return false;
             // Con la consola callada (un cambio de modo de video tambien la calla), mas tiempo y solo si antes se veia su imagen
             if (!sonando && capAudio == "silent")
             {
-                if (ms < Math.Max(capVigilaMs, 15000)) return false;
+                if (ms < Math.Max(vigilaMs, 15000)) return false;
                 if ((DateTime.Now - capConsolaVista).TotalSeconds > 10 + ms / 1000.0) { CapRendirse(v, "la consola en silencio y sin imagen: puede estar apagada"); return false; }
             }
-            return CapSiguiente(v, "sin ninguna imagen en " + (int)ms + " ms" + (sonando ? " con la consola sonando" : ""));
+            return CapSiguiente(v, "sin ninguna imagen en " + (int)ms + " ms" + (desdeEnlace ? " desde que arranco el motor" : "") + (sonando ? " con la consola sonando" : ""));
         }
 
         // mpv que se ha quedado sin nada abierto (idle-active, MpvLinkLoop / MpvReader; null = ninguno)
