@@ -79,7 +79,7 @@ namespace ConsoleEnhancer.Motor
 
         bool FgGlobalNow { get { return s.FgGlobal && s.FgVec == 3 && Levels >= 4; } }
         // 22-11 (1.2.1): FSR 3 FG (EngineFgFfx.cs, sin Streamline) recibe los mismos vectores que recibiria DLSS-G (antes, los de mvec, a 0)
-        bool FfxFgVecNow { get { return s.MvXessFfx && ffxFgOn && !fgApplied; } }
+        bool FfxFgVecNow { get { return s.MvXessFfx && ExtFgOn && !fgApplied; } }   // (1.2.4 MOTORFG: o XeSS FG, EngineFgXe.cs)
         // 22-11 (1.2.1): la generacion es la unica que usa los vectores y le basta el de la camara (EngineMotion.cs RecordMotion, sin bloques);
         // las pruebas y mascaras que leen los bloques (mvmask, fgui, fg_borde, completos, mvverdad, mvlog) los siguen pidiendo
         bool FgOnlyCamNow { get { return s.FgCamOnly && FgGlobalNow && (fgApplied || FfxFgVecNow) && s.MvMask == 0 && s.FgUi == 0 && !s.FgGuard && !FgVecFullNow && s.MvTruth == 0 && !s.MvLog; } }

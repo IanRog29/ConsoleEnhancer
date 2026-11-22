@@ -59,7 +59,7 @@ namespace ConsoleEnhancer.Motor
             // RTX 4060 Ti con salida 4K: DLSS-G la primera ~5 ms y cada una de mas ~1,5 (reutiliza el flujo del par); XeSS FG ~8 ms de grafica por
             // inventada (genera en su cola: no alarga el hilo, pero ocupa la grafica). margenInventadas / margenFgTipo los pone quien configura la
             // generacion (1 y "dlss" = lo de siempre)
-            else if (fgApplied)
+            else if (fgApplied || XeFgMultNow > 1)   // (1.2.4 MOTORFG: tambien XeSS FG del motor, EngineFgXe.cs)
             {
                 int n = Math.Max(1, Math.Min(3, margenInventadas));
                 double r = margenFgTipo == "xess" ? 8.0 * n : 4.5 + 1.5 * (n - 1);

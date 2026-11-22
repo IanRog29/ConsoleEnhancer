@@ -11885,12 +11885,12 @@ namespace ConsoleEnhancer
             if (have < 0 || !ipcUp || !lsReady || homeBusy || passesBusy || relaunchEngine || relaunchSize != null || relevo != null)
             { ffxDiffSince = DateTime.MinValue; return; }
             PrepareCfg();
-            int want = cfg.EngineFfxWanted ? 1 : 0;
+            int want = cfg.EngineFgChain;   // (1.2.4 MOTORFG: tambien XeSS FG y DLSS FG x3 / x4, MotorFg.cs)
             if (want == have || cfg.EngineSmoothMode != Config.EngineSmoothRunning) { ffxDiffSince = DateTime.MinValue; return; }
             if (ffxDiffSince == DateTime.MinValue) { ffxDiffSince = now; return; }
             if ((now - ffxDiffSince).TotalSeconds < 0.5) return;
             ffxDiffSince = DateTime.MinValue;
-            Log.Write("Generacion del motor: " + (want > 0 ? "FSR 3 FG (FidelityFX)" : "sin FSR 3 FG") + ": su cadena de presentacion se elige al abrirlo, se vuelve a abrir el motor");
+            Log.Write("Generacion del motor: " + (want == 1 ? "FSR 3 FG (FidelityFX)" : want == 2 ? "XeSS FG" : "la de siempre") + ": su cadena de presentacion se elige al abrirlo, se vuelve a abrir el motor");
             ReabrirMotorSmooth(cfg.EngineSmoothMode, null, null);
         }
 
@@ -11997,7 +11997,8 @@ namespace ConsoleEnhancer
                    // Repetidas fuera con generacion (o en el modo 30), como el filtro de mpv: tambien al encenderla o apagarla en marcha
                    " dedupe=" + (DedupeOn(cfg, !cfg.FgOff) ? "1" : "0") +
                    // 16-11 noche: la captura reducida antes de DLSS (motor_entrada_<modo>_<captura>=WxH; 0 = tal cual)
-                   " entrada=" + cfg.EngineInNow + EngineDlss5Args(cfg);
+                   " entrada=" + cfg.EngineInNow + EngineDlss5Args(cfg) +
+                   cfg.MotorFgLive();   // (1.2.4 MOTORFG: el multiplicador de DLSS FG en marcha, src\Lanzador\MotorFg.cs)
         }
 
         // 20-11 (DLSS 5 EN EL MOTOR): nivel, estilo, modelo, mascara e interfaz de DLSS 5 para el motor (EngineDlss5.cs); dlss5=0 si no toca
@@ -12041,7 +12042,7 @@ namespace ConsoleEnhancer
             bool fixedRefresh = fixedOverride >= 0 ? (fixedOverride > 0 && sm == 0) : (sm == 0 && cfg.EngineFixedWanted);
             if (fixedRefresh || NvProfiles.EngineFixedOn) { if (!NvProfiles.SetEngineFixed(fixedRefresh)) fixedRefresh = false; }
             Config.EngineFixedLaunched = fixedRefresh ? 1 : 0;
-            Config.EngineFfxLaunched = cfg.EngineFfxWanted ? 1 : 0;   // 21-11 (1.0.9): FSR 3 FG en el motor
+            Config.EngineFfxLaunched = cfg.EngineFgChain;   // 21-11 (1.0.9): FSR 3 FG en el motor (1.2.4 MOTORFG: 2 XeSS FG; src\Lanzador\MotorFg.cs)
             List<string> a = new List<string>();
             a.Add("ipc=" + ipc);
             a.Add("flag=" + Paths.FlagFile);
@@ -12066,7 +12067,8 @@ namespace ConsoleEnhancer
             // 20-11 (LATENCIA4): tele con VRR (motor_vrr=1; un motor de antes solo dice "Ajuste desconocido: vrr=1")
             if (cfg.EngineVrr > 0) { a.Add("vrr=1"); if (cfg.EngineVrrFgVsync >= 0) a.Add("vrr_fg_vsync=" + cfg.EngineVrrFgVsync.ToString(CultureInfo.InvariantCulture)); }
             if (fixedRefresh) a.Add("refresco_fijo=1");
-            if (Config.EngineFfxLaunched > 0) a.Add("fg_tipo=fsr3");   // 21-11 (1.0.9, EngineFgFfx.cs del motor)   // 20-11 (LATENCIA5: para su registro; uno de antes solo dice "Ajuste desconocido")
+            if (Config.EngineFfxLaunched == 1) a.Add("fg_tipo=fsr3");
+            else if (Config.EngineFfxLaunched > 1) a.AddRange(cfg.MotorFgArgs(Config.EngineFfxLaunched).Trim().Split(' '));   // (1.2.4 MOTORFG)   // 21-11 (1.0.9, EngineFgFfx.cs del motor)   // 20-11 (LATENCIA5: para su registro; uno de antes solo dice "Ajuste desconocido")
             if (cfg.EngineExtra.Length > 0) a.AddRange(cfg.EngineExtra.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries));
             return JoinArgs(a);
         }
@@ -13191,7 +13193,8 @@ namespace ConsoleEnhancer
                     else if (line.Contains("\"request_id\":79")) CierresCaptura(line); // (20-11, CIERRES: switch2-captura-ms del motor)
                     else if (line.Contains("\"client-message\"") && CierresEvent(line)) { } // (20-11, CIERRES: switch2-gpu del motor)
                     else if (line.Contains("\"client-message\"") && FpsEvent(line)) { } // (21-11: switch2-fps del motor, src\Lanzador\FpsBajo.cs)
-                    else if (line.Contains("\"client-message\"") && MotorDlss5Evento(line)) { } // (22-11, 1.2.3 MOTOR5: switch2-dlss5 roto del motor, MotorDlss5.cs)
+                    else if (line.Contains("\"client-message\"") && MotorDlss5Evento(line)) { }
+                    else if (line.Contains("\"client-message\"") && MotorFgEvento(line)) { } // (1.2.4 MOTORFG: switch2-fgmult no, MotorFg.cs) // (22-11, 1.2.3 MOTOR5: switch2-dlss5 roto del motor, MotorDlss5.cs)
                     else if (line.Contains("\"client-message\"") && AjPruebaEvento(line)) { } // (22-11, 1.2.2: pruebas del menu de ajustes, AjustesGuia.cs)
                     else if (line.Contains("\"client-message\"") && line.Contains("\"args\":[\"switch2-pad\""))
                     {
@@ -13990,8 +13993,8 @@ namespace ConsoleEnhancer
                         KillStandby("refresco: el motor en espera se abrio " + (Config.EngineFixedOf(standbyEngine) > 0 ? "con el refresco fijo" : "con VRR"));
                     // 21-11 (1.0.9): y uno abierto con otra generacion de motor (FSR 3 FG / la de siempre): la cadena no se cambia en marcha
                     if (eng && adopted == null && standbyEngine != null && Config.EngineFfxOf(standbyEngine) >= 0 &&
-                        Config.EngineFfxOf(standbyEngine) != (cfg.EngineFfxWanted ? 1 : 0))
-                        KillStandby("generacion: el motor en espera se abrio " + (Config.EngineFfxOf(standbyEngine) > 0 ? "con FSR 3 FG" : "sin FSR 3 FG"));
+                        Config.EngineFfxOf(standbyEngine) != cfg.EngineFgChain)
+                        KillStandby("generacion: el motor en espera se abrio con otra cadena (" + Config.EngineFfxOf(standbyEngine) + ", ahora " + cfg.EngineFgChain + ": 1 FSR 3 FG, 2 XeSS FG)");
                     Process woke = adopted ?? (eng ? StandbyForWake() : null);
                     if (eng && woke == null) KillStandby("se abre otro motor");
                     if (woke != null) ipc = adopted != null ? adoptIpc : standbyIpc;
