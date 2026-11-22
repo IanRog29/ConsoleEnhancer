@@ -252,13 +252,13 @@ namespace ConsoleEnhancer
         public static int Suelo(CadenaEscala c)
         {
             int s = (int)Math.Ceiling(32400.0 / Math.Max(1, c.VenH) / 5.0) * 5;
-            // (1.2.3, MULTI2) con x3 / x4, como poco generacion_dlss5_minimo (30 %): con 3 de cada 4 imagenes inventadas lo de DLSS 5 a muy poca
+            // (1.2.3, MULTI2) con x3 / x4, como poco generacion_dlss5_minimo (35 %): con 3 de cada 4 imagenes inventadas lo de DLSS 5 a muy poca
             // entrada (al 25 % de 4K, 960x540; log del usuario, 22-11 10:28-10:30, "fallos visuales" con DLSS FG x4 llegando a 30 / 120) se ve
             // en todas; si no cabe ni asi, DLSS 5 fuera (el menu lo dice: "x4: DLSS 5 no cabe (se quita)")
             if (c.Mult >= 3 && c.Gen.Length > 0 && c.Modo < 100 && SueloMulti > 0) s = Math.Max(s, SueloMulti);
             return Math.Max(25, Math.Min(100, s));
         }
-        public static int SueloMulti = 30;        // generacion_dlss5_minimo (0 = el suelo de siempre)
+        public static int SueloMulti = 35;        // generacion_dlss5_minimo (0 = el suelo de siempre)
 
         // El mayor % que cabe con estas pasadas (de 5 en 5); -1 = ni el minimo. Al minimo "a prueba" si le falta poco (<= 15 %): si luego
         // no llega, la vigilancia lo quita
