@@ -630,7 +630,10 @@ namespace ConsoleEnhancer
         public int FlowQualityNv = 2;      // NVOF: 1 rendimiento, 2 equilibrado, 3 calidad, 4 alta, 5 maxima
         public int FlowQualityAmd = 1;     // AMDOF: 0 rendimiento, 1 calidad
         // 16-11 noche: vectores de movimiento para DLSS FG de Magpie en el modo 30 (0 ninguno, 1 AMD, 2 NVIDIA) y su calidad NVOF
-        public int FgFlow30 = 2, FgFlowQualityNv = 3;
+        // 22-11 (1.2.2 CALIDAD): calidad 2 y no 3. Medido (src\Lanzador\CalidadFg.cs): la 3 (rejilla 4x4 lenta) cuesta el doble (1080p 5,9 ->
+        // 3,1 ms; 1440p 11 -> 6 ms de flujo por imagen real) y da PEORES vectores en barrotes finos y en fondos que se repiten; y como Magpie
+        // usa un solo estimador para todos (la calidad mas alta pedida), DLSS 5 (que pide la 2) iba tambien con la 3. ini fg_flujo_calidad=3 = antes
+        public int FgFlow30 = 2, FgFlowQualityNv = 2;
         // 16-11 23:59 (el usuario: "otra pasadita de optimizacion, latencia y calidad", 60 con DLSS FG): lo mismo en el modo 60
         // (ini fg_flujo_60=ninguno/amd/nvidia, fg_flujo_calidad_60=1-5). 0 = como antes (sin vectores)
         public int FgFlow60 = 0, FgFlowQualityNv60 = 1;
