@@ -12000,7 +12000,10 @@ namespace ConsoleEnhancer
         static string EngineDlss5Args(Config cfg)
         {
             // (20-11 LATENCIA4: motor_dlss5_home=0, el HOME / menu a 4K nativo sin DLSS 5)
-            if (!cfg.EngineDlss5Now || (cfg.HomeNative && !cfg.EngineDlss5Home)) return cfg.EngineDlss5 ? " dlss5=0" : "";
+            // (22-11, 1.2.3 REVISION3: dlss5=0 tambien con motor_dlss5=0 si esta engine\PrismaNr.dll. Desde la 1.2.3 "DLSS 5 por: Magpie" se
+            // elige en marcha y el motor -en espera o de puente- seguia con el dlss5=1 de antes: al apagar DLSS 5 con el A el motor lo volvia
+            // a crear -prueba de las 13:38:04, "DLSSNR creado a 2688x1512" con DLSS 5 apagado- y de puente lo tenia a la vez que Magpie)
+            if (!cfg.EngineDlss5Now || (cfg.HomeNative && !cfg.EngineDlss5Home)) return cfg.EngineDlss5 || cfg.MotorDlss5Disponible ? " dlss5=0" : "";
             double[] n = cfg.LevelNums(cfg.Level30);
             Func<double, string> f = x => Math.Min(2, x).ToString("0.###", CultureInfo.InvariantCulture);
             int passes = Math.Max(1, Math.Min(3, cfg.Dlss5PassesNow));

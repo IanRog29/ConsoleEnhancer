@@ -770,7 +770,8 @@ namespace ConsoleEnhancer
             bool fsr = cfg.BridgeLightLevel >= 2 || cfg.Mode120;
             // (22-11, 1.2.3 MOTOR5: y sin DLSS 5 -lo hacia el motor con PrismaNr.dll, src\Lanzador\MotorDlss5.cs-: sus DLSSNR fuera mientras
             // Magpie crea las suyas en la misma grafica de 8 GB; al despertarlo otra vez, lo suyo)
-            return " fg=0 preset=E" + (fsr ? " upscaler=fsr1" : "") + (cfg.EngineDlss5 ? " dlss5=0" : "");
+            // (1.2.3 REVISION3: y con "DLSS 5 por: Magpie" recien elegido -cfg.EngineDlss5 ya en false- el motor aun lo tiene: con PrismaNr.dll, siempre)
+            return " fg=0 preset=E" + (fsr ? " upscaler=fsr1" : "") + (cfg.EngineDlss5 || cfg.MotorDlss5Disponible ? " dlss5=0" : "");
         }
 
         // El cambio (entrada en un juego, reapertura de Magpie o de mpv + Magpie) ya ha terminado: el puente tardio no se pone
