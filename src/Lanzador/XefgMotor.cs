@@ -7,6 +7,10 @@
 //    combinacion no se habia medido (MOTORFG probo XeSS FG del motor sin DLSS 5) y aqui no sale el cuelgue con la fuente de prueba ni con
 //    escenas reales (ver notas\XEFGM.md). En la 1.2.3 XeSS FG + DLSS 5 iba por Magpie (su propia grafica D3D12 para XeSS FG) y no se caia.
 //  - x4 / x3 con la generacion propia del motor + DLSS 5 a 4K: 12,7 y 22 reales de 29,97 (ver MotorPropiaNoLlega).
+//    Medido 22-11 noche con escenas reales de la PS5 desde un fichero (test=archivo, 4K, juego a 30, x4): el motor de la 1.2.4 sin DLSS 5
+//    29,4 reales (10-11 perdidas cada 20 s) y con DLSS 5 25,2 (64-97 perdidas) -> con el hilo de presentacion nuevo (EngineFgPropiaHilo.cs)
+//    29,97 / 0 sin DLSS 5 y 29,4-29,9 / 0-21 con DLSS 5 al 45 % (sin margen, y con la imagen real del usuario la grafica le costaba el
+//    doble o mas): con DLSS 5, por Magpie. XeSS FG + DLSS 5 con las mismas escenas, 180 s: 30,0 reales, bien, sin cuelgue (aqui no sale).
 // Lo que hace (el reparto, sin propiedades que vuelvan a la cuenta del multiplicador: se usa dentro de FgMagpieOnly y de la proteccion):
 //  1. XeSS FG (x2; x3 / x4 en Intel) en el motor CON DLSS 5 en el motor -> por Magpie, como la 1.2.3 (ini motor_xefg_dlss5=1 = por el motor).
 //     Sin DLSS 5 sigue por el motor (medido por MOTORFG: 30,0 reales, todas a 2 refrescos).
