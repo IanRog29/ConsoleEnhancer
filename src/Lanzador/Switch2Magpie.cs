@@ -7345,6 +7345,7 @@ namespace ConsoleEnhancer
                 }
                 string what = (Config.EngineActive ? "el motor propio" : "mpv") + " pierde el primer plano: lo coge " + who +
                               (back ? " -> devuelto al momento" : Config.EngineActive && unwanted ? " -> no se pudo devolver" : "");
+                RitmoDiag.Ventanal("otra ventana con el primer plano (" + who + ")");   // (1.2.3 RITMO2, src\Lanzador\Ritmo.cs)
                 lock (fgSync)
                 {
                     fgLossN++;
@@ -7709,6 +7710,7 @@ namespace ConsoleEnhancer
                         {
                             st.Captured = double.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture);
                             st.Shown = double.Parse(m.Groups[2].Value, CultureInfo.InvariantCulture);
+                            RitmoDiag.MagpieAnillo(line);   // (1.2.3 RITMO2: su cola llena = imagenes perdidas, src\Lanzador\Ritmo.cs)
                         }
                         else if ((m = System.Text.RegularExpressions.Regex.Match(line, @"Output cadence .*?captureFps=([0-9.]+).*?captureIntervalP95Ms=([0-9.]+).*?captureIntervalMaxMs=([0-9.]+)")).Success)
                         {

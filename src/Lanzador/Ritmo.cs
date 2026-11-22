@@ -481,18 +481,29 @@ namespace ConsoleEnhancer
     static class RitmoDiag
     {
         struct HuecoMpv { public DateTime At; public double Hora, Marca, Normal, NormalMarca; }
-        struct Ventana { public DateTime Desde, Hasta; public double CapMax, OutMax, CapP95; public bool Pico; }
+        struct Ventana { public DateTime Desde, Hasta; public double CapMax, OutMax, CapP95; public bool Pico, Arranque; }
         struct Captura { public DateTime At; public double Ms; }
+        struct Evento { public DateTime At; public string Que; }
         static readonly object sync = new object();
         static readonly List<HuecoMpv> mpv = new List<HuecoMpv>();
         static readonly List<Ventana> ventanas = new List<Ventana>();
         static readonly List<Captura> capturas = new List<Captura>();
+        static readonly List<Evento> eventos = new List<Evento>();
         static DateTime ultimaVentana = DateTime.MinValue;
-        public static readonly string[] Nombres = { "juego", "captura_app", "mpv", "wgc", "grafica", "salida" };
+        static int ventanasSesion;
+        // (22-11, 1.2.3 RITMO2) "arranque": la primera ventana de 4 s de cada Magpie (se abre la captura de nuevo -la marca de la
+        // capturadora salta ~150 ms- y la grafica se pone a ritmo: en el log del usuario del 22-11, 96-158 ms en TODAS las aperturas, y se
+        // contaban como "juego" o "wgc"); "ventana": algo de Windows o de la app encima de la imagen en ese momento (el menu de ajustes, el
+        // Buscar de Windows... : Windows deja de mostrar a Magpie directamente, compone, y se pierde el ritmo; 10:28:40 y 10:30:04 del log)
+        // "cola": la imagen llego a Magpie pero su cola hacia la pantalla estaba llena (su presentacion no llega a soltar sitio: el ritmo
+        // que se impone no deja recuperar un retraso) y la captura de Windows, que solo guarda la ultima, la cambio por la siguiente
+        public static readonly string[] Nombres = { "juego", "captura_app", "mpv", "wgc", "grafica", "salida", "arranque", "ventana", "cola" };
         // contadores del resumen (5 min) por origen, y aparte: capturas de la app (cuantas, ms parado mpv) y las imagenes de mpv que
         // salieron tarde justo despues de una (aunque Magpie no viera un tiron: con la generacion y VRR un retraso de 10-25 ms ya se nota)
-        static readonly int[] cuenta = new int[6];
-        static readonly double[] peor = new double[6];
+        static readonly int[] cuenta = new int[9];
+        static readonly double[] peor = new double[9];
+        struct Anillo { public DateTime At; public double Captadas, Espera; }
+        static readonly List<Anillo> anillos = new List<Anillo>();
         static int nCapt, nCaptTarde, nPng; static double sumCapt, maxCapt, sumPng, maxPng;
         static readonly List<double> fifo = new List<double>(), espera = new List<double>();
         static readonly List<DateTime> tardeSueltas = new List<DateTime>();
@@ -576,9 +587,25 @@ namespace ConsoleEnhancer
                 v.Desde = ultimaVentana != DateTime.MinValue && (at - ultimaVentana).TotalSeconds < 10 ? ultimaVentana : at.AddSeconds(-4);
                 ultimaVentana = at;
                 v.CapP95 = Num(c.Groups[1].Value); v.CapMax = Num(c.Groups[2].Value); v.OutMax = Num(c.Groups[3].Value); v.Pico = pico;
-                lock (sync) { ventanas.Add(v); if (ventanas.Count > 64) ventanas.RemoveAt(0); }
+                lock (sync) { v.Arranque = ventanasSesion++ == 0; ventanas.Add(v); if (ventanas.Count > 64) ventanas.RemoveAt(0); }
             }
             catch { }
+        }
+
+        // (1.2.3 RITMO2) Algo que se pone encima de la imagen o le quita el primer plano (menu de ajustes, otra ventana): los tirones de
+        // ese momento son de eso (Windows compone), no del camino de la imagen
+        public static void Ventanal(string que)
+        {
+            Evento e = new Evento(); e.At = DateTime.Now; e.Que = que ?? "";
+            lock (sync) { eventos.Add(e); while (eventos.Count > 0 && (e.At - eventos[0].At).TotalSeconds > 60) eventos.RemoveAt(0); }
+        }
+
+        // (con sync cogido) lo que hubo encima de la imagen entre a y b (o null)
+        static string EventoEntre(DateTime a, DateTime b)
+        {
+            for (int i = eventos.Count - 1; i >= 0; i--)
+                if (eventos[i].At >= a && eventos[i].At <= b) return eventos[i].Que;
+            return null;
         }
 
         // Una linea "DLSSFG frontend timing" del log de Magpie: lo que esperan sus imagenes en su cola (fifoAge) y al reloj (paceWait)
@@ -589,6 +616,28 @@ namespace ConsoleEnhancer
             double p = Num(f.Groups[1].Value), a = Num(f.Groups[2].Value);
             if (double.IsNaN(p) || double.IsNaN(a)) return;
             lock (sync) { espera.Add(p); fifo.Add(a); if (fifo.Count > 400) { fifo.RemoveAt(0); espera.RemoveAt(0); } }
+        }
+
+        // (1.2.3 RITMO2) Una linea "DLSSFG presentation ring" del log de Magpie (cada ~1 s): las capturas que entraron y lo que espero su
+        // cola a que la pantalla soltara sitio (excludedRingWait). Con espera, las imagenes que llegan mientras tanto se pierden
+        public static void MagpieAnillo(string line)
+        {
+            Match t = Regex.Match(line, @"^(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d\.\d{3})\|");
+            Match m = Regex.Match(line, @"presentation ring: captured=([0-9.]+) FPS.*?excludedRingWait=([0-9.]+) ms");
+            if (!t.Success || !m.Success) return;
+            Anillo a = new Anillo();
+            a.At = DateTime.ParseExact(t.Groups[1].Value, "yyyy-MM-dd HH:mm:ss.fff", CultureInfo.InvariantCulture);
+            a.Captadas = Num(m.Groups[1].Value); a.Espera = Num(m.Groups[2].Value);
+            if (double.IsNaN(a.Espera)) return;
+            lock (sync) { anillos.Add(a); while (anillos.Count > 0 && (a.At - anillos[0].At).TotalSeconds > 60) anillos.RemoveAt(0); }
+        }
+
+        // (con sync cogido) la mayor espera de la cola de Magpie entre a y b
+        static double EsperaColaEntre(DateTime a, DateTime b)
+        {
+            double mx = 0;
+            foreach (Anillo x in anillos) if (x.At >= a && x.At <= b && x.Espera > mx) mx = x.Espera;
+            return mx;
         }
 
         // El origen del peor tiron de las ventanas nuevas (normal = ms entre dos imagenes reales; salida = ms entre dos presentaciones
@@ -604,8 +653,11 @@ namespace ConsoleEnhancer
                 bool tiron = v.CapMax >= normal * 1.45 && v.CapMax - normal >= 20 && v.CapMax < 400;   // (como antes: lo de 400 ms o mas es un cambio, no un tiron)
                 bool salidaMal = !tiron && v.OutMax >= salida * 1.9 && v.OutMax - salida >= 14 && v.OutMax < 400 && v.CapMax < normal * 1.45;
                 if (!tiron && !salidaMal) continue;
-                int o; string porque;
-                if (salidaMal) { o = 5; porque = "Magpie presento con un hueco de " + R(v.OutMax) + " ms con las imagenes llegando bien (su ritmo, la generacion o la cola de la pantalla)"; }
+                int o; string porque, encima;
+                lock (sync) encima = EventoEntre(v.Desde.AddMilliseconds(-800), v.Hasta.AddMilliseconds(200));
+                if (v.Arranque) { o = 6; porque = "Magpie empezando (sus primeros 4 s: la captura se acaba de abrir y la grafica se pone a ritmo)"; }
+                else if (encima != null) { o = 7; porque = encima + " en ese momento (Windows compone la imagen en vez de mostrar a Magpie directamente)"; }
+                else if (salidaMal) { o = 5; porque = "Magpie presento con un hueco de " + R(v.OutMax) + " ms con las imagenes llegando bien (su ritmo, la generacion o la cola de la pantalla)"; }
                 else
                 {
                     double marca = 0, hora = 0; bool captura = false;
@@ -621,11 +673,17 @@ namespace ConsoleEnhancer
                     else if (hora >= cerca && captura) { o = 1; porque = "mpv la saco tarde (" + R(hora) + " ms) justo despues de una captura de la app (la que mira el menu de la consola)"; }
                     else if (hora >= cerca) { o = 2; porque = "mpv la saco tarde (" + R(hora) + " ms; la marca de la capturadora " + (marca > 0 ? R(marca) + " ms" : "normal") + ")"; }
                     else if (v.Pico) { o = 4; porque = "mpv la saco a tiempo" + (hora > 0 ? " (peor " + R(hora) + " ms)" : "") + "; con un pico de la grafica en Magpie"; }
-                    else { o = 3; porque = "mpv la saco a tiempo" + (hora > 0 ? " (peor " + R(hora) + " ms)" : "") + "; se perdio o llego tarde en la captura de Windows (WGC) hasta Magpie"; }
+                    else
+                    {
+                        double cola; lock (sync) cola = EsperaColaEntre(v.Desde.AddMilliseconds(-500), v.Hasta.AddMilliseconds(1100));
+                        if (cola >= 3) { o = 8; porque = "mpv la saco a tiempo" + (hora > 0 ? " (peor " + R(hora) + " ms)" : "") + "; Magpie la tiro: su cola hacia la pantalla estaba llena (espero hasta " + R(cola) + " ms por segundo a que soltara sitio)"; }
+                        else { o = 3; porque = "mpv la saco a tiempo" + (hora > 0 ? " (peor " + R(hora) + " ms)" : "") + "; se perdio o llego tarde en la captura de Windows (WGC) hasta Magpie"; }
+                    }
                 }
-                double ms = o == 5 ? v.OutMax : v.CapMax;
+                double ms = o == 5 || (o >= 6 && !tiron) ? v.OutMax : v.CapMax;
                 lock (sync) { cuenta[o]++; if (ms > peor[o]) peor[o] = ms; }
-                if (ms > peorDe) { peorDe = ms; texto = Nombres[o] + ": " + porque; }
+                // (el arranque de Magpie va solo al resumen: no es un tiron jugando)
+                if (o != 6 && ms > peorDe) { peorDe = ms; texto = Nombres[o] + ": " + porque; }
             }
             peorMs = peorDe;
             return texto;
@@ -654,7 +712,7 @@ namespace ConsoleEnhancer
             }
         }
 
-        public static void Limpia() { lock (sync) { ventanas.Clear(); mpv.Clear(); capturas.Clear(); ultimaVentana = DateTime.MinValue; } }
+        public static void Limpia() { lock (sync) { ventanas.Clear(); mpv.Clear(); capturas.Clear(); anillos.Clear(); ultimaVentana = DateTime.MinValue; ventanasSesion = 0; } }
 
         static string R(double v) { return Math.Round(v).ToString(CultureInfo.InvariantCulture); }
     }
