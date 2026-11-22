@@ -102,8 +102,9 @@ namespace ConsoleEnhancer
                                         c.Passes30 = pas; c.Level30 = 2; c.FgPick30 = tipo; c.MultPick30 = mult; c.ScalerPick = ""; c.AltScalerOn = false;
                                         bool en = c.EngineNow, ed = c.EngineDlss5Now, au = c.Dlss5AutoAhora;
                                         string t = c.FgTypeNow; int m = c.FgMultNow;
-                                        // lo esperado: el motor con DLSS 5 solo con PrismaNr.dll, elegido, 1 pasada y DLSS FG x2 / Smooth Motion
-                                        bool motorDebe = prisma == 1 && eng && pas <= c.EngineDlss5MaxPasses && (t == "dlss" || t == "smooth") && m <= 2 && c.Dlss5FitsNow;
+                                        // lo esperado: el motor con DLSS 5 solo con PrismaNr.dll, elegido, las pasadas que hace y una generacion
+                                        // que sepa hacer (1.2.4: el reparto de SoloMotor.cs / MotorFg.cs: DLSS FG x2, Smooth Motion, XeSS FG x2...)
+                                        bool motorDebe = prisma == 1 && eng && pas <= c.EngineDlss5MaxPasses && MotorSabeGeneracion(t, m) && c.Dlss5FitsNow;
                                         bool ok = ed == motorDebe && (!motorDebe || en) && (!motorDebe ? au == (c.Dlss5AutoOn && c.Dlss5InputPct == 0) : !au) &&
                                                   (motorDebe || !c.Dlss5FitsNow || !en);
                                         n++; if (!ok) fallos++;
