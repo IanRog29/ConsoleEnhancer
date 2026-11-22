@@ -80,7 +80,7 @@ namespace ConsoleEnhancer.Motor
                 case "vibrancia_intensidad": DvcIntensity = F01(val); return true;
                 case "vibrancia_saturacion": DvcSaturation = F01(val); return true;
             }
-            return false;
+            return ApplyFgOwn(key, val);   // (EngineFgPropia.cs)
         }
     }
 
@@ -139,7 +139,26 @@ namespace ConsoleEnhancer.Motor
                 bool ok = sup == SlResult.eOk && Sl.IsFeatureLoaded(SlFeature.DLSS_NR, out l) == SlResult.eOk && l;
                 Log.Write("DLSS 5 oficial (Streamline sl.dlss_nr): " + (ok ? "Streamline lo tiene en esta grafica (el motor aun no lo usa: falta la cabecera publica de NVIDIA)"
                                                                             : "no disponible aqui (" + sup + ")"));
+                // (lo que se puede preparar sin su cabecera: que etiquetas pide, que driver y que version; para escribir el camino cuando NVIDIA
+                // publique sl_dlss_nr.h. OJO: el plugin tiene que ser de la MISMA version de Streamline que el resto de sl.*.dll del motor)
+                try
+                {
+                    SlFeatureRequirements req;
+                    if (Sl.GetFeatureRequirements(SlFeature.DLSS_NR, out req) == SlResult.eOk)
+                    {
+                        SlBufferType[] tags = req.GetRequiredTags();
+                        string[] names = new string[tags.Length];
+                        for (int i = 0; i < tags.Length; i++) names[i] = tags[i].ToString();
+                        Log.Write("DLSS 5 oficial: pide " + req.flags + ", etiquetas [" + string.Join(", ", names) + "], driver " + req.driverVersionDetected +
+                                  " (pide " + req.driverVersionRequired + ")");
+                    }
+                    SlFeatureVersion ver;
+                    if (Sl.GetFeatureVersion(SlFeature.DLSS_NR, out ver) == SlResult.eOk)
+                        Log.Write("DLSS 5 oficial: plugin " + ver.versionSL + ", NGX " + ver.versionNGX);
+                }
+                catch (Exception ex) { Log.Write("DLSS 5 oficial: sin sus requisitos (" + ex.Message + ")"); }
             }
+            else Log.Write("DLSS 5 oficial: no esta sl.dlss_nr.dll de NVIDIA junto al motor (Streamline 2.14.16 no lo trae): hueco preparado, sin DLSS 5");
         }
 
         // En RenderFrame tras RecordDlss5 (inColor en NON_PIXEL_SHADER_RESOURCE; solo imagenes nuevas, como DLSS 5)

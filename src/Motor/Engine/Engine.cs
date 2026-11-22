@@ -1029,12 +1029,15 @@ namespace ConsoleEnhancer.Motor
 
             FfxFgRecord();   // 21-11 (EngineFgFfx.cs): FSR 3 FG, configurar y preparar sus entradas
 
-            // 5. A la pantalla
-            uint bi = swap.GetCurrentBackBufferIndex();
-            ID3D12Resource bb = backbuf[bi];
-            Barrier(bb, D3D12_RESOURCE_STATES.PRESENT, D3D12_RESOURCE_STATES.COPY_DEST);
-            list.CopyResource(bb, show);
-            Barrier(bb, D3D12_RESOURCE_STATES.COPY_DEST, D3D12_RESOURCE_STATES.PRESENT);
+            // 5. A la pantalla (22-11, 1.2.4 DLSS5LEGAL: con la generacion propia la copia la hace FpPresent tras las inventadas, EngineFgPropia.cs)
+            if (!FpTakeReal(show, slot))
+            {
+                uint bi = swap.GetCurrentBackBufferIndex();
+                ID3D12Resource bb = backbuf[bi];
+                Barrier(bb, D3D12_RESOURCE_STATES.PRESENT, D3D12_RESOURCE_STATES.COPY_DEST);
+                list.CopyResource(bb, show);
+                Barrier(bb, D3D12_RESOURCE_STATES.COPY_DEST, D3D12_RESOURCE_STATES.PRESENT);
+            }
             PassEnd();
             list.EndQuery(qheap, D3D12_QUERY_TYPE.TIMESTAMP, (uint)(fi * 2 + 1));
             list.ResolveQueryData(qheap, D3D12_QUERY_TYPE.TIMESTAMP, (uint)(fi * 2), 2, tsReadback, (ulong)(fi * 16));
@@ -1178,7 +1181,7 @@ namespace ConsoleEnhancer.Motor
                 uint syncNow, flagsNow;
                 VrrPresentArgs(out syncNow, out flagsNow);
                 long submitAt = Clock.Now;
-                int hr = s.NoPresent ? 0 : swap.Present(syncNow, (DXGI_PRESENT)flagsNow);   // (17-11 REJAS: presentar=0, pruebas con la tele apagada)
+                int hr = s.NoPresent ? 0 : FpPresent(syncNow, flagsNow);   // (17-11 REJAS: presentar=0, pruebas con la tele apagada) (22-11, 1.2.4 DLSS5LEGAL: FpPresent = swap.Present, o las inventadas propias y la real)
                 if (pclOk && token != IntPtr.Zero) Sl.PCLSetMarker(SlPCLMarker.ePresentEnd, token);
                 if (!s.NoPresent) LatQueuePresent();   // 21-11 (1.2.1, cola_cuenta=1: EngineLatencia.cs)
                 long now = Clock.Now;
@@ -1204,7 +1207,7 @@ namespace ConsoleEnhancer.Motor
             double t = Clock.SinceMs(benchStart) / 1000.0;
             if (!benchRecording && t >= s.BenchWarm) { benchRecording = true; stats.StartRecording(); }
             if (t < s.BenchWarm + s.BenchSecs && !(s.DumpDir.Length > 0 && dumpTaken >= s.DumpN && t >= s.BenchWarm + 1)) return false;   // (17-11 REJAS: con volcado, al acabarlo)
-            string line = stats.Summary(s.BenchLabel, s) + "\tdlss=" + (dlssOk && scalerNow == "dlss") + "\tfg=" + fgApplied + "\treflex=" + reflexApplied + "\tfallos_dlss=" + evalFails + "\t" + FgState() + QualityBench() + PassesBench() + LatBench() + UniversalBench();
+            string line = stats.Summary(s.BenchLabel, s) + "\tdlss=" + (dlssOk && scalerNow == "dlss") + "\tfg=" + fgApplied + "\treflex=" + reflexApplied + "\tfallos_dlss=" + evalFails + "\t" + FgState() + QualityBench() + PassesBench() + LatBench() + UniversalBench() + FpBench();
             Log.Write("BANCO " + line);
             if (s.BenchOut.Length > 0) try { File.AppendAllText(Program.DataPath(s.BenchOut), line + "\r\n"); } catch (Exception ex) { Log.Error("Banco", ex); }   // (18-11: relativo a datos=)
             Program.Quit = true;
