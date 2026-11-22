@@ -235,7 +235,13 @@ void main(uint3 id : SV_DispatchThreadID) {
             if (nrOverHard < 2 && nrOver < 5) return;
             nrOver = nrOverHard = 0;
             string key = CapKey, what;
-            if (nrPasses > 1)
+            int curPct = nrW >= inW ? 100 : (int)Math.Round(100.0 * nrW / Math.Max(1, inW));
+            // 22-11 (1.2.4 DLSS5Q): con 2-3 pasadas, primero el % (hasta el 35 %, el minimo de la escala de Magpie con 2-3 pasadas y con
+            // x3 / x4) y luego las pasadas: quitar una pasada cambia mucho mas el aspecto (medido a 4K: 1 -> 2 pasadas, el croma del
+            // efecto de -2 a -7 niveles) que bajar el % (el usuario eligio 2-3 pasadas por su aspecto; Magpie en la 1.2.3 tambien
+            // bajaba el % y no las pasadas)
+            bool pctFirst = s.NrSuave && nrPasses > 1 && curPct > 35;
+            if (nrPasses > 1 && !pctFirst)
             {
                 // 22-11 (1.2.4 DLSS5Q): de una vez a las que caben (el 30 % de la grafica no depende de las pasadas): 3 -> 2 -> 1 eran dos
                 // cambios de aspecto en 28 s (log del usuario 21:35:04 y 21:35:32, 1440p con 3 pasadas: p95 54 ms de 30)
@@ -247,8 +253,8 @@ void main(uint3 id : SV_DispatchThreadID) {
             }
             else
             {
-                int cur = nrW >= inW ? 100 : (int)Math.Round(100.0 * nrW / Math.Max(1, inW));
-                if (cur <= 50)
+                int cur = curPct;
+                if (cur <= (pctFirst ? 35 : 50))
                 {
                     if (!nrFloorSaid) { nrFloorSaid = true; Log.Write(string.Format(IC, "DLSS 5 ya esta al minimo del guardian (1 pasada al {0} %) y la grafica sigue sin llegar (p95 {1:0.0} ms, tope {2:0.0})", cur, p, limit)); }
                     return;
@@ -263,9 +269,10 @@ void main(uint3 id : SV_DispatchThreadID) {
                     next = Math.Max(25, cur - 45);
                     for (int t = cur - 10; t >= Math.Max(25, cur - 45); t -= 5) { next = t; if (fijo + varia * (t * (double)t) / (cur * (double)cur) <= obj) break; }
                     next = Math.Min(next, cur > 75 ? 75 : Math.Max(25, cur - 10));
+                    if (pctFirst) next = Math.Max(35, next);
                 }
                 nrPctCap[key] = next;
-                what = "1 pasada al " + next + " %";
+                what = (nrPasses > 1 ? nrPasses + " pasadas" : "1 pasada") + " al " + next + " %";
             }
             AdaptaFreno(key, p, limit);   // (ConsoleEnhancer: con adapta=1 lo bajado pasa al estado de EngineAdapta.cs, uno solo y recordado)
             Log.Write(string.Format(IC, "DLSS 5 no cabe aqui (grafica p95 {0:0.0} ms, tope {1:0.0}; {2} pasada(s) a {3}x{4}): se baja a {5} (el guardian, para esta sesion y este modo)",
