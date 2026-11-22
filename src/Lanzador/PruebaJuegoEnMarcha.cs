@@ -52,6 +52,7 @@ namespace ConsoleEnhancer
             catch (Exception ex) { Mira(false, "capturas: " + ex); }
             try { Modo(); } catch (Exception ex) { Mira(false, "modo: " + ex); }
             try { if (capturas != null) Hud(capturas); } catch (Exception ex) { Mira(false, "huella del HUD: " + ex); }
+            try { Degradadas(); } catch (Exception ex) { Mira(false, "etiqueta degradada: " + ex); }
             sb.Insert(0, "Fallos: " + fallos + "\r\n");
             File.WriteAllText(rep, sb.ToString(), new UTF8Encoding(false));
             return fallos;
@@ -214,6 +215,78 @@ namespace ConsoleEnhancer
                 }
             }
             finally { if (antes != null) File.WriteAllText(f, antes); else File.Delete(f); }
+        }
+
+        // ---------------- 5. La etiqueta con el inicio a medio aparecer (fundido, desplazado, agrandado) ----------------
+        // No hay capturas de la animacion: se fingen con las 8 de verdad del banco. Se mira si el menu se reconoce (DetectorMenu) y si la
+        // etiqueta se lee (y que nunca se lea otro juego)
+        static void Degradadas()
+        {
+            sb.Append("\r\n-- 5. La etiqueta del juego en foco con el inicio a medio aparecer (fingido con las capturas del banco) --\r\n");
+            string banco = @"C:\Switch2Magpie\juegos\test_deteccion";
+            if (!Directory.Exists(banco)) return;
+            string[] fs = Directory.GetFiles(banco, "menu_ce-gta-pestanas-*.png");
+            string[] nombres = { "tal cual", "fundido 70 %", "fundido 45 %", "fundido 30 %", "baja 12 px", "baja 30 px", "sube 12 px", "agrandado 4 %", "agrandado 10 %", "desenfocado" };
+            int[] menu = new int[nombres.Length], leido = new int[nombres.Length], otro = new int[nombres.Length];
+            foreach (string f in fs)
+                using (Bitmap b = Carga(f))
+                    for (int k = 0; k < nombres.Length; k++)
+                        using (Bitmap d = Degrada(b, k))
+                        {
+                            DateTime now = DateTime.Now;
+                            LecturaMenu l = DetectorMenu.Clasifica(d, now, Consolas.Ps5, false, false);
+                            DetectorMenu.OlvidaZonas();
+                            if (l.Vista == VistaMenu.Menu) menu[k]++;
+                            string crudo; bool fuerte;
+                            string n = JuegoConsola.LeeNombre(d, Consolas.Ps5, out crudo, out fuerte);
+                            if (fuerte && n != null && GameProfiles.SameGame("PS5: " + n, "PS5: Grand Theft Auto VI")) leido[k]++;
+                            else if (fuerte && n != null) otro[k]++;
+                        }
+            for (int k = 0; k < nombres.Length; k++)
+                sb.Append("  ").Append(nombres[k]).Append(": menu ").Append(menu[k]).Append(" de ").Append(fs.Length).Append(", etiqueta GTA VI ")
+                  .Append(leido[k]).Append(", otro nombre fuerte ").Append(otro[k]).Append("\r\n");
+            int malos = 0; foreach (int o in otro) malos += o;
+            Mira(malos == 0, "ninguna etiqueta fuerte de otro juego con el inicio degradado");
+        }
+
+        static Bitmap Degrada(Bitmap b, int k)
+        {
+            int w = b.Width, h = b.Height;
+            Bitmap d = new Bitmap(w, h, PixelFormat.Format32bppRgb);
+            using (Graphics g = Graphics.FromImage(d))
+            {
+                g.Clear(Color.Black);
+                g.InterpolationMode = InterpolationMode.HighQualityBilinear;
+                switch (k)
+                {
+                    case 0: g.DrawImage(b, 0, 0, w, h); break;
+                    case 1: case 2: case 3:
+                        {
+                            float a = k == 1 ? 0.70f : k == 2 ? 0.45f : 0.30f;
+                            ColorMatrix cm = new ColorMatrix(new float[][] { new float[] { a, 0, 0, 0, 0 }, new float[] { 0, a, 0, 0, 0 }, new float[] { 0, 0, a, 0, 0 }, new float[] { 0, 0, 0, 1, 0 }, new float[] { 0, 0, 0, 0, 1 } });
+                            using (ImageAttributes ia = new ImageAttributes()) { ia.SetColorMatrix(cm); g.DrawImage(b, new Rectangle(0, 0, w, h), 0, 0, w, h, GraphicsUnit.Pixel, ia); }
+                            break;
+                        }
+                    case 4: g.DrawImage(b, 0, h * 12 / 720, w, h); break;
+                    case 5: g.DrawImage(b, 0, h * 30 / 720, w, h); break;
+                    case 6: g.DrawImage(b, 0, -h * 12 / 720, w, h); break;
+                    case 7: case 8:
+                        {
+                            float s = k == 7 ? 1.04f : 1.10f;
+                            int nw = (int)(w * s), nh = (int)(h * s);
+                            g.DrawImage(b, (w - nw) / 2, (h - nh) / 2, nw, nh);
+                            break;
+                        }
+                    case 9:
+                        using (Bitmap p = new Bitmap(w / 3, h / 3))
+                        {
+                            using (Graphics gp = Graphics.FromImage(p)) { gp.InterpolationMode = InterpolationMode.HighQualityBilinear; gp.DrawImage(b, 0, 0, w / 3, h / 3); }
+                            g.DrawImage(p, 0, 0, w, h);
+                        }
+                        break;
+                }
+            }
+            return d;
         }
 
         // ---------------- 4. La huella del HUD ----------------
