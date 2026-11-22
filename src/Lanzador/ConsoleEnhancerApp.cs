@@ -40,6 +40,7 @@ namespace ConsoleEnhancer
             if (CeParseImagen(key, val)) return true;   // (20-11: hdr, rtx_hdr*, vrr, nvidia_latencia..., src\ImagenCe.cs)
             if (CeParseEscalas(key, val)) return true;  // (20-11: escalas_adaptables..., src\Escalas.cs)
             if (CeParseLatencia(key, val)) return true; // (21-11, 1.2.1: mpv_cola_ms, audio_bloque_ms, audio_cola_*_ms, src\Latencia.cs)
+            if (CeParseMult(key, val)) return true;     // (1.2.2: generacion_multiplicador, xess_fg_1080, src\Lanzador\Multiplicador.cs)
             switch (key)
             {
                 case "device_path": DevicePath = val.Trim(); return true;

@@ -1,0 +1,482 @@
+// Multiplicador.cs - x2 / x3 / x4 de DLSS FG y XeSS FG (22-11-2026, 1.2.2, agente MULTI). C# 5
+//
+// El usuario: "Añade modos de xefg y dlss fg de 3x y 4x (si la tv es 120hz que aparezcan bloqueados si tengo puesto 60 fps de base, que
+// aparezcan para aplicarlos solo si he puesto 30). Los modos 3 y 4 que salgan si se seleccionan esos dos frame generators, si se
+// seleccionan otros que no salga."
+//
+// - Lo elegido va por modo (como el tipo de generacion, FgPick60/30): MultPick60 / MultPick30 (0 = lo del ini: generacion_60 /
+//   modo30_generacion), por juego (columna 10 de games\profiles.txt: "tipo60,tipo30,mult60,mult30") y en games\framegen_mult.txt (lo de
+//   ahora, para abrir la app ya jugando). Solo cuenta con DLSS FG y XeSS FG; con Smooth Motion, FSR 3 FG, NVIDIA VFG u otras: x2.
+// - Lo que de verdad va (Config.FgMultNow = MultAhora): lo pedido, bajando mientras no quepa. Un multiplicador cabe si
+//   (fps reales del modo x multiplicador) <= Hz de la pantalla + 1 (29,97 x 4 = 119,88 en una tele de 120 vale; 59,94 x 3 = 180 no):
+//   con la tele a 120, en el modo 60 x3 / x4 salen bloqueados ("necesita el modo 30") y en el 30 x2 / x3 / x4 (60 / 90 / 120). Con 144,
+//   165 o 240 Hz igual con su cuenta. x3 / x4 sin VRR solo si la salida es divisor del refresco (90 en 120 sin VRR da tirones). El modo
+//   120 nunca lleva generacion. Al pasar del 30 (x4) al 60 va el x2 (o lo que quepa) y lo dice el aviso; al volver al 30, el x4 del juego.
+// - El camino: el efecto de Magpie (DLSSFG\DLSS_FrameGeneration / XeSSFG\XeSS_FrameGeneration, parametro multiplier 2-4). El DLSS-G del
+//   motor propio (Streamline) solo hace x2 (la multigeneracion de Streamline es solo de RTX 50 y el motor no la pide: sin probar en este
+//   PC): DLSS FG x3 / x4 va por mpv + Magpie (Config.MultPorMagpie en FgMagpieOnly) tambien sin DLSS 5. El DLSS FG de Magpie necesita
+//   runtimes\dlssg_sm86 (tambien en RTX 40): sin el, x3 / x4 de DLSS FG bloqueados ("preparando un componente") y la app lo baja
+//   (Componentes.AsegurarSm86, ahora tambien sin DLSS 5). XeSS FG en graficas no Intel: con x3 / x4 Magpie pone solo su modo de
+//   compatibilidad (terceros\magpie\XESSFG.md).
+// - Donde se elige: el menu de ajustes en pantalla (fila "Multiplicador", solo con DLSS FG o XeSS FG; lo bloqueado en gris con el
+//   motivo debajo), la bandeja (Multiplicador de generacion) y Ctrl+X sobre la imagen (el siguiente que quepa). Ctrl+I (estado) lo dice.
+// - Si la salida no llega (base x multiplicador, Magpie), lo primero que se baja es el multiplicador 4 -> 3 -> 2 (MultVigila, antes que la
+//   escala de DLSS 5 y la escalera de FpsBajo.cs).
+// - Al arrancar Magpie se mira lo que de verdad ha puesto (multiplier=Nx / effective=Nx de su log): si no es lo pedido, aviso.
+// ini: generacion_multiplicador=0 = como antes (solo el x2 elegible; generacion_60 / modo30_generacion tal cual para todas).
+//      xess_fg_1080=0|1: XeSS FG con la ventana de 1080p (ventana_1080). Ver XessNo1080.
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
+using System.Text.RegularExpressions;
+using System.Threading;
+using System.Windows.Forms;
+using ConsoleEnhancer.Deteccion;
+
+namespace ConsoleEnhancer
+{
+    partial class Config
+    {
+        public bool MultOn = true;                 // ini generacion_multiplicador (de serie 1)
+        public int MultPick60, MultPick30;         // lo elegido en cada modo (0 = lo del ini)
+        public int MultPickNow { get { return CapMode ? MultPick30 : MultPick60; } }
+        // DLSS FG x3 / x4 pedido (menu, bandeja): Componentes.AsegurarSm86 baja dlssg_sm86 aunque no haya DLSS 5
+        public static volatile bool MultPideSm86;
+
+        public bool CeParseMult(string key, string val)
+        {
+            switch (key)
+            {
+                case "generacion_multiplicador": MultOn = val.Trim() != "0"; return true;
+                case "xess_fg_1080": XessFg1080 = val.Trim() != "0"; return true;
+            }
+            return false;
+        }
+
+        // ---- XeSS FG con la ventana de 1080p (19-11, Magpie de antes: "no arranca, 0 imagenes"). xess_fg_1080=1: se ofrece y se usa
+        // (Magpie 0.6.12, medido el 22-11: ver el informe de MULTI). Con 0, como antes: no se ofrece a 1080p
+        public static volatile bool XessFg1080 = true;
+        public static bool XessNo1080(string videoSize) { return !XessFg1080 && WindowFor(videoSize) == "1920x1080"; }
+
+        public static bool MultTipo(string t) { return t == "dlss" || t == "xess"; }
+
+        // Lo pedido en un modo (2-4), sin mirar la pantalla
+        public int MultPedido(bool cap30)
+        {
+            int p = cap30 ? MultPick30 : MultPick60;
+            if (p < 2) p = cap30 ? CapFgMult : FgMult60;
+            return Math.Max(2, Math.Min(4, p));
+        }
+
+        // Imagenes reales por segundo del modo (la captura va a 60000/1001)
+        public static double MultBase(bool cap30) { return cap30 ? 29.97 : 59.94; }
+
+        // Hz de la pantalla (mirados cada 2 s: FgMultNow se pregunta mucho)
+        static int multHz = -1;
+        static DateTime multHzAt = DateTime.MinValue;
+        public static int MultHz()
+        {
+            DateTime now = DateTime.UtcNow;
+            if (multHz < 0 || (now - multHzAt).TotalSeconds > 2) { multHz = Pantalla.Hz(); multHzAt = now; }
+            return multHz;
+        }
+
+        // ¿x m en este modo con este tipo? true = bloqueado, con el motivo (es / en, cortos: van en el menu)
+        public bool MultBloqueado(bool cap30, int m, string tipo, out string es, out string en)
+        {
+            es = en = null;
+            if (m <= 2) return false;
+            if (!MultOn) { es = "desactivado (generacion_multiplicador=0)"; en = "turned off (generacion_multiplicador=0)"; return true; }
+            if (!MultTipo(tipo)) { es = "solo con DLSS FG o XeSS FG"; en = "only with DLSS FG or XeSS FG"; return true; }
+            int hz = MultHz();
+            double sal = MultBase(cap30) * m;
+            if (hz > 0 && sal > hz + 1.0)
+            {
+                // (tele a 120: en el modo 60, x3 = 180 y x4 = 240 no caben; en el 30 si: 90 / 120)
+                if (!cap30 && MultBase(true) * m <= hz + 1.0) { es = "necesita el modo 30"; en = "needs 30 fps mode"; }
+                else
+                {
+                    string f = Math.Round(sal).ToString(CultureInfo.InvariantCulture);
+                    es = "no cabe en " + hz + " Hz (" + f + " fps)"; en = "doesn't fit " + hz + " Hz (" + f + " fps)";
+                }
+                return true;
+            }
+            // Sin VRR, x3 / x4 solo si cada imagen dura un numero entero de refrescos (90 en 120 Hz: 1 y 2 refrescos alternos = tirones)
+            if (hz > 0 && !CeImagen.VrrAhora)
+            {
+                double k = hz / sal;
+                if (Math.Abs(k - Math.Round(k)) > 0.03)
+                {
+                    string f = Math.Round(sal).ToString(CultureInfo.InvariantCulture);
+                    es = "sin VRR da tirones (" + f + " fps en " + hz + " Hz)"; en = "stutters without VRR (" + f + " fps at " + hz + " Hz)";
+                    return true;
+                }
+            }
+            // DLSS FG x3 / x4 va por Magpie, que necesita runtimes\dlssg_sm86 (tambien en RTX 40)
+            if (tipo == "dlss" && !Integrado.MagpieDlssgOk)
+            {
+                MultPideSm86 = true;
+                if (Componentes.Sm86Bajando) { es = "preparando un componente…"; en = "getting a component ready…"; }
+                else { es = "falta el componente dlssg_sm86"; en = "needs the dlssg_sm86 component"; }
+                return true;
+            }
+            return false;
+        }
+        public bool MultBloqueado(bool cap30, int m, string tipo) { string es, en; return MultBloqueado(cap30, m, tipo, out es, out en); }
+        public string MultMotivo(bool cap30, int m, string tipo) { string es, en; return MultBloqueado(cap30, m, tipo, out es, out en) ? Tx.T(es, en) : ""; }
+
+        // Lo que va de verdad en un modo con un tipo (Config.FgMultNow): lo pedido o, si no cabe, el mayor que cabe
+        public int MultAhora(bool cap30, string tipo)
+        {
+            if (!MultOn) return tipo == "smooth" ? 2 : Math.Max(2, Math.Min(4, cap30 ? CapFgMult : FgMult60));   // (como antes)
+            if (!MultTipo(tipo)) return 2;
+            int m = MultPedido(cap30);
+            while (m > 2 && MultBloqueado(cap30, m, tipo)) m--;
+            return m;
+        }
+
+        // x3 / x4 puesto ahora (con la generacion encendida y fuera del 120)
+        public bool MultAlto { get { return MultOn && !FgOff && !Mode120 && FgMultNow > 2; } }
+        // DLSS FG x3 / x4: el motor propio solo hace x2 -> mpv + Magpie (en FgMagpieOnly)
+        public bool MultPorMagpie { get { return MultOn && !FgOff && !HomeNative && !Mode120 && FgTypeNow == "dlss" && FgMultNow > 2; } }
+        // " x3" para los textos (DLSS FG / XeSS FG; nada con las demas)
+        public string MultEtiqueta { get { return MultOn && !FgOff && MultTipo(FgTypeNow) ? " x" + FgMultNow : ""; } }
+    }
+
+    // ---- por juego: columna 10 de profiles.txt "tipo60,tipo30[,mult60,mult30]" (una version de antes lee solo los dos primeros) ----
+    partial class GameProfile
+    {
+        public int Mult60, Mult30;   // 0 = lo del ini
+        string MultCols { get { return Mult60 > 1 || Mult30 > 1 ? "," + Mult60 + "," + Mult30 : ""; } }
+        void ParseMult(string[] f)
+        {
+            int a = 0, b = 0;
+            if (f.Length > 2) int.TryParse(f[2].Trim(), out a);
+            if (f.Length > 3) int.TryParse(f[3].Trim(), out b);
+            Mult60 = a >= 2 && a <= 4 ? a : 0;
+            Mult30 = b >= 2 && b <= 4 ? b : 0;
+        }
+        string MultSummary { get { return (Mult60 > 1 ? ", multiplicador del 60: x" + Mult60 : "") + (Mult30 > 1 ? ", multiplicador del 30: x" + Mult30 : ""); } }
+    }
+
+    partial class TrayApp
+    {
+        static string MultFile { get { return Path.Combine(Paths.Datos, @"games\framegen_mult.txt"); } }
+
+        // Lo elegido en cada modo (0 = lo del ini), en la config y en games\framegen_mult.txt
+        void SetMults(int m60, int m30)
+        {
+            cfg.MultPick60 = m60 >= 2 && m60 <= 4 ? m60 : 0;
+            cfg.MultPick30 = m30 >= 2 && m30 <= 4 ? m30 : 0;
+            SaveText(MultFile, "60=" + cfg.MultPick60 + "\r\n30=" + cfg.MultPick30 + "\r\n");
+        }
+
+        // (al abrir la app, con LoadPicks)
+        void MultCargar()
+        {
+            string s = LoadText(MultFile);
+            if (string.IsNullOrEmpty(s)) return;
+            foreach (string raw in s.Split('\n'))
+            {
+                string l = raw.Trim();
+                int v;
+                if (l.StartsWith("60=") && int.TryParse(l.Substring(3), out v)) cfg.MultPick60 = v >= 2 && v <= 4 ? v : 0;
+                else if (l.StartsWith("30=") && int.TryParse(l.Substring(3), out v)) cfg.MultPick30 = v >= 2 && v <= 4 ? v : 0;
+            }
+            if (cfg.MultPick60 > 0 || cfg.MultPick30 > 0)
+                Log.Write("Multiplicador de generacion elegido: modo 60 " + (cfg.MultPick60 > 0 ? "x" + cfg.MultPick60 : "el del ini") + ", modo 30 " + (cfg.MultPick30 > 0 ? "x" + cfg.MultPick30 : "el del ini"));
+        }
+
+        // Para los avisos: lo que no va de lo pedido en este modo, o que en el 30 hay mas (" · x4 solo en el modo 30")
+        string MultNota()
+        {
+            if (!cfg.MultOn || cfg.FgOff || cfg.Mode120 || !fgWanted) return "";
+            string t = cfg.FgTypeNow;
+            if (!Config.MultTipo(t)) return "";
+            int quiere = cfg.MultPedido(cfg.CapMode), va = cfg.FgMultNow;
+            if (quiere > va) return " · x" + quiere + " → x" + va + " (" + cfg.MultMotivo(cfg.CapMode, quiere, t) + ")";
+            if (!cfg.CapMode)
+            {
+                int m30 = cfg.MultAhora(true, t);
+                if (m30 > va) return Tx.T(" · x" + m30 + " solo en el modo 30", " · x" + m30 + " only in 30 fps mode");
+            }
+            return "";
+        }
+
+        // El multiplicador m en el modo de ahora (bandeja, Ctrl+X). Reabre lo que haga falta (como el tipo de generacion)
+        void MultElegir(int m, int tries)
+        {
+            if (InHome || homeBusy || userExit) return;
+            System.Diagnostics.Process p = mpv;
+            if (p == null || p.HasExited) return;
+            if (passesBusy || relaunchSize != null || !lsReady || relaunchEngine || Interlocked.CompareExchange(ref fgBusy, 1, 0) != 0)
+            {
+                if (tries >= 40) { Log.Write("Multiplicador: x" + m + " sin poner (la imagen seguia cambiando)"); return; }
+                Thread.Sleep(250);
+                MultElegir(m, tries + 1);
+                return;
+            }
+            try
+            {
+                PrepareCfg();
+                string t = cfg.FgTypeNow;
+                if (cfg.Mode120 || !fgWanted || cfg.FgOff) { Osd(Tx.T("Multiplicador · con la generación encendida (no a 120 fps)", "Multiplier · with frame generation on (not at 120 fps)")); return; }
+                if (!Config.MultTipo(t)) { Osd(Tx.T("Multiplicador · solo con DLSS FG o XeSS FG (ahora " + cfg.FgName + ": x2)", "Multiplier · only with DLSS FG or XeSS FG (now " + cfg.FgName + ": x2)")); return; }
+                string es, en;
+                if (cfg.MultBloqueado(cfg.CapMode, m, t, out es, out en)) { Osd(cfg.FgName + " x" + m + " · " + Tx.T(es, en)); return; }
+                int antes = cfg.FgMultNow;
+                if (m == antes && cfg.MultPedido(cfg.CapMode) == m) { Osd(cfg.FgName + " x" + m + Tx.T(" · ya activo", " · already on")); return; }
+                bool engineAntes = Config.EngineActive;
+                if (cfg.CapMode) SetMults(cfg.MultPick60, m); else SetMults(m, cfg.MultPick30);
+                if (m > 2 && t == "dlss") Config.MultPideSm86 = true;
+                lastPadAction = DateTime.Now;
+                PrepareCfg();
+                bool engine = cfg.EngineNow;
+                Log.Write("Multiplicador: " + cfg.FgName + " x" + m + " en el modo " + (cfg.CapMode ? "30" : "60") + " (antes x" + antes + ")" +
+                          (engine != engineAntes ? (engine ? ": al motor propio (x2)" : ": a mpv + Magpie (el motor propio solo hace x2)") : ReopenNote) + " · " + cfg.ProfileText);
+                SaveCurProfile();
+                double b = Config.MultBase(cfg.CapMode);
+                RestartLs(cfg.FgName + " x" + m, (cfg.CapMode ? "30" : "60") + " → " + Math.Round(b * m).ToString(CultureInfo.InvariantCulture) + " fps", false, true);
+            }
+            finally { Interlocked.Exchange(ref fgBusy, 0); }
+        }
+
+        // Ctrl+X: el siguiente multiplicador que quepa (x2 -> x3 -> x4 -> x2); si no cabe ninguno mas, el motivo
+        void MultSiguiente()
+        {
+            PrepareCfg();
+            if (cfg.Mode120 || !fgWanted || cfg.FgOff) { Osd(Tx.T("Multiplicador · con la generación encendida (no a 120 fps)", "Multiplier · with frame generation on (not at 120 fps)")); return; }
+            string t = cfg.FgTypeNow;
+            if (!Config.MultTipo(t)) { Osd(Tx.T("Multiplicador · solo con DLSS FG o XeSS FG (ahora " + cfg.FgName + ": x2)", "Multiplier · only with DLSS FG or XeSS FG (now " + cfg.FgName + ": x2)")); return; }
+            int cur = cfg.FgMultNow;
+            for (int i = 1; i <= 2; i++)
+            {
+                int m = 2 + (cur - 2 + i) % 3;
+                if (!cfg.MultBloqueado(cfg.CapMode, m, t)) { MultElegir(m, 0); return; }
+            }
+            if (cur > 2) { MultElegir(2, 0); return; }
+            string es, en;
+            cfg.MultBloqueado(cfg.CapMode, 3, t, out es, out en);
+            Osd(cfg.FgName + " x2 · x3 / x4: " + Tx.T(es ?? "", en ?? ""));
+        }
+
+        // ---------------- bandeja: "Multiplicador de generación" (x2 / x3 / x4; lo que no cabe, gris con el motivo) ----------------
+        ToolStripMenuItem MultBandeja()
+        {
+            ToolStripMenuItem mi = new ToolStripMenuItem(Tx.T("Multiplicador de generación", "Frame generation multiplier"));
+            mi.ShortcutKeyDisplayString = "Ctrl+X";
+            mi.DropDownItems.Add(new ToolStripMenuItem("…"));
+            mi.DropDownOpening += delegate
+            {
+                mi.DropDownItems.Clear();
+                try
+                {
+                    PrepareCfg();
+                    string t = cfg.FgTypeNow;
+                    int cur = cfg.FgMultNow;
+                    if (t == "dlss" && !Integrado.MagpieDlssgOk && !Ce.NoNvidia) { Config.MultPideSm86 = true; Componentes.AsegurarSm86(); }
+                    double b = Config.MultBase(cfg.CapMode);
+                    for (int m = 2; m <= 4; m++)
+                    {
+                        int mm = m;
+                        string es, en;
+                        bool bloq = cfg.MultBloqueado(cfg.CapMode, m, t, out es, out en);
+                        ToolStripMenuItem it = new ToolStripMenuItem("x" + m + "  (" + Math.Round(b * m).ToString(CultureInfo.InvariantCulture) + " fps)" + (bloq ? " · " + Tx.T(es, en) : ""), null, delegate
+                        {
+                            DesdeBandeja("multiplicador x" + mm, true, delegate { MultElegir(mm, 0); });
+                        });
+                        it.Checked = m == cur;
+                        it.Enabled = !bloq;
+                        mi.DropDownItems.Add(it);
+                    }
+                }
+                catch (Exception ex) { Log.Error("Bandeja: multiplicador", ex); }
+            };
+            return mi;
+        }
+
+        // (marcar de la bandeja) se ve con DLSS FG o XeSS FG y la generacion encendida, fuera del 120
+        bool MultBandejaVisible()
+        {
+            try { return cfg.MultOn && cfg.FgAvailable && fgWanted && !cfg.Mode120 && Config.MultTipo(cfg.FgTypeNow); }
+            catch { return false; }
+        }
+
+        // ---------------- menu de ajustes en pantalla: la fila "Multiplicador" ----------------
+        int ajMultQuiere;   // lo ultimo elegido a mano en la fila (0 = nada): se recupera si vuelve a caber (p. ej. 30 -> 60 -> 30 en el menu)
+
+        // La fila (en AjustesModelo, detras de "tipo"); null si no hay DLSS FG ni XeSS FG en este PC
+        FilaAjuste AjFilaMult()
+        {
+            if (!ajustesAbierto) ajMultQuiere = 0;   // (al abrir el menu; con el abierto, AjustesRefrescar rehace el modelo y lo elegido sigue)
+            if (!cfg.MultOn || !cfg.FgAvailable) return null;
+            bool hay = false;
+            foreach (string t in new[] { "dlss", "xess" })
+                if (Array.IndexOf(cfg.GenList30, t) >= 0 || Array.IndexOf(cfg.GenList60, t) >= 0) hay = true;
+            if (!hay) return null;
+            if (!Integrado.MagpieDlssgOk && !Ce.NoNvidia && (Array.IndexOf(cfg.GenList30, "dlss") >= 0 || Array.IndexOf(cfg.GenList60, "dlss") >= 0))
+            { Config.MultPideSm86 = true; Componentes.AsegurarSm86(); }
+            FilaAjuste f = new FilaAjuste { Id = "mult", Nombre = Tx.T("Multiplicador", "Multiplier") };
+            f.Poner(new List<string> { "2", "3", "4" }, new List<string> { "x2", "x3", "x4" }, "2", "2");
+            f.Ayuda = "";
+            return f;
+        }
+
+        // (AjustesDepende) la fila con el modo y el tipo elegidos en el menu: visible solo con DLSS FG / XeSS FG, lo que no cabe bloqueado
+        void AjMultDepende(bool inicio, string modoSel, string tipoSel, bool fgSi)
+        {
+            FilaAjuste f = AjFila("mult");
+            if (f == null) return;
+            bool cap30 = modoSel == "30";
+            f.Visible = modoSel != "120" && fgSi && Config.MultTipo(tipoSel);
+            // (lo que va -o iria- en ese modo con ese tipo: lo guardado del modo, o lo que quepa)
+            int ahora = cfg.MultAhora(cap30, tipoSel);
+            f.Bloq = new List<string>();
+            List<string> libres = new List<string>(), motivos = new List<string>();
+            for (int m = 2; m <= 4; m++)
+            {
+                string r = cfg.MultMotivo(cap30, m, tipoSel);
+                f.Bloq.Add(r);
+                if (r.Length == 0) libres.Add("x" + m);
+                else if (!motivos.Contains(r)) motivos.Add(r);
+            }
+            int want = inicio ? ahora : ajMultQuiere > 0 ? ajMultQuiere : ahora;
+            int sel = want;
+            while (sel > 2 && f.Bloqueado(sel - 2)) sel--;
+            f.Sel = sel - 2;
+            f.Orig = ahora - 2;   // (con otro modo / tipo, lo de ese modo: lo que se ve sin tocarlo no es un cambio)
+            double b = Config.MultBase(cap30);
+            string fps = "";
+            for (int m = 2; m <= 4; m++) fps += (m > 2 ? " · " : "") + "x" + m + " = " + Math.Round(b * m).ToString(CultureInfo.InvariantCulture);
+            f.Ayuda = motivos.Count == 0
+                ? Tx.T("Imágenes por cada real (" + fps + " fps). Más = más fluido y algo más de latencia", "Frames per real one (" + fps + " fps). More = smoother, slightly more latency")
+                : Tx.T("x3 / x4: ", "x3 / x4: ") + string.Join("; ", motivos.ToArray()) + "  (" + fps + " fps)";
+        }
+
+        // (AjustesOrden) lo elegido a mano en la fila
+        void AjMultTocada(FilaAjuste f) { if (f != null && f.Id == "mult") int.TryParse(f.Val, out ajMultQuiere); }
+
+        // (AjustesPonerTodo, con applying) el multiplicador elegido para el modo que queda
+        void AjMultPoner(Dictionary<string, string> e, int modo)
+        {
+            string v;
+            if (!e.TryGetValue("mult", out v) || modo == 120) return;
+            int m;
+            if (!int.TryParse(v, out m) || m < 2 || m > 4) return;
+            if (modo == 30) SetMults(cfg.MultPick60, m); else SetMults(m, cfg.MultPick30);
+            if (m > 2) Config.MultPideSm86 = true;
+            Log.Write("Menu de ajustes: multiplicador x" + m + " en el modo " + modo);
+        }
+
+        // Altura del menu en filas (las de dos lineas cuentan dos; las escondidas, nada)
+        static int AjAltas(List<FilaAjuste> filas)
+        {
+            int n = 0;
+            foreach (FilaAjuste f in filas) if (f.Visible) n += f.Ayuda != null ? 2 : 1;
+            return n;
+        }
+
+        // Tras un cambio en el menu: si cambia la altura (la fila del multiplicador aparece o se va), la ventana nueva, ya opaca
+        void AjRedimensionar(int altasAntes)
+        {
+            int altas = AjAltas(ajFilas);
+            if (altas == altasAntes || ajVentana == null) return;
+            VentanaAjustes nueva = new VentanaAjustes(mpvWindow, altas);
+            try { ajVentana.Dispose(); } catch { }
+            ajVentana = nueva;
+            AjustesPintar(255);
+            ajVentana.Encima();
+        }
+
+        // Un candado pequeño a la izquierda de un valor bloqueado (con lineas: la fuente del menu puede no tener el simbolo)
+        static void AjCandado(System.Drawing.Graphics g, System.Drawing.RectangleF cr, float u, System.Drawing.Color c)
+        {
+            float w = 10 * u, h = 8 * u, x = cr.X + 14 * u, yb = cr.Y + cr.Height / 2 - 1 * u;
+            using (System.Drawing.SolidBrush b = new System.Drawing.SolidBrush(c))
+            using (System.Drawing.Pen p = new System.Drawing.Pen(c, Math.Max(1f, 1.6f * u)))
+            {
+                g.FillRectangle(b, x, yb, w, h);
+                g.DrawArc(p, x + 2 * u, yb - 6 * u, w - 4 * u, 10 * u, 180, 180);
+            }
+        }
+
+        // El siguiente valor de una fila sin pasar por los bloqueados (d = +1 / -1; vuelta = carrusel)
+        static int AjPaso(FilaAjuste f, int d, bool vuelta)
+        {
+            int n = f.Vals.Count, s = f.Sel;
+            for (int i = 0; i < n; i++)
+            {
+                int k = s + d;
+                if (vuelta) k = (k + n) % n;
+                else if (k < 0 || k >= n) return f.Sel;
+                s = k;
+                if (!f.Bloqueado(s)) return s;
+            }
+            return f.Sel;
+        }
+
+        // ---------------- vigilancia: con x3 / x4, si la salida no llega, el multiplicador baja (antes que lo demas) ----------------
+        int multMal;
+        DateTime multBajadoAt = DateTime.MinValue;
+
+        // CheckLsPacing cada 5 s con Magpie. true = ha bajado el multiplicador (lo demas no juzga esta vez)
+        bool MultVigila(LsStats st)
+        {
+            try
+            {
+                PrepareCfg();
+                if (!cfg.MultAlto || Config.EngineActive || cfg.HomeNative || InHome || homeBusy || passesBusy || relaunchSize != null || relaunchEngine ||
+                    userExit || !lsReady || applying || MagpieLive.RunningFor() < 20 || (DateTime.Now - multBajadoAt).TotalSeconds < 30) { multMal = 0; return false; }
+                if (st.CapN == 0 || st.CapTime <= 0) return false;
+                double fuente = FuenteFps(), modo = Config.MultBase(cfg.CapMode);
+                if (fuente < modo * 0.92) { multMal = 0; return false; }   // (el juego no da el modo entero: no es cosa del PC)
+                int m = cfg.FgMultNow, hz = Config.MultHz();
+                double salida = (st.NewSum + st.GenSum) / st.CapTime, real = st.NewSum / st.CapTime;
+                double objetivo = Math.Min(modo * m, hz >= 60 ? hz - 0.2 : modo * m);
+                bool mal = salida < objetivo * 0.9 || real < modo * 0.9;
+                multMal = mal ? multMal + 1 : 0;
+                if (multMal < 2) return false;
+                multMal = 0;
+                multBajadoAt = DateTime.Now;
+                int nuevo = m - 1;
+                while (nuevo > 2 && cfg.MultBloqueado(cfg.CapMode, nuevo, cfg.FgTypeNow)) nuevo--;
+                string fs = Math.Round(salida).ToString(CultureInfo.InvariantCulture), fo = Math.Round(objetivo).ToString(CultureInfo.InvariantCulture);
+                Log.Write("Multiplicador: no se llega con x" + m + " (salida " + salida.ToString("0.0", CultureInfo.InvariantCulture) + " de " + objetivo.ToString("0.0", CultureInfo.InvariantCulture) +
+                          ", reales " + real.ToString("0.0", CultureInfo.InvariantCulture) + " de " + modo.ToString("0.00", CultureInfo.InvariantCulture) + "): se baja a x" + nuevo + " (guardado en el perfil del juego)");
+                string tipo = cfg.FgName;
+                OnUi(delegate { OsdWarn(Tx.T("No se llega a " + fo + " fps (" + fs + ") · cambiado a " + tipo + " x" + nuevo, fo + " fps not reached (" + fs + "): changed to " + tipo + " x" + nuevo), "7000"); });
+                int nn = nuevo;
+                ThreadPool.QueueUserWorkItem(delegate { try { MultElegir(nn, 0); } catch (Exception ex) { Log.Error("Multiplicador: bajando", ex); } });
+                return true;
+            }
+            catch (Exception ex) { Log.Error("Multiplicador (vigilancia)", ex); return false; }
+        }
+
+        // ---------------- al arrancar Magpie: lo que ha puesto de verdad (FinishLsStart, con su log desde el arranque) ----------------
+        void MultComprobarArranque(string log)
+        {
+            try
+            {
+                if (cfg.FgOff || cfg.Mode120 || cfg.HomeNative || !Config.MultTipo(cfg.FgTypeNow)) return;
+                int pedido = cfg.FgMultNow;
+                int puesto = 0;
+                Match m = Regex.Match(log ?? "", @"(?:XeSSFG initialized|DLSS FG\S* initialized):[^\r\n]*?multiplier=(\d)x");
+                if (m.Success) puesto = int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture);
+                Match c = Regex.Match(log ?? "", @"DLSSFG capabilities:[^\r\n]*?requested=(\d)x effective=(\d)x(?: ceiling=(\d)x)?");
+                if (c.Success && cfg.FgTypeNow == "dlss")
+                {
+                    int ef = int.Parse(c.Groups[2].Value, CultureInfo.InvariantCulture);
+                    if (puesto == 0 || ef < puesto) puesto = ef;
+                }
+                if (puesto == 0) return;
+                if (puesto == pedido) { Log.Write("Multiplicador: Magpie con " + cfg.FgName + " x" + puesto + " (lo pedido)"); return; }
+                Log.Write("Multiplicador: AVISO, se pidio " + cfg.FgName + " x" + pedido + " y Magpie ha puesto x" + puesto + (c.Success ? " (" + c.Value + ")" : ""));
+                string tipo = cfg.FgName;
+                int pp = puesto, pe = pedido;
+                OnUi(delegate { OsdWarn(Tx.T(tipo + " x" + pe + " no disponible: va x" + pp, tipo + " x" + pe + " not available: x" + pp + " is used"), "7000"); });
+            }
+            catch (Exception ex) { Log.Error("Multiplicador (arranque de Magpie)", ex); }
+        }
+    }
+}

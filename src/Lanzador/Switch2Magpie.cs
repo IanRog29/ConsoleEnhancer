@@ -717,7 +717,7 @@ namespace ConsoleEnhancer
                 if (string.IsNullOrEmpty(t)) t = FgType;
                 // 19-11 (GENERACION, medido): XeSS FG de Magpie no arranca con la ventana de 1080p (captura 1080p con ventana_1080: 0 imagenes, igual que
                 // el 16-11): ahi va la del ini del modo
-                if (t == "xess" && WindowFor(VideoSize) == "1920x1080")
+                if (t == "xess" && XessNo1080(VideoSize))   // (1.2.2, MULTI: xess_fg_1080, src\Lanzador\Multiplicador.cs)
                 {
                     t = CapMode ? FgType30 : FgType60;
                     if (string.IsNullOrEmpty(t) || t == "xess") t = FgType == "xess" ? "dlss" : FgType;
@@ -759,11 +759,11 @@ namespace ConsoleEnhancer
             // lista); si ninguna sirve, el orden de antes
             foreach (string g in CapMode ? GenList30 : GenList60)
             {
-                if (g == "xess" && File.Exists(Path.Combine(Paths.MagpieDir, "libxess_fg.dll")) && WindowFor(VideoSize) != "1920x1080") return "xess";
+                if (g == "xess" && File.Exists(Path.Combine(Paths.MagpieDir, "libxess_fg.dll")) && !XessNo1080(VideoSize)) return "xess";
                 if (g == "smooth" && !NvProfiles.SmoothBroken && !Pantalla.Is119) return "smooth";
                 if (g == "fsr3" && File.Exists(Path.Combine(Paths.MagpieDir, "amd_fidelityfx_framegeneration_dx12.dll"))) return "fsr3";
             }
-            if (File.Exists(Path.Combine(Paths.MagpieDir, "libxess_fg.dll")) && WindowFor(VideoSize) != "1920x1080") return "xess";
+            if (File.Exists(Path.Combine(Paths.MagpieDir, "libxess_fg.dll")) && !XessNo1080(VideoSize)) return "xess";
             if (!NvProfiles.SmoothBroken && !Pantalla.Is119) return "smooth";
             if (File.Exists(Path.Combine(Paths.MagpieDir, "amd_fidelityfx_framegeneration_dx12.dll"))) return "fsr3";
             return "dlss";
@@ -772,7 +772,8 @@ namespace ConsoleEnhancer
         // Imagenes por cada real: modo 60 (60 -> 120 en la tele de 120 Hz) y modo 30 (2 = 60, 4 = 120). Con LS el modo 30 iba x2:
         // con 4 eran 3 inventadas de cada 4 y se veian fallos. Smooth Motion: siempre x2
         public int FgMult60 = 2, CapFgMult = 2;
-        public int FgMultNow { get { return FgTypeNow == "smooth" ? 2 : Math.Max(2, Math.Min(4, CapMode ? CapFgMult : FgMult60)); } }
+        // (1.2.2, MULTI: x3 / x4 elegibles con DLSS FG y XeSS FG, lo pedido si cabe en la pantalla; las demas x2. src\Lanzador\Multiplicador.cs)
+        public int FgMultNow { get { return MultAhora(CapMode, FgTypeNow); } }
         public int DlssFgPreset = 0;        // 0 auto, 1 A, 3 C (rendimiento)
 
         // ---- Lo demas de Magpie ----
@@ -785,15 +786,16 @@ namespace ConsoleEnhancer
         // 59,94 imagenes/s y la tele a 120,000 Hz solo tiene 60,000 huecos de 2 refrescos (saltos de 3-4 refrescos = tirones, y la latencia
         // sube y baja). El 17-11 "empeoraba" en el 30 porque iba por DirectComposition (sin VRR de verdad)
         public bool MagpieVrr30Fg = false;
-        bool Vrr30FgNow { get { return MagpieVrr30Fg && CapMode && !FgOff && FgTypeNow == "dlss"; } }
-        public bool MagpieVrrNow { get { return MagpieVrr || (MagpieVrr60Fg && !CapMode && !FgOff && FgTypeNow == "dlss") || Vrr30FgNow; } }
+        // (1.2.2, MULTI: con x3 / x4 -XeSS FG tambien- el VRR de Magpie como con DLSS FG: 90 imagenes en 120 Hz sin VRR van a tirones)
+        bool Vrr30FgNow { get { return MagpieVrr30Fg && CapMode && !FgOff && (FgTypeNow == "dlss" || MultAlto); } }
+        public bool MagpieVrrNow { get { return MagpieVrr || (MagpieVrr60Fg && !CapMode && !FgOff && (FgTypeNow == "dlss" || MultAlto)) || Vrr30FgNow; } }
         // 17-11 00:15: con DirectComposition (el 60 con DLSS FG) Magpie no puede poner VRR ("eligible=false reason=non-DXGI-path"): con el VRR
         // del 60 con DLSS FG, presentacion por DXGI con la sincronizacion vertical forzada en su perfil (estado 3 de NvProfiles, como el 60 sin
         // generacion; G-SYNC con VSync = sin cortes arriba del todo). ini magpie_vrr_dxgi=0 = DirectComposition como antes (sin VRR de verdad)
         public bool VrrDxgi = true;
         public bool DlssFgVsyncPacing = true;   // 20-11 (MAGPIE PROPIO): ini magpie_dlssfg_ritmo_vsync (MagpieLive.DlssFgVsyncPacing)
         public bool DlssFgLite = false;         // 20-11: ini magpie_dlssfg_lite (MagpieLive.DlssFgLite)
-        public bool VrrDxgiNow { get { return VrrDxgi && ((MagpieVrr60Fg && !CapMode && !FgOff && FgTypeNow == "dlss") || Vrr30FgNow) && !NvProfiles.VsyncBroken; } }
+        public bool VrrDxgiNow { get { return VrrDxgi && ((MagpieVrr60Fg && !CapMode && !FgOff && (FgTypeNow == "dlss" || MultAlto)) || Vrr30FgNow) && !NvProfiles.VsyncBroken; } }
         // RTX HDR (Nvidia VFX TrueHDR de Magpie): convierte la imagen SDR de la consola a HDR. Necesita el HDR de Windows encendido en la tele.
         // ini rtx_hdr=0/1, rtx_hdr_nits (400-2000), rtx_hdr_gris (10-100), rtx_hdr_contraste / rtx_hdr_saturacion (0-200, 100 = igual)
         public bool RtxHdr = false;        // 15-11, MEDIDO: a 4K cuesta ~15 ms por imagen (y pasa DLSSNR a 16 bits): 60 con FG 36-39 reales (sin DLSS 5 o antes del escalado igual); solo cabe en el modo 30 sin DLSS 5
@@ -851,7 +853,8 @@ namespace ConsoleEnhancer
         // 19-11 noche (VRR30): ini dxgi_30_fg_119=1 = tambien con la tele a 119,88 Hz (ahi los huecos de 2 refrescos son 59,94 por segundo,
         // los mismos que saca Magpie con la captura a 59,94: sin el desfase de 120,000 que da saltos de 3-4 refrescos)
         public bool VsyncHalf119 = false;
-        public bool VsyncHalfFgNow { get { return VsyncHalfType && CapMode && !FgOff && FgTypeNow != "smooth" && !ReflexNow && !NvProfiles.VsyncBroken && Pantalla.Hz() >= 100 && (VsyncHalf119 || !Pantalla.Is119); } }
+        // (1.2.2, MULTI: con x3 / x4 nunca "cada 2 refrescos": la salida pasa de la mitad del refresco, se quedaria en 60)
+        public bool VsyncHalfFgNow { get { return VsyncHalfType && CapMode && !FgOff && FgTypeNow != "smooth" && !ReflexNow && !NvProfiles.VsyncBroken && Pantalla.Hz() >= 100 && (VsyncHalf119 || !Pantalla.Is119) && !MultAlto; } }
         public bool ReflexNow { get { return Reflex && (FgOff || ReflexWithFg); } }        // 15-11, MEDIDO: Reflex no se activa en este montaje (Magpie cae a Async) y Async da 58,3 reales con tirones frente a 60,0 con Front Edge
         public int MagpieDuplicates = 0;            // deteccion de repetidas de Magpie: 0 nunca (las quita mpv), 1 dinamica, 2 siempre
         public int MagpieCaptureMethod = 0;         // 0 Graphics Capture (WGC)
@@ -943,7 +946,7 @@ namespace ConsoleEnhancer
         // 21-11 (1.0.9): FSR 3 FG ya la hace el motor propio (src\Motor\Engine\EngineFgFfx.cs) salvo con DLSS de escalador (con ella el motor
         // va sin Streamline, sin DLSS): entonces sigue Magpie. XeSS FG y la de NVIDIA VFX, Magpie
         public bool FgMagpieOnly { get { return !FgOff && !HomeNative && ((FgTypeNow == "fsr3" && Ce.EngineUpscaler(this) == "dlss") || FgTypeNow == "xess" || FgTypeNow == "vfg" ||
-                                                                         (FgTypeNow == "dlss" && Ce.DlssgSoloMagpie)); } }   // (1.0.10: RTX 30 + dlssg_sm86, DLSS FG por Magpie)
+                                                                         (FgTypeNow == "dlss" && Ce.DlssgSoloMagpie) || MultPorMagpie); } }   // (1.0.10: RTX 30 + dlssg_sm86, DLSS FG por Magpie; 1.2.2: DLSS FG x3 / x4, Multiplicador.cs)
         // El motor con FSR 3 FG (fg_tipo=fsr3 al abrirlo: su cadena de presentacion es la de FidelityFX; no se cambia en marcha)
         public bool EngineFfxWanted { get { return !FgOff && !HomeNative && !Mode120 && FgTypeNow == "fsr3" && Ce.EngineUpscaler(this) != "dlss"; } }
         public static volatile int EngineFfxLaunched = -1;
@@ -5627,7 +5630,8 @@ namespace ConsoleEnhancer
     }
 
     // Ajustes recordados por juego (games\profiles.txt): nombre|captura|nivel|pasadas|dlss5|escalador|modo|generacion|nombre_seguro
-    class GameProfile
+    // (1.2.2: partial, el multiplicador de la generacion en src\Lanzador\Multiplicador.cs)
+    partial class GameProfile
     {
         public string Name;          // el nombre leido en el HOME (GameNames: los largos juntando sus ventanas) o "Juego N"
         public bool NameSure;        // 15-11: nombre confirmado (votado, o la vuelta entera de la marquesina); si no, se sigue leyendo en el HOME
@@ -5665,16 +5669,17 @@ namespace ConsoleEnhancer
             return (Capture == "1280x720" ? "720p" : Capture == "1920x1080" ? "1080p" : Capture == "3840x2160" ? "4K" : "1440p") +
                    (Mode120 ? ", modo 120 fps" : Cap ? ", modo 30 fps" : "") + ", nivel " + Level + ", " + Passes + " pasada" + (Passes > 1 ? "s" : "") +
                    (Dlss5 ? "" : ", DLSS 5 apagado") + (ScalerPick == "fsr" ? ", FSR 1" : ScalerPick == "ninguno" ? ", sin reescalado" : Scaler ? "" : ", escalador alternativo") + (Fg ? "" : ", sin generacion de fotogramas") +
-                   (Pick60.Length > 0 ? ", generacion del 60: " + Pick60 : "") + (Pick30.Length > 0 ? ", generacion del 30: " + Pick30 : "");
+                   (Pick60.Length > 0 ? ", generacion del 60: " + Pick60 : "") + (Pick30.Length > 0 ? ", generacion del 30: " + Pick30 : "") + MultSummary;
         }
 
-        // 19-11 (GENERACION): la columna 10 ("smooth,xess"; vacio = los del ini)
-        public string PickText { get { return Pick60.Length == 0 && Pick30.Length == 0 ? "" : Pick60 + "," + Pick30; } }
+        // 19-11 (GENERACION): la columna 10 ("smooth,xess"; vacio = los del ini). 1.2.2: y el multiplicador de cada modo ("dlss,xess,0,4")
+        public string PickText { get { string m = MultCols; return Pick60.Length == 0 && Pick30.Length == 0 && m.Length == 0 ? "" : Pick60 + "," + Pick30 + m; } }
         public void ParsePick(string s)
         {
             string[] f = (s ?? "").Split(',');
             Pick60 = Config.ParsePick(f.Length > 0 ? f[0] : "");
             Pick30 = Config.ParsePick(f.Length > 1 ? f[1] : "");
+            ParseMult(f);
         }
     }
 
@@ -6062,6 +6067,7 @@ namespace ConsoleEnhancer
                 Load();
                 p.Capture = from.Capture; p.Level = from.Level; p.Passes = from.Passes; p.Dlss5 = from.Dlss5;
                 p.Scaler = from.Scaler; p.ScalerPick = from.ScalerPick; p.Cap = from.Cap; p.Mode120 = from.Mode120; p.Fg = from.Fg; p.Pick60 = from.Pick60; p.Pick30 = from.Pick30;
+                p.Mult60 = from.Mult60; p.Mult30 = from.Mult30;   // (1.2.2, MULTI)
                 if (!list.Contains(p)) list.Add(p);
                 SaveAll();
             }
@@ -8185,14 +8191,8 @@ namespace ConsoleEnhancer
                         }
                         return (IntPtr)1; // (la ventana no lo recibe: el motor no se cierra solo para volver a abrirse)
                     }
-                    // 19-11 (GENERACION): Ctrl+G con el teclado sobre la imagen de la consola = el selector de generacion (como L3 del mando)
-                    if (!up && !injected && k.Vk == 0x47 && (GetAsyncKeyState(0x11) & 0x8000) != 0 && (GetAsyncKeyState(0x12) & 0x8000) == 0 &&
-                        !userExit && EsVentanaDeLaApp(GetForegroundWindow()))
-                    {
-                        ThreadPool.QueueUserWorkItem(delegate { try { GenSelectorPress(); } catch (Exception ex) { Log.Error("Selector de generacion (teclado)", ex); } });
-                        return (IntPtr)1;
-                    }
-                    // 21-11 (1.0.10, Reddit: sin mando): Ctrl+F / M / 1-4 / R / D / I sobre la imagen = lo de los botones (src\Lanzador\MenuJuego.cs)
+                    // 21-11 (1.0.10, Reddit: sin mando): Ctrl+F / G / M / X / 1-4 / R / D / I sobre la imagen = lo de los botones (src\Lanzador\MenuJuego.cs;
+                    // 1.2.2: Ctrl+G, el selector de generacion como L3, va alli con los demas: antes iba aqui aparte, sin la espera ni la imagen delante)
                     if (!up && !injected && AjustesTecla((uint)k.Vk)) return (IntPtr)1;   // (1.0.11: con el menu de ajustes abierto, flechas / Intro / Esc)
                     if (!up && !injected && TeclaCe((uint)k.Vk)) return (IntPtr)1;
                     if (!injected && k.Vk == 0x5C) // Win derecha
@@ -8271,7 +8271,7 @@ namespace ConsoleEnhancer
                        " · motor propio · " + (cfg.ScalerNow == "dlss" ? "DLSS " + Config.EngineModelName(cfg.EnginePresetNow) : "Catmull-Rom, sin DLSS") +
                        (!dlss5Shown ? " · DLSS 5 desactivado" : " · DLSS 5 no cabe en este modo");
             return (curGame ?? "Juego") + " · " + SizeName(cfg.VideoSize) + " · " +
-                   (fgWanted ? (cfg.CapMode ? "30" : "60") + " → " + fps + " fps (" + cfg.FgName + ")" : fps + " fps sin generación") + " · " +
+                   (fgWanted ? (cfg.CapMode ? "30" : "60") + " → " + fps + " fps (" + cfg.FgName + cfg.MultEtiqueta + ")" + MultNota() : fps + " fps sin generación") + " · " +
                    (!dlss5Shown ? "DLSS 5 desactivado" : !Integrado.Dlss5Available ? Integrado.Dlss5MissingText : !cfg.Dlss5FitsNow ? "DLSS 5 no cabe en este modo (se quita)" : "DLSS 5 nivel " + dlss5Level + " · " + Pasadas(cfg.Dlss5PassesNow) + (cfg.Dlss5PassesNow < dlss5Passes ? " (" + dlss5Passes + " no caben)" : "") + " · " + (cfg.Dlss5PctShownNow > 0 ? cfg.Dlss5PctShownNow + " %" : "adaptativo") + (cfg.EngineDlss5Now ? " · motor propio" : "")) +
                    (cfg.UpscaleOn ? " · " + cfg.ScalerName(cfg.ScalerNow) : "");
         }
@@ -10229,6 +10229,7 @@ namespace ConsoleEnhancer
             p.Mode120 = cfg.Mode120; // 20-11 (HZ120)
             p.Fg = fgWanted;
             p.Pick60 = cfg.FgPick60; p.Pick30 = cfg.FgPick30; // (19-11, GENERACION)
+            p.Mult60 = cfg.MultPick60; p.Mult30 = cfg.MultPick30; // (1.2.2, MULTI: el multiplicador de la generacion)
             return p;
         }
 
@@ -10494,6 +10495,7 @@ namespace ConsoleEnhancer
                 fgWanted = p.Fg;
                 SaveText(Paths.FgFile, p.Fg ? "1" : "0");
                 SetPicks(p.Pick60, p.Pick30); // (19-11, GENERACION: el tipo de generacion elegido con L3 en este juego)
+                SetMults(p.Mult60, p.Mult30); // (1.2.2, MULTI: y su multiplicador x2 / x3 / x4 de cada modo)
             }
             ClearPending();
             lock (homeSync) { homeHits = 0; homeGame = null; homeShape = null; selReads = null; }
@@ -10538,6 +10540,7 @@ namespace ConsoleEnhancer
                 fgWanted = p.Fg;
                 SaveText(Paths.FgFile, p.Fg ? "1" : "0");
                 SetPicks(p.Pick60, p.Pick30); // (19-11, GENERACION: el tipo de generacion elegido con L3 en este juego)
+                SetMults(p.Mult60, p.Mult30); // (1.2.2, MULTI: y su multiplicador x2 / x3 / x4 de cada modo)
                 SetScalerChoice(p.Scaler, p.ScalerPick);
                 // Otra ventana (la captura de 4K): mpv y Magpie se reabren y Magpie coge ya todo lo de arriba
                 if (newWindow)
@@ -10953,6 +10956,7 @@ namespace ConsoleEnhancer
                     SaveText(Paths.FgFile, p.Fg ? "1" : "0");
                 }
                 SetPicks(p.Pick60, p.Pick30); // (19-11, GENERACION: el tipo de generacion elegido con L3 en este juego)
+                SetMults(p.Mult60, p.Mult30); // (1.2.2, MULTI: y su multiplicador x2 / x3 / x4 de cada modo)
                 // (19-11: o si con sus ajustes toca el otro motor: FSR 3 / XeSS FG solo los hace Magpie; RestartLs cambia de motor)
                 if (!newWindow && LsHardChanges() > 0) pendingPassesRestart = true;
                 PrepareCfg();
@@ -11062,7 +11066,7 @@ namespace ConsoleEnhancer
             }
             RestartLs(ModoTexto(fps),
                       (m120 ? "captura a " + cfg.FramerateNow + " · baja latencia" :
-                       fgWanted ? (cap ? "30 → " + 30 * cfg.FgMultNow : "60 → " + 60 * cfg.FgMultNow) + " fps · " + ScalerText() :
+                       fgWanted ? (cap ? "30 → " + 30 * cfg.FgMultNow : "60 → " + 60 * cfg.FgMultNow) + " fps" + MultNota() + " · " + ScalerText() :
                        ScalerText()),
                       fpsChange);
         }
@@ -11934,7 +11938,8 @@ namespace ConsoleEnhancer
             CeEscalasMagpie(st); // (ConsoleEnhancer: la escala de DLSS 5 por Magpie que cabe en este PC, src\Escalas.cs)
             // (1.2.01: Magpie no llega a los fps del modo -> se baja un paso, src\FpsBajo.cs; 1.2.1: con DLSS 5 por Magpie lo vigila la escala
             // automatica, src\EscalaAuto.cs: primero el % de DLSS 5, en caliente)
-            if (pid > 0 && !EscalaVigila(st)) FpsMagpieVigila(st.Captured);
+            // (1.2.2, MULTI: con x3 / x4, si la salida no llega lo primero es bajar el multiplicador, src\Lanzador\Multiplicador.cs)
+            if (pid > 0 && !MultVigila(st) && !EscalaVigila(st)) FpsMagpieVigila(st.Captured);
             if (st.Errors > 0 && (now - lastErrLog).TotalSeconds >= 30)
             {
                 lastErrLog = now;
@@ -13490,6 +13495,7 @@ namespace ConsoleEnhancer
                 }
                 Log.Write("Arranque de Magpie (" + (lsStartSw != null ? lsStartSw.ElapsedMilliseconds + " ms desde que se abrio" : "ya abierto") + "): " +
                           errors + " errores en su log" + sb);
+                MultComprobarArranque(text); // (1.2.2, MULTI: el multiplicador que ha puesto Magpie de verdad, src\Lanzador\Multiplicador.cs)
             });
             t.IsBackground = true;
             t.Start();

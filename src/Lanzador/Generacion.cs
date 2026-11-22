@@ -58,7 +58,7 @@ namespace ConsoleEnhancer
                 if (!cfg.FgAvailable || ((t == "smooth" || t == "dlss") && Ce.NoNvidia)) continue;
                 if (t == "dlss" && cfg.DlssFgPorMagpieSinRuntime) continue; // (1.0.10: RTX 30 sin el runtime; 1.1.2: con DLSS 5 por Magpie, sin el runtime)
                 if (t == "fsr3" && !File.Exists(Path.Combine(Paths.MagpieDir, "amd_fidelityfx_framegeneration_dx12.dll"))) continue;
-                if (t == "xess" && (!File.Exists(Path.Combine(Paths.MagpieDir, "libxess_fg.dll")) || Config.WindowFor(videoSize) == "1920x1080")) continue; // (19-11: a 1080p no arranca)
+                if (t == "xess" && (!File.Exists(Path.Combine(Paths.MagpieDir, "libxess_fg.dll")) || Config.XessNo1080(videoSize))) continue; // (19-11: a 1080p no arrancaba; 1.2.2: xess_fg_1080, Multiplicador.cs)
                 r.Add(t);
             }
             return r;
@@ -191,6 +191,7 @@ namespace ConsoleEnhancer
 
         void LoadPicks()
         {
+            MultCargar(); // (1.2.2, MULTI: el multiplicador de cada modo, games\framegen_mult.txt)
             string s = LoadText(Paths.FgPickFile);
             if (string.IsNullOrEmpty(s)) return;
             foreach (string raw in s.Split('\n'))
