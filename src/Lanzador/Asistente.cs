@@ -492,6 +492,7 @@ namespace ConsoleEnhancer
                 ProcessStartInfo psi = new ProcessStartInfo(Mpv, args);
                 psi.UseShellExecute = false; psi.CreateNoWindow = true;
                 prueba = Process.Start(psi);
+                EngineJob.Hold(prueba, true);   // (22-11, 1.2.2: si el asistente se cierra o muere en esos 8 s, Windows cierra la prueba)
                 Process yo = prueba;
                 ThreadPool.QueueUserWorkItem(delegate { Thread.Sleep(9000); try { if (yo != null && !yo.HasExited) yo.Kill(); } catch { } }); // (con fuentes en vivo --length no siempre vale)
                 estado.Text = texto;
