@@ -12042,7 +12042,9 @@ namespace ConsoleEnhancer
             bool fixedRefresh = fixedOverride >= 0 ? (fixedOverride > 0 && sm == 0) : (sm == 0 && cfg.EngineFixedWanted);
             if (fixedRefresh || NvProfiles.EngineFixedOn) { if (!NvProfiles.SetEngineFixed(fixedRefresh)) fixedRefresh = false; }
             Config.EngineFixedLaunched = fixedRefresh ? 1 : 0;
-            Config.EngineFfxLaunched = cfg.EngineFgChain;   // 21-11 (1.0.9): FSR 3 FG en el motor (1.2.4 MOTORFG: 2 XeSS FG; src\Lanzador\MotorFg.cs)
+            // 21-11 (1.0.9): FSR 3 FG en el motor (1.2.4 MOTORFG: XeSS FG; src\Lanzador\MotorFg.cs). (1.2.4, integracion: el de reserva -Smooth
+            // Motion / DLSS-G, la "otra" del modo- con la cadena de siempre: con la de XeSS FG de ahora no valdria nunca y gastaria memoria)
+            Config.EngineFfxLaunched = smOverride >= 0 ? 0 : cfg.EngineFgChain;
             List<string> a = new List<string>();
             a.Add("ipc=" + ipc);
             a.Add("flag=" + Paths.FlagFile);
