@@ -4,8 +4,8 @@
 // Windows y la captura de Magpie; el motor propio lo hace sobre la captura directa (src\Motor\Engine\EngineDlss5.cs) con
 // engine\PrismaNr.dll, que NO se distribuye (solo existe en el PC de quien la compila: sin ella nada de esto se ve ni cambia).
 // MEDIDO (22-11, RTX 4060 Ti, tele 3840x2160@120 VRR, modo 30 + DLSS FG x2, DLSS 5 nivel 2 con 1 pasada, fuente de prueba, PresentMon):
-//   4K: motor (DLSS 5 al 70 %) real 43,3 ms / inventada 26,7, el 100 % de las imagenes a 2 refrescos; Magpie (al 45 %) real ~71 ms
-//       (p50), el 61 % a +-2 ms de lo esperado y 230 huecos/min. 1440p -> 4K (DLSS M): motor real 41,9 / inventada 25,3.
+//   4K: motor (DLSS 5 al 70 %) real 43,3 ms / inventada 26,7, el 100 % de las imagenes a 2 refrescos y 29,97 reales/s; Magpie (al
+//       40-45 %) real ~70-73 ms / inventada ~59, el 65-69 % a +-2 ms y 28,1-28,5 reales/s. 1440p -> 4K (DLSS M): motor 41,9 / 25,3.
 // Lo que el motor no hace sigue por Magpie (y Magpie lo hace como siempre, con su escala automatica): mas pasadas de las que hace el
 // motor (motor_dlss5_pasadas, de serie 1: Magpie tiene para 2-3 pasadas sus controles de halo / color / enfoque), x3 / x4 (DLSS-G del
 // motor solo x2), XeSS FG / NVIDIA VFG. El cambio entre los dos va sin telon (el puente de siempre; el motor del puente suelta DLSS 5:
