@@ -45,6 +45,7 @@ namespace ConsoleEnhancer
         // ahora, jugando a 4K con generacion en el modo 30, una cada captura_juego_4k_fg_s (de serie 3: el menu de la consola se ve, como
         // mucho, 1,5 s mas tarde). captura_juego_4k_s = la de los demas casos a 4K (de serie 1,5, como antes)
         public double Grab4kSecs = 1.5, Grab4kFgSecs = 3.0;
+        public int RitmoResumenSecs = 300;   // ritmo_resumen_s: cada cuanto va al log "Tirones por origen" (de serie 5 min; pruebas: menos)
         public double RitmoGrab4kSecs { get { return CapMode && !FgOff && !HomeNative ? Math.Max(Grab4kSecs, Grab4kFgSecs) : Grab4kSecs; } }
 
         bool CeParseRitmo(string key, string val)
@@ -57,6 +58,12 @@ namespace ConsoleEnhancer
                 case "magpie_vrr_30_otras": RitmoVrr30Otras = si; return true;
                 case "magpie_fijo_30_dlss": RitmoFijo30Dlss = si; return true;
                 case "magpie_sigue_fuente_30_fg": RitmoSigue30Fg = si; return true;
+                case "ritmo_resumen_s":
+                    {
+                        int n;
+                        if (int.TryParse(v, NumberStyles.Integer, CultureInfo.InvariantCulture, out n)) RitmoResumenSecs = Math.Max(20, Math.Min(3600, n));
+                        return true;
+                    }
                 case "captura_juego_4k_s":
                 case "captura_juego_4k_fg_s":
                     {
@@ -213,8 +220,8 @@ namespace ConsoleEnhancer
             string texto = ""; double peorDe = 0;
             foreach (Ventana v in vs)
             {
-                bool tiron = v.CapMax >= normal * 1.45 && v.CapMax - normal >= 20 && v.CapMax < 1000;
-                bool salidaMal = !tiron && v.OutMax >= salida * 1.9 && v.OutMax - salida >= 14 && v.OutMax < 1000;
+                bool tiron = v.CapMax >= normal * 1.45 && v.CapMax - normal >= 20 && v.CapMax < 400;   // (como antes: lo de 400 ms o mas es un cambio, no un tiron)
+                bool salidaMal = !tiron && v.OutMax >= salida * 1.9 && v.OutMax - salida >= 14 && v.OutMax < 400 && v.CapMax < normal * 1.45;
                 if (!tiron && !salidaMal) continue;
                 int o; string porque;
                 if (salidaMal) { o = 5; porque = "Magpie presento con un hueco de " + R(v.OutMax) + " ms con las imagenes llegando bien (su ritmo, la generacion o la cola de la pantalla)"; }

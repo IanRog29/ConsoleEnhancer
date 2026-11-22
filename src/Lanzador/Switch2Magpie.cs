@@ -11933,7 +11933,9 @@ namespace ConsoleEnhancer
             {
                 lsPidSeen = pid;
                 lsLogPos = -1;
-                RitmoDiag.Limpia();   // (22-11, 1.2.2 RITMO)
+                // (22-11, 1.2.2 RITMO: lo del Magpie que se cierra, con su perfil, y a cero para el nuevo)
+                { string r = RitmoDiag.Resumen(); if (r != null && ritmoPerfil != null) Log.Write("Tirones por origen (hasta cerrar Magpie, " + ritmoPerfil + "): " + r); }
+                RitmoDiag.Limpia(); ritmoOrigenSince = DateTime.MinValue; ritmoPerfil = pid > 0 ? cfg.ProfileText : null;
                 if (pid > 0) Log.Write("Magpie: " + cfg.ProfileText);
             }
             LsStats st = ReadLsStats();
@@ -11976,9 +11978,9 @@ namespace ConsoleEnhancer
                 Log.Write("Tirones sueltos: " + (st.CapMax >= normal * 1.45 ? "Magpie estuvo " + Ms(Math.Round(st.CapMax, 1)) + " ms sin imagen nueva (p95 " + Ms(Math.Round(st.CapP95, 1)) + ")" : "peor " + Ms(Math.Round(peorRitmo)) + " ms") +
                           " -> " + origen);
             }
-            if (pid > 0 && (now - ritmoOrigenSince).TotalMinutes >= 5)
+            if (pid > 0 && (now - ritmoOrigenSince).TotalSeconds >= cfg.RitmoResumenSecs)
             {
-                if (ritmoOrigenSince != DateTime.MinValue) { string r = RitmoDiag.Resumen(); if (r != null) Log.Write("Tirones por origen (5 min, " + cfg.ProfileText + "): " + r); }
+                if (ritmoOrigenSince != DateTime.MinValue) { string r = RitmoDiag.Resumen(); if (r != null) Log.Write("Tirones por origen (" + Ms(Math.Round((now - ritmoOrigenSince).TotalMinutes, 1)) + " min, " + cfg.ProfileText + "): " + r); }
                 ritmoOrigenSince = now;
             }
             // Modo 60 con generacion: si Magpie recibe bastante menos de 60 reales con mpv dandole 60, la grafica no llega
@@ -11997,6 +11999,7 @@ namespace ConsoleEnhancer
         int lockWins;
         int ritmoWin, ritmoGaps, ritmoSpikes, ritmoBoth;   // (19-11, FLUIDEZ: el resumen de ritmo de cada 5 min)
         DateTime ritmoOrigenSince = DateTime.MinValue;     // (22-11, 1.2.2 RITMO: el resumen por origen, src\Lanzador\Ritmo.cs)
+        string ritmoPerfil;
         DateTime ritmoSince = DateTime.MinValue;
         DateTime lastLockLog = DateTime.MinValue, lastErrLog = DateTime.MinValue;
 
