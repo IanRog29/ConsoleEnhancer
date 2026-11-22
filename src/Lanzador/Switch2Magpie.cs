@@ -14660,6 +14660,8 @@ namespace ConsoleEnhancer
                 if (arg == "--test-solo-motor" || arg.StartsWith("--test-solo-motor=")) return Config.SoloMotorPrueba(arg.Length > 18 ? arg.Substring(18) : null);
                 // 22-11 (1.2.3, MOTOR5): PrismaNr.dll junto a la DLL elegida en "Añadir DLSS 5": --test-extras-guardados[=<informe>]
                 if (arg == "--test-extras-guardados" || arg.StartsWith("--test-extras-guardados=")) return ExtrasGuardados.Prueba(arg.Length > 24 ? arg.Substring(24) : null);
+                // 22-11 (1.2.4): la busqueda de los archivos de DLSS 5 en el PC con carpetas falsas: --test-buscar-extras[=<informe>] (BuscaExtras.cs)
+                if (arg == "--test-buscar-extras" || arg.StartsWith("--test-buscar-extras=")) return BuscaExtras.Prueba(arg.Length > 21 ? arg.Substring(21) : null);
                 if (arg.StartsWith("--ui-preview=")) return PrismaPreview.Run(arg.Substring(13));
                 // 18-11 (MANDOS): --test-mandos=<segundos>;<archivo>: mandos detectados, botones pulsados y el modo PC (sin mandar nada)
                 if (arg.StartsWith("--test-mandos=")) return PadTest.Run(arg.Substring(14), args);

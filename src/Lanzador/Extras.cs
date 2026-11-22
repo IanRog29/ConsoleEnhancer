@@ -113,7 +113,19 @@ namespace ConsoleEnhancer
                     "ConsoleEnhancer does not include it, download it or say where to get it. Using it is your own responsibility. " +
                     "The app works fully without it.\r\n\r\nPick your nvngx_dlssnr.dll file?"), MessageBoxIcon.Warning))
                 return false;
-            string origen;
+            string origen = null;
+            // (1.2.4, lo aprobo el usuario) primero se busca en ESTE PC lo que ya tenga (BuscaExtras.cs: solo local, ~4 s como mucho,
+            // cancelable) y se elige de la lista; con "Elegir otro archivo...", la busqueda cancelada o nada encontrado: el selector de siempre
+            BuscaExtras.Hallazgo smHallado = null;
+            {
+                bool otro, cancel;
+                BuscaExtras.Hallazgo h = BuscaExtras.Elegir(w, 4000, out smHallado, out otro, out cancel);
+                if (h != null) origen = h.Ruta;
+                else if (cancel || otro) { }
+                else if (smHallado != null && HayDlss5) { PonerSm86(w, smHallado.Ruta); ExtrasGuardados.Guardar("añadido"); return true; }
+                else if (smHallado == null) return false;   // (la lista cerrada sin elegir)
+            }
+            if (origen == null)
             using (OpenFileDialog d = new OpenFileDialog())
             {
                 d.Title = Tx.T("Tu archivo nvngx_dlssnr.dll", "Your nvngx_dlssnr.dll file");
@@ -167,6 +179,7 @@ namespace ConsoleEnhancer
                 string sm = BuscarSm86(origen);
                 if (sm != null) PonerSm86(w, sm);
             }
+            if (!HaySm86 && smHallado != null) PonerSm86(w, smHallado.Ruta);   // (1.2.4: la que se encontro en el PC y se marco en la lista)
             // (22-11, 1.2.3 MOTOR5) y PrismaNr.dll ("DLSS 5" en el motor propio) si esta junto a la DLL elegida: a engine\. (1.2.4: viene ya en
             // el zip; solo si falta, para no cambiar la de esta version por una de otra)
             if (!File.Exists(PrismaNr)) { string pn = BuscarPrismaNr(origen); if (pn != null) PonerPrismaNr(w, pn); }

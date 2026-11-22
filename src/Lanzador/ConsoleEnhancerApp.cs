@@ -130,6 +130,7 @@ namespace ConsoleEnhancer
                 }
             try { Application.EnableVisualStyles(); Application.SetCompatibleTextRenderingDefault(false); } catch (InvalidOperationException) { }
             ExtrasGuardados.AlArrancar();   // (22-11, 1.2.3 MOTOR5: lo que puso el usuario y no va en el zip, de %LOCALAPPDATA% si falta; src\Lanzador\ExtrasGuardados.cs)
+            BuscaExtras.AlArrancar();       // (1.2.4: si aun falta DLSS 5, una vez: lo que ya este en este PC, con permiso; src\Lanzador\BuscaExtras.cs)
             PrepararExtras();
             bool forzar = false, auto = false;
             string simula = null;   // pruebas: --simula=<caso de Deteccion.Simulador> (con --asistente-auto): el plan de otro PC
