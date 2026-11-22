@@ -27,8 +27,10 @@ PUBLICAR (20-11, agente PUBLICAR: https://github.com/IanRog29/ConsoleEnhancer, a
     nombre, aviso de no oficial, copia a <app>\extras\ (Ce.PrepararExtras la pasa a magpie\), y encender (juegos\dlss5_activo.txt);
     DLSS 5 en el motor siempre que haya engine\PrismaNr.dll (1.2.4: sin motor_dlss5 ni pregunta). Sin enlaces ni nombres de webs de descarga en ningun sitio.
     1.2.4 ("haz lo que sea legal"): la app ya NO baja dlssg_sm86 (fuera de scripts\components.json; Componentes.AsegurarSm86 solo coge
-    una copia que ya este en el PC). PrismaNr / PrismaFg (piezas privadas del motor) nunca van a git ni al zip (.gitignore,
-    empaquetar.ps1 y el filtro $malos del CI).
+    una copia que ya este en el PC). Ultima decision del usuario (1.2.4): PrismaNr y PrismaFg (piezas propias del motor, C++) SI van a
+    git y al zip (el CI las compila con MSVC; PrismaNr con las 2 cabeceras de NGX de scripts\descargar_cabeceras_ngx.ps1, que no van a
+    git). Siguen fuera de git, del zip y del CI: nvngx_dlssnr.dll, dlssg_sm86 y cualquier DLL de NVIDIA no redistribuible. "Anadir
+    DLSS 5" busca en el PC del usuario (solo local, BuscaExtras.cs) lo que ya tenga.
   - Asistente, ultimo paso: estado de los componentes, boton "Anadir / Quitar DLSS 5" (GeForce RTX) y un enlace discreto a Ko-fi.
   - Ko-fi: .github\FUNDING.yml (boton Sponsor), README (es / en), Acerca de, LEEME.txt del zip. Voluntario: la app es gratis y completa.
 

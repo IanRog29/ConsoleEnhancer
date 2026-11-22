@@ -157,6 +157,8 @@ Texto "$lic\README.txt" @(
     ' - NVIDIA DLSS Super Resolution y Frame Generation, RTX Dynamic Vibrance (engine\nvngx_dlss.dll, nvngx_dlssg.dll, nvngx_deepdvc.dll): NVIDIA RTX SDKs License',
     '   (streamline\nvngx_dlss.license.txt) y NVIDIA-NOTICE.txt.',
     ' - NVIDIA Reflex (engine\sl.reflex.dll, sl.pcl.dll): streamline\reflex.license.txt.',
+    ' - engine\PrismaNr.dll, engine\PrismaFg.dll: codigo propio de ConsoleEnhancer (GPL-3.0); cargan archivos que pone el usuario sin la',
+    '   comprobacion de NGX de NVIDIA (ver THIRD-PARTY.md) / own code; they load user-added files without NVIDIA''s NGX check.',
     '',
     'Bajados por la app la primera vez (NO van en el paquete; cada uno con su licencia, dentro de su carpeta):',
     "Downloaded by the app on first start (NOT in the package; each one keeps its license inside its folder):",
@@ -173,13 +175,17 @@ Texto "$Destino\extras\README.txt" @(
     '   archivo, la app comprueba que es una DLL de 64 bits, avisa y la copia aqui. "Quitar DLSS 5" la borra. Bajo tu responsabilidad.',
     ' - runtimes\dlssg_sm86 (DLSS FG de Magpie con DLSS 5, o x3 / x4 por Magpie): paquete de la comunidad que hace que NGX cargue DLSS FG',
     '   sin la comprobacion de NVIDIA. Desde la 1.2.4 la app no lo trae ni lo baja; si ya lo tienes, ponlo en extras\runtimes\dlssg_sm86.',
-    'ConsoleEnhancer no reparte, no baja ni recomienda nvngx_dlssnr.dll ni dlssg_sm86: NVIDIA no los ha publicado asi y su uso puede ir',
+    'Anadir DLSS 5 los busca en ESTE PC si ya los tienes (Descargas, Escritorio, otras carpetas de la app...; solo local) y eliges tu.',
+    'Con ellos, engine\PrismaNr.dll y engine\PrismaFg.dll (codigo propio de la app) los cargan sin la comprobacion de NGX de NVIDIA.',
+    'ConsoleEnhancer no reparte, no baja ni recomienda nvngx_dlssnr.dll ni dlssg_sm86: NVIDIA no los ha publicado asi y su uso puede ir'
     'contra sus condiciones. Si no sabes de donde salen, no los uses.',
     '',
     'UNOFFICIAL extras (not shipped; the app works fully without them): nvngx_dlssnr.dll (community-modified, unsigned NVIDIA DLL) and',
     'runtimes\dlssg_sm86 (community package that makes NGX load DLSS FG without NVIDIA''s check; since 1.2.4 the app no longer downloads it).',
     'If you already have them, use tray icon > "Add DLSS 5 (your own file)..." (it checks the file and copies it here) or put them here by',
-    'hand; used at your own risk. ConsoleEnhancer does not distribute, download or recommend nvngx_dlssnr.dll or dlssg_sm86.')
+    'hand (Add DLSS 5 also finds them on THIS PC if you already have them; local only); used at your own risk. With them, the app''s own',
+    'engine\PrismaNr.dll / PrismaFg.dll load them without NVIDIA''s NGX check. ConsoleEnhancer does not distribute, download or recommend',
+    'nvngx_dlssnr.dll or dlssg_sm86.')
 Texto "$Destino\README.txt" @(
     "ConsoleEnhancer $verTxt - your console through a capture card, enhanced on your PC / tu consola por la capturadora, mejorada en el PC",
     '',
@@ -192,7 +198,8 @@ Texto "$Destino\README.txt" @(
     'Unzip it into one of your own folders, not Program Files.',
     "Help, issues and source code: $webTxt. Licenses: licenses\README.txt. No warranty (GPL-3.0).",
     'DLSS 5: not included and never downloaded (nor dlssg_sm86). Legal DLSS 5 does not exist today outside NVIDIA''s own games on RTX 50;',
-    'whatever you add yourself is yours and at your own risk (extras\README.txt). The app works fully without it.',
+    'whatever you add yourself is yours and at your own risk (extras\README.txt). The app works fully without it. The engine''s own',
+    'engine\PrismaNr.dll / PrismaFg.dll load the files you add without NVIDIA''s NGX check, which NVIDIA''s terms do not allow.',
     'ConsoleEnhancer is free and complete. If you find it useful and want to support it (optional): https://ko-fi.com/ianrog29',
     '',
     '--- ESPANOL ---',
@@ -212,7 +219,8 @@ Texto "$Destino\README.txt" @(
     "Ayuda, problemas y codigo fuente: $webTxt",
     'Licencias: licenses\README.txt. Extras no oficiales: extras\README.txt. Sin garantia (GPL-3.0).',
     'DLSS 5: no viene ni se baja nunca (tampoco dlssg_sm86). DLSS 5 legal hoy no existe fuera de los juegos de NVIDIA en RTX 50; lo que',
-    'anadas tu es tuyo y bajo tu responsabilidad (extras\README.txt). La app funciona entera sin el.',
+    'anadas tu es tuyo y bajo tu responsabilidad (extras\README.txt). La app funciona entera sin el. Las piezas propias del motor',
+    'engine\PrismaNr.dll / PrismaFg.dll cargan los archivos que pones tu sin la comprobacion de NGX de NVIDIA, cosa que sus terminos no permiten.',
     'ConsoleEnhancer es gratis y completo. Si te es util y quieres apoyarlo (opcional): https://ko-fi.com/ianrog29')
 
 # ---- comprobaciones ----
