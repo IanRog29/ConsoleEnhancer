@@ -980,6 +980,9 @@ local function do_grab(path, mode)
     local gt = mp.get_time()
     grab_gap, grab_t = gt - grab_t, gt
     local r = mp.command_native({name = "screenshot-raw", flags = "video"})
+    -- 22-11 (1.2.2, RITMO): lo que ha tenido parado a mpv (a 4K 40-60 ms: mas que el hueco entre dos imagenes del modo 30), para
+    -- que el lanzador sepa si un tiron viene de una captura suya (src\Lanzador\Ritmo.cs)
+    mp.commandv("script-message", "switch2-diag-captura", string.format("%.1f", (mp.get_time() - gt) * 1000))
     if not r or not r.data or not r.w or r.w <= 0 then
         mp.commandv("script-message", "switch2-grabbed", "")
         return

@@ -785,15 +785,16 @@ namespace ConsoleEnhancer
         // 59,94 imagenes/s y la tele a 120,000 Hz solo tiene 60,000 huecos de 2 refrescos (saltos de 3-4 refrescos = tirones, y la latencia
         // sube y baja). El 17-11 "empeoraba" en el 30 porque iba por DirectComposition (sin VRR de verdad)
         public bool MagpieVrr30Fg = false;
-        bool Vrr30FgNow { get { return MagpieVrr30Fg && CapMode && !FgOff && FgTypeNow == "dlss"; } }
-        public bool MagpieVrrNow { get { return MagpieVrr || (MagpieVrr60Fg && !CapMode && !FgOff && FgTypeNow == "dlss") || Vrr30FgNow; } }
+        // (22-11, 1.2.2 RITMO: que generaciones del modo 30 van por VRR y el modo 30 sin generacion por VRR, src\Lanzador\Ritmo.cs)
+        bool Vrr30FgNow { get { return MagpieVrr30Fg && CapMode && !FgOff && RitmoVrr30FgTipo; } }
+        public bool MagpieVrrNow { get { return MagpieVrr || (MagpieVrr60Fg && !CapMode && !FgOff && FgTypeNow == "dlss") || Vrr30FgNow || RitmoVrr30SinFgNow; } }
         // 17-11 00:15: con DirectComposition (el 60 con DLSS FG) Magpie no puede poner VRR ("eligible=false reason=non-DXGI-path"): con el VRR
         // del 60 con DLSS FG, presentacion por DXGI con la sincronizacion vertical forzada en su perfil (estado 3 de NvProfiles, como el 60 sin
         // generacion; G-SYNC con VSync = sin cortes arriba del todo). ini magpie_vrr_dxgi=0 = DirectComposition como antes (sin VRR de verdad)
         public bool VrrDxgi = true;
         public bool DlssFgVsyncPacing = true;   // 20-11 (MAGPIE PROPIO): ini magpie_dlssfg_ritmo_vsync (MagpieLive.DlssFgVsyncPacing)
         public bool DlssFgLite = false;         // 20-11: ini magpie_dlssfg_lite (MagpieLive.DlssFgLite)
-        public bool VrrDxgiNow { get { return VrrDxgi && ((MagpieVrr60Fg && !CapMode && !FgOff && FgTypeNow == "dlss") || Vrr30FgNow) && !NvProfiles.VsyncBroken; } }
+        public bool VrrDxgiNow { get { return VrrDxgi && ((MagpieVrr60Fg && !CapMode && !FgOff && FgTypeNow == "dlss") || Vrr30FgNow || RitmoVrr30SinFgNow) && !NvProfiles.VsyncBroken; } }
         // RTX HDR (Nvidia VFX TrueHDR de Magpie): convierte la imagen SDR de la consola a HDR. Necesita el HDR de Windows encendido en la tele.
         // ini rtx_hdr=0/1, rtx_hdr_nits (400-2000), rtx_hdr_gris (10-100), rtx_hdr_contraste / rtx_hdr_saturacion (0-200, 100 = igual)
         public bool RtxHdr = false;        // 15-11, MEDIDO: a 4K cuesta ~15 ms por imagen (y pasa DLSSNR a 16 bits): 60 con FG 36-39 reales (sin DLSS 5 o antes del escalado igual); solo cabe en el modo 30 sin DLSS 5
@@ -851,7 +852,8 @@ namespace ConsoleEnhancer
         // 19-11 noche (VRR30): ini dxgi_30_fg_119=1 = tambien con la tele a 119,88 Hz (ahi los huecos de 2 refrescos son 59,94 por segundo,
         // los mismos que saca Magpie con la captura a 59,94: sin el desfase de 120,000 que da saltos de 3-4 refrescos)
         public bool VsyncHalf119 = false;
-        public bool VsyncHalfFgNow { get { return VsyncHalfType && CapMode && !FgOff && FgTypeNow != "smooth" && !ReflexNow && !NvProfiles.VsyncBroken && Pantalla.Hz() >= 100 && (VsyncHalf119 || !Pantalla.Is119); } }
+        // (22-11, 1.2.2 RITMO: solo con x2; con x3 / x4 la sincronizacion "cada 2 refrescos" dejaria la salida en 60: Config.RitmoFijo1Now)
+        public bool VsyncHalfFgNow { get { return VsyncHalfType && CapMode && !FgOff && FgTypeNow != "smooth" && FgMultNow <= 2 && !ReflexNow && !NvProfiles.VsyncBroken && Pantalla.Hz() >= 100 && (VsyncHalf119 || !Pantalla.Is119); } }
         public bool ReflexNow { get { return Reflex && (FgOff || ReflexWithFg); } }        // 15-11, MEDIDO: Reflex no se activa en este montaje (Magpie cae a Async) y Async da 58,3 reales con tirones frente a 60,0 con Front Edge
         public int MagpieDuplicates = 0;            // deteccion de repetidas de Magpie: 0 nunca (las quita mpv), 1 dinamica, 2 siempre
         public int MagpieCaptureMethod = 0;         // 0 Graphics Capture (WGC)
@@ -1987,7 +1989,8 @@ namespace ConsoleEnhancer
             // 16-11 (G1): en el modo 30 con la sincronizacion de cada 2 refrescos (NvProfiles.VerticalSyncHalf: cada imagen 2 refrescos)
             // 16-11 04:20 (G1): y sin generacion en el modo 60, solo la sincronizacion vertical forzada (3: Magpie por DXGI, Config.VsyncNoFgNow)
             // (16-11 10:10: y el modo 30 con DLSS FG, solo la sincronizacion cada 2 refrescos: 4, Config.VsyncHalfFgNow)
-            int smWant = cfg.SmoothNow ? (cfg.CapMode && Pantalla.Hz() >= 100 ? 2 : 1) : cfg.VsyncNoFgNow || cfg.VrrDxgiNow ? 3 : cfg.VsyncHalfFgNow ? 4 : 0;
+            // (22-11, 1.2.2 RITMO: x3 / x4 sin VRR, con la sincronizacion vertical forzada: Config.RitmoFijo1Now)
+            int smWant = cfg.SmoothNow ? (cfg.CapMode && Pantalla.Hz() >= 100 ? 2 : 1) : cfg.VsyncNoFgNow || cfg.VrrDxgiNow || cfg.RitmoFijo1Now ? 3 : cfg.VsyncHalfFgNow ? 4 : 0;
             if (NvProfiles.SmoothState != smWant)
             {
                 if (write) NvProfiles.SetSmooth(smWant);
@@ -2094,7 +2097,7 @@ namespace ConsoleEnhancer
             // sincronizacion vertical global este forzada a desactivada (por DXGI, en pantalla completa, PresentMon ve cambios inmediatos con
             // cortes: ALLOW_TEARING en el 68-100 % con DLSS FG). Era lo que habia desde la exploracion del 15-11 (13:55, quedo puesto)
             // (16-11 04:20, G1: y el 60 sin generacion, con la sincronizacion vertical forzada en el perfil: Config.VsyncNoFgNow)
-            Set(mine, "disableDirectFlip", !(cfg.SmoothNow || cfg.ReflexNow || cfg.VsyncNoFgNow || cfg.VsyncHalfFgNow || cfg.VrrDxgiNow), w, changes);
+            Set(mine, "disableDirectFlip", !(cfg.SmoothNow || cfg.ReflexNow || cfg.VsyncNoFgNow || cfg.VsyncHalfFgNow || cfg.VrrDxgiNow || cfg.RitmoFijo1Now), w, changes);
             object fr;
             if (!mine.TryGetValue("frameRefresh", out fr) || !(fr is Dictionary<string, object>)) { fr = new Dictionary<string, object>(); mine["frameRefresh"] = fr; }
                 Set((Dictionary<string, object>)fr, "vrrEnabled", cfg.MagpieVrrNow, w + ".frameRefresh", changes);
@@ -2102,11 +2105,13 @@ namespace ConsoleEnhancer
                 // Ritmo de las imagenes reales = el del modo (60, o 30 en el modo 30): con 120 la resolucion adaptativa de DLSSNR perseguia
                 // 120 y bajaba al 25 % (medido el 14-11) y la generacion pedia 240 en una tele de 120 Hz
                 // (16-11, G1: 1 = siguiendo a la fuente en el 60 sin generacion por DXGI si magpie_sigue_fuente_60, ver Config.Follow60NoFgNow)
-                Set((Dictionary<string, object>)fr, "contentMode", cfg.FollowNow ? 1 : 2, w + ".frameRefresh", changes);
+                // (22-11, 1.2.2 RITMO: y el modo 30 con generacion si magpie_sigue_fuente_30_fg=1, Config.RitmoSigueNow)
+                Set((Dictionary<string, object>)fr, "contentMode", cfg.FollowNow || cfg.RitmoSigueNow ? 1 : 2, w + ".frameRefresh", changes);
                 // (16-11 13:40, G1: al ritmo de la capturadora, 59,94 / 29,97, si magpie_ritmo_ntsc: ver Config.NtscRate)
                 // 20-11 (HZ120): a 120 el ritmo real es 120 (sin generacion: no pide 240; el 120 esports va mejor por el motor propio, este es
                 // el camino de respaldo de Magpie). Con el aviso de arriba: la generacion esta apagada a 120 (no pide 240)
-                Set((Dictionary<string, object>)fr, "contentRate", F(cfg.Mode120 ? (cfg.NtscRate ? 119.88 : 120) : cfg.CapMode ? (cfg.NtscRate ? 29.97 : 30) : (cfg.NtscRate ? 59.94 : 60)), w + ".frameRefresh", changes);
+                // (22-11, 1.2.2 RITMO: con generacion, un margen por encima si magpie_ritmo_margen_fg=N %: Config.RitmoRate)
+                Set((Dictionary<string, object>)fr, "contentRate", F(cfg.RitmoRate(cfg.Mode120 ? (cfg.NtscRate ? 119.88 : 120) : cfg.CapMode ? (cfg.NtscRate ? 29.97 : 30) : (cfg.NtscRate ? 59.94 : 60))), w + ".frameRefresh", changes);
                 // 0 Front Edge (espera para cuadrar la imagen), 1 Async (sin esa espera: menos latencia), 2 NVIDIA Reflex. 15-11: Reflex no funciona aqui (con la
                 // generacion "Reflex call failed: D3D12 async generation marker" y Magpie pasa solo a Async; sin ella el driver no lo activa, actualOn=false)
                 Set((Dictionary<string, object>)fr, "pacing", cfg.ReflexNow ? 2 : 0, w + ".frameRefresh", changes);
@@ -7632,6 +7637,7 @@ namespace ConsoleEnhancer
                             // (19-11, FLUIDEZ) el resumen de la grafica (Backend publication) va justo antes en el log
                             double normal = want30 || cfg.CapMode ? 33.4 : 16.7;
                             bool spike = st.FenceMax > 2 * st.FenceAvg && st.FenceMax > st.FenceAvg + 15;
+                            RitmoDiag.MagpieVentana(line, spike);   // (22-11, 1.2.2 RITMO: de donde viene cada tiron, src\Lanzador\Ritmo.cs)
                             st.Windows++;
                             if (spike) st.GpuSpikes++;
                             if (mx > normal * 1.6) { st.Gaps++; if (spike) st.GapsWithSpike++; }
@@ -7642,6 +7648,7 @@ namespace ConsoleEnhancer
                             st.FenceAvg = double.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture);
                             st.FenceMax = double.Parse(m.Groups[2].Value, CultureInfo.InvariantCulture);
                         }
+                        else if (line.Contains("frontend timing: mode=")) RitmoDiag.MagpieEspera(line);   // (22-11, 1.2.2 RITMO: la cola de Magpie)
                         else if (line.Contains("|error|"))
                         {
                             st.Errors++;
@@ -9348,9 +9355,11 @@ namespace ConsoleEnhancer
                 {
                     if (menuMaq.Confirmando) ev = 0.25; // (sin homeSync: dos enteros, una lectura de mas o de menos no importa)
                     else if (InHome) ev = 0.5;
-                    else if (VueltaPendiente) ev = preparando ? 0.4 : 0.6;   // (1.2.2: comprobando la salida del menu: el negro de arrancar otro juego, 1,2 s)
+                    // (1.2.2: comprobando la salida del menu: el negro de arrancar otro juego, 1,2 s. Con Magpie ya escalando a 4K cada
+                    // captura para a mpv 44-81 ms (RITMO): 0,8 s; mientras Magpie prepara, mpv no se ve (el puente esta encima): 0,4 s)
+                    else if (VueltaPendiente) ev = preparando ? 0.4 : cfg.CaptureNow == "3840x2160" ? 0.8 : 0.6;
                     else if (preparando) ev = Math.Max(ev, 1.0);
-                    else if (cfg.CaptureNow == "3840x2160") ev = Math.Max(ev, 1.5);
+                    else if (cfg.CaptureNow == "3840x2160") ev = Math.Max(ev, cfg.RitmoGrab4kSecs);   // (22-11, 1.2.2 RITMO: src\Lanzador\Ritmo.cs)
                 }
                 if ((now - lastGrab).TotalSeconds >= ev - 1e-6) RequestGrab(true);
                 return;
@@ -9362,7 +9371,7 @@ namespace ConsoleEnhancer
             // (08-11: confirmando la salida del HOME, cada 0,3 s; 09-11: recien abierta la app sin ver el HOME, cada 0,35 s)
             // (10-11: en el HOME con LS aun escalando, homeGrace, como en el HOME a 4K)
             double every = InHome ? (noLabel > 0 ? cfg.EnterGrabEvery : homeSeen == DateTime.MinValue ? cfg.StartGrabEvery : 0.5) :
-                           light ? (cfg.CaptureNow == "3840x2160" ? 1.5 : cfg.GameGrabEvery) :
+                           light ? (cfg.CaptureNow == "3840x2160" ? cfg.RitmoGrab4kSecs : cfg.GameGrabEvery) :   // (22-11, 1.2.2 RITMO)
                            homeGame != null || (now - homeSeen).TotalSeconds < 30 ? 1.5 : 4;
             if ((now - lastGrab).TotalSeconds < every) return;
             // 15-11: en el HOME, leyendo el nombre del juego seleccionado (AnalyzeGrab): entera, a toda resolucion (hasta 6 por juego)
@@ -11931,6 +11940,9 @@ namespace ConsoleEnhancer
             {
                 lsPidSeen = pid;
                 lsLogPos = -1;
+                // (22-11, 1.2.2 RITMO: lo del Magpie que se cierra, con su perfil, y a cero para el nuevo)
+                { string r = RitmoDiag.Resumen(); if (r != null && ritmoPerfil != null) Log.Write("Tirones por origen (hasta cerrar Magpie, " + ritmoPerfil + "): " + r); }
+                RitmoDiag.Limpia(); ritmoOrigenSince = DateTime.MinValue; ritmoPerfil = pid > 0 ? cfg.ProfileText : null;
                 if (pid > 0) Log.Write("Magpie: " + cfg.ProfileText);
             }
             LsStats st = ReadLsStats();
@@ -11962,11 +11974,21 @@ namespace ConsoleEnhancer
             }
             else { ritmoWin = ritmoGaps = ritmoSpikes = ritmoBoth = 0; ritmoSince = DateTime.MinValue; }
             // Tirones sueltos que la media no ve: dos imagenes reales separadas por 1,45 veces lo normal y 20 ms mas
+            // 22-11 (1.2.2, RITMO): y de donde vienen (juego, mpv, captura, grafica o la salida de Magpie: src\Lanzador\Ritmo.cs); cada
+            // 5 min, todos por origen
             double normal = want30 || cfg.CapMode ? 33.4 : 16.7;
-            if (st.CapMax > 0 && st.CapMax >= normal * 1.45 && st.CapMax - normal >= 20 && st.CapMax < 300 && (now - lastHitchLog).TotalSeconds >= 15)
+            double peorRitmo;
+            string origen = RitmoDiag.Repasa(normal, normal / Math.Max(1, cfg.FgOff ? 1 : cfg.FgMultNow), out peorRitmo);
+            if (pid > 0 && origen.Length > 0 && (now - lastHitchLog).TotalSeconds >= 15)
             {
                 lastHitchLog = now;
-                Log.Write("Tirones sueltos: Magpie estuvo " + Ms(Math.Round(st.CapMax, 1)) + " ms sin imagen nueva (p95 " + Ms(Math.Round(st.CapP95, 1)) + ")");
+                Log.Write("Tirones sueltos: " + (st.CapMax >= normal * 1.45 ? "Magpie estuvo " + Ms(Math.Round(st.CapMax, 1)) + " ms sin imagen nueva (p95 " + Ms(Math.Round(st.CapP95, 1)) + ")" : "peor " + Ms(Math.Round(peorRitmo)) + " ms") +
+                          " -> " + origen);
+            }
+            if (pid > 0 && (now - ritmoOrigenSince).TotalSeconds >= cfg.RitmoResumenSecs)
+            {
+                if (ritmoOrigenSince != DateTime.MinValue) { string r = RitmoDiag.Resumen(); if (r != null) Log.Write("Tirones por origen (" + Ms(Math.Round((now - ritmoOrigenSince).TotalMinutes, 1)) + " min, " + cfg.ProfileText + "): " + r); }
+                ritmoOrigenSince = now;
             }
             // Modo 60 con generacion: si Magpie recibe bastante menos de 60 reales con mpv dandole 60, la grafica no llega
             if (st.Captured > 0)
@@ -11983,6 +12005,8 @@ namespace ConsoleEnhancer
         }
         int lockWins;
         int ritmoWin, ritmoGaps, ritmoSpikes, ritmoBoth;   // (19-11, FLUIDEZ: el resumen de ritmo de cada 5 min)
+        DateTime ritmoOrigenSince = DateTime.MinValue;     // (22-11, 1.2.2 RITMO: el resumen por origen, src\Lanzador\Ritmo.cs)
+        string ritmoPerfil;
         DateTime ritmoSince = DateTime.MinValue;
         DateTime lastLockLog = DateTime.MinValue, lastErrLog = DateTime.MinValue;
 
@@ -13145,6 +13169,18 @@ namespace ConsoleEnhancer
                             line, "\"switch2-diag\",\"([^\"]*)\"");
                         if (m.Success && lsReady && !cfg.HomeNative) Log.Write("mpv: " + m.Groups[1].Value);
                         if (m.Success) EscalaNotaDiag(m.Groups[1].Value); // (1.2.1: las imagenes que da mpv de verdad, EscalaAuto.cs)
+                    }
+                    else if (line.Contains("\"client-message\"") && line.Contains("\"args\":[\"switch2-diag-hueco\""))
+                    {
+                        // 22-11 (1.2.2, RITMO): una imagen que mpv saco tarde, al momento (de donde vienen los tirones: src\Lanzador\Ritmo.cs)
+                        System.Text.RegularExpressions.Match m = System.Text.RegularExpressions.Regex.Match(line, "\"switch2-diag-hueco\",\"([^\"]*)\"");
+                        if (m.Success && readerMpv == mpv) RitmoDiag.MpvHueco(m.Groups[1].Value);
+                    }
+                    else if (line.Contains("\"client-message\"") && line.Contains("\"args\":[\"switch2-diag-captura\""))
+                    {
+                        // 22-11 (1.2.2, RITMO): lo que paro a mpv una captura de la app (screenshot-raw), para ver si los tirones vienen de ahi
+                        System.Text.RegularExpressions.Match m = System.Text.RegularExpressions.Regex.Match(line, "\"switch2-diag-captura\",\"([^\"]*)\"");
+                        if (m.Success && readerMpv == mpv) RitmoDiag.MpvCaptura(m.Groups[1].Value);
                     }
                     else if (line.Contains("\"client-message\"") && line.Contains("\"args\":[\"switch2-signal\""))
                     {
