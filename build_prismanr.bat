@@ -9,7 +9,8 @@ cd /d "%~dp0"
 if "%DLSS_SDK_DIR%"=="" (set "NGX=%~dp0terceros\dlss_sdk\include") else (set "NGX=%DLSS_SDK_DIR%\include")
 if not exist "%NGX%\nvsdk_ngx_params.h" (echo *** No estan las cabeceras de NGX en %NGX% *** & exit /b 1)
 set VCVARS=
-for /f "usebackq tokens=*" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do set "VCVARS=%%i\VC\Auxiliary\Build\vcvars64.bat"
+set "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
+if exist "%VSWHERE%" for /f "usebackq tokens=*" %%i in (`call "%VSWHERE%" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do set "VCVARS=%%i\VC\Auxiliary\Build\vcvars64.bat"
 if not exist "%VCVARS%" (echo *** No esta Visual Studio con C++ *** & exit /b 1)
 call "%VCVARS%" >nul
 if not exist bin\engine mkdir bin\engine

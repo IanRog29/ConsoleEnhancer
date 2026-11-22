@@ -5,7 +5,8 @@ rem sigue igual (DLSS FG x2 en RTX 40). Ver src\PrismaFg\PrismaFg.cpp.
 setlocal
 cd /d "%~dp0"
 set VCVARS=
-for /f "usebackq tokens=*" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do set "VCVARS=%%i\VC\Auxiliary\Build\vcvars64.bat"
+set "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
+if exist "%VSWHERE%" for /f "usebackq tokens=*" %%i in (`call "%VSWHERE%" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do set "VCVARS=%%i\VC\Auxiliary\Build\vcvars64.bat"
 if not exist "%VCVARS%" (echo *** No esta Visual Studio con C++ *** & exit /b 1)
 call "%VCVARS%" >nul
 if not exist bin\engine mkdir bin\engine
