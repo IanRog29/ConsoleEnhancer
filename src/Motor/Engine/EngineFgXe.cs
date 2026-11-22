@@ -386,6 +386,21 @@ namespace ConsoleEnhancer.Motor
 
         void XlMark(uint frame, int marker) { if (xeLl != IntPtr.Zero) xlMarker(xeLl, frame, marker); }
 
+        // (1.2.4, integracion) XeSS FG pedido (fg=1 fg_tipo=xess) y no arrancado (sin las DLL, contexto o cadena fallidos): el motor va sin
+        // generacion -sin Streamline o con el de solo DLSS SR, tampoco hay DLSS-G- y el lanzador creia XeSS FG x2 en el motor. Se le dice
+        // una vez, como el x3 / x4 que no se puede (switch2-fgmult no 2 1: MotorFgEvento lo apunta y pasa la imagen a Magpie). Desde
+        // EventTick (cada 0,5 s, con la tuberia del lanzador ya conectada; no en espera)
+        bool xeFailSaid;
+        void XeFgFailTick()
+        {
+            if (xeFailSaid || !xeFgFailed || mpvIpc == null || !(s.Fg && (s.FgTipo == "xess" || s.FgTipo == "xefg"))) return;
+            if (mpvIpc.Event("switch2-fgmult", "no", "2", "1") > 0)
+            {
+                xeFailSaid = true;
+                Log.Write("XeSS FG: no arranco en el motor: avisado el lanzador (switch2-fgmult no 2 1)");
+            }
+        }
+
         // PresentBlank (espera): la imagen negra sin generar
         void XeFgBlank()
         {
