@@ -46,7 +46,8 @@ namespace ConsoleEnhancer
         // mucho, 1,5 s mas tarde). captura_juego_4k_s = la de los demas casos a 4K (de serie 1,5, como antes)
         public double Grab4kSecs = 1.5, Grab4kFgSecs = 3.0;
         public int RitmoResumenSecs = 300;   // ritmo_resumen_s: cada cuanto va al log "Tirones por origen" (de serie 5 min; pruebas: menos)
-        public double RitmoGrab4kSecs { get { return CapMode && !FgOff && !HomeNative ? Math.Max(Grab4kSecs, Grab4kFgSecs) : Grab4kSecs; } }
+        // (solo por mpv + Magpie: con el motor propio la captura no pasa por mpv)
+        public double RitmoGrab4kSecs { get { return CapMode && !FgOff && !HomeNative && !EngineActive ? Math.Max(Grab4kSecs, Grab4kFgSecs) : Grab4kSecs; } }
 
         bool CeParseRitmo(string key, string val)
         {
