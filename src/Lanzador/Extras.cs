@@ -149,6 +149,10 @@ namespace ConsoleEnhancer
                 string sm = BuscarSm86(origen);
                 if (sm != null) PonerSm86(w, sm);
             }
+            // (22-11, 1.2.3 MOTOR5) y PrismaNr.dll ("DLSS 5" en el motor propio, de uso propio) si esta junto a la DLL elegida: a engine\
+            { string pn = BuscarPrismaNr(origen); if (pn != null) PonerPrismaNr(w, pn); }
+            // (1.2.3 MOTOR5) lo puesto, tambien fuera de la carpeta de la app: una version nueva lo recoge sola (ExtrasGuardados.cs)
+            ExtrasGuardados.Guardar("añadido");
             // encenderlo
             bool on = Pregunta(w, Tx.T("¿Encender DLSS 5 ya? (Jugando se enciende y se apaga con el botón A del mando.)",
                                        "Turn DLSS 5 on now? (While playing, the controller's A button turns it on and off.)"), MessageBoxIcon.Question);
@@ -179,6 +183,46 @@ namespace ConsoleEnhancer
             }
             catch { }
             return null;
+        }
+
+        // (22-11, 1.2.3 MOTOR5) PrismaNr.dll junto a la DLL elegida, como BuscarSm86: en su carpeta o hasta dos mas arriba (X\PrismaNr.dll o
+        // X\engine\PrismaNr.dll). null = no esta. (Solo la busca: PonerPrismaNr mira que valga)
+        public static string BuscarPrismaNr(string dll)
+        {
+            try
+            {
+                string x = Path.GetDirectoryName(Path.GetFullPath(dll));
+                for (int i = 0; i < 3 && !string.IsNullOrEmpty(x); i++, x = Path.GetDirectoryName(x))
+                    foreach (string c in new[] { Path.Combine(x, "PrismaNr.dll"), Path.Combine(x, @"engine\PrismaNr.dll") })
+                        if (File.Exists(c)) return c;
+            }
+            catch { }
+            return null;
+        }
+
+        // A engine\ si es una DLL de 64 bits y no es la misma que ya hay (sin preguntar; solo avisa si no se puede: el motor abierto la tiene cargada)
+        static void PonerPrismaNr(IWin32Window w, string de)
+        {
+            string m = MirarDll(de);
+            if (m != null) { Log.Write("PrismaNr.dll junto a la DLL no vale (" + m + "): no se copia"); return; }
+            try
+            {
+                if (Path.GetFullPath(de).Equals(Path.GetFullPath(PrismaNr), StringComparison.OrdinalIgnoreCase)) return;
+                FileInfo a = new FileInfo(de), b = new FileInfo(PrismaNr);
+                if (b.Exists && a.Length == b.Length && a.LastWriteTimeUtc == b.LastWriteTimeUtc) return;
+                Directory.CreateDirectory(Path.GetDirectoryName(PrismaNr));
+                string tmp = PrismaNr + ".parcial";
+                File.Copy(de, tmp, true);
+                if (File.Exists(PrismaNr)) File.Delete(PrismaNr);
+                File.Move(tmp, PrismaNr);
+                Log.Write("DLSS 5 en el motor propio: PrismaNr.dll de " + de + " puesta en engine\\ (" + a.Length + " bytes; de uso propio, no se distribuye)");
+            }
+            catch (Exception ex)
+            {
+                Log.Error("PrismaNr.dll: copiando a engine\\", ex);
+                Mal(w, Tx.T("No se pudo poner PrismaNr.dll en engine\\ (si el motor está abierto, cierra la app y vuelve a añadir DLSS 5):\r\n",
+                            "Could not put PrismaNr.dll in engine\\ (if the engine is open, close the app and add DLSS 5 again):\r\n") + ex.Message);
+            }
         }
 
         // Copia la carpeta dlssg_sm86 encontrada a extras\runtimes\ (sin preguntar; solo avisa si algo no vale)
@@ -249,6 +293,7 @@ namespace ConsoleEnhancer
                 if (Ce.IniLeer("motor_dlss5") == "1") Ce.IniPoner("motor_dlss5", "0");
                 Integrado.Dlss5Rever();
                 Log.Write("DLSS 5 quitado por el usuario (extras\\)");
+                ExtrasGuardados.QuitarDlss5();   // (1.2.3 MOTOR5: y de lo guardado fuera de la app: una version nueva ya no lo recoge)
                 if (File.Exists(mag) && !File.Exists(mag + ".de_extras"))
                     Mal(w, Tx.T("Hay otra " + Integrado.Dlss5Dll + " puesta a mano en " + Paths.MagpieDir + ": bórrala tú si tampoco la quieres.",
                                 "Another " + Integrado.Dlss5Dll + " was put by hand in " + Paths.MagpieDir + ": delete it yourself if you do not want it either."));

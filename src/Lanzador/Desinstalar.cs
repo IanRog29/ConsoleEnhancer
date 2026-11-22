@@ -153,6 +153,7 @@ namespace ConsoleEnhancer
             bool datosDentro = datos.StartsWith(app.TrimEnd('\\') + "\\", StringComparison.OrdinalIgnoreCase);
             List<string> borrarRutas = new List<string>();
             if (borrar && copiaTambien) borrarRutas.Add(Integrado.CopiaDir);
+            if (borrar && copiaTambien) borrarRutas.Add(ExtrasGuardados.Dir);   // (1.2.3 MOTOR5: lo que pusiste tu guardado fuera de la app)
             foreach (string n in new string[] { "ConsoleEnhancer.exe", "ConsoleEnhancer.exe.config", "ConsoleEnhancer Settings.exe", "README.txt", "portable.txt", "languages", "licenses", "engine", "resources", "downloads",
                                                  "magpie", "mpv", "scripts", "extras",
                                                  // (1.2.06) los nombres de antes (en espanol)
