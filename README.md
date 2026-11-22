@@ -30,7 +30,7 @@ Created and maintained by **IanRog29** · [Source and downloads](https://github.
 
 ## Quick start
 
-1. Download the latest **`ConsoleEnhancer-v1.2.0.zip`** (or newer) from
+1. Download the latest **`ConsoleEnhancer-v1.2.2.zip`** (or newer) from
    **[Releases](https://github.com/IanRog29/ConsoleEnhancer/releases)** (not the green "Code" button: that is the source code).
 2. **Unzip** it into one of your own folders: Documents, the Desktop, `D:\Juegos`... (not in *Program Files*).
 3. Open **`ConsoleEnhancer.exe`** and follow the wizard. Done: turn the console on.
@@ -51,6 +51,67 @@ everything in one window: open the app or the setup wizard, how the PC is used (
 black desktop, what the PC does when the console turns off, DLSS 5 (your own file), download mpv/Magpie again, test the countdown or
 the standby, the logs and **Uninstall** (it puts Windows back as it was and deletes only the app's own files; you choose whether to keep
 your settings and game profiles). The same options are in the tray icon menu.
+
+## Controls
+
+Everything works **with the controller you already use for the console** (the app reads it without taking it away: the console still
+gets every press, e.g. Options also opens the game's menu on PS5) or with a keyboard. The buttons only act **while the console picture
+is in front**. They go by position, so the same spot does the same thing on every controller.
+
+### Controller and keyboard
+
+| What it does | Xbox / XInput<br>(GameSir, 8BitDo X-mode) | PlayStation 5 / 4<br>(DualSense, DualShock 4) | Nintendo Switch / Switch 2<br>(Pro, Joy-Con, 8BitDo) | Keyboard |
+|---|:---:|:---:|:---:|:---:|
+| **Settings menu** on screen (open / close) | Xbox button | PS | HOME | `Ctrl`+`O` |
+| **30 → 60 → 120 fps** mode | Menu ≡ | Options | + | `Ctrl`+`M` |
+| **Frame generation** on / off | View ⧉ | Create (PS5) / Share (PS4) · touchpad | − · Capture | `Ctrl`+`F` |
+| Frame generation **type** (DLSS FG, XeSS FG, Smooth Motion, FSR 3 FG…) | L3 | L3 | L3 | `Ctrl`+`G` |
+| Frame generation **×2 / ×3 / ×4** ² | settings menu | settings menu | settings menu | `Ctrl`+`X` |
+| Dither filter (new / old) | hold L3 1 s | hold L3 1 s | hold L3 1 s | |
+| **Capture** at 720p / 1080p / 1440p / 4K | D-pad ← ↑ → ↓ | D-pad ← ↑ → ↓ | D-pad ← ↑ → ↓ | `Ctrl`+`1` … `Ctrl`+`4` |
+| Main / alternative **upscaler** | R3 | R3 | R3 | `Ctrl`+`R` |
+| **DLSS 5** on / off ¹ | A | ✕ | B | `Ctrl`+`D` |
+| DLSS 5 **passes** 1 / 2 / 3 ¹ | X / Y / B | □ / △ / ○ | Y / X / A | |
+| DLSS 5 **level** 1 / 2 / 3 / 4 ¹ | LB / LT / RT / RB | L1 / L2 / R2 / R1 | L / ZL / ZR / R | |
+| Show the current settings | | | | `Ctrl`+`I` |
+| Quit the app | | | | `Alt`+`F4` |
+
+¹ Only with the optional "DLSS 5" file (see [DLSS 5](#dlss-5-optional)).
+² ×3 and ×4 exist only for **DLSS FG and XeSS FG**, and only when they fit your screen: real fps × multiplier must not go over the
+refresh rate. On a 120 Hz TV that means the **30 fps mode** (30 × 3 = 90, 30 × 4 = 120); in the 60 fps mode they are shown **locked**,
+with the reason. Without VRR, ×3 is locked too (90 fps on a 120 Hz screen would judder). Also in the tray menu.
+
+The 120 fps mode only shows up where your capture card and screen allow it; otherwise the mode button toggles 30 ↔ 60. Generic
+controllers: Start = Menu, Select = View, the rest by position. The old layout (View = 30 fps, Menu = 60 fps): `mando_botones=prisma`.
+
+### Inside the settings menu
+
+| | Controller | Keyboard |
+|---|:---:|:---:|
+| Move between rows | D-pad / left stick ↑ ↓ | ↑ ↓ |
+| Change the value | D-pad / left stick ← → | ← → |
+| Next value · press the button at the bottom (**Apply**) | A / ✕ / B on Nintendo | `Enter` / `Space` |
+| Close without changing anything | B / ○ / A on Nintendo · the centre button | `Esc` / `Backspace` |
+
+Nothing changes until **Apply**: everything you changed (marked with a cyan dot) is applied at once and saved for that game. The menu
+also opens while the picture is still being prepared; values that can't be used right now are greyed out with the reason below.
+
+### PC mode (controller outside the console picture)
+
+With `mando_pc=1` (the default) the same controller also drives Windows whenever the console picture is not in front.
+
+| What it does | Xbox / XInput | PlayStation | Nintendo |
+|---|:---:|:---:|:---:|
+| Mouse pointer | left stick | left stick | left stick |
+| Scroll wheel | right stick | right stick | right stick |
+| Left click | A | ✕ | B |
+| Right click | X | □ | Y |
+| Middle click | R3 | R3 | R3 |
+| Esc | B | ○ | A |
+| Arrow keys | D-pad | D-pad | D-pad |
+| Alt+F4 | View + Menu | Create + Options | − and + |
+| On-screen keyboard | L3 | L3 | L3 |
+| PC mode on / off | hold Xbox button (or LB+RB) 1 s | hold PS (or L1+R1) 1 s | hold HOME (or L+R) 1 s |
 
 ## Support the project
 
@@ -157,8 +218,8 @@ with help a lot too.
   type, 30 / 60 / 120 mode, capture 720p / 1080p / 1440p / 4K, DLSS 5 (on / off, level, passes), alternative upscaler, dither filter,
   *Show current settings (on screen)* and the settings menu; plus Picture options, start-up and power options, the wizard, components,
   Add / Remove DLSS 5, About and licenses and the Ko-fi link. Useful when there is no controller connected to the PC.
-- **Keyboard shortcuts** over the console picture: Ctrl+F, Ctrl+G, Ctrl+M, Ctrl+1…4, Ctrl+R, Ctrl+D, Ctrl+I, Ctrl+O, Alt+F4 (see
-  [Controller cheat sheet](#controller-cheat-sheet)). Shortcuts keep working with Joyxoff and similar tools running.
+- **Keyboard shortcuts** over the console picture: Ctrl+F, Ctrl+G, Ctrl+X, Ctrl+M, Ctrl+1…4, Ctrl+R, Ctrl+D, Ctrl+I, Ctrl+O, Alt+F4 (see
+  [Controls](#controls)). Shortcuts keep working with Joyxoff and similar tools running.
 - **Closing**: tray > Exit, Alt+F4, the window's X or closing it from the taskbar quits the whole app (it isn't taken for a signal
   drop). The Windows key, the Start menu, the taskbar and Alt+Tab work normally while you play.
 - **No double sound (echo)**: while it plays the capture card's sound, the app turns off Windows *Listen to this device* on that input,
@@ -247,48 +308,6 @@ If you already have your own file, adding it takes one click:
    R1: level).
 
 To remove it: tray icon > **Remove DLSS 5** (deletes the copy in `extras\`; your original file is not touched).
-
-## Controller cheat sheet
-
-With the console picture in front of you. The app reads the controller without taking it away from the console: the console also
-receives the press (Options opens the game menu on PS5, etc.).
-
-| Controller | **30 → 60 → 120** fps mode | Frame generation **on / off** |
-|---|---|---|
-| Xbox / XInput (GameSir, 8BitDo in X mode) | Menu (≡) | View (⧉) |
-| PlayStation 5 (DualSense / Edge) | Options | Create |
-| PlayStation 4 (DualShock 4) | Options | Share |
-| Nintendo Switch / Switch 2 (Pro, Joy-Con, 8BitDo in Switch mode) | + | − |
-| Generic HID | Start | Select |
-
-Frame generation also works with Capture (Switch, 8BitDo), the touchpad (PlayStation) or the GameSir capture button. For the old layout
-(View = 30 mode, Menu = 60 mode): `mando_botones=prisma` or tray > Picture. 120 only shows up where it fits (see *120 fps mode*);
-otherwise the button toggles 30 ↔ 60.
-
-| Button | What it does |
-|---|---|
-| **D-pad** ← ↑ → ↓ | Capture at 720p / 1080p / 1440p / 4K |
-| **L3** | Frame generation type (Smooth Motion, DLSS FG, XeSS FG, FSR 3 FG: whatever your GPU has). Hold 1 s: new dither filter / the old one |
-| **R3** | Main / alternative upscaler (e.g. DLSS ↔ RTX Video) |
-| **A**, **X / Y / B**, **L1 / L2 / R2 / R1** | Only with the unofficial "DLSS 5" extra (see *Legal notices*): on / off, 1-3 passes and level |
-| **Centre button** (Xbox / PS / HOME) | On-screen settings menu |
-
-Keyboard, over the console picture:
-
-| Keys | What it does |
-|---|---|
-| **Ctrl+F** | Frame generation on / off |
-| **Ctrl+G** | Frame generation type (same as L3) |
-| **Ctrl+M** | 30 / 60 / 120 mode |
-| **Ctrl+1 … Ctrl+4** | Capture at 720p / 1080p / 1440p / 4K |
-| **Ctrl+R** | Main / alternative upscaler |
-| **Ctrl+D** | DLSS 5 on / off (only with the extra) |
-| **Ctrl+I** | Show current settings |
-| **Ctrl+O** | On-screen settings menu |
-| **Alt+F4** | Quit |
-
-**PC mode** (controller outside the console picture; `mando_pc=1`): left stick = mouse, right stick = scroll wheel, A = click,
-X = right click, R3 = middle click, B = Esc, D-pad = arrow keys, View + Menu = Alt+F4, L3 = on-screen keyboard.
 
 ## FAQ / common problems
 
@@ -394,7 +413,7 @@ build.bat                       :: bin\ConsoleEnhancer.exe (src\Lanzador + src\D
 build_motor.bat                 :: bin\engine\ConsoleEnhancerEngine.exe (src\Motor) + DLL de Streamline
 tests\build_deteccion.bat       :: tests\bin\DeteccionTest.exe
 tests\bin\DeteccionTest.exe --simula=todo --sin-d3d12 --salida=deteccion.txt   :: 23 PCs simulados
-powershell -ExecutionPolicy Bypass -File scripts\empaquetar.ps1 -Zip -Version v1.2.0   :: dist\ConsoleEnhancer\ y dist\ConsoleEnhancer-v1.2.0.zip
+powershell -ExecutionPolicy Bypass -File scripts\empaquetar.ps1 -Zip -Version v1.2.2   :: dist\ConsoleEnhancer\ y dist\ConsoleEnhancer-v1.2.2.zip
 ```
 
 - **Dependencies**: the table `scripts\components.json` (version, URL, SHA-256 and what is taken from each zip) is used by
@@ -471,7 +490,7 @@ Creado y mantenido por **IanRog29** · [Código y descargas](https://github.com/
 
 ## Inicio rápido
 
-1. Baja el último **`ConsoleEnhancer-v1.2.0.zip`** (o uno más nuevo) de
+1. Baja el último **`ConsoleEnhancer-v1.2.2.zip`** (o uno más nuevo) de
    **[Releases](https://github.com/IanRog29/ConsoleEnhancer/releases)** (no el botón verde "Code": eso es el código fuente).
 2. **Descomprímelo** en una carpeta tuya: Documentos, el Escritorio, `D:\Juegos`... (no en *Archivos de programa*).
 3. Abre **`ConsoleEnhancer.exe`** y sigue el asistente. Ya está: enciende la consola.
@@ -492,6 +511,67 @@ todo en una ventana: abrir la app o el asistente, cómo se usa el PC (como una c
 escritorio negro, qué hace el PC al apagar la consola, DLSS 5 (tu propio archivo), volver a bajar mpv/Magpie, probar el aviso o la
 espera, los registros y **Desinstalar** (deja Windows como estaba y borra solo los archivos de la app; tú eliges si guardar tus ajustes y
 perfiles). Lo mismo está en el menú del icono de la bandeja.
+
+## Controles
+
+Todo funciona **con el mando que ya usas en la consola** (la app lo lee sin quitárselo: la consola sigue recibiendo cada pulsación;
+p. ej. Options también abre el menú del juego en la PS5) o con un teclado. Los botones solo actúan **con la imagen de la consola
+delante**. Van por posición: el mismo sitio hace lo mismo en cualquier mando.
+
+### Mando y teclado
+
+| Qué hace | Xbox / XInput<br>(GameSir, 8BitDo modo X) | PlayStation 5 / 4<br>(DualSense, DualShock 4) | Nintendo Switch / Switch 2<br>(Pro, Joy-Con, 8BitDo) | Teclado |
+|---|:---:|:---:|:---:|:---:|
+| **Menú de ajustes** en pantalla (abrir / cerrar) | botón Xbox | PS | HOME | `Ctrl`+`O` |
+| Modo **30 → 60 → 120 fps** | Menú ≡ | Options | + | `Ctrl`+`M` |
+| **Generación de fotogramas** sí / no | Vista ⧉ | Crear (PS5) / Share (PS4) · panel táctil | − · Captura | `Ctrl`+`F` |
+| **Tipo** de generación (DLSS FG, XeSS FG, Smooth Motion, FSR 3 FG…) | L3 | L3 | L3 | `Ctrl`+`G` |
+| Generación **×2 / ×3 / ×4** ² | menú de ajustes | menú de ajustes | menú de ajustes | `Ctrl`+`X` |
+| Filtro de tramado (nuevo / viejo) | mantener L3 1 s | mantener L3 1 s | mantener L3 1 s | |
+| **Captura** a 720p / 1080p / 1440p / 4K | cruceta ← ↑ → ↓ | cruceta ← ↑ → ↓ | cruceta ← ↑ → ↓ | `Ctrl`+`1` … `Ctrl`+`4` |
+| **Escalador** principal / alternativo | R3 | R3 | R3 | `Ctrl`+`R` |
+| **DLSS 5** sí / no ¹ | A | ✕ | B | `Ctrl`+`D` |
+| **Pasadas** de DLSS 5 1 / 2 / 3 ¹ | X / Y / B | □ / △ / ○ | Y / X / A | |
+| **Nivel** de DLSS 5 1 / 2 / 3 / 4 ¹ | LB / LT / RT / RB | L1 / L2 / R2 / R1 | L / ZL / ZR / R | |
+| Ver los ajustes de ahora | | | | `Ctrl`+`I` |
+| Salir de la app | | | | `Alt`+`F4` |
+
+¹ Solo con el archivo opcional "DLSS 5" (ver [DLSS 5](#dlss-5-opcional)).
+² ×3 y ×4 solo existen con **DLSS FG y XeSS FG**, y solo si caben en tu pantalla: los fps reales × el multiplicador no pueden pasar
+del refresco. En una tele de 120 Hz eso es el **modo 30** (30 × 3 = 90, 30 × 4 = 120); en el modo 60 salen **bloqueados**, con el motivo.
+Sin VRR, ×3 también sale bloqueado (90 fps en una pantalla de 120 Hz irían a saltos). También en el menú de la bandeja.
+
+El modo 120 fps solo aparece donde tu capturadora y tu pantalla lo admiten; si no, el botón del modo alterna 30 ↔ 60. Mandos genéricos:
+Start = Menú, Select = Vista, lo demás por posición. La distribución de antes (Vista = 30 fps, Menú = 60 fps): `mando_botones=prisma`.
+
+### Dentro del menú de ajustes
+
+| | Mando | Teclado |
+|---|:---:|:---:|
+| Cambiar de fila | cruceta / stick izquierdo ↑ ↓ | ↑ ↓ |
+| Cambiar el valor | cruceta / stick izquierdo ← → | ← → |
+| Siguiente valor · pulsar el botón de abajo (**Aplicar**) | A / ✕ / B en Nintendo | `Intro` / `Espacio` |
+| Cerrar sin cambiar nada | B / ○ / A en Nintendo · el botón central | `Esc` / `Retroceso` |
+
+Nada cambia hasta **Aplicar**: todo lo que cambiaste (marcado con un punto cian) se aplica a la vez y se guarda para ese juego. El menú
+se abre también mientras la imagen se está preparando; lo que no se puede usar ahora sale en gris con el motivo debajo.
+
+### Modo PC (el mando fuera de la imagen de la consola)
+
+Con `mando_pc=1` (de serie) el mismo mando maneja también Windows cuando la imagen de la consola no está delante.
+
+| Qué hace | Xbox / XInput | PlayStation | Nintendo |
+|---|:---:|:---:|:---:|
+| Puntero del ratón | stick izquierdo | stick izquierdo | stick izquierdo |
+| Rueda del ratón | stick derecho | stick derecho | stick derecho |
+| Clic izquierdo | A | ✕ | B |
+| Clic derecho | X | □ | Y |
+| Clic central | R3 | R3 | R3 |
+| Esc | B | ○ | A |
+| Flechas | cruceta | cruceta | cruceta |
+| Alt+F4 | Vista + Menú | Crear + Options | − y + |
+| Teclado en pantalla | L3 | L3 | L3 |
+| Modo PC sí / no | mantener el botón Xbox (o LB+RB) 1 s | mantener PS (o L1+R1) 1 s | mantener HOME (o L+R) 1 s |
 
 ## Apoya el proyecto
 
@@ -597,8 +677,8 @@ y contar en qué PC y con qué consola lo usas.
   30 / 60 / 120, captura 720p / 1080p / 1440p / 4K, DLSS 5 (sí / no, nivel, pasadas), escalador alternativo, filtro de tramado, *Ver lo
   que va puesto (en pantalla)* y el menú de ajustes; además las opciones de Imagen, de inicio y de apagado, el asistente, los
   componentes, Añadir / Quitar DLSS 5, Acerca de y licencias y el enlace de Ko-fi. Para cuando no hay mando conectado al PC.
-- **Atajos de teclado** sobre la imagen de la consola: Ctrl+F, Ctrl+G, Ctrl+M, Ctrl+1…4, Ctrl+R, Ctrl+D, Ctrl+I, Ctrl+O, Alt+F4 (ver
-  [Mandos (chuleta)](#mandos-chuleta)). Siguen funcionando con Joyxoff y programas parecidos abiertos.
+- **Atajos de teclado** sobre la imagen de la consola: Ctrl+F, Ctrl+G, Ctrl+X, Ctrl+M, Ctrl+1…4, Ctrl+R, Ctrl+D, Ctrl+I, Ctrl+O, Alt+F4 (ver
+  [Controles](#controles)). Siguen funcionando con Joyxoff y programas parecidos abiertos.
 - **Cerrar**: bandeja > Salir, Alt+F4, la X de la ventana o cerrarla desde la barra de tareas cierra la app entera (no se toma por un
   corte de la señal). La tecla Windows, el menú Inicio, la barra de tareas y Alt+Tab funcionan normal mientras juegas.
 - **Sin sonido doble (eco)**: mientras suena la capturadora por la app, quita *Escuchar este dispositivo* de Windows en esa entrada,
@@ -688,48 +768,6 @@ Si ya tienes tu propio archivo, añadirlo es un clic:
 4. Dices si lo enciendes ya. Jugando se enciende y se apaga con el botón **A** del mando (X / Y / B: pasadas; L1 / L2 / R2 / R1: nivel).
 
 Para quitarlo: icono de la bandeja > **Quitar DLSS 5** (borra la copia de `extras\`; tu archivo original no se toca).
-
-## Mandos (chuleta)
-
-Con la imagen de la consola delante. La app lee el mando sin quitárselo a la consola: la pulsación también le llega a ella (Options
-abre el menú del juego en la PS5, etc.).
-
-| Mando | Modo **30 → 60 → 120** fps | Generación de fotogramas **sí / no** |
-|---|---|---|
-| Xbox / XInput (GameSir, 8BitDo en modo X) | Menú (≡) | Vista (⧉) |
-| PlayStation 5 (DualSense / Edge) | Options | Crear |
-| PlayStation 4 (DualShock 4) | Options | Share |
-| Nintendo Switch / Switch 2 (Pro, Joy-Con, 8BitDo en modo Switch) | + | − |
-| Genérico HID | Start | Select |
-
-La generación también va con Captura (Switch, 8BitDo), el panel táctil (PlayStation) o el botón de captura del GameSir. Para la
-distribución de antes (Vista = modo 30, Menú = modo 60): `mando_botones=prisma` o bandeja > Imagen. El 120 solo aparece donde cabe (ver
-*Modo 120 fps*); si no, el botón alterna 30 ↔ 60.
-
-| Botón | Qué hace |
-|---|---|
-| **Cruceta** ← ↑ → ↓ | Captura a 720p / 1080p / 1440p / 4K |
-| **L3** | Tipo de generación (Smooth Motion, DLSS FG, XeSS FG, FSR 3 FG: lo que tenga tu gráfica). Mantenido 1 s: filtro de tramado nuevo / el de antes |
-| **R3** | Escalador normal / alternativo (p. ej. DLSS ↔ RTX Video) |
-| **A**, **X / Y / B**, **L1 / L2 / R2 / R1** | Solo con el extra no oficial "DLSS 5" (ver *Avisos legales*): sí / no, 1-3 pasadas y nivel |
-| **Botón central** (Xbox / PS / HOME) | Menú de ajustes en pantalla |
-
-Teclado, sobre la imagen de la consola:
-
-| Teclas | Qué hace |
-|---|---|
-| **Ctrl+F** | Generación de fotogramas sí / no |
-| **Ctrl+G** | Tipo de generación (como L3) |
-| **Ctrl+M** | Modo 30 / 60 / 120 |
-| **Ctrl+1 … Ctrl+4** | Captura a 720p / 1080p / 1440p / 4K |
-| **Ctrl+R** | Escalador normal / alternativo |
-| **Ctrl+D** | DLSS 5 sí / no (solo con el extra) |
-| **Ctrl+I** | Ver lo que va puesto |
-| **Ctrl+O** | Menú de ajustes en pantalla |
-| **Alt+F4** | Salir |
-
-**Modo PC** (el mando fuera de la imagen de la consola; `mando_pc=1`): stick izquierdo = ratón, stick derecho = rueda, A = clic,
-X = clic derecho, R3 = clic central, B = Esc, cruceta = flechas, Vista + Menú = Alt+F4, L3 = teclado en pantalla.
 
 ## Preguntas frecuentes y problemas comunes
 
@@ -834,7 +872,7 @@ build.bat                       :: bin\ConsoleEnhancer.exe (src\Lanzador + src\D
 build_motor.bat                 :: bin\engine\ConsoleEnhancerEngine.exe (src\Motor) + DLL de Streamline
 tests\build_deteccion.bat       :: tests\bin\DeteccionTest.exe
 tests\bin\DeteccionTest.exe --simula=todo --sin-d3d12 --salida=deteccion.txt   :: 23 PCs simulados
-powershell -ExecutionPolicy Bypass -File scripts\empaquetar.ps1 -Zip -Version v1.2.0   :: dist\ConsoleEnhancer\ y dist\ConsoleEnhancer-v1.2.0.zip
+powershell -ExecutionPolicy Bypass -File scripts\empaquetar.ps1 -Zip -Version v1.2.2   :: dist\ConsoleEnhancer\ y dist\ConsoleEnhancer-v1.2.2.zip
 ```
 
 - **Dependencias**: la tabla `scripts\components.json` (versión, URL, SHA-256 y qué se coge de cada zip) la usan
