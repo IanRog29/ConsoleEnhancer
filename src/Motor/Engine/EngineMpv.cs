@@ -301,6 +301,9 @@ namespace ConsoleEnhancer.Motor
                                       (ok ? "" : " (NO se pudo a tiempo)"));
                         }
                         else if (m == "switch2-reabrir") { reopenAsked = true; frameEvent.Set(); }
+                        // 22-11 (1.2.3, MOTOR5): las ordenes de prueba (switch2-test-*: el lanzador solo las hace con test_source) a todos los
+                        // clientes, como mpv con cualquier script-message: las pruebas sin mando tambien con el motor haciendo la imagen
+                        else if (m.StartsWith("switch2-test-", StringComparison.Ordinal)) { List<string> r = new List<string>(); for (int i = 1; i < c.Count; i++) r.Add(Arg(c, i)); Ev(r.ToArray()); }
                         else Log.Write("script-message sin uso: " + m);
                         return null;
                     }
