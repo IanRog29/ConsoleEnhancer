@@ -11540,7 +11540,10 @@ namespace ConsoleEnhancer
         string reserveKeyDone;
         void MaybeReserveEngine(DateTime now)
         {
-            if (!cfg.EngineReserve || standbyEngine != null || !ipcUp || !lsReady || homeBusy || passesBusy || relaunchEngine || relaunchSize != null ||
+            // (22-11, 1.2.2, ERRORES: !Config.EngineActive, "con el motor jugando 10 s": sin el, los 10 s contaban tambien con mpv + Magpie
+            // preparando y el motor del puente encima -sin motor en espera-; 02:49:26 el de reserva se arranco 1 s despues de pasar al
+            // motor, el usuario volvio a DLSS 5, arranco a la vez que Magpie -Magpie 20 s, el de reserva 13,6 s- y se cerro sin usarse)
+            if (!cfg.EngineReserve || !Config.EngineActive || standbyEngine != null || !ipcUp || !lsReady || homeBusy || passesBusy || relaunchEngine || relaunchSize != null ||
                 relevo != null || cfg.HomeNative || cfg.FgOff || cfg.Mode120 || userExit || !StandbyOn())
             { reserveQuietSince = DateTime.MinValue; return; }
             if (reserveQuietSince == DateTime.MinValue) { reserveQuietSince = now; return; }
