@@ -135,7 +135,7 @@ namespace ConsoleEnhancer
                 string de = Directory.Exists(Extras.Sm86) ? Extras.Sm86 : Extras.Sm86Viejo;
                 // (lo mismo que ya se guardo -comprobado entonces-: sin volver a calcular sus ~28 MB de SHA-256 en cada arranque)
                 if (Sm86Iguales(de, c.Guardado)) { m[ClaveCopia(c)] = DateTime.Now.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture); return; }
-                if (!Componentes.Sm86Vale(de)) return;   // (a medias o de otra version: Componentes.AsegurarSm86 pone la buena)
+                if (!Componentes.Sm86Vale(de)) return;   // (a medias o de otra version: no vale)
                 m[ClaveCopia(c)] = DateTime.Now.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
                 int n = Componentes.CopiarSm86(de, c.Guardado);
                 Log.Write("Extras guardados: dlssg_sm86 (" + n + " ficheros) guardado en " + c.Guardado + " (" + porque + "; " + sw.ElapsedMilliseconds + " ms): una version nueva lo recoge sola");

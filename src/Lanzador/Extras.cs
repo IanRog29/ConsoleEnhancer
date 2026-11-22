@@ -247,9 +247,9 @@ namespace ConsoleEnhancer
                 string m = MirarDll(d);
                 if (m != null) { Log.Write("dlssg_sm86 junto a la DLL no vale (" + Path.GetFileName(d) + ": " + m + "): no se copia"); return; }
             }
-            // (1.2.08) otra version de dlssg_for_sm86: Magpie no la valida (DLSS FG no arranca) -> no se copia; la app pone la oficial
+            // (1.2.08) otra version de dlssg_for_sm86: Magpie no la valida (DLSS FG no arranca) -> no se copia
             string otra = Componentes.Sm86Distinto(de);
-            if (otra != null) { Log.Write("dlssg_sm86 junto a la DLL (" + de + ") no es la version que espera Magpie (" + otra + "): no se copia; la app usa la oficial"); return; }
+            if (otra != null) { Log.Write("dlssg_sm86 junto a la DLL (" + de + ") no es la version que espera Magpie (" + otra + "): no se copia"); return; }
             try
             {
                 if (Path.GetFullPath(de).TrimEnd('\\').Equals(Path.GetFullPath(Sm86).TrimEnd('\\'), StringComparison.OrdinalIgnoreCase)) return;

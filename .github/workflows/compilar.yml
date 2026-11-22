@@ -29,7 +29,7 @@ jobs:
           $permitidos = @('resources/prisma.ico', 'resources/prisma_512.png')
           $bin = $bin | Where-Object { $permitidos -notcontains $_ }
           if ($bin) { 'Binarios en el repositorio (solo se permiten los iconos propios):'; $bin; exit 1 }
-          $malos = $todos | Where-Object { $_ -match '(?i)(nvngx_|dlssg_sm86|DLSSNR-DLL|NGX_OTA|PrismaNr|\.(exe|dll|pdb|obj|lib|zip|7z|log)$|\.antes-|(^|/)(terceros|datos|juegos|logs|extras|bin|dist|obj)/|consoleenhancer\.ini$|switch2\.ini$|privado\.txt$)' }
+          $malos = $todos | Where-Object { $_ -match '(?i)(nvngx_|dlssg_sm86|DLSSNR-DLL|NGX_OTA|PrismaNr|PrismaFg|\.(exe|dll|pdb|obj|lib|zip|7z|log)$|\.antes-|(^|/)(terceros|datos|juegos|logs|extras|bin|dist|obj)/|consoleenhancer\.ini$|switch2\.ini$|privado\.txt$)' }
           if ($malos) { 'Ficheros que no deben ir al repositorio:'; $malos; exit 1 }
           $personal = git grep -n -I -E '[A-Za-z]:\\Users\\|[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+\.[A-Za-z]{2,}' -- . ':!LICENSE'
           # git grep devuelve 1 cuando NO encuentra nada (lo normal aqui): no debe contar como fallo del paso

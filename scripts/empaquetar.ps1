@@ -6,7 +6,7 @@
 #  - mpv ni Magpie: no los reparte ConsoleEnhancer. La app los baja la primera vez que se abre de sus releases oficiales (con su
 #    SHA-256: scripts\components.json, src\Lanzador\Componentes.cs). Asi no hay que repartir el codigo fuente de mpv / FFmpeg ni los
 #    binarios de Magpie Experimental (que llevan DLL de NVIDIA, AMD e Intel que su autor pide no volver a repartir sin revisar)
-#  - nvngx_dlssnr.dll ("DLSS 5": DLL de NVIDIA modificada, sin firma), runtimes\dlssg_sm86 (autofirmado), PrismaNr.dll
+#  - nvngx_dlssnr.dll ("DLSS 5": DLL de NVIDIA modificada, sin firma), runtimes\dlssg_sm86 (autofirmado), PrismaNr.dll, PrismaFg.dll
 #  - el ini, logs, data\, games\ ni nada del PC donde se monta
 # Antes: build.bat y build_motor.bat (o preparar.bat). Streamline sale de terceros\streamline (scripts\descargar_dependencias.ps1;
 # si falta, se baja, salvo con -SinDescargar).
@@ -132,7 +132,7 @@ Texto "$lic\NVIDIA-NOTICE.txt" @(
     'endorsed by NVIDIA.')
 $ver = @('# Versiones de los componentes de terceros / third-party component versions (scripts\components.json)', '')
 foreach ($c in $tabla) {
-    $donde = if ($c.bajo_demanda) { 'NO va en el paquete: la app lo baja cuando hace falta (DLSS 5) / NOT in the package: downloaded when needed (DLSS 5) from' } elseif ($c.al_abrir) { 'NO va en el paquete: la app lo baja la primera vez de / NOT in the package: downloaded on first start from' } else { 'en el paquete / in the package:' }
+    $donde = if ($c.al_abrir) { 'NO va en el paquete: la app lo baja la primera vez de / NOT in the package: downloaded on first start from' } else { 'en el paquete / in the package:' }
     $ver += "$($c.nombre) $($c.version) - $donde"
     $ver += "  $($c.url)"
     $ver += "  sha256 $($c.sha256)"
@@ -166,15 +166,15 @@ Texto "$Destino\extras\README.txt" @(
     ' - nvngx_dlssnr.dll ("DLSS 5", filtro DLSSNR de Magpie): DLL de NVIDIA modificada por la comunidad, SIN FIRMA, sin licencia.',
     '   Lo facil: icono de la bandeja > "Anadir DLSS 5 (tu propio archivo)..." (o el boton del ultimo paso del asistente): elige tu',
     '   archivo, la app comprueba que es una DLL de 64 bits, avisa y la copia aqui. "Quitar DLSS 5" la borra. Bajo tu responsabilidad.',
-    ' - runtimes\dlssg_sm86 (DLSS FG de Magpie con DLSS 5): no hace falta ponerlo; con DLSS 5 la app lo coge del PC o lo baja sola de',
-    '   su release oficial (github.com/sdli1995/dlssg_for_sm86, MIT) a extras\runtimes\dlssg_sm86 y lo copia a magpie\runtimes\.',
-    'ConsoleEnhancer no reparte, no baja ni recomienda nvngx_dlssnr.dll: NVIDIA no los ha publicado asi y su uso puede ir contra sus',
-    'condiciones. Si no sabes de donde salen, no los uses.',
+    ' - runtimes\dlssg_sm86 (DLSS FG de Magpie con DLSS 5, o x3 / x4 por Magpie): paquete de la comunidad que hace que NGX cargue DLSS FG',
+    '   sin la comprobacion de NVIDIA. Desde la 1.2.4 la app no lo trae ni lo baja; si ya lo tienes, ponlo en extras\runtimes\dlssg_sm86.',
+    'ConsoleEnhancer no reparte, no baja ni recomienda nvngx_dlssnr.dll ni dlssg_sm86: NVIDIA no los ha publicado asi y su uso puede ir',
+    'contra sus condiciones. Si no sabes de donde salen, no los uses.',
     '',
-    'UNOFFICIAL extras (not shipped; the app works fully without them): nvngx_dlssnr.dll (community-modified, unsigned NVIDIA DLL).',
-    'With DLSS 5 the app downloads runtimes\dlssg_sm86 (github.com/sdli1995/dlssg_for_sm86) by itself. If you already have the DLL, use tray icon > "Add DLSS 5 (your own file)..." (it checks the',
-    'file and copies it here) or put them here by hand; used at your own risk. ConsoleEnhancer does',
-    'not distribute, download or recommend nvngx_dlssnr.dll.')
+    'UNOFFICIAL extras (not shipped; the app works fully without them): nvngx_dlssnr.dll (community-modified, unsigned NVIDIA DLL) and',
+    'runtimes\dlssg_sm86 (community package that makes NGX load DLSS FG without NVIDIA''s check; since 1.2.4 the app no longer downloads it).',
+    'If you already have them, use tray icon > "Add DLSS 5 (your own file)..." (it checks the file and copies it here) or put them here by',
+    'hand; used at your own risk. ConsoleEnhancer does not distribute, download or recommend nvngx_dlssnr.dll or dlssg_sm86.')
 Texto "$Destino\README.txt" @(
     "ConsoleEnhancer $verTxt - your console through a capture card, enhanced on your PC / tu consola por la capturadora, mejorada en el PC",
     '',
@@ -207,8 +207,8 @@ Texto "$Destino\README.txt" @(
     'ConsoleEnhancer es gratis y completo. Si te es util y quieres apoyarlo (opcional): https://ko-fi.com/ianrog29')
 
 # ---- comprobaciones ----
-$noVan = @('nvngx_dlssnr.dll', 'DLSSNR-DLL-Options.zip', 'NGX_OTA_Switch.bat', 'switch2.ini', 'consoleenhancer.ini', 'hardware.txt', 'mpv.exe', 'Magpie.exe', 'PrismaNr.dll', 'PrismaNrTest.exe')
-$malos = @(Get-ChildItem -LiteralPath $Destino -Recurse -File -Force | Where-Object { $_.Name -in $noVan -or $_.FullName -like '*dlssg_sm86*' -or $_.FullName -like '*\games\*' -or $_.FullName -like '*\data\*' -or $_.FullName -like "$Destino\magpie\*" -or $_.Extension -in @('.log', '.pdb', '.obj', '.zip') })
+$noVan = @('nvngx_dlssnr.dll', 'DLSSNR-DLL-Options.zip', 'NGX_OTA_Switch.bat', 'switch2.ini', 'consoleenhancer.ini', 'hardware.txt', 'mpv.exe', 'Magpie.exe', 'PrismaNr.dll', 'PrismaNrTest.exe', 'PrismaFg.dll')
+$malos = @(Get-ChildItem -LiteralPath $Destino -Recurse -File -Force | Where-Object { $_.Name -in $noVan -or $_.Name -like 'Prisma*.dll' -or $_.FullName -like '*dlssg_sm86*' -or $_.FullName -like '*\games\*' -or $_.FullName -like '*\data\*' -or $_.FullName -like "$Destino\magpie\*" -or $_.Extension -in @('.log', '.pdb', '.obj', '.zip') })
 if ($malos.Count -gt 0) { throw ("En el paquete hay lo que no debe: " + (($malos | ForEach-Object { $_.FullName }) -join ', ')) }
 # Solo DLL firmadas por NVIDIA (las nuestras son los exe)
 foreach ($f in Get-ChildItem -LiteralPath $Destino -Recurse -File | Where-Object { $_.Extension -eq '.dll' }) {

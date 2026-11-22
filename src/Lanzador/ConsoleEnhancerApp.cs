@@ -206,7 +206,7 @@ namespace ConsoleEnhancer
                 if (!Directory.Exists(ex)) ex = Path.Combine(Paths.AppDir, @"extras\dlssg_sm86");
                 string dst = Path.Combine(Paths.MagpieDir, @"runtimes\dlssg_sm86"), marca = dst + ".de_extras";
                 // (1.2.02: tambien si una copia anterior quedo a medias, sin version.dll). (1.2.08) Solo si es la version que valida Magpie
-                // (si no, DLSS FG no arranca: Componentes.AsegurarSm86 la quita y pone la oficial)
+                // (si no, DLSS FG no arranca: Componentes.AsegurarSm86 la quita)
                 if (Directory.Exists(ex) && Directory.Exists(Paths.MagpieDir) && !File.Exists(Path.Combine(dst, "version.dll")) && Componentes.Sm86Distinto(ex) == null)
                 {
                     int n = CopiarCarpeta(ex, dst);
@@ -222,7 +222,7 @@ namespace ConsoleEnhancer
             }
             catch (Exception e) { Log.Error("Extras (dlssg_sm86)", e); }
             // (1.2.07, el usuario: "no tiene que hacer falta poner ningun archivo para activarlo ... que lo incluya la app"): con DLSS 5 en
-            // una NVIDIA y sin dlssg_sm86, la app lo busca en el PC o lo baja sola de su release (Componentes.AsegurarSm86, en segundo plano)
+            // una NVIDIA y sin dlssg_sm86, la app lo busca en el PC (Componentes.AsegurarSm86, en segundo plano; 1.2.4: ya no lo baja)
             Componentes.AsegurarSm86();
         }
 
