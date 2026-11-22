@@ -302,7 +302,9 @@ namespace ConsoleEnhancer.Motor
                 case "preset": Preset = val.Trim().ToUpperInvariant(); break;
                 case "sharp": Sharp = D(val); break;
                 case "fg": Fg = B(val); break;
-                case "dlss5": Nr = B(val); break;
+                // (22-11, 1.2.4 SOLOMAGPIE: DLSS 5 va siempre por Magpie; el motor no lo hace aunque se le pida -motor_extra, ordenes-: PrismaNr.dll
+                // no se carga nunca. El codigo de EngineDlss5.cs se queda sin uso)
+                case "dlss5": Nr = false; break;
                 case "dlss_lineal": DlssLinear = B(val); break;   // 20-11 (EngineLinear.cs)
                 case "dlss5_nivel":
                     {

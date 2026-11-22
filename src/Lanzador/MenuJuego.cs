@@ -105,7 +105,6 @@ namespace ConsoleEnhancer
                 pasadas.Add(it);
                 d5.DropDownItems.Add(it);
             }
-            BandejaMotorDlss5(d5);   // (22-11, 1.2.3 MOTOR5: en el motor propio / por Magpie, solo con PrismaNr.dll; MotorDlss5.cs)
 
             ToolStripMenuItem esc = new ToolStripMenuItem(Tx.T("Escalador alternativo", "Alternative scaler"), null, delegate { DesdeBandeja("escalador", false, delegate { ToggleScaler(); }); });
             esc.ShortcutKeyDisplayString = "Ctrl+R";
@@ -142,7 +141,6 @@ namespace ConsoleEnhancer
                     d5on.Checked = dlss5Shown;
                     for (int i = 0; i < niveles.Count; i++) niveles[i].Checked = dlss5Level == i + 1;
                     for (int i = 0; i < pasadas.Count; i++) pasadas[i].Checked = dlss5Passes == i + 1;
-                    BandejaMotorDlss5Marcar();
                     esc.Checked = !dlssScalerOn;
                     esc.Visible = cfg.UpscaleOn || cfg.AltScalerOn;
                     tram.Checked = cfg.StrongDitherOn;

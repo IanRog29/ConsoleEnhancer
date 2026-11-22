@@ -100,6 +100,10 @@ namespace ConsoleEnhancer
             string lat = p.Latencia == "reflex" ? Tx.T("Latencia: NVIDIA Reflex en el motor (de serie).", "Latency: NVIDIA Reflex in the engine (default).") :
                          p.Latencia == "antilag" ? Tx.T("Latencia: Radeon Anti-Lag lo enciende AMD Software (Juegos > ConsoleEnhancerEngine.exe); la app no puede.", "Latency: enable Radeon Anti-Lag in AMD Software for ConsoleEnhancerEngine.exe.") :
                          Tx.T("Latencia: el motor con 1 imagen en cola.", "Latency: the engine keeps a 1-frame queue.");
+            // (22-11, 1.2.4 SOLOMAGPIE: el juego va siempre por mpv + Magpie; el motor propio solo hace de puente mientras Magpie se abre)
+            if (Config.SoloMagpieOn)
+                lat = Tx.T("Latencia: la imagen va siempre por mpv + Magpie (el motor propio solo hace de puente unos segundos mientras Magpie se abre).",
+                           "Latency: the picture always goes through mpv + Magpie (the built-in engine only bridges for a few seconds while Magpie opens).");
             Etiqueta(lat, y, 44).ForeColor = Suave;
         }
 

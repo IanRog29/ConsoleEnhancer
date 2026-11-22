@@ -116,9 +116,7 @@ namespace ConsoleEnhancer
             FlowLayoutPanel fd = Fila();
             bAnadirD5 = Boton("", false, delegate
             {
-                bool motor;
-                if (!Extras.Anadir(this, out motor)) return;
-                if (motor) Ce.IniPoner("motor_dlss5", "1");
+                if (!Extras.Anadir(this)) return;
                 Ce.PrepararExtras();
                 Integrado.Dlss5Rever();
                 Cambio("DLSS 5 anadido");

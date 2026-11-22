@@ -5,8 +5,8 @@
 //    nombre esperado, se avisa una vez de que no es oficial ni la soporta NVIDIA y se copia a <app>\extras\ (donde la busca la
 //    deteccion, OpcionesDeteccion.RutasExtra, y de donde Ce.PrepararExtras la copia a magpie\). La app NO dice de donde sacarla ni
 //    enlaza ninguna descarga. "Quitar DLSS 5" lo borra de extras\ (PrepararExtras quita luego la copia de magpie\).
-//  - Encender DLSS 5: games\dlss5_on.txt (como el boton A jugando). DLSS 5 dentro del motor propio (motor_dlss5=1) solo si junto
-//    al motor esta PrismaNr.dll (de uso propio, no se publica): sin ella va por mpv + Magpie.
+//  - Encender DLSS 5: games\dlss5_on.txt (como el boton A jugando). DLSS 5 va siempre por mpv + Magpie (1.2.4
+//    SOLOMAGPIE: ya no se pregunta si hacerlo en el motor propio ni se pone engine\PrismaNr.dll).
 //  - Componentes (mpv, Magpie): comprobar y volver a bajar (--componentes-reparar, Componentes.cs).
 //  - Apoyo: Ko-fi, siempre opcional (la app es gratis y completa).
 using System;
@@ -48,10 +48,8 @@ namespace ConsoleEnhancer
         public static string Sm86 { get { return Path.Combine(Dir, @"runtimes\dlssg_sm86"); } }
         public static string Sm86Viejo { get { return Path.Combine(Dir, "dlssg_sm86"); } }
         public static string Sm86Puesto { get { return Directory.Exists(Sm86) ? Sm86 : Sm86Viejo; } }
-        public static string PrismaNr { get { return Path.Combine(Paths.AppDir, @"engine\PrismaNr.dll"); } }
         public static bool HayDlss5 { get { return File.Exists(Dll); } }
         public static bool HaySm86 { get { return Directory.Exists(Sm86) || Directory.Exists(Sm86Viejo); } }
-        public static bool MotorPuede { get { return File.Exists(PrismaNr); } }
 
         // null = DLL de Windows de 64 bits; si no, el motivo
         public static string MirarDll(string f)
@@ -87,10 +85,9 @@ namespace ConsoleEnhancer
 
         static void Mal(IWin32Window w, string t) { MessageBox.Show(w, t, "ConsoleEnhancer", MessageBoxButtons.OK, MessageBoxIcon.Warning); }
 
-        // El asistente de "Anadir DLSS 5". true = se ha copiado. motor: el usuario quiere DLSS 5 en el motor propio (motor_dlss5=1)
-        public static bool Anadir(IWin32Window w, out bool motor)
+        // El asistente de "Anadir DLSS 5". true = se ha copiado (1.2.4 SOLOMAGPIE: sin la pregunta de hacer DLSS 5 en el motor propio)
+        public static bool Anadir(IWin32Window w)
         {
-            motor = false;
             // el aviso, una vez por cada vez que se anade
             if (!Pregunta(w, Tx.T(
                     "DLSS 5 no es una función oficial.\r\n\r\n" +
@@ -149,21 +146,12 @@ namespace ConsoleEnhancer
                 string sm = BuscarSm86(origen);
                 if (sm != null) PonerSm86(w, sm);
             }
-            // (22-11, 1.2.3 MOTOR5) y PrismaNr.dll ("DLSS 5" en el motor propio, de uso propio) si esta junto a la DLL elegida: a engine\
-            { string pn = BuscarPrismaNr(origen); if (pn != null) PonerPrismaNr(w, pn); }
             // (1.2.3 MOTOR5) lo puesto, tambien fuera de la carpeta de la app: una version nueva lo recoge sola (ExtrasGuardados.cs)
             ExtrasGuardados.Guardar("añadido");
             // encenderlo
             bool on = Pregunta(w, Tx.T("¿Encender DLSS 5 ya? (Jugando se enciende y se apaga con el botón A del mando.)",
                                        "Turn DLSS 5 on now? (While playing, the controller's A button turns it on and off.)"), MessageBoxIcon.Question);
             PonerActivo(on);
-            if (on && MotorPuede)
-            {
-                motor = Pregunta(w, Tx.T("Junto al motor está PrismaNr.dll: ¿hacer DLSS 5 en el motor propio (menos retraso) en vez de mpv + Magpie?",
-                                         "PrismaNr.dll is next to the engine: run DLSS 5 in the built-in engine (lower latency) instead of mpv + Magpie?"), MessageBoxIcon.Question);
-                // (22-11, 1.2.3 MOTOR5: con motor_dlss5=auto de serie, el "no" tambien va al ini; el "si" lo ponen los que llaman)
-                if (!motor) Ce.IniPoner("motor_dlss5", "0");
-            }
             Integrado.Dlss5Rever();
             return true;
         }
@@ -183,46 +171,6 @@ namespace ConsoleEnhancer
             }
             catch { }
             return null;
-        }
-
-        // (22-11, 1.2.3 MOTOR5) PrismaNr.dll junto a la DLL elegida, como BuscarSm86: en su carpeta o hasta dos mas arriba (X\PrismaNr.dll o
-        // X\engine\PrismaNr.dll). null = no esta. (Solo la busca: PonerPrismaNr mira que valga)
-        public static string BuscarPrismaNr(string dll)
-        {
-            try
-            {
-                string x = Path.GetDirectoryName(Path.GetFullPath(dll));
-                for (int i = 0; i < 3 && !string.IsNullOrEmpty(x); i++, x = Path.GetDirectoryName(x))
-                    foreach (string c in new[] { Path.Combine(x, "PrismaNr.dll"), Path.Combine(x, @"engine\PrismaNr.dll") })
-                        if (File.Exists(c)) return c;
-            }
-            catch { }
-            return null;
-        }
-
-        // A engine\ si es una DLL de 64 bits y no es la misma que ya hay (sin preguntar; solo avisa si no se puede: el motor abierto la tiene cargada)
-        static void PonerPrismaNr(IWin32Window w, string de)
-        {
-            string m = MirarDll(de);
-            if (m != null) { Log.Write("PrismaNr.dll junto a la DLL no vale (" + m + "): no se copia"); return; }
-            try
-            {
-                if (Path.GetFullPath(de).Equals(Path.GetFullPath(PrismaNr), StringComparison.OrdinalIgnoreCase)) return;
-                FileInfo a = new FileInfo(de), b = new FileInfo(PrismaNr);
-                if (b.Exists && a.Length == b.Length && a.LastWriteTimeUtc == b.LastWriteTimeUtc) return;
-                Directory.CreateDirectory(Path.GetDirectoryName(PrismaNr));
-                string tmp = PrismaNr + ".parcial";
-                File.Copy(de, tmp, true);
-                if (File.Exists(PrismaNr)) File.Delete(PrismaNr);
-                File.Move(tmp, PrismaNr);
-                Log.Write("DLSS 5 en el motor propio: PrismaNr.dll de " + de + " puesta en engine\\ (" + a.Length + " bytes; de uso propio, no se distribuye)");
-            }
-            catch (Exception ex)
-            {
-                Log.Error("PrismaNr.dll: copiando a engine\\", ex);
-                Mal(w, Tx.T("No se pudo poner PrismaNr.dll en engine\\ (si el motor está abierto, cierra la app y vuelve a añadir DLSS 5):\r\n",
-                            "Could not put PrismaNr.dll in engine\\ (if the engine is open, close the app and add DLSS 5 again):\r\n") + ex.Message);
-            }
         }
 
         // Copia la carpeta dlssg_sm86 encontrada a extras\runtimes\ (sin preguntar; solo avisa si algo no vale)
@@ -290,7 +238,6 @@ namespace ConsoleEnhancer
                 QuitarSm86();
                 string mag = Path.Combine(Paths.MagpieDir, Integrado.Dlss5Dll);
                 try { if (File.Exists(mag + ".de_extras")) { if (File.Exists(mag)) File.Delete(mag); File.Delete(mag + ".de_extras"); } } catch { }
-                if (Ce.IniLeer("motor_dlss5") == "1") Ce.IniPoner("motor_dlss5", "0");
                 Integrado.Dlss5Rever();
                 Log.Write("DLSS 5 quitado por el usuario (extras\\)");
                 ExtrasGuardados.QuitarDlss5();   // (1.2.3 MOTOR5: y de lo guardado fuera de la app: una version nueva ya no lo recoge)
@@ -346,9 +293,7 @@ namespace ConsoleEnhancer
             menu.Items.Add(Tx.T("Componentes: comprobar / volver a descargar", "Components: check / download again"), null, delegate { MenuComponentes(); });
             ToolStripMenuItem d5 = new ToolStripMenuItem("", null, delegate
             {
-                bool motor;
-                if (!Extras.Anadir(null, out motor)) return;
-                if (motor) Ce.IniPoner("motor_dlss5", "1");
+                if (!Extras.Anadir(null)) return;
                 Ce.PrepararExtras();
                 bool asis = MessageBox.Show(Tx.T("DLSS 5 añadido. La app se vuelve a abrir para usarlo.\r\n\r\n¿Abrir antes el asistente para que ajuste DLSS 5 a tu gráfica? (recomendado)",
                                                  "DLSS 5 added. The app reopens to use it.\r\n\r\nOpen the setup wizard first so it tunes DLSS 5 for your GPU? (recommended)"),

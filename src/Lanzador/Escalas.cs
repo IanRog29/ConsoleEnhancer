@@ -84,8 +84,7 @@ namespace ConsoleEnhancer
             new[] { "30_fg_1440", "12,11,11,11" }, new[] { "30_fg_1080", "12,11,11,11" }, new[] { "30_fg_720", "12,11,11,11" },
             new[] { "30_xess", "12,5,5,5" }, new[] { "30_fsr3", "12,5,5,5" },
         };
-        // DLSS 5 en el motor propio, modo 30 (1, 2, 3 pasadas): captura 1080p/1440p y 4K (motor_dlss5_entrada_30 / _30_4k)
-        static readonly int[] RefMotor30 = { 100, 100, 75 }, RefMotor30_4k = { 75, 60, 45 };
+        // (hasta la 1.2.3: DLSS 5 en el motor propio, motor_dlss5_entrada_30 / _30_4k; 1.2.4 SOLOMAGPIE: fuera, DLSS 5 siempre por Magpie)
 
         static int Numero(char l) { return l == 'L' ? 12 : l == 'M' ? 13 : l == 'K' ? 11 : 5; }
         static int Rango(int n) { return n == 12 ? 3 : n == 13 ? 2 : n == 11 || n == 10 ? 1 : 0; }
@@ -155,8 +154,6 @@ namespace ConsoleEnhancer
             sb.AppendLine("escala_gpu_indice=" + g.Indice.ToString("0.##", CultureInfo.InvariantCulture));
             sb.AppendLine("escala_gpu_familia=" + fam);
             sb.AppendLine("escala_gpu_vram=" + g.VramGb.ToString("0.#", CultureInfo.InvariantCulture));
-            sb.AppendLine("motor_dlss5_entrada_30=" + Lista(RefMotor30, r, 1.0, p.Dlss5PasadasMax));
-            sb.AppendLine("motor_dlss5_entrada_30_4k=" + Lista(RefMotor30_4k, r, 1.0, p.Dlss5PasadasMax));
             // motor con DLSS-G en el modo 60: el modelo del plan para el 60 con generacion (en la Ti la grafica sobraba con M)
             ModoPlan m60;
             if (p.Modos.TryGetValue("60_fg", out m60) && m60.Modelo.Length > 0) sb.AppendLine("motor_modelo_60_dlssg=" + m60.Modelo);
@@ -284,8 +281,7 @@ namespace ConsoleEnhancer
             // (1.2.3 REVISION3: con lo elegido, no con Dlss5AutoAhora, que es falso mientras DLSS 5 lo hace el motor -y la linea decia "las tablas
             // (dlss5_escala_auto=0)"-; y los dos presupuestos de MULTI2: el 95 % es el del hilo de Magpie, no de la grafica)
             Log.Write("Escala de DLSS 5 por Magpie: " + (cfg.Dlss5AutoOn && cfg.Dlss5InputPct == 0 ? "automatica por la cadena (dlss5_escala_auto=1, " + EscalaAuto.Fichero + "; hilo de Magpie " +
-                      Math.Round(EscalaAuto.Uso * 100) + " %, grafica " + Math.Round(EscalaAuto.UsoGrafica * 100) + " %)" : cfg.Dlss5InputPct != 0 ? "fija (dlss5_entrada)" : "las tablas tabla_dlss5_* (dlss5_escala_auto=0)") +
-                      (cfg.MotorDlss5Pedido ? "; ahora DLSS 5 lo hace el motor propio (engine\\PrismaNr.dll, motor_dlss5)" : ""));
+                      Math.Round(EscalaAuto.Uso * 100) + " %, grafica " + Math.Round(EscalaAuto.UsoGrafica * 100) + " %)" : cfg.Dlss5InputPct != 0 ? "fija (dlss5_entrada)" : "las tablas tabla_dlss5_* (dlss5_escala_auto=0)"));
             if (!cfg.CeEscalas) return;
             Cargar();
             string g = GpuClave + "|";

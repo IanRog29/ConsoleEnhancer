@@ -318,7 +318,8 @@ namespace ConsoleEnhancer
             try
             {
                 // (1.2.2: tambien sin DLSS 5 si se pide DLSS FG x3 / x4, que va por Magpie: Config.MultPideSm86, Multiplicador.cs)
-                if (Ce.NoNvidia || (!Extras.HayDlss5 && !Config.MultPideSm86) || sm86Intentado) return;
+                // (1.2.4 SOLOMAGPIE: y sin DLSS 5: el juego va siempre por Magpie y su DLSS FG pide dlssg_sm86, Config.SoloMagpiePideSm86)
+                if (Ce.NoNvidia || (!Extras.HayDlss5 && !Config.MultPideSm86 && !Config.SoloMagpiePideSm86) || sm86Intentado) return;
                 // (puesto a mano o de una version anterior sin los .ini de Magpie: se ponen)
                 string mag = Path.Combine(Paths.MagpieDir, @"runtimes\dlssg_sm86");
                 // (1.2.08) otra version de dlssg_for_sm86 (puesta a mano): Magpie no la valida -> fuera, y la oficial

@@ -1,8 +1,8 @@
 // ExtrasGuardados.cs - lo que pone el usuario (y no va en el zip) guardado fuera de la carpeta de la app (22-11-2026, 1.2.3, agente MOTOR5)
 //
 // El usuario baja cada version nueva limpia del zip a una carpeta nueva y borra la vieja: la 1.2.2 arranco "sin nvngx_dlssnr.dll: DLSS 5
-// no disponible" y tuvo que volver a añadirlo; con engine\PrismaNr.dll pasaria igual. Lo suyo (extras\nvngx_dlssnr.dll,
-// extras\runtimes\dlssg_sm86 y engine\PrismaNr.dll) se guarda tambien en %LOCALAPPDATA%\ConsoleEnhancer\extras (donde ya miran la
+// no disponible" y tuvo que volver a añadirlo. Lo suyo (extras\nvngx_dlssnr.dll y
+// extras\runtimes\dlssg_sm86; hasta la 1.2.3 tambien engine\PrismaNr.dll) se guarda tambien en %LOCALAPPDATA%\ConsoleEnhancer\extras (donde ya miran la
 // deteccion -OpcionesDeteccion.RutasExtra- y Componentes.Sm86EnElPc) al añadirlo y al verlo en su sitio al arrancar, y una version nueva
 // que no lo tiene lo recoge de ahi (o de otra version de la app al lado, como HeredarDatos) antes de Ce.PrepararExtras, comprobado:
 // DLL de 64 bits y su tamaño (el apuntado al guardarla), dlssg_sm86 completo y el que pide el build-manifest.json de Magpie
@@ -40,8 +40,9 @@ namespace ConsoleEnhancer
         }
         static Cosa Dlss5 { get { return new Cosa { Nombre = Integrado.Dlss5Dll, EnApp = Extras.Dll, Guardado = Path.Combine(Dir, Integrado.Dlss5Dll), Minimo = 8L << 20 }; } }
         static Cosa Sm86 { get { return new Cosa { Nombre = "dlssg_sm86", EnApp = Extras.Sm86, Guardado = Path.Combine(Dir, @"runtimes\dlssg_sm86"), Carpeta = true }; } }
-        static Cosa Prisma { get { return new Cosa { Nombre = "PrismaNr.dll", EnApp = Extras.PrismaNr, Guardado = Path.Combine(Dir, @"engine\PrismaNr.dll"), Minimo = 16L << 10 }; } }
-        static Cosa[] Todas { get { return new[] { Dlss5, Sm86, Prisma }; } }
+        // (1.2.3 guardaba tambien engine\PrismaNr.dll; 1.2.4 SOLOMAGPIE: DLSS 5 ya no va en el motor: ni se guarda ni se recoge. La que haya
+        // en %LOCALAPPDATA%\ConsoleEnhancer\extras\engine se queda sin usar: la borra "Desinstalar" con "Sí = se borra todo")
+        static Cosa[] Todas { get { return new[] { Dlss5, Sm86 }; } }
 
         // (como Integrado.CopiaSeguridad: nada en pruebas con otra carpeta de datos o simulando, ni en la espera y sus ayudantes)
         static bool Toca()
@@ -75,7 +76,7 @@ namespace ConsoleEnhancer
             }
         }
 
-        // ---- al añadirlo ("Añadir DLSS 5": la DLL, su dlssg_sm86 y PrismaNr.dll si estaban al lado) ----
+        // ---- al añadirlo ("Añadir DLSS 5": la DLL y su dlssg_sm86 si estaba al lado) ----
         public static void Guardar(string porque)
         {
             if (!Toca()) return;
@@ -164,7 +165,7 @@ namespace ConsoleEnhancer
             try
             {
                 string app = Path.GetFullPath(Paths.AppDir).TrimEnd('\\'), padre = Path.GetDirectoryName(app);
-                string rel = c.Carpeta ? @"extras\runtimes\dlssg_sm86" : c.Nombre == "PrismaNr.dll" ? @"engine\PrismaNr.dll" : @"extras\" + c.Nombre;
+                string rel = c.Carpeta ? @"extras\runtimes\dlssg_sm86" : @"extras\" + c.Nombre;
                 if (!string.IsNullOrEmpty(padre) && Directory.Exists(padre))
                     foreach (string dir in Directory.GetDirectories(padre, "ConsoleEnhancer*"))
                         if (!string.Equals(dir.TrimEnd('\\'), app, StringComparison.OrdinalIgnoreCase)) de.Add(Path.Combine(dir, rel));
@@ -195,7 +196,7 @@ namespace ConsoleEnhancer
             {
                 CopiarDll(mejor, c.EnApp);
                 Log.Write("Extras guardados: " + c.Nombre + " que faltaba recogida de " + mejor + " (" + new FileInfo(c.EnApp).Length + " bytes, " + sw.ElapsedMilliseconds + " ms" +
-                          (c.Nombre == "PrismaNr.dll" ? "; de uso propio, no se distribuye" : "; DLL de NVIDIA modificada por la comunidad, SIN FIRMA, no oficial") + ")");
+                          "; DLL de NVIDIA modificada por la comunidad, SIN FIRMA, no oficial)");
             }
             m[ClaveCopia(c)] = DateTime.Now.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
         }
@@ -275,44 +276,6 @@ namespace ConsoleEnhancer
                 File.WriteAllText(Manifiesto, sb.ToString(), new UTF8Encoding(false));
             }
             catch (Exception ex) { Log.Error("Extras guardados: " + Manifiesto, ex); }
-        }
-
-        // --test-extras-guardados[=<informe>]: BuscarPrismaNr con carpetas de prueba en %TEMP% (sin la app ni la grafica)
-        public static int Prueba(string informe)
-        {
-            StringBuilder sb = new StringBuilder("# MOTOR5: PrismaNr.dll junto a la DLL elegida (" + DateTime.Now.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture) + ")\r\n");
-            int fallos = 0;
-            string raiz = Path.Combine(Path.GetTempPath(), "ce_test_prismanr_" + Process.GetCurrentProcess().Id);
-            try
-            {
-                byte[] dll = File.ReadAllBytes(typeof(ExtrasGuardados).Assembly.Location);   // (cualquier binario para las rutas; MirarDll se prueba aparte)
-                string[][] casos = {
-                    new[] { @"a\nvngx_dlssnr.dll", @"a\PrismaNr.dll", @"a\PrismaNr.dll" },
-                    new[] { @"b\x\nvngx_dlssnr.dll", @"b\engine\PrismaNr.dll", @"b\engine\PrismaNr.dll" },
-                    new[] { @"c\x\y\nvngx_dlssnr.dll", @"c\PrismaNr.dll", @"c\PrismaNr.dll" },
-                    new[] { @"d\x\y\z\nvngx_dlssnr.dll", @"d\PrismaNr.dll", "" },   // (tres carpetas mas arriba: no)
-                    new[] { @"e\nvngx_dlssnr.dll", "", "" } };
-                foreach (string[] k in casos)
-                {
-                    string dl = Path.Combine(raiz, k[0]);
-                    Directory.CreateDirectory(Path.GetDirectoryName(dl)); File.WriteAllBytes(dl, dll);
-                    if (k[1].Length > 0) { string p = Path.Combine(raiz, k[1]); Directory.CreateDirectory(Path.GetDirectoryName(p)); File.WriteAllBytes(p, dll); }
-                    string r = Extras.BuscarPrismaNr(dl) ?? "";
-                    string esp = k[2].Length > 0 ? Path.Combine(raiz, k[2]) : "";
-                    bool ok = string.Equals(r, esp, StringComparison.OrdinalIgnoreCase);
-                    if (!ok) fallos++;
-                    sb.AppendLine((ok ? "  ok    " : "  FALLO ") + k[0] + " -> " + (r.Length > 0 ? r.Substring(raiz.Length + 1) : "(nada)") + (ok ? "" : " (esperado " + (esp.Length > 0 ? k[2] : "nada") + ")"));
-                }
-                bool mOk = Extras.MirarDll(typeof(ExtrasGuardados).Assembly.Location) != null;   // (el exe de la app no es una DLL)
-                if (!mOk) fallos++;
-                sb.AppendLine((mOk ? "  ok    " : "  FALLO ") + "MirarDll del exe de la app: no vale como DLL");
-            }
-            catch (Exception ex) { fallos++; sb.AppendLine("FALLO excepcion: " + ex); }
-            finally { try { if (Directory.Exists(raiz)) Directory.Delete(raiz, true); } catch { } }
-            sb.AppendLine(fallos + " fallos");
-            try { File.WriteAllText(string.IsNullOrEmpty(informe) ? Path.Combine(Paths.Datos, @"games\test_extras_guardados.txt") : informe, sb.ToString(), new UTF8Encoding(false)); } catch { }
-            Console.Write(sb.ToString());
-            return fallos;
         }
     }
 }

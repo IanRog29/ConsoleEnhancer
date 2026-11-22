@@ -1014,9 +1014,8 @@ namespace ConsoleEnhancer
         // (Dlss5PassesNow / Dlss5PctNow / DlssModelNow, dentro de la cuenta de la cadena: lo que pasa otra vez por ellos ve las pasadas pedidas)
         [ThreadStatic] static int autoDentro;
 
-        // (no con DLSS 5 en el motor propio, motor_dlss5=1: su coste es otro y lo ajusta el motor, EngineAdapta.cs)
-        // (22-11, 1.2.3 MOTOR5: solo si DLSS 5 lo hace de verdad el motor; con x3 / x4, 2-3 pasadas o XeSS FG va por Magpie y con esto)
-        public bool Dlss5AutoAhora { get { return Dlss5AutoOn && Dlss5InputPct == 0 && !MotorDlss5Pedido; } }
+        // (1.2.1-1.2.3: no con DLSS 5 en el motor propio -motor_dlss5, engine\PrismaNr.dll-; 1.2.4 SOLOMAGPIE: DLSS 5 siempre por Magpie)
+        public bool Dlss5AutoAhora { get { return Dlss5AutoOn && Dlss5InputPct == 0; } }
 
         // El modelo de DLSS SR de Magpie con DLSS 5 y estas pasadas (lo de DlssModelNow sin pasar por Dlss5PassesNow), con el tope de la vigilancia
         int ModeloPara(int pasadas, string clave)
@@ -1105,7 +1104,7 @@ namespace ConsoleEnhancer
         // DlssModelNow con DLSS 5 por Magpie: el tope que puso la vigilancia (M/L -> K -> E) en esta cadena
         int AutoModelo(int m)
         {
-            if (!Dlss5AutoAhora || autoDentro > 0 || Dlss5Off || !UpscaleOn || ScalerNow != "dlss" || EngineDlss5Now || !Dlss5FitsNow) return m;
+            if (!Dlss5AutoAhora || autoDentro > 0 || Dlss5Off || !UpscaleOn || ScalerNow != "dlss" || !Dlss5FitsNow) return m;
             autoDentro++;
             try
             {
@@ -1151,7 +1150,7 @@ namespace ConsoleEnhancer
             double dt = escVistaAt == DateTime.MinValue ? 5 : Math.Max(1, Math.Min(15, (now - escVistaAt).TotalSeconds));
             escVistaAt = now;
             PrepareCfg();
-            bool nuestro = cfg.Dlss5AutoAhora && cfg.D5Tuned && !cfg.EngineDlss5Now && !Config.EngineActive && !cfg.HomeNative && MagpieLive.Pid() > 0;
+            bool nuestro = cfg.Dlss5AutoAhora && cfg.D5Tuned && !Config.EngineActive && !cfg.HomeNative && MagpieLive.Pid() > 0;
             EscalaAuto.Muestreo(nuestro);
             if (!nuestro) return false;
             try
