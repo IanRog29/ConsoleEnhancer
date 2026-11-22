@@ -233,7 +233,10 @@ namespace ConsoleEnhancer
             if (copiaTimer != null || string.IsNullOrEmpty(d)) return;
             foreach (string a in Environment.GetCommandLineArgs())   // (pruebas con otra carpeta de datos o simulando otro PC: nada)
                 if (a.StartsWith("--datos=", StringComparison.OrdinalIgnoreCase) || a.StartsWith("--simula", StringComparison.OrdinalIgnoreCase) ||
-                    a.StartsWith("--prueba", StringComparison.OrdinalIgnoreCase) || a.StartsWith("--test", StringComparison.OrdinalIgnoreCase)) return;
+                    a.StartsWith("--prueba", StringComparison.OrdinalIgnoreCase) || a.StartsWith("--test", StringComparison.OrdinalIgnoreCase) ||
+                    // (22-11, 1.2.2, ERRORES: ni el proceso de la espera ni la guarda de la barra: la copia la lleva la app; la espera la hacia cada
+                    // 2 min toda la noche, contra lo que dicen Espera.cs y EsperaCubierta.cs)
+                    a == "--espera" || a == "--ce-guarda-barra") return;
             if (string.Equals(Path.GetFullPath(d).TrimEnd('\\'), Path.GetFullPath(CopiaDir).TrimEnd('\\'), StringComparison.OrdinalIgnoreCase)) return;
             copiaTimer = new System.Threading.Timer(delegate { CopiaAhora(d); }, null, 5000, 120000);
         }
@@ -264,9 +267,41 @@ namespace ConsoleEnhancer
                         catch { }   // (un fichero abierto para escribir: la proxima vez)
                     }
                 }
+                // 22-11 (1.2.2, ERRORES): tambien los shaders ya compilados del motor (logs\cache\*.cso, ~0,5 MB). Sin ellos, una version nueva
+                // con la anterior ya borrada (hereda de esta copia) compilaba todos al abrir el motor la primera vez (22-11 01:50: 25-35 s sin
+                // imagen, y la captura segura lo tomo por "la capturadora no da 4K"). HeredarDatos ya los coge de <origen>\logs\cache
+                string cache = Path.Combine(d, @"logs\cache");
+                if (Directory.Exists(cache))
+                {
+                    string dc = Path.Combine(CopiaDir, @"logs\cache");
+                    Directory.CreateDirectory(dc);
+                    foreach (string a in Directory.GetFiles(cache, "*.cso"))
+                        try
+                        {
+                            string b = Path.Combine(dc, Path.GetFileName(a));
+                            if (!File.Exists(b)) File.Copy(a, b, false);   // (la clave es el texto del shader: el mismo nombre, lo mismo)
+                        }
+                        catch { }
+                }
             }
             catch { }
             finally { System.Threading.Interlocked.Exchange(ref copiando, 0); }
+        }
+
+        // 22-11 (1.2.2, ERRORES): un fichero de estado que la app borra al acabar con el (data\picture_restore.txt: lo cambiado en el HDR /
+        // los perfiles de NVIDIA hasta devolverlo) se queda en la copia si se copio mientras existia: la copia no borra nada. Una version
+        // nueva lo heredaba al abrirse por primera vez y "devolvia" una sesion que ya se habia cerrado bien (22-11 01:50:04, con la copia
+        // del 21-11 19:10). Al borrarlo de data\, fuera tambien de la copia (si otra carpeta de la app tuviera el suyo, lo sigue teniendo
+        // en su data\ y lo devuelve ella al abrirse)
+        public static void QuitarDeLaCopia(string nombre)
+        {
+            if (copiaTimer == null) return;   // (solo quien lleva la copia: no en pruebas con --datos=, --test..., ni sin la copia en marcha)
+            try
+            {
+                string b = Path.Combine(CopiaDir, nombre);
+                if (File.Exists(b)) File.Delete(b);
+            }
+            catch { }
         }
 
         static int CopiarCarpeta(string src, string dst)

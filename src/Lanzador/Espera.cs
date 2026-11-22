@@ -248,8 +248,21 @@ namespace ConsoleEnhancer
                     if (!mio) { mutexApp.Dispose(); mutexApp = null; Log.Write("Espera: la app sigue con su mutex tras 10 s (sigue sin el)"); }
                 }
                 catch (Exception ex) { Log.Error("Espera: mutex de la app", ex); mutexApp = null; }
-            try { return Entrar() ? 0 : 1; }
+            bool ok;
+            try { ok = Entrar(); }
             finally { SoltarMutex(); }
+            // 22-11 (1.2.2, ERRORES): false = no se ha podido suspender el PC (SuspenderYVolver: sin capturadora / mpv para la sonda, o tras
+            // espera_suspender_min con SetSuspendState fallando). En el proceso de la app eso acababa apagando el PC (Program.ApagarPc: "si no
+            // puede, apagar"); con la espera en su proceso (1.2.1) nadie lo hacia: la app cerrada, el PC encendido en el escritorio y nada que
+            // despertara con la consola. Ahora como antes
+            if (!ok)
+            {
+                bool simulado = Simulada > 0 || Prueba;
+                Log.Write("Espera: no se ha podido dejar el PC en espera ni suspenderlo: se apaga" + (simulado ? " (prueba: simulado)" : ""));
+                CeInicio.ApagarPcYa(simulado);
+                if (!simulado) TrasApagar();
+            }
+            return ok ? 0 : 1;
         }
 
         static void SoltarMutex()

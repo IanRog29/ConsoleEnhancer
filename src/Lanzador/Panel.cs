@@ -363,7 +363,7 @@ namespace ConsoleEnhancer
             try { Ce.IniPoner("escritorio_negro", "0"); Ce.IniPoner("apagar_pc", "0"); } catch { }
             try { Escritorio.Cambiar(false); } catch (Exception ex) { Log.Error("Desinstalar: escritorio", ex); }
             CeEspera.PlanDeAntes("desinstalar");
-            bool ok = TrayApp.PrepararBorrado(app, datos, borrarDatos == DialogResult.Yes, Process.GetCurrentProcess().Id);
+            bool ok = TrayApp.PrepararBorrado(app, datos, borrarDatos == DialogResult.Yes, Process.GetCurrentProcess().Id, true);   // (1.2.2: con "Sí", tambien la copia de seguridad)
             UseWaitCursor = false;
             MessageBox.Show(this, ok ? Tx.T("ConsoleEnhancer se ha desinstalado. Gracias por probarlo.", "ConsoleEnhancer has been uninstalled. Thanks for trying it.")
                                      : Tx.T("No se pudieron borrar los archivos. Borra la carpeta a mano:\n", "Could not delete the files. Delete the folder yourself:\n") + app,

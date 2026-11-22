@@ -316,10 +316,10 @@ namespace ConsoleEnhancer
         }
 
         // WaitForScaling, contado (AjustesPuede / AjEnCaliente saben que hay un Magpie preparando)
-        bool WaitForScaling(Process p, long logStart, int seconds = 15)
+        bool WaitForScaling(Process p, long logStart, int seconds = 15, bool tocarPrimerPlano = true)
         {
             Interlocked.Increment(ref ajEsperaMagpie);
-            try { return WaitForScalingCore(p, logStart, seconds); }
+            try { return WaitForScalingCore(p, logStart, seconds, tocarPrimerPlano); }
             finally { Interlocked.Decrement(ref ajEsperaMagpie); }
         }
 

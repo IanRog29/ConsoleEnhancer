@@ -92,7 +92,8 @@ namespace ConsoleEnhancer
             List<string> a = new List<string>();
             if (cfg.DevicePath.Length > 0 && cfg.TestSource.Length == 0) a.Add("device_path=" + cfg.DevicePath);
             a.Add("streamline=" + (NoNvidia ? "0" : cfg.EngineStreamline));
-            if (cfg.EngineAdapter.Length > 0) a.Add("adapter_luid=" + cfg.EngineAdapter);
+            string luid = AdaptadorMotor.Luid(cfg.EngineAdapter);   // (22-11, 1.2.2: el LUID de AHORA de esa grafica; src\Lanzador\AdaptadorMotor.cs)
+            if (luid.Length > 0) a.Add("adapter_luid=" + luid);
             a.Add("datos=" + EngineLogDir);
             a.Add("dlls_sr=" + Paths.MagpieDir);   // 21-11 (1.0.9): libxess.dll / amd_fidelityfx_*.dll para XeSS y FSR 3/4 en el motor
             Escalas.ArgsMotor(cfg, a);   // (20-11: adapta=1 adapta_clave=...: el motor ajusta las escalas solo, src\Escalas.cs)
@@ -143,6 +144,11 @@ namespace ConsoleEnhancer
                 Hardware rapido = Detectar(false);
                 string huella = Huella(rapido);
                 if (huella == vieja) return -1;
+                if (PantallaSinIdentificar(vieja, huella))
+                {
+                    Log.Write("Hardware: la pantalla principal no se identifica ahora (" + huella + "; apagada o en otra entrada, sin EDID): no cuenta como un cambio de hardware");
+                    return -1;
+                }
                 Log.Write("Hardware distinto del de la ultima vez (" + vieja + " -> " + huella + ")");
                 if (dryRun) return -1;
                 DialogResult r = MessageBox.Show(Tx.T("Ha cambiado el hardware (gráfica, pantalla o capturadora).\n¿Abrir el asistente para adaptar ConsoleEnhancer?",
@@ -261,6 +267,17 @@ namespace ConsoleEnhancer
             GpuInfo g = hw.GpuDe(p);
             CapturadoraInfo c = hw.Capturadoras.Find(delegate(CapturadoraInfo x) { return x.Tipo == TipoCaptura.Capturadora; });
             return (g != null ? g.Clave : "-") + "|" + (p != null ? p.Pnp + " " + p.Ancho + "x" + p.Alto : "-") + "|" + (c != null ? c.Instancia : "-");
+        }
+
+        // 22-11 (1.2.2, ERRORES): con la tele apagada (o en otra entrada) Windows no da su identificador (EDID): la huella salia
+        // "10DE:2803:...| 3840x2160|..." en vez de "...|MEIA699 3840x2160|..." y la app preguntaba "Ha cambiado el hardware... ¿Abrir el
+        // asistente?" al abrirse (con Windows, al despertar), aunque fuera la misma tele (visto en este PC el 22-11 con la tele apagada).
+        // Misma grafica y misma capturadora y la pantalla de ahora sin identificar: no es otro hardware
+        static bool PantallaSinIdentificar(string vieja, string nueva)
+        {
+            string[] a = (vieja ?? "").Split('|'), b = (nueva ?? "").Split('|');
+            if (a.Length != 3 || b.Length != 3 || a[0] != b[0] || a[2] != b[2]) return false;
+            return b[1] == "-" || b[1].StartsWith(" ", StringComparison.Ordinal);
         }
 
         static string LeerHuella()

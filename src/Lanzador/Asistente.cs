@@ -294,6 +294,11 @@ namespace ConsoleEnhancer
                 sb.AppendLine(Tx.T("Máximo: ", "Max: ") + pantalla.AnchoMax + "x" + pantalla.AltoMax + " @ " + pantalla.HzEnMax + " Hz · HDR " + (pantalla.HdrActivo ? Tx.T("encendido", "on") : pantalla.HdrPosible ? Tx.T("posible", "capable") : "no") +
                               " · VRR " + Tx.SiNo(pantalla.VrrPosible) + " · " + pantalla.Conexion);
                 foreach (string a in pl.Avisos) if (a.IndexOf("Hz", StringComparison.Ordinal) >= 0 || a.IndexOf("pantalla", StringComparison.OrdinalIgnoreCase) >= 0 || a.IndexOf("display", StringComparison.OrdinalIgnoreCase) >= 0) sb.AppendLine("! " + a);
+                // 22-11 (1.2.2, ERRORES; pendiente de la revision de la 1.2.03 "pantalla elegida en el asistente no se guarda"): la eleccion
+                // solo cuenta para el plan; mpv, el motor, Magpie y la cubierta negra van a la pantalla PRINCIPAL de Windows. Que se sepa
+                if (!pantalla.Principal)
+                    sb.AppendLine("! " + Tx.T("La imagen sale en la pantalla principal de Windows. Para jugar en esta, hazla la principal (Configuración > Sistema > Pantalla > «Convertir en la pantalla principal») y vuelve a abrir el asistente.",
+                                              "The picture goes to the Windows primary display. To play on this one, make it the primary display (Settings > System > Display > \"Make this my main display\") and open the wizard again."));
                 info.Text = sb.ToString();
             };
             if (hw.Pantallas.Count > 0) lp.SelectedIndex = Math.Max(0, hw.Pantallas.IndexOf(pantalla));
@@ -487,6 +492,7 @@ namespace ConsoleEnhancer
                 ProcessStartInfo psi = new ProcessStartInfo(Mpv, args);
                 psi.UseShellExecute = false; psi.CreateNoWindow = true;
                 prueba = Process.Start(psi);
+                EngineJob.Hold(prueba, true);   // (22-11, 1.2.2: si el asistente se cierra o muere en esos 8 s, Windows cierra la prueba)
                 Process yo = prueba;
                 ThreadPool.QueueUserWorkItem(delegate { Thread.Sleep(9000); try { if (yo != null && !yo.HasExited) yo.Kill(); } catch { } }); // (con fuentes en vivo --length no siempre vale)
                 estado.Text = texto;

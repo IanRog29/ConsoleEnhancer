@@ -2556,6 +2556,39 @@ namespace ConsoleEnhancer
         public static volatile int StartLogPosInt;
         public static long StartLogPos { get { return StartLogPosInt; } set { StartLogPosInt = (int)Math.Min(int.MaxValue, value); } }
 
+        // 22-11 (1.2.2, ERRORES): Magpie pasa magpie.log a magpie.1.log cada ~500 KB y, con lo que escribe NGX, rota cada 3-6 min y a veces A
+        // MITAD de un arranque (22-11 04:01:30 y 04:04:42, durante la creacion de DLSSNR). Entonces el "empieza el escalado" de este proceso
+        // queda en magpie.1.log y ScalingPhase, que solo miraba magpie.log, decia None: "no se detecto el inicio" y el atajo (alterna) lo
+        // paraba. El principio de magpie.log al abrir Magpie: si ya no es el mismo, ha rotado
+        static volatile byte[] startLogHead;
+        static byte[] LogHead(string f, int max)
+        {
+            try
+            {
+                if (!File.Exists(f)) return null;
+                using (FileStream fs = new FileStream(f, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+                {
+                    byte[] b = new byte[max];
+                    int n = fs.Read(b, 0, max);
+                    if (n <= 0) return null;
+                    if (n < max) Array.Resize(ref b, n);
+                    return b;
+                }
+            }
+            catch { return null; }
+        }
+        public static void NoteStartLogHead() { startLogHead = LogHead(Paths.MagpieLog, 64); }
+        // ¿magpie.log ya no es el que habia al abrir este Magpie? (su principio ha cambiado)
+        static bool LogRotated()
+        {
+            byte[] a = startLogHead;
+            if (a == null) return false;
+            byte[] b = LogHead(Paths.MagpieLog, a.Length);
+            if (b == null || b.Length < a.Length) return true;
+            for (int i = 0; i < a.Length; i++) if (a[i] != b[i]) return true;
+            return false;
+        }
+
         // Proceso de Magpie abierto (-1 = ninguno): el nuestro si lo hay (15-11: no la copia del informe de errores de uno que ha fallado)
         public static int Pid()
         {
@@ -2710,6 +2743,7 @@ namespace ConsoleEnhancer
                     sw = Stopwatch.StartNew();
                 }
                 try { StartLogPos = File.Exists(Paths.MagpieLog) ? new FileInfo(Paths.MagpieLog).Length : 0; } catch { StartLogPos = 0; }
+                NoteStartLogHead(); // (22-11, 1.2.2: para ver si su log rota mientras arranca, ScalingPhase)
                 HideToasts();
                 MagpieOculto.Watch(); // (18-11, INTEGRADO: sin su icono en la bandeja, Integrado.cs)
                 startedTick = Environment.TickCount; // (17-11: el repaso de los avisos cada 30 ms desde ya, aunque aun no tenga ventanas)
@@ -2722,6 +2756,7 @@ namespace ConsoleEnhancer
                 else psi.EnvironmentVariables.Remove("MAGPIE_DLSSFG_LITE");
                 Process started = Process.Start(psi);
                 if (started != null) lock (procSync) oursSeen[started.Id] = DateTime.Now;
+                if (started != null) EngineJob.Hold(started, true);   // (22-11, 1.2.2: si la app muere, Magpie no se queda escondido con los modelos de NVIDIA cargados)
                 while (sw.ElapsedMilliseconds < 8000 && !HasAnyWindow()) Thread.Sleep(30);
                 MagpieOculto.Hide("al abrirse"); // (18-11, INTEGRADO; si aun no lo ha puesto, lo quita el repaso de MagpieOculto.Watch)
                 bool running = Running;
@@ -2871,22 +2906,38 @@ namespace ConsoleEnhancer
             try
             {
                 if (!File.Exists(Paths.MagpieLog)) return Phase.None;
-                using (FileStream fs = new FileStream(Paths.MagpieLog, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+                // 22-11 (1.2.2, ERRORES): con el log rotado desde que se abrio este Magpie, todo magpie.log es suyo y lo de antes de rotar
+                // esta en magpie.1.log (desde donde empezo); ver LogRotated
+                bool rotado = LogRotated();
+                Phase? f = PhaseIn(Paths.MagpieLog, rotado ? 0 : StartLogPos);
+                if (f.HasValue) return f.Value;
+                if (rotado)
                 {
-                    long sp = StartLogPos > fs.Length ? 0 : StartLogPos; // (solo lo de este proceso: al matarlo no apunta el final)
-                    long from = Math.Max(sp, fs.Length - 512 * 1024);
-                    fs.Seek(from, SeekOrigin.Begin);
-                    string text;
-                    using (StreamReader r = new StreamReader(fs, Encoding.UTF8)) text = r.ReadToEnd();
-                    int st = text.LastIndexOf("|_StartImpl|缩放开始", StringComparison.Ordinal);   // "empieza el escalado"
-                    int sh = text.LastIndexOf("Scaling output shown", StringComparison.Ordinal);
-                    int en = text.LastIndexOf("缩放结束", StringComparison.Ordinal);              // "termina el escalado"
-                    int last = Math.Max(st, Math.Max(sh, en));
-                    if (last < 0) return Phase.None;
-                    return last == en ? Phase.Ended : last == sh ? Phase.Shown : Phase.Starting;
+                    string viejo = Path.Combine(Path.GetDirectoryName(Paths.MagpieLog), "magpie.1.log");
+                    if (File.Exists(viejo)) { Phase? g = PhaseIn(viejo, StartLogPos); if (g.HasValue) return g.Value; }
                 }
+                return Phase.None;
             }
             catch { return Phase.None; }
+        }
+
+        // La ultima marca de fase de ese log desde 'desde' (null = ninguna)
+        static Phase? PhaseIn(string path, long desde)
+        {
+            using (FileStream fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+            {
+                long sp = desde > fs.Length ? 0 : desde; // (solo lo de este proceso: al matarlo no apunta el final)
+                long from = Math.Max(sp, fs.Length - 512 * 1024);
+                fs.Seek(from, SeekOrigin.Begin);
+                string text;
+                using (StreamReader r = new StreamReader(fs, Encoding.UTF8)) text = r.ReadToEnd();
+                int st = text.LastIndexOf("|_StartImpl|缩放开始", StringComparison.Ordinal);   // "empieza el escalado"
+                int sh = text.LastIndexOf("Scaling output shown", StringComparison.Ordinal);
+                int en = text.LastIndexOf("缩放结束", StringComparison.Ordinal);              // "termina el escalado"
+                int last = Math.Max(st, Math.Max(sh, en));
+                if (last < 0) return null;
+                return last == en ? Phase.Ended : last == sh ? Phase.Shown : Phase.Starting;
+            }
         }
 
         // NGX roto en este proceso de Magpie ("restart required"): hay que cerrarlo y abrirlo
@@ -3170,25 +3221,38 @@ namespace ConsoleEnhancer
         const uint KillOnJobClose = 0x2000; // JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
         static readonly object sync = new object();
         static IntPtr job;
-        static readonly HashSet<int> held = new HashSet<int>();
+        static readonly Dictionary<int, DateTime> held = new Dictionary<int, DateTime>();
         static bool warned;
 
         // El motor al job (si no estaba) y si Windows lo cierra con la app (kill: en espera) o no (despierto)
+        // 22-11 (1.2.2, ERRORES; pendiente de la revision de la 1.2.03 "huerfanos de mpv/motor sin job"): el "cerrar con la app" es de TODO el
+        // job, no de cada proceso (y un proceso no sale de un job): despertar uno lo quitaba a todos -un motor de reserva escondido seguia
+        // sin el- y poner otro en espera se lo devolvia al despierto. Ahora el job siempre cierra lo suyo con la app, y RunMpv mete tambien
+        // la imagen (mpv y el motor recien abierto): si la app muere (administrador de tareas, un antivirus, un fallo nativo) no se quedan
+        // con la capturadora y la pantalla sin nadie que los mande. kill solo dice para que se mete
         public static void Hold(Process p, bool kill)
         {
             try
             {
                 lock (sync)
                 {
-                    if (job == IntPtr.Zero) job = CreateJobObjectW(IntPtr.Zero, null);
-                    if (job == IntPtr.Zero) { Warn("sin job (" + Marshal.GetLastWin32Error() + ")"); return; }
-                    ExtLimits l = new ExtLimits();
-                    l.LimitFlags = kill ? KillOnJobClose : 0;
-                    if (!SetInformationJobObject(job, JobObjectExtendedLimitInformation, ref l, (uint)Marshal.SizeOf(typeof(ExtLimits))))
-                        Warn("SetInformationJobObject " + Marshal.GetLastWin32Error());
-                    if (p != null && !held.Contains(p.Id))
+                    if (job == IntPtr.Zero)
                     {
-                        if (AssignProcessToJobObject(job, p.Handle)) held.Add(p.Id);
+                        job = CreateJobObjectW(IntPtr.Zero, null);
+                        if (job == IntPtr.Zero) { Warn("sin job (" + Marshal.GetLastWin32Error() + ")"); return; }
+                        ExtLimits l = new ExtLimits();
+                        l.LimitFlags = KillOnJobClose;
+                        if (!SetInformationJobObject(job, JobObjectExtendedLimitInformation, ref l, (uint)Marshal.SizeOf(typeof(ExtLimits))))
+                            Warn("SetInformationJobObject " + Marshal.GetLastWin32Error());
+                    }
+                    if (p != null)
+                    {
+                        // (por pid y su hora de arranque: con cada mpv tambien, un pid de uno ya cerrado puede volver a salir)
+                        DateTime st = DateTime.MinValue;
+                        try { st = p.StartTime; } catch { }
+                        DateTime ya;
+                        if (held.TryGetValue(p.Id, out ya) && ya == st) return;
+                        if (AssignProcessToJobObject(job, p.Handle)) held[p.Id] = st;
                         else Warn("AssignProcessToJobObject " + Marshal.GetLastWin32Error());
                     }
                 }
@@ -3200,7 +3264,7 @@ namespace ConsoleEnhancer
         {
             if (warned) return;
             warned = true;
-            Log.Write("Motor en espera: sin el job de Windows (" + why + "): si la app muriera sin cerrarlo, se quedaria abierto");
+            Log.Write("Imagen (mpv / motor): sin el job de Windows (" + why + "): si la app muriera sin cerrarlos, se quedarian abiertos");
         }
     }
 
@@ -6029,8 +6093,14 @@ namespace ConsoleEnhancer
                 check("Vuelto a cargar del disco: el nombre nuevo, seguro y con su icono", g1 == null || (again != null && again.NameSure && again.Icon != null));
                 check("Sin .tmp a medias", !File.Exists(FilePath + ".tmp") && !File.Exists(IconPath + ".tmp"));
                 string[] lines = File.ReadAllLines(FilePath, Encoding.UTF8);
-                check("9 columnas (" + (lines.Length > 1 ? lines[1] : "") + ")", lines.Length > 1 && lines[1].Split('|').Length == 9);
-                check("Copia .bak hecha antes del primer cambio", File.Exists(FilePath + ".bak"));
+                // (22-11, 1.2.2, ERRORES: desde el 19-11 (GENERACION) una 10ª columna, el tipo de generacion elegido con L3, si se eligio;
+                // y la .bak solo se hace antes de cambiar un nombre o juntar perfiles: con perfiles sin "Juego N" no hay cambio que copiar.
+                // Con los del usuario daba 2 fallos sin que nada fuera mal)
+                int cols = lines.Length > 1 ? lines[1].Split('|').Length : 0;
+                check("9 columnas, o 10 con el tipo de generacion elegido (" + (lines.Length > 1 ? lines[1] : "") + ")", cols == 9 || cols == 10);
+                bool cambiado = g1 != null || (g2 != null && cut != null);
+                check("Copia .bak hecha antes del primer cambio" + (cambiado ? "" : " (ningun nombre cambiado en esta copia: no hace falta)"),
+                      !cambiado || File.Exists(FilePath + ".bak"));
             }
             finally { lock (sync) { Dir = Path.Combine(Paths.Datos, "games"); list = null; backedUp = false; } }
             failures = fails;
@@ -8785,6 +8855,17 @@ namespace ConsoleEnhancer
         readonly bool testMode;
 
         public static string EntrySelfTest(out int failures)
+        {
+            // 22-11 (1.2.2, ERRORES): los casos son del HOME de la Switch 2 (Ocarina, Arceus...). Con la consola de este PC (games\console.txt,
+            // o la de la copia de seguridad: en el del usuario la PS5) "No Signal" esperaba lo de la PS5 (8 s, sin HOME reconocido) y daba
+            // 10 FALLOS desde la 1.2.09. La prueba con la Switch 2 puesta y, al acabar, la de antes
+            string consolaAntes = Consolas.Elegida;
+            Consolas.Reiniciar("switch2");
+            try { return EntrySelfTestSwitch2(out failures); }
+            finally { Consolas.Reiniciar(consolaAntes); }
+        }
+
+        static string EntrySelfTestSwitch2(out int failures)
         {
             StringBuilder sb = new StringBuilder();
             int fails = 0;
@@ -11546,7 +11627,10 @@ namespace ConsoleEnhancer
         string reserveKeyDone;
         void MaybeReserveEngine(DateTime now)
         {
-            if (!cfg.EngineReserve || standbyEngine != null || !ipcUp || !lsReady || homeBusy || passesBusy || relaunchEngine || relaunchSize != null ||
+            // (22-11, 1.2.2, ERRORES: !Config.EngineActive, "con el motor jugando 10 s": sin el, los 10 s contaban tambien con mpv + Magpie
+            // preparando y el motor del puente encima -sin motor en espera-; 02:49:26 el de reserva se arranco 1 s despues de pasar al
+            // motor, el usuario volvio a DLSS 5, arranco a la vez que Magpie -Magpie 20 s, el de reserva 13,6 s- y se cerro sin usarse)
+            if (!cfg.EngineReserve || !Config.EngineActive || standbyEngine != null || !ipcUp || !lsReady || homeBusy || passesBusy || relaunchEngine || relaunchSize != null ||
                 relevo != null || cfg.HomeNative || cfg.FgOff || cfg.Mode120 || userExit || !StandbyOn())
             { reserveQuietSince = DateTime.MinValue; return; }
             if (reserveQuietSince == DateTime.MinValue) { reserveQuietSince = now; return; }
@@ -12067,8 +12151,26 @@ namespace ConsoleEnhancer
                 if (p != null && !p.HasExited)
                 {
                     p.Refresh();
-                    if (p.MainWindowHandle != IntPtr.Zero) ForceForeground(p.MainWindowHandle);
+                    IntPtr h = p.MainWindowHandle;
+                    bool yaDelante = h != IntPtr.Zero && GetForegroundWindow() == h;
+                    if (h != IntPtr.Zero) ForceForeground(h);
                     Thread.Sleep(150);
+                    // 22-11 (1.2.2, ERRORES; pendiente de la revision de la 1.2.03): con mpv detras, pasarlo delante ya hace saltar el escalado
+                    // automatico de Magpie, y el atajo (alterna) lo paraba a los 150 ms. 22-11 03:14: dos atajos y 24 s hasta escalar (dos
+                    // DLSSNR creados). Si ha empezado, sin atajo
+                    if (!yaDelante && h != IntPtr.Zero)
+                    {
+                        Stopwatch ws = Stopwatch.StartNew();
+                        do
+                        {
+                            if (MagpieLive.IsScaling() || MagpieLive.ScalingPhase() == MagpieLive.Phase.Starting)
+                            {
+                                Log.Write("Magpie " + (MagpieLive.IsScaling() ? "ya esta escalando" : "ha empezado a escalar") + " con mpv delante: sin pulsar su atajo (lo pararia)");
+                                return;
+                            }
+                            Thread.Sleep(50);
+                        } while (ws.ElapsedMilliseconds < 700);
+                    }
                 }
                 int sc = MagpieConfig.ScaleShortcut();
                 byte key = (byte)(sc & 0xFF);
@@ -12871,12 +12973,15 @@ namespace ConsoleEnhancer
                         if (pipe == null && !linkWarned && !quitSent && (DateTime.Now - linkStart).TotalSeconds >= 10 && !p.HasExited && mpv == p)
                         {
                             linkWarned = true;
-                            Log.Write("Sin enlace IPC con mpv (\\\\.\\pipe\\" + ipcName + ") tras 10 s: sin vigilancia de la imagen");
+                            // (22-11, 1.2.2: con el motor recien abierto es que aun arranca: Streamline y, la primera vez, sus shaders, 20-30 s)
+                            if (CapMotorArrancando(p)) Log.Write("Sin enlace IPC con el motor (\\\\.\\pipe\\" + ipcName + ") tras 10 s: aun arrancando (Streamline; la primera vez compila sus shaders)");
+                            else Log.Write("Sin enlace IPC con mpv (\\\\.\\pipe\\" + ipcName + ") tras 10 s: sin vigilancia de la imagen");
                         }
                         if (pipe != null)
                         {
                             if (linkWarned) Log.Write("Enlace IPC con mpv establecido");
                             linkWarned = false;
+                            CapEnlace(p); // (22-11, 1.2.2: el motor recien abierto ya ha arrancado; la captura segura cuenta desde aqui, CapturaSegura.cs)
                             w = new StreamWriter(pipe, new UTF8Encoding(false));
                             w.AutoFlush = true;
                             w.NewLine = "\n";
@@ -13336,7 +13441,9 @@ namespace ConsoleEnhancer
                 // Margen de 3 s para no mostrar el aviso si la consola ya esta encendida
                 // (el motor propio tarda ~4 s en dar su primera imagen: NVIDIA prepara DLSS y la generacion)
                 // (21-11, 1.2.1: mientras se vigila un formato nuevo con la consola encendida, no: no es que este apagada)
-                if (!waitAsked && capVigilado == null && (DateTime.Now - waitStart).TotalSeconds >= (Config.EngineActive ? 6 : 3))
+                // (22-11, 1.2.2: ni con el motor aun arrancando, sin abrir la capturadora: la primera vez compila sus shaders 20-30 s y salia
+                // "Enciende la consola" con la consola encendida)
+                if (!waitAsked && capVigilado == null && !CapMotorArrancando(p) && (DateTime.Now - waitStart).TotalSeconds >= (Config.EngineActive ? 6 : 3))
                 {
                     waitAsked = true;
                     Log.Write("Sin senal de la consola: esperando a que se encienda");
@@ -13417,11 +13524,13 @@ namespace ConsoleEnhancer
         }
 
         // Espera a que Magpie empiece a escalar la ventana de mpv (su ventana de escalado) o a que pase el tiempo maximo
-        // (22-11, 1.2.2: lo llama WaitForScaling, que lo cuenta, en src\Lanzador\AjustesGuia.cs)
-        bool WaitForScalingCore(Process p, long logStart, int seconds = 15)
+        // (22-11, 1.2.2: lo llama WaitForScaling, que lo cuenta, en src\Lanzador\AjustesGuia.cs).
+        // tocarPrimerPlano = false (22-11, 1.2.2): justo tras pulsar el atajo de escalar, que ya lo ha empezado (o no): sin quitarle a mpv el
+        // primer plano, que lo pararia a medias antes de que el log de Magpie diga que ha empezado
+        bool WaitForScalingCore(Process p, long logStart, int seconds = 15, bool tocarPrimerPlano = true)
         {
             DateTime limit = DateTime.Now.AddSeconds(seconds), began = DateTime.Now;
-            bool focused = false, preparing = false;
+            bool focused = !tocarPrimerPlano, preparing = false;
             while (DateTime.Now < limit && !p.HasExited)
             {
                 // 22-11 (1.2.2, MENU): "Aplicar" en el menu de ajustes con Magpie preparando: reabierto ya con lo nuevo; la espera de nuevo
@@ -13438,8 +13547,9 @@ namespace ConsoleEnhancer
                     if (p.MainWindowHandle != IntPtr.Zero)
                     {
                         // 16-11: si ya ha empezado por EarlyScale (mpv delante antes de su primera imagen), sin tocar el primer plano: quitarselo
-                        // a mpv mientras Magpie prepara el escalado lo pararia a medias
-                        bool early = earlyScaled == p && MagpieLive.ScalingPhase() == MagpieLive.Phase.Starting;
+                        // a mpv mientras Magpie prepara el escalado lo pararia a medias. 22-11 (1.2.2, ERRORES): empezado por lo que sea (el
+                        // atajo, un primer plano de antes), no solo por EarlyScale
+                        bool early = MagpieLive.ScalingPhase() == MagpieLive.Phase.Starting;
                         if (!MagpieLive.IsScaling() && !early)
                         {
                             MarcoMpv.Quitar(p.MainWindowHandle, "antes del escalado de Magpie"); // (1.2.1, MarcoMpv.cs)
@@ -13530,9 +13640,14 @@ namespace ConsoleEnhancer
                 pendingWarnOsd = "Magpie no está escalando · " + (MagpieLive.LastIssue(DateTime.Now.AddSeconds(-60)) ?? "mira switch2.log");
             if (!ShowPendingWarn() && byPad) Osd(StatusText());
             // Para el log: lo que Magpie dice de este arranque (efectos creados y errores)
+            // 22-11 (1.2.2, ERRORES): de ESTE arranque. Con Magpie reabierto en esos 3 s (otra captura nada mas escalar), el informe salia con
+            // el tiempo del nuevo y el log del viejo (02:28:00 "Arranque de Magpie (1932 ms desde que se abrio)" con el DLSSNR de 4K del de
+            // antes, ya a 1440p): el del Magpie nuevo sale luego, el suyo
+            Stopwatch swEste = lsStartSw;
             Thread t = new Thread(delegate ()
             {
                 Thread.Sleep(3000);
+                if (lsStartSw != swEste) return;
                 string text = LogSince(Paths.MagpieLog, logStart);
                 int errors = 0;
                 StringBuilder sb = new StringBuilder();
@@ -13549,7 +13664,7 @@ namespace ConsoleEnhancer
                         if (sb.Length > 1600) break;
                     }
                 }
-                Log.Write("Arranque de Magpie (" + (lsStartSw != null ? lsStartSw.ElapsedMilliseconds + " ms desde que se abrio" : "ya abierto") + "): " +
+                Log.Write("Arranque de Magpie (" + (swEste != null ? swEste.ElapsedMilliseconds + " ms desde que se abrio" : "ya abierto") + "): " +
                           errors + " errores en su log" + sb);
             });
             t.IsBackground = true;
@@ -13602,7 +13717,7 @@ namespace ConsoleEnhancer
                 if (!MagpieQuieto()) { if (WaitForScaling(p, logStart, 8)) return true; continue; }
                 Log.Write("Magpie no ha escalado solo: se pulsa su atajo");
                 SendScaleHotkey();
-                if (WaitForScaling(p, logStart, 5)) return true;
+                if (WaitForScaling(p, logStart, 5, false)) return true;   // (22-11, 1.2.2: sin volver a tocar el primer plano, ver WaitForScaling)
             }
             string issue = MagpieLive.LastIssue(DateTime.Now.AddSeconds(-40));
             pendingWarnOsd = "Magpie no escala · " + (issue ?? "mira switch2.log");
@@ -13864,6 +13979,7 @@ namespace ConsoleEnhancer
                     {
                         p = Process.Start(psi);
                         mpv = p;
+                        EngineJob.Hold(p, true);   // (22-11, 1.2.2: si la app muere, Windows lo cierra; ver EngineJob)
                         if (first && !eng) StandbyAlAbrir(); // (22-11, 1.2.2: el motor en espera ya, a la vez que mpv; src\Lanzador\TiemposCarga.cs)
                         if (eng) { Config.NoteEngineFixed(p); Config.NoteEngineFfx(p); }   // 20-11 (LATENCIA5)
                         if (eng) Config.EngineSmoothRunning = Config.EngineSmoothLaunched;   // 17-11 16:55 (17:15: con mpv se queda el del ultimo motor: el que pasa a espera tras el puente lo necesita; antes -1 y al motor de Smooth Motion se le mandaba fg=1)
@@ -14003,7 +14119,7 @@ namespace ConsoleEnhancer
                         // Relanzado en plena sesion la ventana nueva puede no pasar a primer plano
                         Log.Write("Magpie no ha escalado solo: se pulsa su atajo");
                         SendScaleHotkey();
-                        scaled = WaitForScaling(p, logStart, 5);
+                        scaled = WaitForScaling(p, logStart, 5, false);   // (22-11, 1.2.2: sin volver a tocar el primer plano, ver WaitForScaling)
                     }
                     if (!scaled && !p.HasExited && !userExit && File.Exists(Paths.MagpieExe))
                     {
