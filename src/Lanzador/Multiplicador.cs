@@ -24,11 +24,12 @@
 //   escala de DLSS 5 y la escalera de FpsBajo.cs).
 // - Al arrancar Magpie se mira lo que de verdad ha puesto (multiplier=Nx / effective=Nx de su log): si no es lo pedido, aviso.
 // - MEDIDO el 22-11 (tele a 120 Hz con VRR, fuente sintetica, modo 30, 1440p, PresentMon sobre Magpie.exe): DLSS FG x2 59,8 / x3 89,6 /
-//   x4 120,0 imagenes/s (x4 todas a 1 refresco; x3 alternando 1 y 2: el VRR no llega a la salida de Magpie); XeSS FG x2 57,9 / x3 89,7 /
-//   x4 63 (la mitad de reales: ver XessX4); XeSS FG a 1080p, 59 (ya arranca: xess_fg_1080).
+//   x4 120,0 imagenes/s (x4 todas a 1 refresco; x3 alternando 1 y 2); XeSS FG x2 57,9 / x3 89,7 / x4 63 (la mitad de reales: ver XessX4);
+//   XeSS FG a 1080p, 59 (ya arranca: xess_fg_1080). OJO: en esas pruebas Magpie no aplicaba el perfil de la app (bin\mpv era una union:
+//   "effective base target: 60" y VRR "requested=false"); en la sesion del usuario, 29,97 y VRR si.
 // ini: generacion_multiplicador=0 = como antes (solo el x2 elegible; generacion_60 / modo30_generacion tal cual para todas).
 //      xess_fg_1080=0|1: XeSS FG con la ventana de 1080p (ventana_1080). Ver XessNo1080.
-//      xess_fg_x4=auto|1|0: XeSS FG x4 (auto: no donde su ritmo de base 60 pide mas que la pantalla). Ver XessX4.
+//      xess_fg_x4=auto|1|0: XeSS FG x4 (auto: si su ritmo XeLL pide mas que la pantalla al arrancar, x3 y aviso). Ver XessX4.
 //      prueba_multiplicador_hz=N: solo pruebas (las reglas como si la pantalla fuera a N Hz)
 using System;
 using System.Collections.Generic;
@@ -69,12 +70,14 @@ namespace ConsoleEnhancer
 
         public static bool MultTipo(string t) { return t == "dlss" || t == "xess"; }
 
-        // ---- XeSS FG x4 (MEDIDO el 22-11, RTX 4060 Ti, tele a 120 Hz, Magpie 0.6.12): su ritmo XeLL toma siempre 60 de base ("XeLL input
-        // pacing: baseTarget=60.000 outputTarget=240.000", igual con contentRate 30, contentMode 1 o el refresco avanzado): pide 240 a una
-        // tele de 120 y se queda con la MITAD de imagenes reales (15,6-15,9/s; salida 62-63/s, peor que x2). x3 (pide 180) si va: 89,7/s.
-        // xess_fg_x4: auto (de serie) = bloqueado si 60 x 4 no cabe en la pantalla; 1 = siempre; 0 = nunca
+        // ---- XeSS FG x4 (MEDIDO el 22-11, RTX 4060 Ti, tele a 120 Hz, Magpie 0.6.12): su ritmo XeLL toma la base de Magpie ("XeLL input
+        // pacing: baseTarget=60.000 outputTarget=240.000" = "Frame sync effective base target: 60.000") y con x4 pide base x 4: con base 60
+        // (Magpie con su perfil por defecto: asi en mis pruebas, con bin\mpv como union) pidio 240 a la tele de 120 y se quedo con la MITAD de
+        // imagenes reales (15,6-15,9/s; salida 62-63/s). Con el perfil de la app (base 29,97, como en la sesion del usuario) pediria 119,88.
+        // Por eso no se bloquea de antemano: al arrancar Magpie (MultComprobarArranque) si su XeLL pide mas que la pantalla, x3 y aviso.
+        // xess_fg_x4: auto (de serie) = eso; 1 = sin mirar; 0 = nunca x4 con XeSS FG
         public static volatile string XessX4 = "auto";
-        static bool XessX4Malo(int m, int hz) { return m >= 4 && XessX4 != "1" && (XessX4 == "0" || (hz > 0 && 60.0 * m > hz + 1.0)); }
+        static bool XessX4Malo(int m, int hz) { return m >= 4 && XessX4 == "0"; }
 
         // Lo pedido en un modo (2-4), sin mirar la pantalla
         public int MultPedido(bool cap30)
@@ -132,7 +135,7 @@ namespace ConsoleEnhancer
             }
             if (tipo == "xess" && XessX4Malo(m, hz))
             {
-                es = "con este Magpie pide 240 fps: la mitad de imágenes reales"; en = "with this Magpie it asks for 240 fps: half the real frames";
+                es = "desactivado (xess_fg_x4=0)"; en = "turned off (xess_fg_x4=0)";
                 return true;
             }
             // DLSS FG x3 / x4 va por Magpie, que necesita runtimes\dlssg_sm86 (tambien en RTX 40)
@@ -201,15 +204,14 @@ namespace ConsoleEnhancer
                             sb.AppendLine((mal ? "FALLO " : "      ") + hz + " Hz, VRR " + (vrr ? "si" : "no") + ", modo " + (cap30 ? 30 : 60) + ": " + string.Join(" | ", fila.ToArray()) +
                                           "  -> pedido x4 va x" + va4 + ", x3 va x" + va3 + (e != null ? "  (esperado " + e + ")" : ""));
                         }
-                // XeSS FG x4 con su ritmo de base 60 (xess_fg_x4=auto): no a 120 Hz, si a 240
-                XessX4 = "auto";
-                foreach (int hz in new[] { 120, 144, 240 })
+                // XeSS FG x4: con xess_fg_x4=auto se ofrece (lo mira MultComprobarArranque con lo que pide XeLL); con 0, nunca
+                foreach (string xv in new[] { "auto", "0" })
                 {
-                    multHzPrueba = hz; CeImagen.VrrAhora = true;
+                    XessX4 = xv; multHzPrueba = 120; CeImagen.VrrAhora = true;
                     bool b4 = c.MultBloqueado(true, 4, "xess"), b3 = c.MultBloqueado(true, 3, "xess"), d4 = c.MultBloqueado(true, 4, "dlss") && Integrado.MagpieDlssgOk;
-                    bool esp4 = hz < 240, mal = b4 != esp4 || b3 || d4;
+                    bool esp4 = xv == "0", mal = b4 != esp4 || b3 || d4;
                     if (mal) fallos++;
-                    sb.AppendLine((mal ? "FALLO " : "      ") + "XeSS FG x4 (xess_fg_x4=auto) a " + hz + " Hz, modo 30: " + (b4 ? "NO (" + c.MultMotivo(true, 4, "xess") + ")" : "si") +
+                    sb.AppendLine((mal ? "FALLO " : "      ") + "XeSS FG x4 (xess_fg_x4=" + xv + ") a 120 Hz, modo 30: " + (b4 ? "NO (" + c.MultMotivo(true, 4, "xess") + ")" : "si") +
                                   "; x3 " + (b3 ? "NO" : "si") + "; DLSS FG x4 " + (d4 ? "NO" : "si") + " (esperado x4 " + (esp4 ? "NO" : "si") + ", x3 si)");
                 }
                 XessX4 = "1";
@@ -790,7 +792,24 @@ namespace ConsoleEnhancer
                     }
                     return;
                 }
-                if (puesto == pedido) { Log.Write("Multiplicador: Magpie con " + cfg.FgName + " x" + puesto + " (lo pedido)"); return; }
+                // (XeSS FG: su ritmo XeLL pide base x multiplicador; con x4 y la base de 60 de Magpie, 240 a una tele de 120: medido, la mitad de
+                // reales. Si pide mas que la pantalla -> x3 y aviso. xess_fg_x4=1: sin mirar)
+                Match xl = Regex.Match(log ?? "", @"XeLL input pacing: baseTarget=([0-9.]+) outputTarget=([0-9.]+)");
+                int hzx = Config.MultHz();
+                if (puesto >= 4 && cfg.FgTypeNow == "xess" && Config.XessX4 == "auto" && xl.Success && hzx > 0)
+                {
+                    double bt = double.Parse(xl.Groups[1].Value, CultureInfo.InvariantCulture), ot = double.Parse(xl.Groups[2].Value, CultureInfo.InvariantCulture);
+                    if (ot > hzx + 1.0)
+                    {
+                        Log.Write("Multiplicador: XeSS FG x" + puesto + " con XeLL pidiendo " + ot.ToString("0.##", CultureInfo.InvariantCulture) + " fps (base " +
+                                  bt.ToString("0.##", CultureInfo.InvariantCulture) + ") a una pantalla de " + hzx + " Hz: se pasa a x3 (con x4 asi se pierde la mitad de imagenes reales; xess_fg_x4=1 = no mirarlo)");
+                        string pide = Math.Round(ot).ToString(CultureInfo.InvariantCulture);
+                        OnUi(delegate { OsdWarn(Tx.T("XeSS FG x4 pide " + pide + " fps a una tele de " + hzx + " Hz: x3", "XeSS FG x4 asks for " + pide + " fps on a " + hzx + " Hz TV: x3"), "7000"); });
+                        ThreadPool.QueueUserWorkItem(delegate { try { MultElegir(3, 0); } catch (Exception ex) { Log.Error("Multiplicador: a x3", ex); } });
+                        return;
+                    }
+                }
+                if (puesto == pedido) { Log.Write("Multiplicador: Magpie con " + cfg.FgName + " x" + puesto + " (lo pedido)" + (xl.Success ? " (" + xl.Value + ")" : "")); return; }
                 Log.Write("Multiplicador: AVISO, se pidio " + cfg.FgName + " x" + pedido + " y Magpie ha puesto x" + puesto + (c.Success ? " (" + c.Value + ")" : ""));
                 string tipo = cfg.FgName;
                 int pp = puesto, pe = pedido;
