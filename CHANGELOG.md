@@ -33,6 +33,13 @@ publicada es una etiqueta `vX.Y.Z` de git; GitHub Actions monta su zip y copia a
   settings menu says so and another frame generation is used. DLSS FG in the engine never needs it.
   *La app ya no baja `dlssg_sm86` (ese paquete de la comunidad hace que NGX cargue DLSS FG sin la comprobación de NVIDIA): si ya lo
   tienes, se usa como antes para el DLSS FG por Magpie; si no, el menú lo dice y va otra generación. El DLSS FG del motor no lo necesita.*
+- **Add DLSS 5 now finds these files if they are already on your PC** (`nvngx_dlssnr.dll` and the `dlssg_sm86` folder): only locally
+  (Downloads, Desktop, other ConsoleEnhancer folders, Magpie folders, program and game folders; limited depth, ~4 s at most, cancelable),
+  it lists folder, size, version and NVIDIA signature, puts first the one that suits your GPU, and copies the one you pick into `extras\`;
+  if DLSS 5 is missing at start-up it looks once and asks first. Nothing is downloaded or linked. `--test-buscar-extras` for developers.
+  *«Añadir DLSS 5» encuentra ahora estos archivos si ya están en tu PC: solo en local (Descargas, Escritorio, otras carpetas de
+  ConsoleEnhancer, de Magpie, de programas y de juegos; profundidad limitada, ~4 s como mucho, cancelable), enseña carpeta, tamaño,
+  versión y firma, pone primero el que vale para tu gráfica y copia el que elijas a `extras\`. No se descarga ni se enlaza nada.*
 - **"Add DLSS 5" tells you which file you picked**: NVIDIA's original `nvngx_dlssnr.dll` (valid NVIDIA signature, which NVIDIA only
   makes work on RTX 50) or the unsigned community-modified one, and says plainly what NVIDIA allows today (see *DLSS 5 and the law* in
   the README).
@@ -58,7 +65,7 @@ publicada es una etiqueta `vX.Y.Z` de git; GitHub Actions monta su zip y copia a
   del motor en el modo 30 va con refresco fijo.*
 - **×3 / ×4 for every GPU in the built-in engine with its own frame generation** (own code with the engine's motion vectors; nothing
   from NVIDIA, AMD or Intel: the only legal ×3 / ×4 on RTX 20 / 30 / 40 and on AMD). When you pick DLSS FG or XeSS FG ×3 / ×4, the engine
-  uses, in this order, the official path (RTX 50, or XeSS FG on Intel), a private engine helper if you have one, or its own frame
+  uses, in this order, the official path (RTX 50, or XeSS FG on Intel), `PrismaFg` with your own `dlssg_sm86` (RTX 40), or its own frame
   generation; Magpie only if none applies. The menu, the tray and the notices say it: **"x4 (FG propia)" / "x4 (own FG)"**, and the
   protection lowers it like any other. Measured in the whole app (RTX 4060 Ti, 4K 120 Hz VRR TV, 30 fps mode, test source): ×4 at
   119.8/s with every frame 8.3 ms apart (p99 8.8 ms), also with DLSS 5 on; ×3 at 89.8/s, 14.0 / 8.5 / 11.3 ms apart (with DLSS 5: with
@@ -67,7 +74,7 @@ publicada es una etiqueta `vX.Y.Z` de git; GitHub Actions monta su zip y copia a
   before. DLSS FG ×2 and XeSS FG ×2 are unchanged.
   *×3 / ×4 para cualquier gráfica en el motor con su generación propia (código propio con los vectores del motor; la única ×3 / ×4 legal
   en RTX 20 / 30 / 40 y AMD). Al elegir DLSS FG o XeSS FG ×3 / ×4 el motor usa, por orden, la vía oficial (RTX 50, XeSS FG en Intel), un
-  complemento privado del motor si lo tienes o su generación propia; Magpie solo si nada vale. El menú, la bandeja y los avisos lo
+  `PrismaFg` con tu `dlssg_sm86` (RTX 40) o su generación propia; Magpie solo si nada vale. El menú, la bandeja y los avisos lo
   dicen: «x4 (FG propia)». Medido en la app entera: ×4 a 119,8/s con todas a 8,3 ms (p99 8,8), también con DLSS 5; ×3 a 89,8/s. En
   barrotes finos, peor que DLSS FG. `motor_fg_propia=0` = como antes.*
 - **Protection for every combination** (upscaler + DLSS 5 + frame generation + multiplier): before applying, the app estimates the real
@@ -126,20 +133,20 @@ publicada es una etiqueta `vX.Y.Z` de git; GitHub Actions monta su zip y copia a
   *XeSS FG ×4 a 4K ya no sale bloqueado (en NVIDIA / AMD va con la generación propia del motor; por Magpie, «a prueba» y baja sola a ×3).*
 
 ### Notes / Notas
-- ConsoleEnhancer's own code and its zip never bypass NVIDIA's or Intel's checks and never alter their libraries: NVIDIA's DLSS FG
-  ×3 / ×4 only on RTX 50, Intel's XeSS FG ×3 / ×4 only on Intel GPUs, and everywhere else ×3 / ×4 come from the engine's own frame
-  generation. Magpie (a separate program the app downloads) is only a fallback, and does things its own way. DLSS 5 is not legally
-  available to apps today (see *DLSS 5 and the law* in the README): with a `nvngx_dlssnr.dll` you add yourself (and no private engine
-  helper), DLSS 5 goes through Magpie Experimental, which is what loads that file without NVIDIA's check, not ConsoleEnhancer's code;
-  the file is each user's, at their own risk. Private engine helpers (`PrismaNr.dll`, `PrismaFg.dll`) are never in
-  the repository or the zip; the engine only uses them if someone puts them in `engine\`.
-  *Ni el código de ConsoleEnhancer ni su zip se saltan las comprobaciones de NVIDIA o Intel ni cambian sus DLL: DLSS FG ×3 / ×4 de NVIDIA
-  solo en RTX 50, XeSS FG ×3 / ×4 de Intel solo en Intel, y en lo demás ×3 / ×4 salen de la generación propia del motor. Magpie (programa
-  aparte que baja la app) es solo reserva. DLSS 5 legal para otras apps hoy no existe: con una `nvngx_dlssnr.dll` que añadas tú (y sin
-  complemento privado del motor), DLSS 5 va por Magpie Experimental, que es quien carga ese archivo sin la comprobación de NVIDIA, no el
-  código de ConsoleEnhancer; el archivo lo pone cada usuario bajo su responsabilidad. Los complementos privados del motor nunca van en
-  el repositorio ni en el zip.*
-- **To go back** (add the line at the end of `consoleenhancer.ini`): `motor_dlss5_pasadas=1` (2-3 DLSS 5 passes through Magpie, as in
+- **DLSS 5 and the law (see the README)**: since 1.2.4 the repository and the zip carry the engine's own native pieces `PrismaNr`
+  (DLSS 5 in the engine) and `PrismaFg` (DLSS FG ×3 / ×4 in the engine on RTX 40 / 30). They are own code that loads the files the user
+  adds (`nvngx_dlssnr.dll`, the `dlssg_sm86` package) without going through NVIDIA's check (NGX), which NVIDIA's terms do not allow; the
+  user decided to publish them knowing that. The app does not ship, download or link to any modified NVIDIA file: each user adds their
+  own, at their own risk, and *Add DLSS 5* only looks on their own PC. PrismaNr is built in CI with NVIDIA's two public NGX headers
+  (pinned, SHA-256 checked), which are not in the repository. Without the user's files both pieces do nothing. DLSS 5 is not legally
+  available to apps today. Elsewhere the engine never alters NVIDIA's or Intel's libraries: NVIDIA's DLSS FG ×3 / ×4 only on RTX 50,
+  Intel's XeSS FG ×3 / ×4 only on Intel GPUs, and otherwise the engine's own frame generation.
+  *DLSS 5 y la ley (ver el README): desde la 1.2.4 el repositorio y el zip llevan las piezas nativas propias del motor `PrismaNr` (DLSS 5
+  en el motor) y `PrismaFg` (DLSS FG ×3 / ×4 en el motor en RTX 40 / 30). Son código propio que carga los archivos que pone el usuario
+  (`nvngx_dlssnr.dll`, el paquete `dlssg_sm86`) sin pasar por la comprobación de NVIDIA (NGX), cosa que los términos de NVIDIA no
+  permiten; el usuario decidió publicarlas sabiéndolo. La app no reparte, no baja ni enlaza ningún archivo de NVIDIA modificado: cada uno
+  pone el suyo bajo su responsabilidad, y «Añadir DLSS 5» solo mira en su propio PC. PrismaNr se compila en el CI con las dos cabeceras
+  públicas de NGX (versión fija, SHA-256), que no van en el repositorio. Sin los archivos del usuario no hacen nada.*- **To go back** (add the line at the end of `consoleenhancer.ini`): `motor_dlss5_pasadas=1` (2-3 DLSS 5 passes through Magpie, as in
   1.2.3) · `motor_fg_multi=0` (XeSS FG and ×3 / ×4 not in the engine) · `motor_fg_propia=0` (×3 / ×4 without the own frame generation) · `proteccion=0` (no protection; XeSS FG ×3 / ×4 locked as
   before) · `motor_extra=<yours> fgui=0` (no HUD-less image for DLSS FG) · `fg_dlss_vectores=0` (Magpie's DLSS FG without vectors) ·
   `dlss5_escala_grafica=88` and `motor_uso_grafica=85` · `motor=magpie` (everything through mpv + Magpie).
