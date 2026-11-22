@@ -12,7 +12,8 @@ namespace ConsoleEnhancer.Motor
     //     es lo unico de ese tipo que NVIDIA deja usar hoy a cualquier aplicacion en todas las RTX. Va en el mismo sitio que DLSS 5
     //     (sobre la captura, en las imagenes nuevas, antes de DLSS SR / el escalado y la generacion). Claves: vibrancia=0|1 (de serie 0; el
     //     plugin solo se carga si va a 1 al arrancar el motor; luego 'set vibrancia=0|1' la apaga y la enciende),
-    //     vibrancia_intensidad=0..1 (0,5), vibrancia_saturacion=0..1 (0,25). Por el lanzador: motor_extra=vibrancia=1 ...
+    //     vibrancia_intensidad=0..1 (0,25), vibrancia_saturacion=0..1 (0,10). Por el lanzador: motor_extra=vibrancia=1 ...
+    //     Medido (22-11, RTX 4060 Ti, 4K): +0,4-0,75 ms de grafica por imagen real y 4 MB (DLSS 5 de 1 pasada al 65 %: ~11-13 ms y GB).
     //     Si DLSS 5 (dlss5=1) va en esta imagen, la vibrancia no (son alternativas; con las dos, la de NVIDIA de DLSS 5 manda).
     //  2. DLSS 5 oficial por Streamline (kFeatureDLSS_NR = 1004, ya en sl_core_types.h de 2.14.16, pero NVIDIA no ha publicado ni el plugin
     //     sl.dlss_nr.dll ni su cabecera): si algun dia esta junto al motor (firmado por NVIDIA: el sl.interposer de produccion no carga
@@ -63,8 +64,10 @@ namespace ConsoleEnhancer.Motor
     partial class Settings
     {
         public bool Dvc = false;                    // vibrancia=1: RTX Dynamic Vibrance (oficial de NVIDIA) sobre la captura
-        public float DvcIntensity = 0.5f;           // vibrancia_intensidad
-        public float DvcSaturation = 0.25f;         // vibrancia_saturacion
+        // (de serie mas suave que los 0,5 / 0,25 de NVIDIA: medido el 22-11 con capturas de la PS5 a 4K, con los de NVIDIA las sombras
+        // se aclaran mucho -GTA VI: luma media +35 de 255, la camiseta oscura sale gris; Rocket League +25-; con 0,25 / 0,10, la mitad)
+        public float DvcIntensity = 0.25f;          // vibrancia_intensidad
+        public float DvcSaturation = 0.10f;         // vibrancia_saturacion
 
         static float F01(string v) { return (float)Math.Max(0, Math.Min(1, double.Parse(v.Trim().Replace(',', '.'), System.Globalization.CultureInfo.InvariantCulture))); }
 
