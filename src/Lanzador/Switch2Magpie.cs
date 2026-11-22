@@ -14380,12 +14380,23 @@ namespace ConsoleEnhancer
         // pasa en cuanto llega. Solo pierde las que no caben ni con 1 refresco de retraso: las mismas que el optimo sabiendo el futuro
         // (30 regular, 20 fps y 60 fps igual que antes). Registros de la expresion: 0 = la anterior era nueva, 1 = esta es nueva,
         // 2 = esta pasa, 3 = la ultima que paso era una copia forzada
+        // 22-11 (1.2.3 RITMO2): (1) tenia un fallo de latencia: una vez que pasa una copia tarde, cada imagen nueva llega 1 refresco despues
+        // de la ultima que paso y tampoco puede pasar: pasa su copia, y asi SIEMPRE, todas 16,7 ms tarde. Le pasa a un juego a 30 regular si mpv
+        // empieza en la segunda copia (la mitad de las veces) y tras cada par 3,1 (un tiron que se recupera); solo lo arregla una imagen de 3
+        // refrescos. Medido sin grafica (mpv --vo=null, 1280x720, fuente con la cadencia): 30 regular 100 % de las imagenes 1 refresco tarde,
+        // pares 3,1 cada 20 el 95 %. Ahora (registros 4, 6 y 7): tras pasar una copia tarde, la nueva siguiente pasa en cuanto llega aunque
+        // sea a 1 refresco (una pareja junta y se vuelve a tiempo), como mucho una vez cada 40 refrescos (para no pasar de 30: a 45 fps sale
+        // a 30,6/s). Medido: 30 regular 6 % tarde (solo hasta la primera vuelta), pares 3,1 46 %, caida 12 -> 0 %; 1,3,1,3 igual que antes (50 %
+        // tarde, a 2 refrescos: se sigue igualando), a 45 fps 30,6 pasadas/s y las mismas perdidas (101 frente a 107), quieta igual
+        // (repetidas_30_sin_perder=1 de siempre; test_filtro= para probar otro)
         public static string FrameFilter(Config cfg)
         {
             if (cfg.TestFrameFilter.Length > 0) return cfg.TestFrameFilter; // (solo pruebas: ini test_filtro)
             if (cfg.CapMode && cfg.Dedupe30Keep)
-                return "@s2dup:lavfi=[select='st(1,gt(scene,0));st(2,isnan(prev_selected_n)+gte(n-prev_selected_n,2)*(ld(1)+ld(0))+gte(n-prev_selected_n,3)+ld(1)*ld(3));" +
-                       "st(3,if(ld(2),eq(ld(1)+ld(0),0)*not(isnan(prev_selected_n)),ld(3)));st(0,ld(1));ld(2)']";
+                return "@s2dup:lavfi=[select='st(1,gt(scene,0));st(7,ld(1)*ld(4)*eq(n-prev_selected_n,1)*gt(n-ld(6),40));" +
+                       "st(2,isnan(prev_selected_n)+gte(n-prev_selected_n,2)*(ld(1)+ld(0))+gte(n-prev_selected_n,3)+ld(1)*ld(3)+ld(7));" +
+                       "st(3,if(ld(2),eq(ld(1)+ld(0),0)*not(isnan(prev_selected_n)),ld(3)));st(4,if(ld(2),eq(ld(1),0)*ld(0),ld(4)));" +
+                       "st(6,if(ld(7),n,ld(6)));st(0,ld(1));ld(2)']";
             return cfg.CapMode
                 ? "@s2dup:lavfi=[select='isnan(prev_selected_n)+gt(scene,0)*gte(n-prev_selected_n,2)+gte(n-prev_selected_n,3)']"
                 : "@s2dup:lavfi=[select='gt(scene,0)+isnan(prev_selected_n)+gte(n-prev_selected_n,2)']";
