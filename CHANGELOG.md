@@ -47,12 +47,13 @@ publicada es una etiqueta `vX.Y.Z` de git; GitHub Actions monta su zip y copia a
   *Microsoft Defender ya no tiene motivo para borrar una versión recién bajada: hasta la 1.2.2 una copia nueva que heredaba «Iniciar con
   Windows» cambiaba el acceso directo de Inicio a sí misma nada más abrirse, justo lo que Defender bloquea en un exe nuevo sin firmar.
   Ahora nunca se pone sola: pregunta una vez al abrirla tú. Y desinstalar ya no usa PowerShell.*
-- **16.7 ms less latency in the 30 fps mode in many cases**: mpv's repeated-frame filter could stay one refresh late for good (every
-  frame 16.7 ms late) once it had passed a late copy: with a steady 30 fps game whenever mpv started on the second copy of a frame
-  (half of the time) and after every uneven frame pair. It now gets back on time with the next frame (steady 30 fps: 100 % of frames
-  late → 6 %).
-  *16,7 ms menos de latencia en el modo 30 en muchos casos: el filtro de repetidas de mpv podía quedarse un refresco tarde para siempre;
-  ahora vuelve a tiempo en la imagen siguiente.*
+- **16.7 ms less latency in the 30 fps mode in many cases**: the repeated-frame filter could stay one refresh late for good (every
+  frame 16.7 ms late) once it had passed a late copy: with a steady 30 fps game whenever it started on the second copy of a frame
+  (half of the time) and after every uneven frame pair. It now gets back on time with the next frame, both in mpv (the Magpie path)
+  and in the app's own engine (except with Smooth Motion). Measured on synthetic cadences: steady 30 fps 100 % of the frames late →
+  0-6 %, uneven 3,1 pairs 93-95 % → 46-48 %; 45 fps content still goes out at ~30 fps.
+  *16,7 ms menos de latencia en el modo 30 en muchos casos: el filtro de repetidas podía quedarse un refresco tarde para siempre; ahora
+  vuelve a tiempo en la imagen siguiente, en mpv (camino de Magpie) y en el motor propio (salvo con Smooth Motion).*
 - **DLSS FG ×3 / ×4 at 30 fps: no more real-frame drops with DLSS 5, and much better generated frames at 4K.** What kept the 30 fps
   mode from 30 real frames was not a full GPU (50-77 % busy) but Magpie's image thread, which runs in series (capture, optical flow,
   DLSS 5, then each generated frame). The automatic DLSS 5 scale now models that thread and picks a scale that holds 30 (4K: ~35-45 %
