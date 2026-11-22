@@ -318,6 +318,48 @@ namespace ConsoleEnhancer
             t.IsBackground = true;
             t.Name = "Mandos (Raw Input)";
             t.Start();
+            // 22-11 (1.2.2, MENU): la Guia mirada cada 10 ms (ver GuidePresses)
+            Thread g = new Thread(GuideWatch);
+            g.IsBackground = true;
+            g.Name = "Mandos (Guia)";
+            g.Start();
+        }
+
+        // ---- 22-11 (1.2.2, MENU; el usuario: "a veces le doy al boton del home del mando de pc y no se abre el menu de config") ----
+        // Cada pulsacion de la Guia (Xbox / PS / HOME) se cuenta al verla por primera vez, la vea quien la vea: cualquier lectura de XInput
+        // (GamepadLoop cada ~50 ms, el modo PC cada 8-50 ms y esta vigilancia cada 10 ms) o un informe HID (DualSense y demas, al llegar).
+        // Antes GamepadLoop solo comparaba su lectura con la anterior: una pulsacion corta entre dos lecturas suyas (<50-60 ms) se perdia.
+        // El menu de ajustes (MenuAjustes.cs / AjustesGuia.cs) mira este contador: ninguna pulsacion se pierde
+        int guidePresses;
+        DateTime guideLastPress = DateTime.MinValue;
+        public int GuidePresses { get { return Thread.VolatileRead(ref guidePresses); } }
+        public DateTime GuideLastPress { get { lock (sync) return guideLastPress; } }
+
+        // (con sync) el boton de un mando antes y despues de leerlo: si la Guia acaba de bajar, una pulsacion mas
+        void GuideEdge(uint before, uint after)
+        {
+            if ((before & PadBtn.Guide) != 0 || (after & PadBtn.Guide) == 0) return;
+            Interlocked.Increment(ref guidePresses);
+            guideLastPress = DateTime.Now;
+        }
+
+        // Solo XInput (lo HID llega solo): con algun mando XInput conectado, una lectura cada 10 ms (~40 us cada una: <0,5 % de un nucleo).
+        // Sin ninguno no lee nada (el sondeo de los huecos vacios sigue siendo el de GamepadLoop, cada 3 s)
+        void GuideWatch()
+        {
+            try
+            {
+                while (true)
+                {
+                    Thread.Sleep(10);
+                    if (!xinputOk) return;
+                    bool any = false;
+                    lock (sync) for (int i = 0; i < 4; i++) if (xpads[i] != null) any = true;
+                    if (!any) { Thread.Sleep(240); continue; }
+                    PollXInput();
+                }
+            }
+            catch (Exception ex) { Say("Mandos (Guia): " + ex.Message); }
         }
 
         // ---- Lectura (GamepadLoop cada 50 ms; PcMode cada 50 ms, o 8 ms con un stick movido) ----
@@ -328,7 +370,7 @@ namespace ConsoleEnhancer
             if (PadOptions.Winmm && joyRescan && (now - joyRescanAt).TotalSeconds >= 2) ScanWinmm(); // (19-11: apagado de serie, ver PadOptions.Winmm)
             lock (sync)
             {
-                foreach (Pad p in joyPads) ReadWinmm(p);
+                foreach (Pad p in joyPads) { uint b0 = p.Buttons; ReadWinmm(p); GuideEdge(b0, p.Buttons); }
                 s = new PadSnapshot();
                 for (int i = 0; i < 4; i++) if (xpads[i] != null) Merge(ref s, xpads[i]);
                 foreach (Pad p in hidPads.Values) Merge(ref s, p);
@@ -463,6 +505,7 @@ namespace ConsoleEnhancer
                         if ((b & 0x0400) != 0) u |= PadBtn.Guide;
                         lock (sync)
                         {
+                            GuideEdge(p.Buttons, u); // (22-11, 1.2.2: la Guia contada al verla, ver GuidePresses)
                             p.Buttons = u; p.LT = st.LT; p.RT = st.RT; p.LX = st.LX; p.LY = st.LY; p.RX = st.RX; p.RY = st.RY;
                             p.Reports = st.Packet;
                         }
@@ -1018,7 +1061,7 @@ namespace ConsoleEnhancer
             for (int k = 0; k < count; k++)
             {
                 Marshal.Copy(new IntPtr(rawBuf.ToInt64() + hdr + 8 + (long)k * each), p.Buf, 0, each);
-                lock (sync) Parse(p, p.Buf, each);
+                lock (sync) { uint b0 = p.Buttons; Parse(p, p.Buf, each); GuideEdge(b0, p.Buttons); } // (22-11, 1.2.2: la Guia al llegar)
             }
         }
 

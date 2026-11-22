@@ -10594,6 +10594,7 @@ namespace ConsoleEnhancer
             Process p = mpv;
             if (p == null || p.HasExited) return;
             if (toHome) AjustesQuitarYa("al menu de la consola", false);
+            homeSwitchToHome = toHome; // (22-11, 1.2.2: entrando en un juego el menu de ajustes se puede abrir, AjustesGuia.cs)
             homeBusy = true;
             passesBusy = true;
             padRestart = false;
@@ -12991,6 +12992,7 @@ namespace ConsoleEnhancer
                     else if (line.Contains("\"request_id\":79")) CierresCaptura(line); // (20-11, CIERRES: switch2-captura-ms del motor)
                     else if (line.Contains("\"client-message\"") && CierresEvent(line)) { } // (20-11, CIERRES: switch2-gpu del motor)
                     else if (line.Contains("\"client-message\"") && FpsEvent(line)) { } // (21-11: switch2-fps del motor, src\Lanzador\FpsBajo.cs)
+                    else if (line.Contains("\"client-message\"") && AjPruebaEvento(line)) { } // (22-11, 1.2.2: pruebas del menu de ajustes, AjustesGuia.cs)
                     else if (line.Contains("\"client-message\"") && line.Contains("\"args\":[\"switch2-pad\""))
                     {
                         // Lo mismo que el mando, por la tuberia de mpv (para probar sin mando)
@@ -13363,12 +13365,19 @@ namespace ConsoleEnhancer
         }
 
         // Espera a que Magpie empiece a escalar la ventana de mpv (su ventana de escalado) o a que pase el tiempo maximo
-        bool WaitForScaling(Process p, long logStart, int seconds = 15)
+        // (22-11, 1.2.2: lo llama WaitForScaling, que lo cuenta, en src\Lanzador\AjustesGuia.cs)
+        bool WaitForScalingCore(Process p, long logStart, int seconds = 15)
         {
             DateTime limit = DateTime.Now.AddSeconds(seconds), began = DateTime.Now;
             bool focused = false, preparing = false;
             while (DateTime.Now < limit && !p.HasExited)
             {
+                // 22-11 (1.2.2, MENU): "Aplicar" en el menu de ajustes con Magpie preparando: reabierto ya con lo nuevo; la espera de nuevo
+                if (Thread.VolatileRead(ref ajReinicio) == 1 && AjReinicioEnEspera(p))
+                {
+                    began = DateTime.Now; limit = began.AddSeconds(Math.Max(seconds, 8)); focused = false; preparing = false;
+                    continue;
+                }
                 // El escalado automatico de Magpie salta cuando mpv pasa a primer plano: si mpv ya estaba delante (Magpie
                 // reabierto en plena partida), antes un momento el telon
                 if (!focused)
