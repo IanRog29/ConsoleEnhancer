@@ -22,7 +22,7 @@ namespace ConsoleEnhancer.Deteccion
             // 22-11 (1.2.2, UNIVERSAL): mas graficas, pantallas, CPU y capturadoras del catalogo ("cap:<clave>", CatalogoCapturas.cs)
             "rtx4060", "rtx5070", "amd-rx6600", "intel-arc-a750", "amd-780m", "cpu-4hilos",
             "tele-4k60", "monitor-1080p144", "monitor-1440p144-vrr", "monitor-1080p60",
-            "uvc-ms2130", "uvc-ms2130-usb2", "cap:elgato-4kx", "cap:elgato-hd60s+", "cap:elgato-camlink4k", "cap:avermedia-gc553", "cap:avermedia-gc311", "cap:j5create-jva04",
+            "gc573-real", "uvc-ms2130", "uvc-ms2130-usb2", "cap:elgato-4kx", "cap:elgato-hd60s+", "cap:elgato-camlink4k", "cap:avermedia-gc553", "cap:avermedia-gc311", "cap:j5create-jva04",
         };
 
         // (1.2.2) La matriz (DeteccionTest --simula=matriz): graficas x pantallas x capturadoras, con hardware inventado entero (sin detectar
@@ -94,6 +94,28 @@ namespace ConsoleEnhancer.Deteccion
                     Captura(h, "USB3 Video", 0x345F, 0x2130, "USB", new[] { F(3840, 2160, 30, "MJPG"), F(2560, 1440, 30, "MJPG"), F(1920, 1080, 60, "MJPG"), F(1280, 720, 60, "MJPG"),
                         F(1920, 1080, 60, "YUY2"), F(1280, 720, 60, "YUY2"), F(1920, 1080, 60, "NV12") }, "Digital Audio Interface (USB3 Video)", true);
                     break;
+                // la GC573 del usuario tal cual la lista abierta (data\hardware.txt del 21-11): rangos, 1440p a 120 fijos y 59,94-144...
+                case "gc573-real":
+                    {
+                        List<FormatoCaptura> l = new List<FormatoCaptura>();
+                        foreach (string sub in new[] { "NV12", "P010", "RGB24", "YUY2" })
+                        {
+                            l.Add(R(3840, 2160, 24, 60, sub)); l.Add(R(3440, 1440, 50, 100, sub));
+                            l.Add(sub == "RGB24" ? R(2560, 1440, 144, 144, sub) : R(2560, 1440, 59.94, 144, sub));
+                            l.Add(sub == "RGB24" ? R(2560, 1440, 59.94, 120, sub) : R(2560, 1440, 120, 120, sub));
+                            l.Add(R(2560, 1080, 60, 144, sub)); l.Add(R(1920, 1080, 24, 240, sub)); l.Add(R(1920, 1080, 144, 144, sub)); l.Add(R(1920, 1080, 120, 120, sub));
+                            l.Add(R(1280, 720, 50, 60, sub));
+                        }
+                        CapturadoraInfo c = new CapturadoraInfo();
+                        c.Simulada = true; c.Nombre = "AVerMedia HD Capture GC573 1"; c.Vid = 0x1461; c.Pid = 0x0054; c.Bus = "PCI"; c.EnMediaFoundation = true;
+                        c.DevicePath = @"\\?\pci#ven_1461&dev_0054&subsys_57301461&rev_00#simulada#{65e8773d-8f56-11d0-a3b9-00a0c9223196}\{simulada}";
+                        c.Instancia = @"PCI\VEN_1461&DEV_0054&SUBSYS_57301461&REV_00\SIMULADA"; c.Cadena = new List<string> { c.Instancia };
+                        c.Formatos = l; c.PinesAudio = 2;
+                        DetectorCapturadoras.Clasificar(c);
+                        DetectorCapturadoras.EmparejarAudio(c, h.Audios);
+                        h.Capturadoras.Clear(); h.Capturadoras.Add(c);
+                        break;
+                    }
                 // la misma en un puerto USB 2.0 (o un hub lento): solo MJPEG (la lista encoge)
                 case "uvc-ms2130-usb2":
                     Captura(h, "USB3 Video", 0x345F, 0x2130, "USB", new[] { F(1920, 1080, 30, "MJPG"), F(1280, 720, 60, "MJPG"), F(640, 480, 30, "YUY2") }, "Digital Audio Interface (USB3 Video)", true);
@@ -219,6 +241,8 @@ namespace ConsoleEnhancer.Deteccion
                 if (p.HomeNativo && !fl.Exists(delegate(FormatoCaptura x) { return !x.Comprimido && x.Alto >= 2160 && c.FpsDe(x) >= 59; })) r.Add("HOME a 4K nativo sin 4K60 sin comprimir");
             }
             if (p.CapH > p.OutH && p.OutH > 0) r.Add("captura (" + p.CapH + "p) mayor que la pantalla (" + p.OutH + "p)");
+            if (p.CapW > 0 && p.CapH > 0 && Math.Abs(p.CapW * 9L - p.CapH * 16L) > p.CapH * 16L / 50) r.Add("captura " + p.CapW + "x" + p.CapH + " que no es 16:9");
+            if (p.CapFps != "60000/1001" && p.CapFps != "60" && p.CapFps != "30" && p.CapFps != "30000/1001" && p.CapFps != "50") r.Add("pide " + p.CapFps + " fps para el modo 60");
             // lo de serie, como mucho al 85 %; lo que solo se ofrece (generacion apagada de serie, en el selector), como mucho al 100 %
             double limite = Planificador.UsoMotor;
             foreach (KeyValuePair<string, ModoPlan> kv in p.Modos)
@@ -260,6 +284,12 @@ namespace ConsoleEnhancer.Deteccion
             DetectorGpu.Derivar(g, op);
             h.Gpus.Clear();
             h.Gpus.Add(g);
+        }
+
+        static FormatoCaptura R(int w, int hh, double fpsMin, double fpsMax, string sub)
+        {
+            FormatoCaptura f = F(w, hh, fpsMax, sub); f.FpsMin = fpsMin;
+            return f;
         }
 
         static FormatoCaptura F(int w, int hh, double fps, string sub)

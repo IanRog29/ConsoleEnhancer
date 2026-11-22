@@ -171,7 +171,10 @@ namespace ConsoleEnhancer.Deteccion
                 bool justo = modo60 && mn <= 60.05 && fps >= 59.9;
                 // (para el modo 60 solo vale un formato que de 59,94-60 de verdad: uno que solo lista 120 o 240 fijos no es "de 60")
                 bool llega = fps >= fpsMin && (!modo60 || justo);
-                double s = (llega ? 1000000 : Math.Min(fps, 240) / 10.0) + (f.Comprimido ? 0 : 500000) + f.Alto * 100.0 + SubtipoPuntos(f.Subtipo) + (justo ? 50 : 0);
+                // (16:9 por delante de la resolucion: la consola manda 16:9; la GC573 lista 3440x1440 y 2560x1080 -panoramicas- con el mismo
+                // alto que 2560x1440 y 1920x1080 y salian ellas)
+                bool ancho169 = Math.Abs(f.Ancho * 9L - f.Alto * 16L) <= f.Alto * 16L / 50;
+                double s = (llega ? 1000000 : Math.Min(fps, 240) / 10.0) + (f.Comprimido ? 0 : 500000) + (ancho169 ? 300000 : 0) + f.Alto * 100.0 + SubtipoPuntos(f.Subtipo) + (justo ? 50 : 0);
                 if (s > bestScore) { bestScore = s; best = f; }
             }
             return best;

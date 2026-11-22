@@ -111,9 +111,10 @@ namespace ConsoleEnhancer.Deteccion
             double mx = f.FpsMax, mn = f.FpsMin > 0 ? f.FpsMin : f.FpsMax;
             if (objetivo >= 59)
             {
-                if (usb && Math.Abs(mx - 60) < 0.05) return "60";
-                if (f.Previsto || (mn <= 59.95 && mx >= 59.93)) return "60000/1001";
-                if (Math.Abs(mx - 60) < 0.05) return "60";
+                bool da60 = mn <= 60.05 && mx >= 59.95, da5994 = mn <= 59.95 && mx >= 59.93;
+                if (usb && da60) return "60";
+                if (f.Previsto || da5994) return "60000/1001";
+                if (da60) return "60";   // (p. ej. un rango 60-144: 59,94 queda fuera)
                 if (mx >= 59) return mx.ToString("0.###", CultureInfo.InvariantCulture);
             }
             if (mx >= 29.9 && mx <= 30.05 && mn >= 29.9) return Math.Abs(mx - 29.97) < 0.02 ? "30000/1001" : "30";
