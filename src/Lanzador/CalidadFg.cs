@@ -48,6 +48,8 @@ namespace ConsoleEnhancer
         //   los calcula (el mismo estimador para los dos: no cuesta otro); si no, ninguno (como antes). ninguno = como en la 1.2.1
         // fg_dlss_flujo_calidad_4k=1-5: su calidad NVOF (de serie la de DLSS 5: el mismo estimador)
         public int XessFgFlow = -1, XessFgFlowQ = -1, DlssFgFlow4k = -1, DlssFgFlowQ4k = -1;
+        // fg_dlss_flujo_4k_multi=1|0 (1.2.3, MULTI2): DLSS FG x3 / x4 a 4K en el modo 30 con los vectores de NVIDIA aunque DLSS 5 no este
+        public bool FgVectores4kMulti = true;
 
         // DLSS 5 (el filtro DLSSNR de Magpie) va con el flujo de NVIDIA: el estimador ya esta en marcha a la calidad FlowQualityNvNow
         public bool Dlss5NvofNow { get { return D5Tuned && Dlss5FlowNow == 2; } }
@@ -61,6 +63,12 @@ namespace ConsoleEnhancer
             {
                 if (!Win4k) return CapMode ? FgFlow30 : FgFlow60;
                 if (DlssFgFlow4k >= 0) return DlssFgFlow4k;
+                // (1.2.3, MULTI2) y con x3 / x4 aunque DLSS 5 no lo calcule (a 4K con x4 DLSS 5 ya no cabe y se quita): MEDIDO el 22-11 (tele 4K a
+                // 120, escenas de CALIDAD, Magpie con la cadena de la app, error de la inventada contra la intermedia ideal, imagen quieta 0-255):
+                // x4 sin vectores / con los de NVIDIA calidad 2: cabeza 2,39 / 0,81 (con poco movimiento 1,45 / 0,81; el borde del personaje
+                // 0,67 / 0,06), barrotes finos 10,8 / 8,3; y llega igual (29,9 reales, 119,5 de salida; grafica 66 -> 70 %). El hilo de Magpie lo
+                // aguanta: x4 sin DLSS 5 16 ms + el flujo ~9,7 a 4K de 33,4. fg_dlss_flujo_4k_multi=0 = como antes (sin vectores)
+                if (CapMode && FgVectores4kMulti && MultAlto) return 2;
                 return CapMode && Dlss5NvofNow ? 2 : 0;   // (el 60 a 4K como antes: sin vectores)
             }
         }
@@ -84,6 +92,7 @@ namespace ConsoleEnhancer
                 case "fg_xess_flujo_calidad": XessFgFlowQ = v.Length == 0 ? -1 : Math.Max(1, Math.Min(5, ParseInt(v))); return true;
                 case "fg_dlss_flujo_4k": DlssFgFlow4k = v.Length == 0 || v.ToLowerInvariant() == "auto" ? -1 : ParseFlow(v); return true;
                 case "fg_dlss_flujo_calidad_4k": DlssFgFlowQ4k = v.Length == 0 ? -1 : Math.Max(1, Math.Min(5, ParseInt(v))); return true;
+                case "fg_dlss_flujo_4k_multi": FgVectores4kMulti = v != "0"; return true;   // (1.2.3, MULTI2)
             }
             return false;
         }
