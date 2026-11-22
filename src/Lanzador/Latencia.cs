@@ -19,12 +19,28 @@ namespace ConsoleEnhancer
         public int MpvQueueMs = 0;
         public int AudioBlockMs = 20;
         public int AudioQueueHighMs = 70, AudioQueueLowMs = 30;
+        // 22-11 (1.2.4 LATENCIA) mpv_cscale: el filtro del color (croma) de mpv. Sin --cscale mpv usa el de --scale (ewa_lanczossharp, un
+        // filtro polar caro) tambien para subir el croma 4:2:2 de la capturadora, aunque la imagen vaya 1:1. Medido (mpv solo, 4K YUY2 a
+        // 29,97, los argumentos de la app, PresentMon): 6,09 ms de grafica por imagen -> 4,97 con spline36 o lanczos (-1,1 ms; sin el
+        // suavizado de bordes 4,26); la imagen: media 0,09 niveles, el 100 % de los puntos a 1 nivel o menos (maximo 4) frente a la de antes.
+        // igual (de serie) = como antes (sin --cscale: el croma con el filtro del escalado); auto = spline36 si el escalado de mpv es uno
+        // EWA (polar) y si no el mismo que el escalado (bilinear con bilinear); otro valor = ese filtro. De serie como antes: cambia (muy
+        // poco) la imagen y el encargo era no tocarla; probado solo con una imagen natural (falta una con bordes de color finos)
+        public string MpvCscale = "igual";
+        public string MpvCscaleFor(string scale)
+        {
+            string v = MpvCscale.Trim().ToLowerInvariant();
+            if (v == "igual" || v == "0" || v.Length == 0) return "";
+            if (v != "auto") return v;
+            return scale != null && scale.StartsWith("ewa_") ? "spline36" : (scale ?? "");
+        }
 
         bool CeParseLatencia(string key, string val)
         {
             int v;
             switch (key)
             {
+                case "mpv_cscale": MpvCscale = val.Trim(); return true;
                 case "mpv_cola_ms":
                     if (!int.TryParse(val.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out v)) return true;
                     MpvQueueMs = Math.Max(0, Math.Min(1000, v)); return true;
