@@ -267,6 +267,7 @@ namespace ConsoleEnhancer
             ps5Visita.Aplicado = true;
             string pf = PerfilDeFoco(c, ps5Visita.Nombre, ps5Visita.Icono);
             if (pf == null || JuegoConsola.EsAppSistema(pf)) return;
+            PortadaPendienteConfirma(pf);   // (1.2.4: la portada vista al pasar a ese juego sin prueba de arranque, src\VueltaJuego.cs)
             string antes = ps5JuegoAntesMenu;
             bool antesJuego = antes != null && JuegoConsola.TagConsola(antes) != null;
             if (antesJuego && (antes == pf || GameProfiles.SameGame(antes, pf))) return;
