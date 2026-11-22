@@ -11642,7 +11642,7 @@ namespace ConsoleEnhancer
         {
             string set = EngineSessionSet(cfg, standbySmooth > 0);
             // (1.2.4 arreglos, RELEVO: uno que no vale para la generacion de ahora -el puente tras una caida- se despierta sin ella)
-            if (IdentityDiffOf(e, standbySmooth) != null) set = LiveSinGeneracion(set);
+            if (IdentityDiffOf(e, standbySmooth) != null) { set = LiveSinGeneracion(set); engineSent = LiveSinGeneracion(engineSent); }   // (y lo apuntado: SyncEngine sigue sin ella)
             lock (cmdQueue)
             {
                 cmdQueue.Add(JsonCmd("engine", "set " + set));
