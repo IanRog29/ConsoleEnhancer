@@ -150,6 +150,7 @@ namespace ConsoleEnhancer.Motor
             // ganchos de DXGI (enganche manual: la fabrica, el dispositivo y la cadena son los del sistema)
             if (slSoloDlss) { si.Features = new SlFeature[] { SlFeature.DLSS }; si.Flags |= SlPreferenceFlags.eUseManualHooking; }
             long t = Clock.Now;
+            DvcFeatures(si);   // 22-11 (1.2.4, DLSS5LEGAL: EngineDvc.cs): Vibrancia RTX y DLSS 5 oficial de Streamline, si estan junto al motor
             SlResult r = Sl.Init(si);
             Log.Write("slInit: " + r + " (" + Clock.SinceMs(t).ToString("0") + " ms)");
             slOn = r == SlResult.eOk;
@@ -190,6 +191,7 @@ namespace ConsoleEnhancer.Motor
                 pclOk = Sl.IsFeatureLoaded(SlFeature.PCL, out l) == SlResult.eOk && l;
                 if (slSoloDlss) { fgOk = reflexOk = pclOk = false; }   // (1.2.4 MOTORFG: solo DLSS SR; la generacion y la baja latencia son las de FSR 3 FG / XeSS FG)
                 Log.Write("slSetD3DDevice: " + r + " (" + Clock.SinceMs(t).ToString("0") + " ms); DLSS " + dlssOk + ", generacion " + fgOk + ", Reflex " + reflexOk + ", PCL " + pclOk);
+                DvcCheck(luid);   // 22-11 (1.2.4, DLSS5LEGAL: EngineDvc.cs)
             }
             D3D12_COMMAND_QUEUE_DESC qd = new D3D12_COMMAND_QUEUE_DESC();
             qd.Type = D3D12_COMMAND_LIST_TYPE.DIRECT;
@@ -965,8 +967,9 @@ namespace ConsoleEnhancer.Motor
             CpuMark(0);
             RecordMotion(slot >= 0);
             CpuMark(1);
-            RecordDlss5(slot >= 0);
-            CpuMark(2);   // 20-11 (DLSS 5 EN EL MOTOR, EngineDlss5.cs): DLSSNR sobre inColor antes de DLSS SR
+            RecordDlss5(slot >= 0);   // 20-11 (DLSS 5 EN EL MOTOR, EngineDlss5.cs): DLSSNR sobre inColor antes de DLSS SR
+            RecordDvc(slot >= 0, token);   // 22-11 (1.2.4, DLSS5LEGAL: EngineDvc.cs): Vibrancia RTX (oficial de NVIDIA) en el mismo sitio, si no va DLSS 5
+            CpuMark(2);
             PassMark(3);
 
             // 2. Escalado: DLSS, FSR 1, Catmull-Rom o nada (captura ya a la resolucion de salida). 18-11 (MOTOR-CE): el de UpdateScaler

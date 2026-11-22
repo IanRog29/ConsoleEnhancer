@@ -130,6 +130,7 @@ namespace ConsoleEnhancer.Motor
                 // 20-11 (CIERRES): las DLSSNR de DLSS 5 (1-3, con sus texturas) tampoco se quedan en espera: Magpie hace DLSS 5 en la
                 // misma grafica de 8 GB (al despertar ya se creaban otra vez: inColor es otro)
                 ReleaseDlss5("en espera");
+                ReleaseDvc("en espera");   // 22-11 (1.2.4, DLSS5LEGAL: EngineDvc.cs)
             }
             catch (Exception ex) { Log.Error("En espera: imagen negra", ex); }
             bool hidden = Program.HideWindow();

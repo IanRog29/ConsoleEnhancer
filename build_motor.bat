@@ -16,7 +16,7 @@ rem Windows 10/11, PerMonitorV2 como SetProcessDpiAwarenessContext al empezar Ma
   /r:System.dll /r:System.Core.dll /r:System.Drawing.dll /r:System.Windows.Forms.dll ^
   /recurse:src\Motor\*.cs src\Version.cs
 if errorlevel 1 (echo *** ERROR de compilacion *** & exit /b 1)
-for %%f in (sl.interposer.dll sl.common.dll sl.dlss.dll sl.dlss_g.dll sl.reflex.dll sl.pcl.dll nvngx_dlss.dll nvngx_dlssg.dll) do (
+for %%f in (sl.interposer.dll sl.common.dll sl.dlss.dll sl.dlss_g.dll sl.reflex.dll sl.pcl.dll nvngx_dlss.dll nvngx_dlssg.dll sl.deepdvc.dll nvngx_deepdvc.dll) do (
   if not exist "bin\engine\%%f" (
     if exist "%SL%\%%f" (copy /y "%SL%\%%f" bin\engine\ >nul) else (echo Aviso: no esta %SL%\%%f)
   )
