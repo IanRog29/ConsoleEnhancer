@@ -41,9 +41,11 @@ namespace ConsoleEnhancer
         static Cosa Dlss5 { get { return new Cosa { Nombre = Integrado.Dlss5Dll, EnApp = Extras.Dll, Guardado = Path.Combine(Dir, Integrado.Dlss5Dll), Minimo = 8L << 20 }; } }
         static Cosa Sm86 { get { return new Cosa { Nombre = "dlssg_sm86", EnApp = Extras.Sm86, Guardado = Path.Combine(Dir, @"runtimes\dlssg_sm86"), Carpeta = true }; } }
         static Cosa Prisma { get { return new Cosa { Nombre = "PrismaNr.dll", EnApp = Extras.PrismaNr, Guardado = Path.Combine(Dir, @"engine\PrismaNr.dll"), Minimo = 16L << 10 }; } }
-        // (1.2.4: y engine\PrismaFg.dll, la otra pieza privada del motor -DLSS FG x3 / x4 en RTX 40, MotorFg.cs-, igual que PrismaNr.dll)
+        // (1.2.4: engine\PrismaFg.dll, la otra pieza propia del motor; ya no se guarda: ver Todas)
         static Cosa PrismaFg { get { return new Cosa { Nombre = "PrismaFg.dll", EnApp = Extras.PrismaFg, Guardado = Path.Combine(Dir, @"engine\PrismaFg.dll"), Minimo = 16L << 10 }; } }
-        static Cosa[] Todas { get { return new[] { Dlss5, Sm86, Prisma, PrismaFg }; } }
+        // (1.2.4, ultima decision: PrismaNr.dll y PrismaFg.dll vienen ya en el zip -engine\-: no se guardan ni se recogen, para que una
+        // version nueva no coja una copia vieja. Solo lo que pone el usuario: su nvngx_dlssnr.dll y su dlssg_sm86)
+        static Cosa[] Todas { get { return new[] { Dlss5, Sm86 }; } }
 
         // (como Integrado.CopiaSeguridad: nada en pruebas con otra carpeta de datos o simulando, ni en la espera y sus ayudantes)
         static bool Toca()
@@ -197,7 +199,7 @@ namespace ConsoleEnhancer
             {
                 CopiarDll(mejor, c.EnApp);
                 Log.Write("Extras guardados: " + c.Nombre + " que faltaba recogida de " + mejor + " (" + new FileInfo(c.EnApp).Length + " bytes, " + sw.ElapsedMilliseconds + " ms" +
-                          (c.Nombre.StartsWith("Prisma", StringComparison.OrdinalIgnoreCase) ? "; de uso propio, no se distribuye" : "; DLL de NVIDIA modificada por la comunidad, SIN FIRMA, no oficial") + ")");
+                          (c.Nombre.StartsWith("Prisma", StringComparison.OrdinalIgnoreCase) ? "; pieza propia del motor" : "; DLL de NVIDIA modificada por la comunidad, SIN FIRMA, no oficial") + ")");
             }
             m[ClaveCopia(c)] = DateTime.Now.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
         }

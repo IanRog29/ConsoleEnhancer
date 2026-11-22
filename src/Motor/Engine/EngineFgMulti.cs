@@ -12,8 +12,8 @@ namespace ConsoleEnhancer.Motor
     // el runtime da x2 (numFramesToGenerateMax = 1): el motor se queda en x2 y lo dice (switch2-fgmult no <pedido> <da>) para que el
     // lanzador lleve ese multiplicador por Magpie. Regla del usuario (22-11): en el codigo del motor nada que se salte comprobaciones de
     // NVIDIA (ni de Streamline, ni de NGX, ni DLL parcheadas o redirigidas): por eso el motor NO carga el paquete comunitario dlssg_sm86.
-    // 22-11 (1.2.4 MOTORFG, pedido del usuario: "Si, pieza privada"): como con PrismaNr, si junto al motor esta PrismaFg.dll (pieza privada
-    // que NO se publica ni esta en git: solo existe en el PC de quien la compila), el motor la llama antes de slInit cuando se abre con
+    // 22-11 (1.2.4 MOTORFG, pedido del usuario): como con PrismaNr, si junto al motor esta PrismaFg.dll (pieza propia del motor, en el
+    // repositorio y en el zip desde la 1.2.4; solo hace algo con el dlssg_sm86 que pone el usuario), el motor la llama antes de slInit cuando se abre con
     // fg_mult=3|4 y es ella la que prepara la generacion; el motor solo lee numFramesToGenerateMax como siempre. Sin esa DLL (o con
     // fg_privado=0) todo queda como arriba: x2 en RTX 40 con el aviso.
     static class PrismaFg
@@ -28,7 +28,7 @@ namespace ConsoleEnhancer.Motor
     partial class Settings
     {
         public int FgMult = 2;            // fg_mult=2|3|4: imagenes en la tele por cada real con la generacion (DLSS-G, XeSS FG)
-        public bool FgPrivado = true;     // fg_privado=0|1: con PrismaFg.dll junto al motor (pieza privada) y fg_mult=3|4 al abrir, usarla
+        public bool FgPrivado = true;     // fg_privado=0|1: con PrismaFg.dll junto al motor (pieza propia) y fg_mult=3|4 al abrir, usarla
         public string FgPrivadoDir = "";  // fg_privado_dir=: lo que se le pasa a PrismaFg.dll (vacio = lo suyo de serie)
 
         bool ApplyFgMulti(string key, string val)
@@ -67,7 +67,7 @@ namespace ConsoleEnhancer.Motor
         uint fgGenApplied = 1;
         string fgMultSaid = "";
 
-        bool pfgOn;                           // PrismaFg.dll preparo la generacion (pieza privada; ver arriba)
+        bool pfgOn;                           // PrismaFg.dll preparo la generacion (pieza propia; ver arriba)
 
         // InitStreamline, antes de slInit (con Streamline entero: no con FSR 3 FG / XeSS FG): solo si esta la pieza y se abre con x3 / x4
         void PrismaFgPrepare()
@@ -78,7 +78,7 @@ namespace ConsoleEnhancer.Motor
                 long luid = gpu.Found ? gpu.Luid : s.AdapterLuid;
                 long t = Clock.Now;
                 pfgOn = PrismaFg.PFG_Prepare(s.FgPrivadoDir, "", (uint)(luid & 0xffffffffL), (int)(luid >> 32)) != 0;
-                Log.Write("Generacion: PrismaFg.dll (pieza privada) " + (pfgOn ? "" : "no: ") + PrismaFg.Info() + " (" + Clock.SinceMs(t).ToString("0") + " ms)");
+                Log.Write("Generacion: PrismaFg.dll (pieza propia) " + (pfgOn ? "" : "no: ") + PrismaFg.Info() + " (" + Clock.SinceMs(t).ToString("0") + " ms)");
             }
             catch (Exception ex) { pfgOn = false; Log.Write("Generacion: PrismaFg.dll no se pudo usar (" + ex.Message + "): x3 / x4 solo si el runtime de NVIDIA lo da"); }
         }

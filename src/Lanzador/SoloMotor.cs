@@ -6,7 +6,7 @@
 // engine\PrismaNr.dll de 1 a 3 pasadas -motor_dlss5_pasadas=3-, DLSS FG x2, Smooth Motion, FSR 3 FG, modos 30 / 60 / 120, Reflex) siempre
 // que sepa hacer la combinacion. mpv + Magpie quedan SOLO de reserva, sin nombrarse: lo que el motor aun no hace (NVIDIA VFG, XeSS FG x3 / x4
 // fuera de Intel, DLSS FG x3 / x4 fuera de RTX 50, FSR 3 FG con DLSS de escalador, DLSS FG en RTX 30 con dlssg_sm86) y DLSS 5 sin
-// engine\PrismaNr.dll (no se distribuye), o si el DLSS 5 del motor se rompe en la sesion (MotorDlss5Roto). Y motor=magpie / el motor que se
+// engine\PrismaNr.dll (o sin la nvngx_dlssnr.dll del usuario), o si el DLSS 5 del motor se rompe en la sesion (MotorDlss5Roto). Y motor=magpie / el motor que se
 // cae 3 veces, como siempre. (1.2.4 MOTORFG: XeSS FG x2 y DLSS FG x3 / x4 de RTX 50 en el motor: Config.MotorFgSabe, MotorFg.cs.)
 using System;
 using System.Globalization;

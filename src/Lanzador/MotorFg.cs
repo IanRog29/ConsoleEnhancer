@@ -11,8 +11,8 @@
 //  El reparto (SOLOMOTOR, src\Lanzador\SoloMotor.cs: Config.MotorSabeGeneracion) llama a MotorFgSabe; el motor se abre con
 //  MotorFgArgs (fg_tipo / fg_mult) y se reabre si cambia su "cadena" (EngineFgChain), como ya pasaba con FSR 3 FG.
 //  Si el motor no puede (switch2-fgmult no <pedido> <da>), en esta sesion esa combinacion no se le vuelve a pedir.
-//  22-11 noche (pedido del usuario, "Si, pieza privada"): con engine\PrismaFg.dll (pieza privada de uso propio, NO se publica ni esta en
-//  git, como PrismaNr.dll) y el paquete dlssg_sm86 del usuario, DLSS FG x3 / x4 tambien en el motor en RTX 40 (cadena 3: el motor se abre
+//  22-11 noche (pedido del usuario): con engine\PrismaFg.dll (pieza propia del motor; desde la 1.2.4 en el repositorio y en el zip, como
+//  PrismaNr.dll) y el paquete dlssg_sm86 que pone el usuario, DLSS FG x3 / x4 tambien en el motor en RTX 40 (cadena 3: el motor se abre
 //  con fg_mult=3|4 y la pieza prepara la generacion antes de Streamline). Sin la DLL, todo como arriba.
 using System;
 using System.Collections.Generic;

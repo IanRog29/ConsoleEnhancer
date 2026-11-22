@@ -987,7 +987,7 @@ namespace ConsoleEnhancer
         public bool EngineNow { get { return Engine == "propio" && MotorSabeAhora && File.Exists(EnginePath); } }
         // 21-11 (1.0.9): XeSS y FSR 4 de escalador solo los tiene Magpie (el motor ponia FSR 1 sin decirlo): con ellos, mpv + Magpie
         public bool ScalerMagpieOnly { get { return false; } }   // (1.0.9: ya no: el motor propio hace XeSS y FSR 3/4, EngineSr.cs)
-        // 20-11 (DLSS 5 EN EL MOTOR): ini motor_dlss5=1 = DLSS 5 con 1 pasada lo hace el motor propio (PrismaNr.dll, de uso propio y fuera del repositorio, +
+        // 20-11 (DLSS 5 EN EL MOTOR): ini motor_dlss5=1 = DLSS 5 con 1 pasada lo hace el motor propio (PrismaNr.dll, pieza propia del motor -en el zip desde la 1.2.4-, +
         // EngineDlss5.cs: DLSSNR sobre la captura antes de DLSS SR) en vez de mpv + Magpie: sin mpv, DWM ni la captura de Windows (el motor
         // va a ~35-48 ms con DLSS-G frente a 72-94 de Magpie con DLSS 5 y FG). 2-3 pasadas siguen en Magpie. Con la "fuerza total" (dlss5_fuerza, 20-11). Sin el 5o
         // numero del nivel) ni % de entrada: DLSS 5 a la resolucion de entrada del motor

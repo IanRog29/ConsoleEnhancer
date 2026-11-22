@@ -6,7 +6,7 @@
 //    deteccion, OpcionesDeteccion.RutasExtra, y de donde Ce.PrepararExtras la copia a magpie\). La app NO dice de donde sacarla ni
 //    enlaza ninguna descarga. "Quitar DLSS 5" lo borra de extras\ (PrepararExtras quita luego la copia de magpie\).
 //  - Encender DLSS 5: games\dlss5_on.txt (como el boton A jugando). DLSS 5 dentro del motor propio siempre que junto
-//    al motor este PrismaNr.dll (de uso propio, no se publica; 1.2.4: sin preguntar ni clave): sin ella va por mpv + Magpie.
+//    al motor este PrismaNr.dll (pieza propia del motor, en el zip desde la 1.2.4; sin preguntar ni clave): sin ella va por mpv + Magpie.
 //  - Componentes (mpv, Magpie): comprobar y volver a bajar (--componentes-reparar, Componentes.cs).
 //  - Apoyo: Ko-fi, siempre opcional (la app es gratis y completa).
 using System;
@@ -49,7 +49,7 @@ namespace ConsoleEnhancer
         public static string Sm86Viejo { get { return Path.Combine(Dir, "dlssg_sm86"); } }
         public static string Sm86Puesto { get { return Directory.Exists(Sm86) ? Sm86 : Sm86Viejo; } }
         public static string PrismaNr { get { return Path.Combine(Paths.AppDir, @"engine\PrismaNr.dll"); } }
-        public static string PrismaFg { get { return Path.Combine(Paths.AppDir, @"engine\PrismaFg.dll"); } }   // (1.2.4 MOTORFG: DLSS FG x3 / x4 del motor en RTX 40; de uso propio, no se publica)
+        public static string PrismaFg { get { return Path.Combine(Paths.AppDir, @"engine\PrismaFg.dll"); } }   // (1.2.4 MOTORFG: DLSS FG x3 / x4 del motor en RTX 40; pieza propia, en el zip desde la 1.2.4)
         public static bool HayDlss5 { get { return File.Exists(Dll); } }
         public static bool HaySm86 { get { return Directory.Exists(Sm86) || Directory.Exists(Sm86Viejo); } }
         public static bool MotorPuede { get { return File.Exists(PrismaNr); } }
@@ -167,8 +167,9 @@ namespace ConsoleEnhancer
                 string sm = BuscarSm86(origen);
                 if (sm != null) PonerSm86(w, sm);
             }
-            // (22-11, 1.2.3 MOTOR5) y PrismaNr.dll ("DLSS 5" en el motor propio, de uso propio) si esta junto a la DLL elegida: a engine\
-            { string pn = BuscarPrismaNr(origen); if (pn != null) PonerPrismaNr(w, pn); }
+            // (22-11, 1.2.3 MOTOR5) y PrismaNr.dll ("DLSS 5" en el motor propio) si esta junto a la DLL elegida: a engine\. (1.2.4: viene ya en
+            // el zip; solo si falta, para no cambiar la de esta version por una de otra)
+            if (!File.Exists(PrismaNr)) { string pn = BuscarPrismaNr(origen); if (pn != null) PonerPrismaNr(w, pn); }
             // (1.2.3 MOTOR5) lo puesto, tambien fuera de la carpeta de la app: una version nueva lo recoge sola (ExtrasGuardados.cs)
             ExtrasGuardados.Guardar("añadido");
             // encenderlo
@@ -228,7 +229,7 @@ namespace ConsoleEnhancer
                 File.Copy(de, tmp, true);
                 if (File.Exists(PrismaNr)) File.Delete(PrismaNr);
                 File.Move(tmp, PrismaNr);
-                Log.Write("DLSS 5 en el motor propio: PrismaNr.dll de " + de + " puesta en engine\\ (" + a.Length + " bytes; de uso propio, no se distribuye)");
+                Log.Write("DLSS 5 en el motor propio: PrismaNr.dll de " + de + " puesta en engine\\ (" + a.Length + " bytes; pieza propia del motor)");
             }
             catch (Exception ex)
             {

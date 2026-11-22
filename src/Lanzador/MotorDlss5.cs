@@ -2,7 +2,7 @@
 //
 // El usuario: "mejora sobre todo lo de la latencia". DLSS 5 por mpv + Magpie va de la captura a la tele por mpv, la composicion de
 // Windows y la captura de Magpie; el motor propio lo hace sobre la captura directa (src\Motor\Engine\EngineDlss5.cs) con
-// engine\PrismaNr.dll, que NO se distribuye (solo existe en el PC de quien la compila: sin ella nada de esto se ve ni cambia).
+// engine\PrismaNr.dll (pieza propia del motor; desde la 1.2.4 va en el repositorio y en el zip: sin la nvngx_dlssnr.dll del usuario no hace nada).
 // MEDIDO (22-11, RTX 4060 Ti, tele 3840x2160@120 VRR, modo 30 + DLSS FG x2, DLSS 5 nivel 2 con 1 pasada, fuente de prueba, PresentMon):
 //   4K: motor (DLSS 5 al 70 %) real 43,3 ms / inventada 26,7, el 100 % de las imagenes a 2 refrescos y 29,97 reales/s; Magpie (al
 //       40-45 %) real ~70-73 ms / inventada ~59, el 65-69 % a +-2 ms y 28,1-28,5 reales/s. 1440p -> 4K (DLSS M): motor 41,9 / 25,3.

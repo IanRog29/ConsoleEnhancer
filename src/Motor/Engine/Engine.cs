@@ -149,7 +149,7 @@ namespace ConsoleEnhancer.Motor
             // 22-11 (1.2.4 MOTORFG): con FSR 3 FG / XeSS FG (su propia cadena) y DLSS de escalador, Streamline solo para DLSS SR, sin sus
             // ganchos de DXGI (enganche manual: la fabrica, el dispositivo y la cadena son los del sistema)
             if (slSoloDlss) { si.Features = new SlFeature[] { SlFeature.DLSS }; si.Flags |= SlPreferenceFlags.eUseManualHooking; }
-            if (!slSoloDlss) PrismaFgPrepare();   // (1.2.4 MOTORFG: la pieza privada PrismaFg.dll, si esta; EngineFgMulti.cs)
+            if (!slSoloDlss) PrismaFgPrepare();   // (1.2.4 MOTORFG: la pieza propia PrismaFg.dll, si esta; EngineFgMulti.cs)
             long t = Clock.Now;
             DvcFeatures(si);   // 22-11 (1.2.4, DLSS5LEGAL: EngineDvc.cs): Vibrancia RTX y DLSS 5 oficial de Streamline, si estan junto al motor
             SlResult r = Sl.Init(si);
