@@ -486,7 +486,7 @@ namespace ConsoleEnhancer.Motor
                 case "vrr_fg_vsync": VrrFgVsync = I(val); break;
                 case "copia_hilos": Engine.CopyThreadsSet = Math.Max(0, Math.Min(16, I(val))); break;   // 20-11 (LATENCIA4)
                 case "refresco_fijo": RefreshFixed = B(val); break;   // 20-11 (LATENCIA5)
-                default: return ApplyCierres(key.Trim().ToLowerInvariant(), val) || ApplyCe(key, val) || ApplyLatencia(key.Trim().ToLowerInvariant(), val) || ApplyEnvio(key.Trim().ToLowerInvariant(), val) || ApplyFgGlobal(key, val) || ApplyFgMulti(key, val) || ApplyDvc(key, val);   // (1.2.4 MOTORFG: fg_mult, xefg_*: EngineFgMulti.cs; LATENCIA: cola_tirar_fg, cpu_pasos: EngineEnvio.cs; DLSS5LEGAL: vibrancia*: EngineDvc.cs) 20-11 (CIERRES: EngineCuelgue.cs) (ConsoleEnhancer: adapta=...; false = desconocida) (21-11, 1.2.1: EngineLatencia.cs; fg_global, fg_quieto: EngineFgGlobal.cs)
+                default: return ApplyCierres(key.Trim().ToLowerInvariant(), val) || ApplyCe(key, val) || ApplyLatencia(key.Trim().ToLowerInvariant(), val) || ApplyEnvio(key.Trim().ToLowerInvariant(), val) || ApplyFgGlobal(key, val) || ApplyFgMulti(key, val) || ApplyDvc(key, val) || ApplyArchivo(key.Trim().ToLowerInvariant(), val);   // (1.2.4 arreglos, RELEVO: test_archivo_*, FileSource.cs)   // (1.2.4 MOTORFG: fg_mult, xefg_*: EngineFgMulti.cs; LATENCIA: cola_tirar_fg, cpu_pasos: EngineEnvio.cs; DLSS5LEGAL: vibrancia*: EngineDvc.cs) 20-11 (CIERRES: EngineCuelgue.cs) (ConsoleEnhancer: adapta=...; false = desconocida) (21-11, 1.2.1: EngineLatencia.cs; fg_global, fg_quieto: EngineFgGlobal.cs)
             }
             return true;
         }
