@@ -885,6 +885,7 @@ namespace ConsoleEnhancer.Motor
             Hr.Check(alloc[fi].Reset(), "Allocator.Reset");
             Hr.Check(list.Reset(alloc[fi], null), "List.Reset");
             list.EndQuery(qheap, D3D12_QUERY_TYPE.TIMESTAMP, (uint)(fi * 2));
+            CpuBegin();   // 22-11 (1.2.4 LATENCIA, cpu_pasos=1: EngineEnvio.cs)
             PassBegin(slot >= 0);   // (16-11: tiempos por pasada, solo con stats=1 o en el banco)
 
             // Aviso nuevo -> textura
@@ -941,8 +942,11 @@ namespace ConsoleEnhancer.Motor
             // 1b. Vectores de movimiento (para DLSS SR y la generacion)
             if (slot >= 0) curSeq = slotSeq[slot];   // 17-11 (REJAS)
             GiroTake(slot);   // 20-11 (GIRO): el giro de la camara para la busqueda de vectores (EngineGiro.cs)
+            CpuMark(0);
             RecordMotion(slot >= 0);
-            RecordDlss5(slot >= 0);   // 20-11 (DLSS 5 EN EL MOTOR, EngineDlss5.cs): DLSSNR sobre inColor antes de DLSS SR
+            CpuMark(1);
+            RecordDlss5(slot >= 0);
+            CpuMark(2);   // 20-11 (DLSS 5 EN EL MOTOR, EngineDlss5.cs): DLSSNR sobre inColor antes de DLSS SR
             PassMark(3);
 
             // 2. Escalado: DLSS, FSR 1, Catmull-Rom o nada (captura ya a la resolucion de salida). 18-11 (MOTOR-CE): el de UpdateScaler
@@ -992,6 +996,7 @@ namespace ConsoleEnhancer.Motor
             }
             else if (fgApplied) TagForFg(token, true);
             PassMark(4);
+            CpuMark(3);
 
             // 3. CAS -> final (con nitidez 0, copia)
             if (!native) Barrier(outColor, D3D12_RESOURCE_STATES.UNORDERED_ACCESS, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE);
@@ -1033,12 +1038,14 @@ namespace ConsoleEnhancer.Motor
             list.CopyResource(bb, show);
             Barrier(bb, D3D12_RESOURCE_STATES.COPY_DEST, D3D12_RESOURCE_STATES.PRESENT);
             PassEnd();
+            CpuMark(4);
             list.EndQuery(qheap, D3D12_QUERY_TYPE.TIMESTAMP, (uint)(fi * 2 + 1));
             list.ResolveQueryData(qheap, D3D12_QUERY_TYPE.TIMESTAMP, (uint)(fi * 2), 2, tsReadback, (ulong)(fi * 16));
             Hr.Check(list.Close(), "Close");
             IntPtr lp = Com.BorrowPtr(list, typeof(ID3D12CommandList));
             CopyWait();   // (16-11: la copia de la captura de esta imagen, en su cola, antes que esta lista)
             queue.ExecuteCommandLists(1, ref lp);
+            CpuEnd();
         }
         int evalFails;
 

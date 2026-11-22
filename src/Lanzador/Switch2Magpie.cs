@@ -12530,7 +12530,13 @@ namespace ConsoleEnhancer
             // 15-11: el escalado de mpv (1080p/720p en la ventana de 1440p) segun el modo (MpvScaleNow)
             string sc = cfg.MpvScaleNow;
             if (sc != mpvScaleSent && ipcUp && !Config.EngineActive)
-                lock (cmdQueue) { mpvScaleSent = sc; cmdQueue.Add(JsonCmd("set", "scale", sc)); Log.Write("mpv: escalado " + sc); }
+                lock (cmdQueue)
+                {
+                    mpvScaleSent = sc; cmdQueue.Add(JsonCmd("set", "scale", sc));
+                    string csc = cfg.MpvCscaleFor(sc);   // 22-11 (1.2.4 LATENCIA): y el croma (mpv_cscale)
+                    if (csc.Length > 0) cmdQueue.Add(JsonCmd("set", "cscale", csc));
+                    Log.Write("mpv: escalado " + sc + (csc.Length > 0 ? " (croma " + csc + ")" : ""));
+                }
             bool dd = DedupeOn(cfg, fgWanted);
             if (dd != vfDedupe)
                 lock (cmdQueue)
@@ -14472,6 +14478,9 @@ namespace ConsoleEnhancer
             // CAS y DLSS convertian en bordes que tiemblan). A 1:1 (1440p, 4K) no se usa
             a.Add("--scale=" + cfg.MpvScaleNow);
             a.Add("--scale-antiring=0.6");
+            // 22-11 (1.2.4 LATENCIA): el croma con su propio filtro (mpv_cscale, src\Lanzador\Latencia.cs: -1,1 ms de grafica de mpv a 4K)
+            string csc = cfg.MpvCscaleFor(cfg.MpvScaleNow);
+            if (csc.Length > 0) a.Add("--cscale=" + csc);
             a.Add("--no-window-dragging");
             a.Add("--no-osc");
             // Avisos (08-11, mas modernos): arriba en el centro, Segoe UI Semibold sobre una placa oscura semitransparente.

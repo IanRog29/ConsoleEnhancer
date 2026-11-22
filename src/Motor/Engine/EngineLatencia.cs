@@ -226,7 +226,7 @@ namespace ConsoleEnhancer.Motor
                 Thread.Sleep(s.TestStallMs);
                 skip = true;
             }
-            else if (QueueModelSkip(Clock.Now))
+            else if (QueueModelSkip(Clock.Now) || FgQueueSkip(slot))   // (22-11, 1.2.4 LATENCIA: cola_tirar_fg, EngineEnvio.cs)
             {
                 latDrops++;
                 skip = true;
@@ -244,6 +244,7 @@ namespace ConsoleEnhancer.Motor
             if (real && latPickup != 0) { double d = Clock.Ms(latPickup, submit); if (d > 0 && d < 50) latPickSubEma = latPickSubEma <= 0 ? d : latPickSubEma * 0.9 + d * 0.1; }
             if (real && latPickup != 0) LatReflexWatch(Clock.Ms(arrival, latPickup));   // 21-11 (1.2.1)
             QueueModelPresented(submit);
+            FgQueueGpu(real, gpuMs);   // 22-11 (1.2.4 LATENCIA, EngineEnvio.cs)
             if (stats.Recording && real && s.SmoothMode > 0) latBQX.Add(latQX);
             bool csv = s.LatCsv.Length > 0;
             bool want = csv || stats.Recording;     // (jugando, nada mas: DXGI no da estadisticas con Streamline)
@@ -451,6 +452,7 @@ namespace ConsoleEnhancer.Motor
                 if (!vs) flags = PresentAllowTearing;
             }
             sync = vs ? 1u : 0u;
+            fqSync = sync;   // 22-11 (1.2.4 LATENCIA: cola_tirar_fg, EngineEnvio.cs)
         }
 
         // ¿La salida con la generacion (2 x las imagenes reales) cabe por debajo del refresco de la tele con un 10 % de margen? (el refresco
