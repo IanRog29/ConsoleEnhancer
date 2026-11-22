@@ -98,10 +98,15 @@ namespace ConsoleEnhancer
             DateTime now = DateTime.UtcNow;
             if (ceFijoHz < 0 || (now - ceFijoHzAt).TotalSeconds > 2) { ceFijoHz = Pantalla.Hz(); ceFijoHzAt = now; }
             double hz = ceFijoHz, fps = CeFps(Framerate), tope = hz - hz * hz / 3600.0;
-            bool si = EngineVrr > 0 && hz >= 100 && fps > 0 && tope < 2 * fps && hz > 2 * fps;
+            // (1.2.4 MOTORFG) la salida de verdad: las imagenes del juego (la mitad en el modo 30) x lo que multiplica el motor. DLSS FG x4 del
+            // motor en el modo 30 = 119,88/s, el mismo caso que el 60 con x2 (medido 22-11, RTX 4060 Ti, tele de 120 Hz: con VRR 29,0 reales/s
+            // y 50,6 ms de la llegada a verse; con el refresco fijo 30,0 y 40,7 ms, 1071 de 1073 a 1 refresco)
+            int fac = MotorFgFactorRefresco();
+            double sal = (CapMode ? fps / 2 : fps) * fac;
+            bool si = EngineVrr > 0 && hz >= 100 && fps > 0 && tope < sal && hz > sal;
             string porque = (si ? "si" : "no") + " (" + (EngineVrr > 0 ? "VRR del motor" : "sin VRR en el motor") + ", pantalla " + ceFijoHz + " Hz: tope de Reflex con G-SYNC ~" +
-                            tope.ToString("0", CultureInfo.InvariantCulture) + " frente a 2 x " + fps.ToString("0.00", CultureInfo.InvariantCulture) +
-                            (si ? ")" : hz > 0 && hz <= 2 * fps ? "; la pantalla no va mas rapida que la salida)" : ")");
+                            tope.ToString("0", CultureInfo.InvariantCulture) + " frente a " + fac + " x " + (CapMode ? fps / 2 : fps).ToString("0.00", CultureInfo.InvariantCulture) +
+                            (si ? ")" : hz > 0 && hz <= sal ? "; la pantalla no va mas rapida que la salida)" : ")");
             if (porque != ceFijoDicho) { ceFijoDicho = porque; Log.Write("Refresco fijo del motor en el 60 con DLSS FG (motor_60fg_refresco_fijo=auto): " + porque); }
             return si;
         }
