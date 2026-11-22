@@ -19,9 +19,13 @@
 // Cambios (cada uno con su clave para volver a lo de antes):
 //  1) Modo 30 con 1 pasada: antiparpadeo 3 (con flujo, el mismo que con 2-3 pasadas) en vez de 0 (Config.Af30OnePass, base.ini
 //     dlss5_antiparpadeo_30_1pasada=3; =0 como antes). La escala automatica lo cuenta (EscalaAuto.CosteDlss5: +CosteAntiParpadeo).
+//     MEDIDO 22-11 (4K al 45 %, nivel 3; tele en reposo: Magpie a ~13 imagenes/s y capturas suyas cada ~2,6 s): con la imagen quieta la
+//     diferencia entre capturas 3,41 -> 2,83 y los puntos que cambian mas de 10 niveles 7,9 -> 5,4 %; el error frente a la verdad igual o
+//     menor (7,03 -> 6,84). En movimiento no se pudo medir el parpadeo de una imagen a la siguiente (hacen falta imagenes seguidas).
 //  2) Enfoque CAS de Magpie tras DLSS SR con los modelos transformer (J/K/L/M): x magpie_nitidez_transformer (de serie 0,6; 1 = como
 //     antes). El motor ya lo hacia (motor_nitidez_transformer): con K y CAS 0,5 sale un halo oscuro alrededor de las letras; a 0,3 limpio.
-//     Magpie seguia dando 0,5 a 1080p (0,25 con 2-3 pasadas) a K/L/M.
+//     Magpie seguia dando 0,5 a 1080p (0,25 con 2-3 pasadas) a K/L/M. MEDIDO 22-11 (1080p, M, DLSS 5 nivel 3 al 70 %): halo claro con la
+//     imagen quieta 7,8 -> 5,6 % y en paneo rapido 8,6 -> 4,4 %, error 9,0 -> 8,5 y 7,7 -> 7,3.
 //  3) "Sin reescalado" en el motor (Catmull-Rom) sin enfoque CAS, como en Magpie (x enfoque_sin_reescalado, de serie 0; 1 = como antes).
 //  4) DLSS SR de Magpie con L / M (transformer 2) con el flujo optico de DLSS 5 aunque el modo diga "sin flujo" (flujo_30_fg_dlss5=ninguno):
 //     sin vectores L / M borran la textura al mover la camara (dlss_flujo_transformer=nvidia de serie; vacio = como antes).
@@ -53,9 +57,10 @@ namespace ConsoleEnhancer
         public static bool EsTransformer(int preset) { return preset >= 10 && preset <= 13; }
 
         // (1) Lo que cuesta de grafica el antiparpadeo de DLSS 5 por imagen real (ms en la RTX 4060 Ti de referencia, a la resolucion de la
-        // ventana que recibe Magpie): una pasada que lee y escribe 5-6 texturas RGBA16F de ese tamaño (~0,18 ms por megapixel: 4K 1,5 ms,
-        // 1440p 0,66, 1080p 0,37). Solo se suma donde es NUEVO en la 1.2.2 (1 pasada en el modo 30): lo demas ya iba con antiparpadeo
-        // cuando se midieron las escalas de referencia
+        // ventana que recibe Magpie): una pasada que lee y escribe 5-6 texturas RGBA16F de ese tamaño. ESTIMADO por el ancho de banda (~0,18 ms
+        // por megapixel: 4K 1,5 ms, 1440p 0,66, 1080p 0,37), SIN MEDIR (el 22-11 la tele estaba en reposo y Magpie no daba sus tiempos); la
+        // vigilancia de la escala corrige jugando si sobra o falta. Solo se suma donde es NUEVO en la 1.2.2 (1 pasada en el modo 30): lo demas
+        // ya iba con antiparpadeo cuando se midieron las escalas de referencia
         public static double CosteAntiParpadeoMs(int venW, int venH)
         {
             return 0.18 * Math.Max(0, venW) * (double)Math.Max(0, venH) / 1e6;
