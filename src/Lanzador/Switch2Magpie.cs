@@ -2716,6 +2716,7 @@ namespace ConsoleEnhancer
                 else psi.EnvironmentVariables.Remove("MAGPIE_DLSSFG_LITE");
                 Process started = Process.Start(psi);
                 if (started != null) lock (procSync) oursSeen[started.Id] = DateTime.Now;
+                if (started != null) EngineJob.Hold(started, true);   // (22-11, 1.2.2: si la app muere, Magpie no se queda escondido con los modelos de NVIDIA cargados)
                 while (sw.ElapsedMilliseconds < 8000 && !HasAnyWindow()) Thread.Sleep(30);
                 MagpieOculto.Hide("al abrirse"); // (18-11, INTEGRADO; si aun no lo ha puesto, lo quita el repaso de MagpieOculto.Watch)
                 bool running = Running;
@@ -3164,25 +3165,38 @@ namespace ConsoleEnhancer
         const uint KillOnJobClose = 0x2000; // JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
         static readonly object sync = new object();
         static IntPtr job;
-        static readonly HashSet<int> held = new HashSet<int>();
+        static readonly Dictionary<int, DateTime> held = new Dictionary<int, DateTime>();
         static bool warned;
 
         // El motor al job (si no estaba) y si Windows lo cierra con la app (kill: en espera) o no (despierto)
+        // 22-11 (1.2.2, ERRORES; pendiente de la revision de la 1.2.03 "huerfanos de mpv/motor sin job"): el "cerrar con la app" es de TODO el
+        // job, no de cada proceso (y un proceso no sale de un job): despertar uno lo quitaba a todos -un motor de reserva escondido seguia
+        // sin el- y poner otro en espera se lo devolvia al despierto. Ahora el job siempre cierra lo suyo con la app, y RunMpv mete tambien
+        // la imagen (mpv y el motor recien abierto): si la app muere (administrador de tareas, un antivirus, un fallo nativo) no se quedan
+        // con la capturadora y la pantalla sin nadie que los mande. kill solo dice para que se mete
         public static void Hold(Process p, bool kill)
         {
             try
             {
                 lock (sync)
                 {
-                    if (job == IntPtr.Zero) job = CreateJobObjectW(IntPtr.Zero, null);
-                    if (job == IntPtr.Zero) { Warn("sin job (" + Marshal.GetLastWin32Error() + ")"); return; }
-                    ExtLimits l = new ExtLimits();
-                    l.LimitFlags = kill ? KillOnJobClose : 0;
-                    if (!SetInformationJobObject(job, JobObjectExtendedLimitInformation, ref l, (uint)Marshal.SizeOf(typeof(ExtLimits))))
-                        Warn("SetInformationJobObject " + Marshal.GetLastWin32Error());
-                    if (p != null && !held.Contains(p.Id))
+                    if (job == IntPtr.Zero)
                     {
-                        if (AssignProcessToJobObject(job, p.Handle)) held.Add(p.Id);
+                        job = CreateJobObjectW(IntPtr.Zero, null);
+                        if (job == IntPtr.Zero) { Warn("sin job (" + Marshal.GetLastWin32Error() + ")"); return; }
+                        ExtLimits l = new ExtLimits();
+                        l.LimitFlags = KillOnJobClose;
+                        if (!SetInformationJobObject(job, JobObjectExtendedLimitInformation, ref l, (uint)Marshal.SizeOf(typeof(ExtLimits))))
+                            Warn("SetInformationJobObject " + Marshal.GetLastWin32Error());
+                    }
+                    if (p != null)
+                    {
+                        // (por pid y su hora de arranque: con cada mpv tambien, un pid de uno ya cerrado puede volver a salir)
+                        DateTime st = DateTime.MinValue;
+                        try { st = p.StartTime; } catch { }
+                        DateTime ya;
+                        if (held.TryGetValue(p.Id, out ya) && ya == st) return;
+                        if (AssignProcessToJobObject(job, p.Handle)) held[p.Id] = st;
                         else Warn("AssignProcessToJobObject " + Marshal.GetLastWin32Error());
                     }
                 }
@@ -3194,7 +3208,7 @@ namespace ConsoleEnhancer
         {
             if (warned) return;
             warned = true;
-            Log.Write("Motor en espera: sin el job de Windows (" + why + "): si la app muriera sin cerrarlo, se quedaria abierto");
+            Log.Write("Imagen (mpv / motor): sin el job de Windows (" + why + "): si la app muriera sin cerrarlos, se quedarian abiertos");
         }
     }
 
@@ -13852,6 +13866,7 @@ namespace ConsoleEnhancer
                     {
                         p = Process.Start(psi);
                         mpv = p;
+                        EngineJob.Hold(p, true);   // (22-11, 1.2.2: si la app muere, Windows lo cierra; ver EngineJob)
                         if (eng) { Config.NoteEngineFixed(p); Config.NoteEngineFfx(p); }   // 20-11 (LATENCIA5)
                         if (eng) Config.EngineSmoothRunning = Config.EngineSmoothLaunched;   // 17-11 16:55 (17:15: con mpv se queda el del ultimo motor: el que pasa a espera tras el puente lo necesita; antes -1 y al motor de Smooth Motion se le mandaba fg=1)
                     }
