@@ -22,8 +22,14 @@
 //   barrotes finos: calidad 2 la mejor (1,16 / 1,63 / 2,03); 3 peor (1,49 / 2,18 / 3,19); 4 (1,39 / 1,57 / 2,69); 1 (1,75 / 2,51 / 3,40)
 //   fondo con detalle que se repite (ventanas): 2 (10 / 13 / 18) frente a 3 (51 / 57 / 54) y 4 (20 / 33 / 49): las lentas se van de periodo
 //   borde de la cabeza por dentro: 2 y 3 ~0,5, 4 y 5 ~0,25; el fondo que se tapa y destapa junto a la cabeza: igual con todas (6-13 px)
+// Error fotometrico (luma 0-255: la anterior movida con los vectores contra la actual, lo que la generacion tiene que acertar; 1080p /
+// 1440p / 4K): barrotes finos 2 = 2,85 / 4,11 / 2,34; 3 = 3,22 / 5,55 / 3,37; 4 = 2,22 / 3,41 / 1,75; SIN vectores 14,8 / 15,5 / 17,4.
+// El cielo junto a lo fino: 2 = 4,1 / 5,3 / 3,3; 3 = 4,9 / 7,4 / 4,7; sin vectores ~18. Borde de la cabeza por dentro: 2 = 2,9 / 2,2 /
+// 2,0; 3 = 3,1 / 2,4 / 2,1; 4 = 1,9 / 1,1 / 0,8 (la rejilla 2x2 lo deja en la mitad, pero no lo de fuera de la cabeza, y cuesta ~11 ms
+// mas de flujo a 1440p: retraso; a 4K no cabe). La interfaz quieta sale con vectores del fondo con cualquier calidad (4-10 niveles).
 // Conclusion: la 2 es la mejor y de las baratas en todas las capturas; la rejilla 2x2 no arregla lo de junto a la cabeza (es la oclusion,
-// que ningun flujo resuelve sin profundidad) y no cabe a 4K. XeSS FG se queda en la 2 (como antes); DLSS FG del modo 30 pasa de la 3 a la 2
+// que ningun flujo resuelve sin profundidad) y no cabe a 4K. XeSS FG se queda en la 2 (como antes; fg_xess_flujo_calidad=4 para probar la
+// rejilla fina a 1440p: borde de la cabeza mas limpio a cambio de ~11 ms mas de retraso); DLSS FG del modo 30 pasa de la 3 a la 2
 // (fg_flujo_calidad, Switch2Magpie.cs) y a 4K, que iba sin vectores (16-11: la 3 a 4K costaba demasiado), los comparte con DLSS 5 (la 2: el
 // mismo estimador, sin coste de mas). Con flujo "ninguno" DLSS FG cree la escena quieta y en lo fino que se repite mezcla las dos imagenes
 // (16-11, cesped de FC 26 a 1080p: por eso el modo 30 ya llevaba vectores fuera de 4K).
