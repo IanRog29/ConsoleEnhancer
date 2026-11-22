@@ -55,6 +55,7 @@ void main(uint3 id : SV_DispatchThreadID)
     float2 uv = (id.xy + 0.5) / float2(W, H);
     float3 a = A[id.xy].rgb;
     float3 d = B.SampleLevel(Lin, uv, 0).rgb - Cin.SampleLevel(Lin, uv, 0).rgb;
+    if (Q0 > 0 && Q0 != 1) { float dy = dot(d, float3(0.2126, 0.7152, 0.0722)); d = dy + (d - dy) * Q0; }   // (dlss5_color)
     Out[id.xy] = float4(saturate(a + d * K), 1);
 }";
         // 20-11 (LATENCIA7, dlss5_mezcla_directa=1): la misma mezcla escrita en inColor (UAV, cada hilo lee y escribe su punto): sin la
@@ -75,6 +76,7 @@ void main(uint3 id : SV_DispatchThreadID)
     float3 c = a;
     if (P0 != 0) c = Cin.SampleLevel(Lin, uv, 0).rgb;
     float3 d = B.SampleLevel(Lin, uv, 0).rgb - c;
+    if (Q0 > 0 && Q0 != 1) { float dy = dot(d, float3(0.2126, 0.7152, 0.0722)); d = dy + (d - dy) * Q0; }   // (dlss5_color)
     Io[id.xy] = float4(saturate(a + d * K), 1);
 }";
         ID3D12PipelineState psoNrBlendD;   // 20-11 (LATENCIA7)
@@ -314,7 +316,7 @@ void main(uint3 id : SV_DispatchThreadID) {
                 bool sameSize = hadAny && nrW == w && nrH == h && nrSrcW == inW && nrSrcH == inH && ReferenceEquals(nrInColor, inColor);
                 // 22-11 (1.2.4 DLSS5Q, dlss5_sosten=1: EngineDlss5Q.cs): esta imagen, con la correccion de DLSS 5 de la anterior en vez de sin
                 // DLSS 5 (un destello con el color de la captura cada vez que la escala, el guardian o el menu cambian el % o las pasadas)
-                bool held = hadAny && D5qHoldRecord();
+                bool held = hadAny && !(s.NrNow && s.NrSuave && !d5qFlushBroken) && D5qHoldRecord();   // (con la creacion inmediata no hace falta)
                 d5qCreated = true;
                 int keep = sameSize ? Math.Min(nrPasses, passes) : 0;
                 foreach (ID3D12Resource r in new[] { nrOuts[0], nrOuts[1], nrOuts[2], nrBlend, nrIn, nrMv, nrDepth, afOut, afGuide, afHist[0], afHist[1] }) if (r != null) Bury(r);
@@ -372,7 +374,10 @@ void main(uint3 id : SV_DispatchThreadID) {
                           ", estilo " + s.NrStyle + ", nivel " + s.NrIntensity + "," + s.NrTone + "," + s.NrStructure + "," + s.NrSkin + ", fuerza " + s.NrStrength + ")" +
                           (hadAny ? string.Format(IC, "; antes, la grafica acabando lo de antes: {0:0} ms{1}", waited, keep > 0 ? ", " + keep + " reutilizada(s)" : "") : "") +
                           (held ? "; esta imagen con la correccion de la anterior (sosten)" : ""));
-                return;
+                // 22-11 (1.2.4 DLSS5Q, dlss5_creacion_inmediata): la creacion a la grafica ya y esta misma imagen con DLSS 5 (EngineDlss5Q.cs)
+                if (held || !D5qFlush()) return;
+                Log.Write(string.Format(IC, "DLSS 5: creacion enviada y hecha en {0:0} ms; esta imagen ya lleva DLSS 5", d5qFlushMs));
+                cl = Com.BorrowPtr(list, typeof(ID3D12GraphicsCommandList));
             }
             Dlss5GuardTick();   // 20-11 (CIERRES)
             uint* c = stackalloc uint[8];
@@ -451,7 +456,7 @@ void main(uint3 id : SV_DispatchThreadID) {
             if (nrDirect)
             {
                 // 20-11 (LATENCIA7, dlss5_mezcla_directa=1): directamente en inColor, sin nrBlend ni la copia
-                c[0] = (uint)inW; c[1] = (uint)inH; c[2] = reduced ? 1u : 0u; c[3] = 0; c[4] = F(s.NrStrength); c[5] = 0; c[6] = 0; c[7] = 0;
+                c[0] = (uint)inW; c[1] = (uint)inH; c[2] = reduced ? 1u : 0u; c[3] = 0; c[4] = F(s.NrStrength); c[5] = F(NrChromaNow); c[6] = 0; c[7] = 0;
                 Barrier(inColor, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.UNORDERED_ACCESS);
                 BindCompute(psoNrBlendD, TNr, c, 8);
                 list.Dispatch(Groups(inW, 16), Groups(inH, 8), 1);
@@ -460,7 +465,7 @@ void main(uint3 id : SV_DispatchThreadID) {
                 Barrier(raw, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.UNORDERED_ACCESS);
                 return;
             }
-            c[0] = (uint)inW; c[1] = (uint)inH; c[2] = 0; c[3] = 0; c[4] = F(s.NrStrength); c[5] = 0; c[6] = 0; c[7] = 0;
+            c[0] = (uint)inW; c[1] = (uint)inH; c[2] = 0; c[3] = 0; c[4] = F(s.NrStrength); c[5] = F(NrChromaNow); c[6] = 0; c[7] = 0;
             BindCompute(psoNrBlend, TNr, c, 8);
             list.Dispatch(Groups(inW, 16), Groups(inH, 8), 1);
             UavBarrier(nrBlend);

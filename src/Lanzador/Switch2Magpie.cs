@@ -12022,6 +12022,8 @@ namespace ConsoleEnhancer
                    " dlss5_antiparpadeo=" + Math.Max(0, Math.Min(3, cfg.AntiFlickerNow)).ToString(CultureInfo.InvariantCulture) +
                    " dlss5_antiparpadeo_ms=" + cfg.Dlss5AntiFlickerMs.ToString(CultureInfo.InvariantCulture) +
                    " dlss5_fuerza=" + f(n[4]) +   // 20-11: la "fuerza total" (5o numero del nivel; residualMultiplier en Magpie)
+                   // 22-11 (1.2.4 DLSS5Q): con 2-3 pasadas, el croma de la correccion como a Magpie (dlss5_pasadas_color / _4k: sin el, color lavado)
+                   " dlss5_color=" + f(cfg.Dlss5MultiChromaNow) +
                    " dlss5_entrada=" + cfg.EngineDlss5PctNow.ToString(CultureInfo.InvariantCulture) +   // 20-11: % de entrada (Config.EngineDlss5PctNow)
                    " dlss5_estilo=" + cfg.Dlss5Style.ToString(CultureInfo.InvariantCulture) +
                    " dlss5_modelo=" + cfg.Dlss5Model.ToString(CultureInfo.InvariantCulture) +

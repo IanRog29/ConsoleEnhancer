@@ -906,6 +906,7 @@ namespace ConsoleEnhancer.Motor
         void RenderFrame(int slot, IntPtr token, int fi)
         {
             uint* c = stackalloc uint[16];
+            rfFi = fi;   // (22-11 DLSS5Q: la lista de esta imagen, para enviar la creacion de DLSS 5 a mitad: EngineDlss5Q.cs)
             Hr.Check(alloc[fi].Reset(), "Allocator.Reset");
             Hr.Check(list.Reset(alloc[fi], null), "List.Reset");
             list.EndQuery(qheap, D3D12_QUERY_TYPE.TIMESTAMP, (uint)(fi * 2));

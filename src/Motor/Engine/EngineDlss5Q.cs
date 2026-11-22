@@ -22,6 +22,8 @@ namespace ConsoleEnhancer.Motor
         public string NrMeasure = "";   // dlss5_medida
         public bool NrHold = true;      // dlss5_sosten
         public bool NrSuave = true;     // dlss5_suave=0: todo lo de DLSS5Q como en la 1.2.4 (sosten, la escala de una vez y en los cortes, la clave nueva)
+        public bool NrNow = true;       // dlss5_creacion_inmediata: la imagen en que se crea DLSS 5 ya lo lleva (ver D5qFlush)
+        public float NrChroma = 1f;     // dlss5_color: el croma de lo que cambia DLSS 5 con 2-3 pasadas (el "Chroma Strength" del residuo de Magpie; 1 = tal cual)
 
         bool ApplyD5q(string key, string val)
         {
@@ -29,6 +31,8 @@ namespace ConsoleEnhancer.Motor
             {
                 case "dlss5_medida": NrMeasure = val.Trim(); return true;
                 case "dlss5_sosten": { string v = val.Trim().ToLowerInvariant(); NrHold = !(v == "0" || v == "no" || v == "false" || v == "off"); return true; }
+                case "dlss5_color": { double d; if (double.TryParse(val.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out d)) NrChroma = (float)Math.Max(0, Math.Min(2, d)); return true; }
+                case "dlss5_creacion_inmediata": { string v = val.Trim().ToLowerInvariant(); NrNow = !(v == "0" || v == "no" || v == "false" || v == "off"); return true; }
                 case "dlss5_suave": { string v = val.Trim().ToLowerInvariant(); NrSuave = !(v == "0" || v == "no" || v == "false" || v == "off"); return true; }
                 case "test_escena_s": { double d; if (double.TryParse(val.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out d)) EscenasReales.SceneSecs = Math.Max(1, Math.Min(120, d)); return true; }
             }
@@ -81,10 +85,42 @@ void main(uint3 id : SV_DispatchThreadID)
     float2 uv = (id.xy + 0.5 + mv) / float2(W, H);
     float3 a = Io[id.xy].rgb;
     float3 d = B.SampleLevel(Lin, uv, 0).rgb - Cin.SampleLevel(Lin, uv, 0).rgb;
+    if (Q0 > 0 && Q0 != 1) { float dy = dot(d, float3(0.2126, 0.7152, 0.0722)); d = dy + (d - dy) * Q0; }
     Io[id.xy] = float4(saturate(a + d * K), 1);
 }";
         ID3D12PipelineState psoD5qMean, psoD5qHold;
+        // 22-11 (DLSS5Q) dlss5_color: con 2-3 pasadas, el croma de la correccion por esto (como el "Chroma Strength" del residuo que Magpie
+        // lleva desde el 19-11 con 2-3 pasadas: dlss5_pasadas_color 0,7 / 0,5 a 4K; sin el, color lavado). Con 1 pasada, tal cual
+        float NrChromaNow { get { return nrPasses >= 2 && s.NrChroma > 0 ? s.NrChroma : 1f; } }
         bool d5qHoldBroken;
+
+        int rfFi;   // la imagen (lista y su asignador) que se esta grabando (RenderFrame)
+
+        // ---- dlss5_creacion_inmediata (de serie 1): la creacion de la DLSSNR se envia ya a la grafica y se espera, y la misma imagen se
+        // evalua (con la historia de cero). Antes la imagen de la creacion iba SIN DLSS 5 (PrismaNr: "hay que dejar una imagen antes del
+        // primer Evaluate"): al rehacerla (otro %, otras pasadas) un destello con el color de la captura, y en un motor recien abierto (el
+        // relevo de un motor a otro al cambiar de generacion, el despertar) la primera imagen que se ve, sin DLSS 5, y la siguiente con el.
+        // El paron es el de siempre (crear la DLSSNR ya paraba la imagen ~0,15-0,3 s): solo se añade lo que tarda la grafica en hacer la
+        // creacion. Si algo falla, la imagen va como antes (sostenida o sin DLSS 5)
+        bool d5qFlushBroken;
+        bool D5qFlush()
+        {
+            if (!s.NrNow || !s.NrSuave || d5qFlushBroken) return false;
+            try
+            {
+                long t = Clock.Now;
+                Hr.Check(list.Close(), "Close (DLSS 5)");
+                IntPtr lp = Com.BorrowPtr(list, typeof(ID3D12CommandList));
+                CopyWait();
+                queue.ExecuteCommandLists(1, ref lp);
+                WaitIdle();
+                Hr.Check(list.Reset(alloc[rfFi], null), "List.Reset (DLSS 5)");
+                d5qFlushMs = Clock.SinceMs(t);
+                return true;
+            }
+            catch (Exception ex) { d5qFlushBroken = true; Log.Error("DLSS 5: creacion inmediata", ex); throw; }
+        }
+        double d5qFlushMs;
 
         // Lo que hizo DLSS 5 en esta imagen (lo pone RecordDlss5; lo lee la medida)
         bool d5qApplied, d5qCreated, d5qReset, d5qHeld;
@@ -107,7 +143,7 @@ void main(uint3 id : SV_DispatchThreadID)
             SrvTex(TD5qHold, 1, b, ColorFmt); SrvTex(TD5qHold, 2, cin, ColorFmt); SrvTex(TD5qHold, 3, mvec, DXGI_FORMAT.R16G16_FLOAT);
             UavTex(TD5qHold, U0, inColor, ColorFmt);
             uint* c = stackalloc uint[8];
-            c[0] = (uint)inW; c[1] = (uint)inH; c[2] = 0; c[3] = 0; c[4] = F(s.NrStrength); c[5] = 0; c[6] = 0; c[7] = 0;
+            c[0] = (uint)inW; c[1] = (uint)inH; c[2] = 0; c[3] = 0; c[4] = F(s.NrStrength); c[5] = F(NrChromaNow); c[6] = 0; c[7] = 0;
             Barrier(b, D3D12_RESOURCE_STATES.UNORDERED_ACCESS, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE);
             Barrier(inColor, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.UNORDERED_ACCESS);
             BindCompute(psoD5qHold, TD5qHold, c, 8);
