@@ -50,6 +50,7 @@ namespace ConsoleEnhancer
             {
                 case "generacion_multiplicador": MultOn = val.Trim() != "0"; return true;
                 case "xess_fg_1080": XessFg1080 = val.Trim() != "0"; return true;
+                case "xess_fg_x4": XessX4 = val.Trim().ToLowerInvariant(); return true;
                 // (solo pruebas: la pantalla como si fuera a N Hz para las reglas del multiplicador; p. ej. el menu con la tele apagada)
                 case "prueba_multiplicador_hz": { int h; if (int.TryParse(val.Trim(), out h)) multHzPrueba = Math.Max(0, h); } return true;
             }
@@ -62,6 +63,13 @@ namespace ConsoleEnhancer
         public static bool XessNo1080(string videoSize) { return !XessFg1080 && WindowFor(videoSize) == "1920x1080"; }
 
         public static bool MultTipo(string t) { return t == "dlss" || t == "xess"; }
+
+        // ---- XeSS FG x4 (MEDIDO el 22-11, RTX 4060 Ti, tele a 120 Hz, Magpie 0.6.12): su ritmo XeLL toma siempre 60 de base ("XeLL input
+        // pacing: baseTarget=60.000 outputTarget=240.000", igual con contentRate 30, contentMode 1 o el refresco avanzado): pide 240 a una
+        // tele de 120 y se queda con la MITAD de imagenes reales (15,6-15,9/s; salida 62-63/s, peor que x2). x3 (pide 180) si va: 89,7/s.
+        // xess_fg_x4: auto (de serie) = bloqueado si 60 x 4 no cabe en la pantalla; 1 = siempre; 0 = nunca
+        public static volatile string XessX4 = "auto";
+        static bool XessX4Malo(int m, int hz) { return m >= 4 && XessX4 != "1" && (XessX4 == "0" || (hz > 0 && 60.0 * m > hz + 1.0)); }
 
         // Lo pedido en un modo (2-4), sin mirar la pantalla
         public int MultPedido(bool cap30)
@@ -117,6 +125,11 @@ namespace ConsoleEnhancer
                     return true;
                 }
             }
+            if (tipo == "xess" && XessX4Malo(m, hz))
+            {
+                es = "con este Magpie pide 240 fps: la mitad de imágenes reales"; en = "with this Magpie it asks for 240 fps: half the real frames";
+                return true;
+            }
             // DLSS FG x3 / x4 va por Magpie, que necesita runtimes\dlssg_sm86 (tambien en RTX 40)
             if (tipo == "dlss" && !Integrado.MagpieDlssgOk)
             {
@@ -147,6 +160,8 @@ namespace ConsoleEnhancer
             System.Text.StringBuilder sb = new System.Text.StringBuilder("# MULTI: reglas del multiplicador (" + DateTime.Now.ToString("yyyy-MM-dd HH:mm") + ")\r\n");
             int fallos = 0;
             bool vrrAntes = CeImagen.VrrAhora;
+            string x4Antes = XessX4;
+            XessX4 = "1";   // (la tabla, sin el arreglo de XeSS FG x4: ese va aparte, abajo)
             // esperado: "hz vrr modo" -> los que caben de x2 x3 x4 (DLSS FG con el componente o XeSS FG)
             Dictionary<string, string> esp = new Dictionary<string, string>
             {
@@ -181,6 +196,18 @@ namespace ConsoleEnhancer
                             sb.AppendLine((mal ? "FALLO " : "      ") + hz + " Hz, VRR " + (vrr ? "si" : "no") + ", modo " + (cap30 ? 30 : 60) + ": " + string.Join(" | ", fila.ToArray()) +
                                           "  -> pedido x4 va x" + va4 + ", x3 va x" + va3 + (e != null ? "  (esperado " + e + ")" : ""));
                         }
+                // XeSS FG x4 con su ritmo de base 60 (xess_fg_x4=auto): no a 120 Hz, si a 240
+                XessX4 = "auto";
+                foreach (int hz in new[] { 120, 144, 240 })
+                {
+                    multHzPrueba = hz; CeImagen.VrrAhora = true;
+                    bool b4 = c.MultBloqueado(true, 4, "xess"), b3 = c.MultBloqueado(true, 3, "xess"), d4 = c.MultBloqueado(true, 4, "dlss") && Integrado.MagpieDlssgOk;
+                    bool esp4 = hz < 240, mal = b4 != esp4 || b3 || d4;
+                    if (mal) fallos++;
+                    sb.AppendLine((mal ? "FALLO " : "      ") + "XeSS FG x4 (xess_fg_x4=auto) a " + hz + " Hz, modo 30: " + (b4 ? "NO (" + c.MultMotivo(true, 4, "xess") + ")" : "si") +
+                                  "; x3 " + (b3 ? "NO" : "si") + "; DLSS FG x4 " + (d4 ? "NO" : "si") + " (esperado x4 " + (esp4 ? "NO" : "si") + ", x3 si)");
+                }
+                XessX4 = "1";
                 // con las demas generaciones, siempre x2; DLSS FG sin el componente, x3 / x4 no
                 multHzPrueba = 120; CeImagen.VrrAhora = true;
                 c.MultPick30 = 4;
@@ -207,11 +234,25 @@ namespace ConsoleEnhancer
                 sb.AppendLine((okp ? "      " : "FALLO ") + "perfil: \"dlss,xess,0,4\" -> " + p.Pick60 + "/" + p.Pick30 + " x" + p.Mult60 + "/x" + p.Mult30 + " -> \"" + p.PickText + "\"; \"smooth,\" -> \"" + q.PickText + "\"");
             }
             catch (Exception ex) { fallos++; sb.AppendLine("EXCEPCION: " + ex); }
-            finally { multHzPrueba = 0; CeImagen.VrrAhora = vrrAntes; }
+            finally { multHzPrueba = 0; CeImagen.VrrAhora = vrrAntes; XessX4 = x4Antes; }
             sb.AppendLine(fallos == 0 ? "OK" : fallos + " fallos");
             string f = string.IsNullOrEmpty(informe) ? Path.Combine(Paths.Datos, @"games\test_multiplicador.txt") : informe;
             try { Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(f))); File.WriteAllText(f, sb.ToString(), new System.Text.UTF8Encoding(false)); } catch { }
             return fallos;
+        }
+
+        // ¿Cabe DLSS 5 (1 pasada, al minimo) en la cadena de ahora con este tipo y multiplicador? (escala automatica de DLSS 5; sin ella, si).
+        // MEDIDO el 22-11: 1440p, DLSS L, DLSS FG x4 sin DLSS 5 = 81 % de grafica; con DLSS 5 encendido la app lo quita ("NO CABE")
+        public bool MultCabeDlss5(int m, string tipo)
+        {
+            if (!Dlss5AutoAhora || !Integrado.Dlss5Available) return true;
+            try
+            {
+                CadenaEscala c = CadenaEscalaPara(1);
+                c.Gen = tipo; c.Mult = m;
+                return EscalaAuto.PctPara(c, 1) > 0;
+            }
+            catch { return true; }
         }
 
         // x3 / x4 puesto ahora (con la generacion encendida y fuera del 120)
@@ -472,6 +513,16 @@ namespace ConsoleEnhancer
             f.Ayuda = motivos.Count == 0
                 ? Tx.T("Imágenes por cada real (" + fps + " fps). Más = más fluido y algo más de latencia", "Frames per real one (" + fps + " fps). More = smoother, slightly more latency")
                 : bloq + "  (" + fps + " fps)";
+            // (con DLSS 5 encendido en el menu, en el modo y la captura de ahora: con que multiplicador ya no cabe y se quitaria)
+            FilaAjuste d5 = AjFila("d5"), capF = AjFila("cap");
+            bool d5si = d5 != null ? d5.Val == "1" : dlss5Shown;
+            bool mismo = modoSel == (cfg.Mode120 ? "120" : cfg.CapMode ? "30" : "60") && (capF == null || capF.Val == cfg.VideoSize);
+            if (f.Visible && d5si && mismo)
+            {
+                List<string> sinD5 = new List<string>();
+                for (int m = 3; m <= 4; m++) if (!f.Bloqueado(m - 2) && !cfg.MultCabeDlss5(m, tipoSel)) sinD5.Add("x" + m);
+                if (sinD5.Count > 0) f.Ayuda += " · " + string.Join(" / ", sinD5.ToArray()) + Tx.T(": DLSS 5 no cabe (se quita)", ": DLSS 5 doesn't fit (it's removed)");
+            }
         }
 
         // (AjustesOrden) lo elegido a mano en la fila
@@ -540,19 +591,73 @@ namespace ConsoleEnhancer
         int multMal;
         DateTime multBajadoAt = DateTime.MinValue;
 
+        // XeSS FG: las imagenes que saca no estan en el "Output cadence" de Magpie (generated=0: las presenta la cadena de Intel; medido el
+        // 22-11, x2 a 1440p: nuevas 721, inventadas 0, y PresentMon 57,9 imagenes/s con la mitad "Intel XeSS-FG"). Si, cada ~4 s, "XeSSFG SDK
+        // output: requested=2x frames=1439 submissions=720" (acumuladas): de dos seguidas, la salida (frames/s) y las reales (submissions/s)
+        long multLogPos = -1;
+        double multXeT = -1, multXeOut = -1, multXeReal = -1;
+        long multXeFrames = -1, multXeSubs = -1;
+        DateTime multXeAt = DateTime.MinValue;
+
+        void MultLeerXess()
+        {
+            string path = Paths.MagpieLog;
+            if (!File.Exists(path)) return;
+            using (FileStream fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+            {
+                if (multLogPos < 0 || multLogPos > fs.Length) { multLogPos = Math.Max(0, fs.Length - 65536); multXeT = -1; }   // (primera vez o log rotado)
+                fs.Seek(multLogPos, SeekOrigin.Begin);
+                byte[] buf = new byte[Math.Min(fs.Length - multLogPos, 4 * 1024 * 1024)];
+                int n = 0, r;
+                while (n < buf.Length && (r = fs.Read(buf, n, buf.Length - n)) > 0) n += r;
+                if (n == 0) return;
+                int end = Array.LastIndexOf(buf, (byte)'\n', n - 1);
+                if (end < 0) return;
+                multLogPos += end + 1;
+                foreach (string line in System.Text.Encoding.UTF8.GetString(buf, 0, end + 1).Split('\n'))
+                {
+                    if (line.IndexOf("XeSSFG SDK output", StringComparison.Ordinal) < 0) continue;
+                    Match m = Regex.Match(line, @"^(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d\.\d+)\|.*XeSSFG SDK output: requested=\dx frames=(\d+) submissions=(\d+)");
+                    DateTime t;
+                    if (!m.Success || !DateTime.TryParse(m.Groups[1].Value, CultureInfo.InvariantCulture, DateTimeStyles.None, out t)) continue;
+                    double ts = t.Ticks / 1e7;
+                    long f = long.Parse(m.Groups[2].Value, CultureInfo.InvariantCulture), s = long.Parse(m.Groups[3].Value, CultureInfo.InvariantCulture);
+                    if (multXeT > 0 && f >= multXeFrames && s >= multXeSubs && ts > multXeT + 1 && ts < multXeT + 30)
+                    {
+                        multXeOut = (f - multXeFrames) / (ts - multXeT);
+                        multXeReal = (s - multXeSubs) / (ts - multXeT);
+                        multXeAt = DateTime.Now;
+                    }
+                    multXeT = ts; multXeFrames = f; multXeSubs = s;   // (si baja, es otra sesion de Magpie: desde aqui)
+                }
+            }
+        }
+
         // CheckLsPacing cada 5 s con Magpie. true = ha bajado el multiplicador (lo demas no juzga esta vez)
         bool MultVigila(LsStats st)
         {
             try
             {
                 PrepareCfg();
+                bool xess = cfg.FgTypeNow == "xess";
+                if (xess && cfg.MultAlto) MultLeerXess();
                 if (!cfg.MultAlto || Config.EngineActive || cfg.HomeNative || InHome || homeBusy || passesBusy || relaunchSize != null || relaunchEngine ||
                     userExit || !lsReady || applying || MagpieLive.RunningFor() < 20 || (DateTime.Now - multBajadoAt).TotalSeconds < 30) { multMal = 0; return false; }
-                if (st.CapN == 0 || st.CapTime <= 0) return false;
                 double fuente = FuenteFps(), modo = Config.MultBase(cfg.CapMode);
                 if (fuente < modo * 0.92) { multMal = 0; return false; }   // (el juego no da el modo entero: no es cosa del PC)
                 int m = cfg.FgMultNow, hz = Config.MultHz();
-                double salida = (st.NewSum + st.GenSum) / st.CapTime, real = st.NewSum / st.CapTime;
+                double salida, real;
+                if (xess)
+                {
+                    if ((DateTime.Now - multXeAt).TotalSeconds > 6 || multXeOut <= 0) return false;   // (sin dato nuevo: se sigue la cuenta)
+                    salida = multXeOut; real = multXeReal;
+                    multXeAt = DateTime.MinValue;   // (cada dato una vez)
+                }
+                else
+                {
+                    if (st.CapN == 0 || st.CapTime <= 0) return false;
+                    salida = (st.NewSum + st.GenSum) / st.CapTime; real = st.NewSum / st.CapTime;
+                }
                 double objetivo = Math.Min(modo * m, hz >= 60 ? hz - 0.2 : modo * m);
                 bool mal = salida < objetivo * 0.9 || real < modo * 0.9;
                 multMal = mal ? multMal + 1 : 0;
