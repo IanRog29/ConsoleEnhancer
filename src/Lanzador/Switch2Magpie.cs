@@ -3204,6 +3204,10 @@ namespace ConsoleEnhancer
             // 16-11 (agente S): un Magpie que se abriera mientras se salia (un reinicio de Magpie a medias) no se queda abierto solo
             try { if (MagpieLive.Running) { MagpieLive.Kill(); Log.Write("Magpie seguia abierto al salir: cerrado"); } }
             catch (Exception ex) { Log.Error("Cerrando Magpie al salir", ex); }
+            // 22-11 (1.2.2, REVISION): nvngx_dlss.dll de Magpie otra vez en su sitio al salir (src\Lanzador\TiemposCarga.cs). Una version
+            // anterior abierta despues en esta carpeta, o en otra que herede esta magpie\ (Integrado.HeredarDatos), no sabe devolverlo y su
+            // DLSS SR (captura de 1080p / 1440p) no arrancaria. Devolverlo con Magpie aun abierto no le afecta (solo lo carga al escalar)
+            DllDlssSr.Poner(true, "al salir");
             // 16-11 (revision): otra vez al final: si tras empezar esto (PowerOffNow) algo relanzo Magpie (la recuperacion de un reinicio de
             // la grafica) y volvio a poner Smooth Motion o la sincronizacion vertical en su perfil. Sin nada puesto no hace nada
             try { NvProfiles.SmoothOffAtExit(); } catch (Exception ex) { Log.Error("Quitando Smooth Motion de Magpie.exe", ex); }
@@ -14869,6 +14873,9 @@ namespace ConsoleEnhancer
             int rc = 0;
             try
             {
+                // (1.2.2: el nvngx_dlss.dll que se aparta a 4K, src\Lanzador\TiemposCarga.cs, en su sitio antes de mirar la copia de Magpie:
+                // si no, "FALTAN nvngx_dlss.dll" sin motivo)
+                DllDlssSr.Poner(true, "--dry-run");
                 string detail = null;
                 bool ok = MagpieLive.Running ? File.Exists(Paths.MagpieExe) : MagpieLive.EnsureCopy(cfg.MagpieSource, out detail);
                 if (MagpieLive.Running) detail = "Magpie abierto: la copia no se toca";

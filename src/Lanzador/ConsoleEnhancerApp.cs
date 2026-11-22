@@ -340,8 +340,20 @@ namespace ConsoleEnhancer
                 int ip = t.IndexOf("# ===== Plan de ConsoleEnhancer", StringComparison.Ordinal);
                 if (ip < 0) { Log.Write("Ini: sin el bloque del plan, no se pone al dia (" + ini + ")"); return; }
                 string resto = t.Substring(ip);
+                // 22-11 (1.2.2, REVISION): lo que va despues de la marca de la actualizacion anterior se conserva (Ce.IniPoner pone al final las
+                // claves que no estaban: defender_aviso...; antes se perdia y el aviso de Defender volvia a salir). Y lo elegido que vive arriba,
+                // en las lineas del base.ini viejo (IniPoner cambia esa linea: apagar_pc_modo desde la bandeja, motor_dlss5...), tambien
+                string cola = "";
                 int ia = resto.IndexOf("# ===== Actualizacion a la ", StringComparison.Ordinal);
-                if (ia >= 0) resto = resto.Substring(0, ia);
+                if (ia >= 0)
+                {
+                    int im = resto.IndexOf("# ce_ini_version=", ia, StringComparison.Ordinal);
+                    int eol = im >= 0 ? resto.IndexOf('\n', im) : -1;
+                    if (eol >= 0) cola = resto.Substring(eol + 1);
+                    resto = resto.Substring(0, ia);
+                }
+                Dictionary<string, string> elegidas = new Dictionary<string, string>();
+                foreach (string k in ClavesElegidas) { string v = IniLeer(k); if (v != null) elegidas[k] = v; }
                 StringBuilder gen = new StringBuilder();
                 try
                 {
@@ -371,11 +383,45 @@ namespace ConsoleEnhancer
                 sb.AppendLine("# ===== Actualizacion a la " + IniVersion + " (" + DateTime.Now.ToString("yyyy-MM-dd HH:mm") + "): arriba el base.ini nuevo; aqui la generacion de un plan nuevo =====");
                 sb.Append(gen.ToString());
                 sb.AppendLine(marca);
+                // (lo conservado, detras de la marca: en la siguiente actualizacion se conserva igual; sin las claves de la generacion del plan)
+                StringBuilder detras = new StringBuilder();
+                foreach (string raw in cola.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None))
+                {
+                    string l = raw.Trim();
+                    int i = l.IndexOf('=');
+                    if (l.Length == 0 || l.StartsWith("# ce_ini_version=") || (i > 0 && !l.StartsWith("#") && Array.IndexOf(ClavesGenPlan, l.Substring(0, i).Trim()) >= 0)) continue;
+                    detras.AppendLine(l);
+                }
+                Dictionary<string, string> ahora = UltimosValores(sb.ToString() + detras.ToString());
+                foreach (KeyValuePair<string, string> kv in elegidas)
+                {
+                    string v;
+                    if (!ahora.TryGetValue(kv.Key, out v) || v != kv.Value) detras.AppendLine(kv.Key + "=" + kv.Value);
+                }
+                sb.Append(detras.ToString());
                 try { File.Copy(ini, ini + ".antes-" + IniVersion, true); } catch { }
                 File.WriteAllText(ini, sb.ToString(), new UTF8Encoding(false));
-                Log.Write("Ini al dia para la " + IniVersion + ": base.ini nuevo y la generacion del plan (" + gen.ToString().Replace("\r\n", " ").Trim() + "); copia en " + ini + ".antes-" + IniVersion);
+                Log.Write("Ini al dia para la " + IniVersion + ": base.ini nuevo y la generacion del plan (" + gen.ToString().Replace("\r\n", " ").Trim() + ")" +
+                          (detras.Length > 0 ? "; se conserva " + detras.ToString().Replace("\r\n", " ").Trim() : "") + "; copia en " + ini + ".antes-" + IniVersion);
             }
             catch (Exception ex) { Log.Error("Poniendo el ini al dia", ex); }
+        }
+
+        // (22-11, 1.2.2) lo elegido en la bandeja / el panel / el asistente que puede estar en una linea del base.ini viejo (ActualizarIni)
+        static readonly string[] ClavesElegidas = { "apagar_pc_modo", "apagar_pc_aviso_s", "motor_dlss5", "escritorio_negro" };
+
+        // El valor que vale de cada clave en un texto de ini (la ultima linea)
+        static Dictionary<string, string> UltimosValores(string texto)
+        {
+            Dictionary<string, string> r = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (string raw in texto.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None))
+            {
+                string l = raw.Trim();
+                if (l.Length == 0 || l[0] == '#' || l[0] == ';') continue;
+                int i = l.IndexOf('=');
+                if (i > 0) r[l.Substring(0, i).Trim()] = l.Substring(i + 1).Trim();
+            }
+            return r;
         }
 
         // ------------------------------------------------------------------ el plan -> el ini

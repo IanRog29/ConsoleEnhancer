@@ -486,6 +486,7 @@ namespace ConsoleEnhancer
             // un momento cada SondaCadaMs. Si no puede montarlo o arrancarlo (codigo 3) 3 veces, la de mpv como antes
             bool nativa;
             int nativaFallos;
+            DateTime nativaFalloEn;          // (el ultimo fallo: uno a mas de 10 min del anterior vuelve a contar desde 1, ver Paso)
             EventWaitHandle latido;          // (lo pone la sonda sin mpv en cada vez: sin el en 30 s, colgada)
             DateTime ultimoLatido;
 
@@ -559,7 +560,11 @@ namespace ConsoleEnhancer
                         if (code == 55) { Fin("la consola"); return; }
                         if (nativa)
                         {
-                            // (1.2.2) la sonda sin mpv: 3 = sin grafo (otra vez en 3, 6 s; a la tercera, la de mpv)
+                            // (1.2.2) la sonda sin mpv: 3 = sin grafo (otra vez en 3, 6 s; a la tercera, la de mpv). Solo cuentan los fallos
+                            // seguidos: uno a mas de 10 min del anterior empieza la cuenta otra vez (tres tropiezos sueltos en toda una noche no
+                            // la pasan a mpv para el resto de la espera)
+                            if ((DateTime.UtcNow - nativaFalloEn).TotalMinutes > 10) nativaFallos = 0;
+                            nativaFalloEn = DateTime.UtcNow;
                             nativaFallos++;
                             sondaOtraVez = DateTime.UtcNow.AddSeconds(nativaFallos >= 3 ? 0 : 3 * nativaFallos);
                             Log.Write("Espera: la sonda sin mpv se ha cerrado (codigo " + code + "); " + (nativaFallos >= 3 ? "sigue la de mpv" : "otra vez en " + 3 * nativaFallos + " s"));

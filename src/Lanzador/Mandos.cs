@@ -318,11 +318,9 @@ namespace ConsoleEnhancer
             t.IsBackground = true;
             t.Name = "Mandos (Raw Input)";
             t.Start();
-            // 22-11 (1.2.2, MENU): la Guia mirada cada 10 ms (ver GuidePresses)
-            Thread g = new Thread(GuideWatch);
-            g.IsBackground = true;
-            g.Name = "Mandos (Guia)";
-            g.Start();
+            // 22-11 (1.2.2, MENU): la Guia mirada cada 10 ms (ver GuidePresses). (REVISION: la arranca la primera lectura del contador -la
+            // app, GamepadLoop-; no aqui: la espera y el residente del modo PC tambien arrancan PadHub y no la usan, y con un mando XInput
+            // conectado, el receptor del GameSir por ejemplo, la espera despertaba ~64-100 veces por segundo toda la noche por ella)
         }
 
         // ---- 22-11 (1.2.2, MENU; el usuario: "a veces le doy al boton del home del mando de pc y no se abre el menu de config") ----
@@ -332,7 +330,21 @@ namespace ConsoleEnhancer
         // El menu de ajustes (MenuAjustes.cs / AjustesGuia.cs) mira este contador: ninguna pulsacion se pierde
         int guidePresses;
         DateTime guideLastPress = DateTime.MinValue;
-        public int GuidePresses { get { return Thread.VolatileRead(ref guidePresses); } }
+        int guideWatchOn;
+        public int GuidePresses
+        {
+            get
+            {
+                if (started && Interlocked.Exchange(ref guideWatchOn, 1) == 0)
+                {
+                    Thread g = new Thread(GuideWatch);
+                    g.IsBackground = true;
+                    g.Name = "Mandos (Guia)";
+                    g.Start();
+                }
+                return Thread.VolatileRead(ref guidePresses);
+            }
+        }
         public DateTime GuideLastPress { get { lock (sync) return guideLastPress; } }
 
         // (con sync) el boton de un mando antes y despues de leerlo: si la Guia acaba de bajar, una pulsacion mas
