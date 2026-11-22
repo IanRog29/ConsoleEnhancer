@@ -221,7 +221,7 @@ namespace ConsoleEnhancer.Motor
         // (fg_profundidad_borde, niveles de luma) = cerca; lo liso = lejos. DLSS SR sigue con la de siempre (EvaluateDlss, etiqueta local)
         void RecordFgDepth(int cur)
         {
-            if (!(fgApplied && s.FgDepth > 0) || depthFg == null || edgeMap == null) return;
+            if (!((fgApplied || FfxFgVecNow) && s.FgDepth > 0) || depthFg == null || edgeMap == null) return;
             if (FgLayerDepthNow) return;   // 21-11 (1.2.1): la profundidad por capas ya la ha escrito RecordFgGlobalOut (EngineFgGlobal.cs)
             EnsureRejasPsos();
             uint* c = stackalloc uint[16];

@@ -435,11 +435,12 @@ namespace ConsoleEnhancer.Motor
         // Intervalo y flags de cada Present (Run; vrr=0: lo de siempre, vsync / vsync_fg)
         void VrrPresentArgs(out uint sync, out uint flags)
         {
-            bool vs = fgApplied ? s.VsyncFg : s.Vsync;
+            bool gen = fgApplied || (xeFgOn && xeFgEnabledNow);   // (1.2.4 MOTORFG: XeSS FG como DLSS-G)
+            bool vs = gen ? s.VsyncFg : s.Vsync;
             flags = 0;
             if (s.Vrr > 0 && vrrTearing)
             {
-                if (fgApplied)
+                if (gen)
                 {
                     // auto: sin sincronizacion si la salida (2 x las reales) queda por debajo del techo de la tele con margen (modo 30: 59,94
                     // en 120 Hz); en el 60 (119,88 en 120 Hz) con ella (sin ella las que llegan antes de 8,33 ms se cortarian)
@@ -462,7 +463,7 @@ namespace ConsoleEnhancer.Motor
             {
                 vrrRoomAt = Clock.Now;
                 double hz = DisplayHz();
-                double rate = 2.0 * (s.FpsNum > 0 ? s.FpsNum / (double)Math.Max(1, s.FpsDen) : 59.94) * (s.Mode == 30 ? 0.5 : 1);
+                double rate = Math.Max(2, FgFactor) * (s.FpsNum > 0 ? s.FpsNum / (double)Math.Max(1, s.FpsDen) : 59.94) * (s.Mode == 30 ? 0.5 : 1);
                 vrrRoom = hz > 20 ? rate <= hz * 0.9 : s.Mode == 30;
             }
             return vrrRoom;

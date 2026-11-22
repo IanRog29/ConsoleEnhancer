@@ -286,7 +286,7 @@ namespace ConsoleEnhancer.Motor
             BindCompute(psoCas, TCasIn, c, 8);
             list.Dispatch(Groups(outW, 16), Groups(outH, 8), 1);
             Barrier(final, D3D12_RESOURCE_STATES.UNORDERED_ACCESS, D3D12_RESOURCE_STATES.COPY_SOURCE);
-            uint bi = swap.GetCurrentBackBufferIndex();
+            uint bi = ScIndex();
             ID3D12Resource bb = backbuf[bi];
             Barrier(bb, D3D12_RESOURCE_STATES.PRESENT, D3D12_RESOURCE_STATES.COPY_DEST);
             list.CopyResource(bb, final);
@@ -301,7 +301,8 @@ namespace ConsoleEnhancer.Motor
             allocFence[fi] = fenceValue;
 
             if (pclOk && token != IntPtr.Zero) { Sl.PCLSetMarker(SlPCLMarker.eRenderSubmitEnd, token); Sl.PCLSetMarker(SlPCLMarker.ePresentStart, token); }
-            int hr = swap.Present(s.Vsync ? 1u : 0u, 0);
+            XeFgBlank();   // (1.2.4 MOTORFG, EngineFgXe.cs)
+            int hr = ScPresent(s.Vsync ? 1u : 0u, 0);
             if (pclOk && token != IntPtr.Zero) Sl.PCLSetMarker(SlPCLMarker.ePresentEnd, token);
             if (hr < 0) Log.Write("En espera: Present de la imagen negra: " + Hr.Format(hr));
             fi = (fi + 1) % FramesInFlight;

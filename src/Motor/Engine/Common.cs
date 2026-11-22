@@ -482,7 +482,7 @@ namespace ConsoleEnhancer.Motor
                 case "vrr_fg_vsync": VrrFgVsync = I(val); break;
                 case "copia_hilos": Engine.CopyThreadsSet = Math.Max(0, Math.Min(16, I(val))); break;   // 20-11 (LATENCIA4)
                 case "refresco_fijo": RefreshFixed = B(val); break;   // 20-11 (LATENCIA5)
-                default: return ApplyCierres(key.Trim().ToLowerInvariant(), val) || ApplyCe(key, val) || ApplyLatencia(key.Trim().ToLowerInvariant(), val) || ApplyFgGlobal(key, val);   // 20-11 (CIERRES: EngineCuelgue.cs) (ConsoleEnhancer: adapta=...; false = desconocida) (21-11, 1.2.1: EngineLatencia.cs; fg_global, fg_quieto: EngineFgGlobal.cs)
+                default: return ApplyCierres(key.Trim().ToLowerInvariant(), val) || ApplyCe(key, val) || ApplyLatencia(key.Trim().ToLowerInvariant(), val) || ApplyFgGlobal(key, val) || ApplyFgMulti(key, val);   // (1.2.4 MOTORFG: fg_mult, xefg_*: EngineFgMulti.cs) 20-11 (CIERRES: EngineCuelgue.cs) (ConsoleEnhancer: adapta=...; false = desconocida) (21-11, 1.2.1: EngineLatencia.cs; fg_global, fg_quieto: EngineFgGlobal.cs)
             }
             return true;
         }
@@ -505,7 +505,7 @@ namespace ConsoleEnhancer.Motor
                 "captura {0}x{1}@{2}/{3} {4}{5} -> {6}x{7} {8}{9} nitidez {10:0.00}, modo {11}{12}, FG {13}, Reflex {14}",
                 CapW, CapH, FpsNum, FpsDen, CapFormat, Test.Length > 0 ? " (prueba: " + Test + ")" : "", OutW, OutH,
                 Upscaler, Upscaler == "dlss" || Upscaler == "auto" ? " " + Preset : "", Sharp, Mode, Dedupe == 1 ? " sin repetidas" : Dedupe == 0 ? " con repetidas" : "",
-                Fg ? "si" : "no", Reflex) + (SmoothMode > 0 ? ", Smooth Motion " + (SmoothMode == 2 ? "cada 2 refrescos" : "") + (QueueDropMs > 0 ? " (cola de la tele <= " + QueueDropMs.ToString("0", CultureInfo.InvariantCulture) + " ms)" : "") : "") + (Vrr > 0 ? ", VRR" : "") + QualityText();
+                Fg ? "si" + (FgMult > 2 ? " x" + FgMult : "") + (FgTipo.Length > 0 ? " " + FgTipo : "") : "no", Reflex) + (SmoothMode > 0 ? ", Smooth Motion " + (SmoothMode == 2 ? "cada 2 refrescos" : "") + (QueueDropMs > 0 ? " (cola de la tele <= " + QueueDropMs.ToString("0", CultureInfo.InvariantCulture) + " ms)" : "") : "") + (Vrr > 0 ? ", VRR" : "") + QualityText();
         }
 
         // 16-11 (calidad): lo encendido de EngineMotion.cs ("" si nada)
