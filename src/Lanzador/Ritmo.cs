@@ -395,7 +395,7 @@ namespace ConsoleEnhancer
     // ---- Como presenta Magpie cada modo (22-11, 1.2.2; 1.2.3 RITMO2: DLSS FG x2 a refresco fijo como XeSS FG). De serie:
     //   modo 30 sin generacion      DirectComposition (sin VRR)                       magpie_vrr_30=1: por VRR (DXGI + sincronizacion forzada)
     //   modo 30, DLSS FG x2         refresco fijo "cada 2 refrescos" (1.2.3)          magpie_fijo_30_dlss=0: por VRR (lo de la 1.2.2)
-    //                               (sin ese camino -tele a 119,88 Hz o < 100 Hz, el driver no deja-, por VRR como antes)
+    //                               (solo con la pantalla a 120 Hz; a 119,88 / 144 / 165 Hz o si el driver no deja, por VRR como antes)
     //   modo 30, XeSS/FSR 3/VFG x2  refresco fijo "cada 2 refrescos" (dxgi_30_*)     magpie_vrr_30_otras=1: por VRR
     //   modo 30, cualquiera x3 / x4 VRR (con "cada 2 refrescos" la salida no pasaria de 60: 89,9 y 119,88 imagenes/s no caben); sin VRR,
     //                               refresco fijo con la sincronizacion forzada (cada imagen 1 refresco)
@@ -475,8 +475,11 @@ namespace ConsoleEnhancer
                 string t = FgTypeNow;
                 if (t == "smooth") return false;
                 if (FgMultNow >= 3) return true;
-                // (1.2.3: DLSS FG x2 fijo solo si ese camino esta -VsyncHalfFgNow-; si no, por VRR: sin VRR iria por DirectComposition)
-                return t == "dlss" ? !(RitmoFijo30Dlss && VsyncHalfFgNow) : RitmoVrr30Otras;
+                // (1.2.3: DLSS FG x2 fijo solo si ese camino esta -VsyncHalfFgNow- y con una pantalla de 120 Hz, donde "cada 2 refrescos" son
+                // los 60 huecos de 59,94; a 144 / 165 Hz serian 72 / 82,5 huecos para 59,94 imagenes (una de cada 5-6 el doble): por VRR. Sin
+                // ese camino tambien por VRR: sin VRR iria por DirectComposition)
+                if (t == "dlss") { int hz = Pantalla.Hz(); return !(RitmoFijo30Dlss && VsyncHalfFgNow && hz >= 118 && hz <= 122); }
+                return RitmoVrr30Otras;
             }
         }
         // El modo 30 sin generacion por VRR (magpie_vrr_30=1)
