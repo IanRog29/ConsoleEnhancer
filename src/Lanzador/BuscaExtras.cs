@@ -4,7 +4,7 @@
 // sin recorrer el disco entero, cancelable) y siempre con su permiso: se le enseña lo encontrado (ruta, tamaño, version, firmado o no
 // -FirmaNvidia.cs-) y elige; se copia a extras\ y se guarda como lo demas (ExtrasGuardados.cs). Se busca por nombre de fichero, no por
 // programa: Descargas, Escritorio, otras versiones de ConsoleEnhancer al lado, carpetas de Magpie, Archivos de programa (otros programas
-// de video o de mods que traigan esos runtimes) y las bibliotecas de juegos tipicas (steamapps\common, Epic Games) de cada disco.
+// de video o de mods que traigan esos runtimes) y las carpetas de bibliotecas de juegos tipicas de cada disco.
 // Para DLSS 5 va primero la que vale para la grafica: la original firmada de NVIDIA solo funciona en RTX 50; en RTX 20/30/40, la
 // modificada (sin firma). Prueba sin el PC del usuario: --test-buscar-extras[=<informe>] (carpetas falsas en %TEMP%).
 using System;
