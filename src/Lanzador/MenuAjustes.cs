@@ -921,7 +921,7 @@ namespace ConsoleEnhancer
                     // (1.2.2) fila activa con su explicacion debajo (el multiplicador: lo que no cabe y por que)
                     if (f.Ayuda != null && f.Activa)
                     {
-                        bool hayBloq = false;
+                        bool hayBloq = f.Id == "tipo";   // (la del tipo solo sale si lo elegido no puede ir: aviso)
                         for (int i = 0; i < f.Vals.Count; i++) if (f.Bloqueado(i)) hayBloq = true;
                         RectangleF hr = new RectangleF(fr.X + 38 * u, y - 10 * u, xr - 8 * u - (fr.X + 38 * u), rh);
                         using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Near, Trimming = StringTrimming.EllipsisCharacter })

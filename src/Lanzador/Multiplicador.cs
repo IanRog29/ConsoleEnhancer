@@ -50,6 +50,8 @@ namespace ConsoleEnhancer
             {
                 case "generacion_multiplicador": MultOn = val.Trim() != "0"; return true;
                 case "xess_fg_1080": XessFg1080 = val.Trim() != "0"; return true;
+                // (solo pruebas: la pantalla como si fuera a N Hz para las reglas del multiplicador; p. ej. el menu con la tele apagada)
+                case "prueba_multiplicador_hz": { int h; if (int.TryParse(val.Trim(), out h)) multHzPrueba = Math.Max(0, h); } return true;
             }
             return false;
         }
@@ -626,11 +628,19 @@ namespace ConsoleEnhancer
                 int puesto = 0;
                 Match m = Regex.Match(log ?? "", @"(?:XeSSFG initialized|DLSS FG\S* initialized):[^\r\n]*?multiplier=(\d)x");
                 if (m.Success) puesto = int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture);
+                // (DLSS FG: "DLSSFG capabilities: ... requested=3x effective=3x ceiling=4x" y "DLSSFG capacity: ... active=3x"; medido el 22-11 en la
+                // RTX 4060 Ti con dlssg_sm86: 3x efectivo)
                 Match c = Regex.Match(log ?? "", @"DLSSFG capabilities:[^\r\n]*?requested=(\d)x effective=(\d)x(?: ceiling=(\d)x)?");
                 if (c.Success && cfg.FgTypeNow == "dlss")
                 {
                     int ef = int.Parse(c.Groups[2].Value, CultureInfo.InvariantCulture);
                     if (puesto == 0 || ef < puesto) puesto = ef;
+                }
+                Match a = Regex.Match(log ?? "", @"DLSSFG capacity:[^\r\n]*?active=(\d)x");
+                if (a.Success && cfg.FgTypeNow == "dlss")
+                {
+                    int ac = int.Parse(a.Groups[1].Value, CultureInfo.InvariantCulture);
+                    if (puesto == 0 || ac < puesto) puesto = ac;
                 }
                 if (puesto == 0) return;
                 if (puesto == pedido) { Log.Write("Multiplicador: Magpie con " + cfg.FgName + " x" + puesto + " (lo pedido)"); return; }
