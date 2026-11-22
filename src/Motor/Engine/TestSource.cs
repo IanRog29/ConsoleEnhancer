@@ -85,6 +85,10 @@ namespace ConsoleEnhancer.Motor
         public string Dir = "h";
         Finas fin;
         bool IsFinas { get { return Finas.KindOf(image) >= 0; } }
+        // 1.2.4 (DLSSFG) test=mapa (MapaPrueba.cs): minimapa, textos, brujula, verja y cabeza con la ciudad corriendo detras; test=mapaN = con
+        // un corte de camara cada N imagenes. Con test_vel
+        MapaPrueba mapa;
+        bool IsMapa { get { return image.StartsWith("mapa", StringComparison.Ordinal) && !image.Contains("."); } }
 
         public string Name { get { return "prueba (" + (image.Length > 0 ? image : "barras") + (IsParallax ? string.Format(System.Globalization.CultureInfo.InvariantCulture, " cielo x{0:0.00} velocidad x{1:0.00} ruido {2}", ParRatio, ParSpeed, Noise) : "") + (Holds.Length > 0 ? ", cadencia " + Holds : ", juego a " + gameFps) + ")"; } }
 
@@ -103,6 +107,15 @@ namespace ConsoleEnhancer.Motor
                 zoom = new ZoomScene(ZoomTexture, ParSpeed, ZoomKind);
                 frame = Marshal.AllocHGlobal(pitch * h);
                 Log.Write("Fuente de prueba: zoom preparada (" + Clock.SinceMs(t0).ToString("0") + " ms, " + ZoomTexture + ")");
+                return;
+            }
+            if (IsMapa)
+            {
+                long t0 = Clock.Now;
+                int cut; int.TryParse(image.Substring(4), out cut);
+                mapa = new MapaPrueba(ParSpeed, cut);
+                frame = Marshal.AllocHGlobal(pitch * h);
+                Log.Write("Fuente de prueba: " + image + " preparada (" + Clock.SinceMs(t0).ToString("0") + " ms)");
                 return;
             }
             if (IsFinas)
@@ -230,7 +243,8 @@ namespace ConsoleEnhancer.Motor
         unsafe void Compose(long n)
         {
             if (zoom != null) { zoom.Compose(n, (byte*)frame, w, h, pitch, Noise); return; }
-            if (fin != null) { fin.Compose(n, (byte*)frame, w, h, pitch, Noise); return; }   // 22-11 (1.2.2, CALIDAD)
+            if (fin != null) { fin.Compose(n, (byte*)frame, w, h, pitch, Noise); return; }
+            if (mapa != null) { mapa.Compose(n, (byte*)frame, w, h, pitch, Noise); return; }   // 1.2.4 (DLSSFG)   // 22-11 (1.2.2, CALIDAD)
             if (par != null)
             {
                 long t0 = Clock.Now;

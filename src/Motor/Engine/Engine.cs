@@ -964,7 +964,7 @@ namespace ConsoleEnhancer.Motor
                 tags.Add(SlBufferType.Depth, Com.BorrowPtr(FgDepthTex, typeof(ID3D12Resource)), (uint)D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, SlResourceLifecycle.eValidUntilPresent, inExt);
                 tags.Add(SlBufferType.MotionVectors, Com.BorrowPtr(FgMvec, typeof(ID3D12Resource)), (uint)D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, SlResourceLifecycle.eValidUntilPresent, inExt);
                 if (fgApplied)
-                    tags.Add(SlBufferType.HUDLessColor, Com.BorrowPtr(final, typeof(ID3D12Resource)), (uint)D3D12_RESOURCE_STATES.COPY_SOURCE, SlResourceLifecycle.eValidUntilPresent, outExt);
+                    TagHudless(outExt);   // (1.2.4 DLSSFG: con fgui=4/5 la imagen sin la interfaz quieta, EngineFgHud.cs)
                 AddQualityTags(inExt, outExt, true);   // 16-11 (calidad): mascara sin historia (DLSS SR) e interfaz (DLSS-G)
                 IntPtr cl = Com.BorrowPtr(list, typeof(ID3D12GraphicsCommandList));
                 Sl.SetTagForFrame(token, vp, tags, cl);
@@ -1035,7 +1035,7 @@ namespace ConsoleEnhancer.Motor
             uint bi = swap.GetCurrentBackBufferIndex();
             ID3D12Resource bb = backbuf[bi];
             Barrier(bb, D3D12_RESOURCE_STATES.PRESENT, D3D12_RESOURCE_STATES.COPY_DEST);
-            list.CopyResource(bb, show);
+            CopyToBack(bb, show);   // (1.2.4 DLSSFG: con fgui_ver=1, la imagen sin interfaz -prueba-, EngineFgHud.cs)
             Barrier(bb, D3D12_RESOURCE_STATES.COPY_DEST, D3D12_RESOURCE_STATES.PRESENT);
             PassEnd();
             CpuMark(4);
@@ -1057,7 +1057,7 @@ namespace ConsoleEnhancer.Motor
             SlExtent outExt = new SlExtent(); outExt.width = (uint)outW; outExt.height = (uint)outH;
             tags.Add(SlBufferType.Depth, Com.BorrowPtr(FgDepthTex, typeof(ID3D12Resource)), (uint)D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, SlResourceLifecycle.eValidUntilPresent, inExt);
             tags.Add(SlBufferType.MotionVectors, Com.BorrowPtr(FgMvec, typeof(ID3D12Resource)), (uint)D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, SlResourceLifecycle.eValidUntilPresent, inExt);
-            tags.Add(SlBufferType.HUDLessColor, Com.BorrowPtr(final, typeof(ID3D12Resource)), (uint)D3D12_RESOURCE_STATES.COPY_SOURCE, SlResourceLifecycle.eValidUntilPresent, outExt);
+            TagHudless(outExt);   // (1.2.4 DLSSFG: con fgui=4/5 la imagen sin la interfaz quieta, EngineFgHud.cs)
             AddQualityTags(inExt, outExt, false);   // 16-11 (calidad): interfaz (DLSS-G)
             Sl.SetTagForFrame(token, vp, tags, Com.BorrowPtr(list, typeof(ID3D12GraphicsCommandList)));
         }
