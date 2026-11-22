@@ -29,7 +29,9 @@ namespace ConsoleEnhancer.Motor
         object hudViewsFor;                  // los recursos con los que se escribieron las vistas de TQUiOut
         object hudViewsFor2, hudViewsFor3;
 
-        bool HudlessNow { get { return fgApplied && s.FgUi >= 4 && hudValid && hudless != null; } }
+        // (1.2.4, integracion: y solo si la mascara es de la imagen que se pinta -uiValid, como RecordUiOut-: en un corte o sin movimiento
+        // no se rehace y la imagen sin interfaz seria la de otra escena; entonces 'final', como antes)
+        bool HudlessNow { get { return fgApplied && s.FgUi >= 4 && hudValid && uiValid && hudless != null; } }
 
         // La etiqueta HUDLess (Engine.cs): la imagen rellena con fgui=4/5; si no, 'final' como siempre
         void TagHudless(SlExtent outExt)
