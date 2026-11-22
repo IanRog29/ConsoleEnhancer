@@ -92,17 +92,25 @@ namespace ConsoleEnhancer
         {
             motor = false;
             // el aviso, una vez por cada vez que se anade
+            // (22-11, 1.2.4 DLSS5LEGAL) lo que es cada DLL y lo que dice NVIDIA, claro: hoy no hay forma oficial de usar DLSS 5 fuera de
+            // los juegos que lo traen (sin SDK publico ni plugin de Streamline) y NVIDIA solo lo soporta en RTX 50
             if (!Pregunta(w, Tx.T(
-                    "DLSS 5 no es una función oficial.\r\n\r\n" +
-                    "Usa nvngx_dlssnr.dll, una DLL de NVIDIA modificada por la comunidad, sin firma y sin licencia, y opcionalmente la carpeta " +
-                    "dlssg_sm86 (también de la comunidad). NVIDIA no la ha publicado así ni la soporta, ConsoleEnhancer no la " +
-                    "incluye, no la descarga ni dice de dónde sacarla, y su uso puede ir contra las condiciones de NVIDIA.\r\n\r\n" +
-                    "Si la usas es bajo tu responsabilidad. La app funciona entera sin ella.\r\n\r\n¿Elegir tu archivo nvngx_dlssnr.dll?",
-                    "DLSS 5 is not an official feature.\r\n\r\n" +
-                    "It uses nvngx_dlssnr.dll, a community-modified NVIDIA DLL with no signature and no license, and optionally the dlssg_sm86 " +
-                    "folder (also from the community). NVIDIA has not released it this way and does not support it; " +
-                    "ConsoleEnhancer does not include it, download it or say where to get it, and using it may breach NVIDIA's terms.\r\n\r\n" +
-                    "Using it is your own responsibility. The app works fully without it.\r\n\r\nPick your nvngx_dlssnr.dll file?"), MessageBoxIcon.Warning))
+                    "DLSS 5 no es una función oficial de ConsoleEnhancer.\r\n\r\n" +
+                    "NVIDIA aún no deja que otras aplicaciones usen DLSS 5 (no está en su SDK ni en Streamline) y solo lo soporta en RTX 50, " +
+                    "dentro de los juegos que lo traen. Hay dos nvngx_dlssnr.dll: la original de NVIDIA (firmada por NVIDIA; solo funciona en " +
+                    "RTX 50) y una modificada por la comunidad para RTX 20/30/40 (sin firma). Ninguna trae permiso para usarla fuera de su juego, " +
+                    "y para hacer DLSS 5 aquí se carga sin pasar por las comprobaciones de NVIDIA: su uso puede ir contra las condiciones de NVIDIA. " +
+                    "Opcionalmente también la carpeta dlssg_sm86 (de la comunidad).\r\n\r\n" +
+                    "ConsoleEnhancer no la incluye, no la descarga ni dice de dónde sacarla. Si la usas es bajo tu responsabilidad. " +
+                    "La app funciona entera sin ella.\r\n\r\n¿Elegir tu archivo nvngx_dlssnr.dll?",
+                    "DLSS 5 is not an official ConsoleEnhancer feature.\r\n\r\n" +
+                    "NVIDIA does not yet let other applications use DLSS 5 (it is not in its SDK or in Streamline) and only supports it on RTX 50, " +
+                    "inside the games that ship it. Two nvngx_dlssnr.dll files exist: NVIDIA's original (signed by NVIDIA; only works on RTX 50) " +
+                    "and a community-modified one for RTX 20/30/40 (unsigned). Neither comes with permission to use it outside its game, and to " +
+                    "run DLSS 5 here it is loaded without going through NVIDIA's checks: using it may breach NVIDIA's terms. Optionally also the " +
+                    "dlssg_sm86 folder (from the community).\r\n\r\n" +
+                    "ConsoleEnhancer does not include it, download it or say where to get it. Using it is your own responsibility. " +
+                    "The app works fully without it.\r\n\r\nPick your nvngx_dlssnr.dll file?"), MessageBoxIcon.Warning))
                 return false;
             string origen;
             using (OpenFileDialog d = new OpenFileDialog())
@@ -122,6 +130,14 @@ namespace ConsoleEnhancer
             }
             string mal = MirarDll(origen);
             if (mal != null) { Mal(w, Tx.T("No vale como " + Integrado.Dlss5Dll + ": ", "Not valid as " + Integrado.Dlss5Dll + ": ") + mal); return false; }
+            // (22-11, 1.2.4 DLSS5LEGAL) de quien es: la original de NVIDIA (firmada, solo RTX 50) o la modificada (sin firma)
+            string firmante;
+            int firma = FirmaNvidia.Comprobar(origen, out firmante);
+            string ver = "";
+            try { ver = FileVersionInfo.GetVersionInfo(origen).FileVersion ?? ""; } catch { }
+            string queEs = FirmaNvidia.Texto(firma) + (ver.Length > 0 ? " · " + ver.Replace(',', '.').Replace(" ", "") : "");
+            Log.Write("DLSS 5: la DLL elegida es " + (firma == FirmaNvidia.Nvidia ? "la original de NVIDIA (firma valida)" : firma == FirmaNvidia.SinFirma ? "SIN FIRMA (modificada)" : "de otro firmante: " + firmante) +
+                      (ver.Length > 0 ? ", version " + ver : ""));
             try
             {
                 Directory.CreateDirectory(Dir);
@@ -132,7 +148,8 @@ namespace ConsoleEnhancer
                     if (File.Exists(Dll)) File.Delete(Dll);
                     File.Move(tmp, Dll);
                 }
-                Log.Write("DLSS 5: el usuario ha puesto su " + Integrado.Dlss5Dll + " en extras\\ (" + new FileInfo(Dll).Length + " bytes; DLL de NVIDIA modificada por la comunidad, SIN FIRMA, no oficial)");
+                Log.Write("DLSS 5: el usuario ha puesto su " + Integrado.Dlss5Dll + " en extras\\ (" + new FileInfo(Dll).Length + " bytes; " +
+                          (firma == FirmaNvidia.Nvidia ? "la original de NVIDIA, firmada; NVIDIA solo la soporta en RTX 50" : firma == FirmaNvidia.SinFirma ? "DLL de NVIDIA modificada, SIN FIRMA" : "firmante: " + firmante) + "; no oficial fuera de su juego)");
             }
             catch (Exception ex)
             {
@@ -154,8 +171,10 @@ namespace ConsoleEnhancer
             // (1.2.3 MOTOR5) lo puesto, tambien fuera de la carpeta de la app: una version nueva lo recoge sola (ExtrasGuardados.cs)
             ExtrasGuardados.Guardar("añadido");
             // encenderlo
-            bool on = Pregunta(w, Tx.T("¿Encender DLSS 5 ya? (Jugando se enciende y se apaga con el botón A del mando.)",
-                                       "Turn DLSS 5 on now? (While playing, the controller's A button turns it on and off.)"), MessageBoxIcon.Question);
+            bool on = Pregunta(w, Tx.T("Tu " + Integrado.Dlss5Dll + ": " + queEs + (firma == FirmaNvidia.Nvidia ? " (NVIDIA solo la hace funcionar en RTX 50)." : ".") +
+                                       "\r\n\r\n¿Encender DLSS 5 ya? (Jugando se enciende y se apaga con el botón A del mando.)",
+                                       "Your " + Integrado.Dlss5Dll + ": " + queEs + (firma == FirmaNvidia.Nvidia ? " (NVIDIA only makes it work on RTX 50)." : ".") +
+                                       "\r\n\r\nTurn DLSS 5 on now? (While playing, the controller's A button turns it on and off.)"), MessageBoxIcon.Question);
             PonerActivo(on);
             if (on && MotorPuede)
             {
@@ -310,7 +329,14 @@ namespace ConsoleEnhancer
                 if (!g.EsRtx) continue;
                 if (!HayDlss5) { g.F.DlssNr.Pon(false, Tx.T("no está nvngx_dlssnr.dll (extra no oficial: no va en la app)", "nvngx_dlssnr.dll not present (unofficial extra)")); g.F.DlssNr.NoOficial = false; }
                 else if (g.VramGb < 6) g.F.DlssNr.Pon(false, Tx.T("menos de 6 GB de VRAM", "under 6 GB VRAM"));
-                else { g.F.DlssNr.Pon(true, Tx.T("DLL del usuario (sin firma, no oficial): ", "user DLL (unsigned, unofficial): ") + Dll); g.F.DlssNr.NoOficial = true; }
+                else
+                {
+                    // (22-11, 1.2.4 DLSS5LEGAL) lo que es de verdad (la original firmada de NVIDIA o la modificada sin firma), sin calcular el hash
+                    string fm; int fr = FirmaNvidia.Rapida(Dll, out fm);
+                    g.F.DlssNr.Pon(true, (fr == FirmaNvidia.Nvidia ? Tx.T("DLL del usuario (la original de NVIDIA, solo RTX 50; no oficial fuera de su juego): ", "user DLL (NVIDIA's original, RTX 50 only; unofficial outside its game): ")
+                                                                  : Tx.T("DLL del usuario (sin firma, no oficial): ", "user DLL (unsigned, unofficial): ")) + Dll);
+                    g.F.DlssNr.NoOficial = true;
+                }
             }
         }
 

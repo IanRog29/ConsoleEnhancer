@@ -96,7 +96,7 @@ Poner "$Raiz\resources\mpv.conf" "$Destino\mpv\portable_config\mpv.conf"
 
 # ---- el motor y las DLL de produccion de Streamline (firmadas por NVIDIA) ----
 Poner "$Raiz\bin\engine\ConsoleEnhancerEngine.exe" "$Destino\engine\ConsoleEnhancerEngine.exe"
-foreach ($d in @('sl.interposer.dll', 'sl.common.dll', 'sl.dlss.dll', 'sl.dlss_g.dll', 'sl.reflex.dll', 'sl.pcl.dll', 'nvngx_dlss.dll', 'nvngx_dlssg.dll')) {
+foreach ($d in @('sl.interposer.dll', 'sl.common.dll', 'sl.dlss.dll', 'sl.dlss_g.dll', 'sl.reflex.dll', 'sl.pcl.dll', 'nvngx_dlss.dll', 'nvngx_dlssg.dll', 'sl.deepdvc.dll', 'nvngx_deepdvc.dll')) {
     Poner "$Streamline\bin\x64\$d" "$Destino\engine\$d"
 }
 
@@ -112,7 +112,7 @@ foreach ($f in @('license.txt', '3rd-party-licenses.md', 'nvngx_dlss.license.txt
 Texto "$lic\NVIDIA-NOTICE.txt" @(
     'Componentes de NVIDIA en engine\ / NVIDIA components in engine\',
     '',
-    'engine\nvngx_dlss.dll (NVIDIA DLSS Super Resolution) y engine\nvngx_dlssg.dll (NVIDIA DLSS Frame Generation) son de NVIDIA Corporation',
+    'engine\nvngx_dlss.dll (NVIDIA DLSS Super Resolution), engine\nvngx_dlssg.dll (NVIDIA DLSS Frame Generation) y engine\nvngx_deepdvc.dll (NVIDIA RTX Dynamic Vibrance) son de NVIDIA Corporation',
     'y NO estan bajo la GPL de ConsoleEnhancer: se reparten sin cambios segun la NVIDIA RTX SDKs License (streamline\nvngx_dlss.license.txt).',
     'engine\sl.*.dll son NVIDIA Streamline (MIT, streamline\license.txt); sl.reflex.dll y sl.pcl.dll llevan NVIDIA Reflex (streamline\reflex.license.txt).',
     'Al usarlas aceptas tambien estas condiciones de NVIDIA: solo se usan como parte de ConsoleEnhancer; no se pueden vender, alquilar,',
@@ -121,7 +121,7 @@ Texto "$lic\NVIDIA-NOTICE.txt" @(
     'ningun tipo, y no responde de ningun dano; estan sujetas a las leyes de exportacion de los EE. UU.; NVIDIA conserva todos sus derechos.',
     'DLSS solo funciona con graficas NVIDIA GeForce RTX. ConsoleEnhancer no esta patrocinado ni respaldado por NVIDIA.',
     '',
-    'engine\nvngx_dlss.dll (NVIDIA DLSS Super Resolution) and engine\nvngx_dlssg.dll (NVIDIA DLSS Frame Generation) belong to NVIDIA',
+    'engine\nvngx_dlss.dll (NVIDIA DLSS Super Resolution), engine\nvngx_dlssg.dll (NVIDIA DLSS Frame Generation) and engine\nvngx_deepdvc.dll (NVIDIA RTX Dynamic Vibrance) belong to NVIDIA',
     'Corporation and are NOT covered by ConsoleEnhancer''s GPL: they are redistributed unmodified under the NVIDIA RTX SDKs License',
     '(streamline\nvngx_dlss.license.txt). engine\sl.*.dll are NVIDIA Streamline (MIT, streamline\license.txt); sl.reflex.dll and sl.pcl.dll',
     'contain NVIDIA Reflex (streamline\reflex.license.txt). By using them you also accept these NVIDIA terms: they may only be used as part of',
@@ -149,7 +149,7 @@ Texto "$lic\README.txt" @(
     '   Incluye: FSR 1 EASU/RCAS y CAS (AMD FidelityFX, MIT), FXAA 3.11 (NVIDIA, BSD-3-Clause) y un filtro derivado de Magpie (GPL-3.0):',
     '   avisos completos en THIRD-PARTY.md.',
     " - NVIDIA Streamline $($sl.version) (engine\sl.*.dll): MIT (streamline\license.txt, 3rd-party-licenses.md).",
-    ' - NVIDIA DLSS Super Resolution y Frame Generation (engine\nvngx_dlss.dll, nvngx_dlssg.dll): NVIDIA RTX SDKs License',
+    ' - NVIDIA DLSS Super Resolution y Frame Generation, RTX Dynamic Vibrance (engine\nvngx_dlss.dll, nvngx_dlssg.dll, nvngx_deepdvc.dll): NVIDIA RTX SDKs License',
     '   (streamline\nvngx_dlss.license.txt) y NVIDIA-NOTICE.txt.',
     ' - NVIDIA Reflex (engine\sl.reflex.dll, sl.pcl.dll): streamline\reflex.license.txt.',
     '',

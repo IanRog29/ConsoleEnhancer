@@ -147,6 +147,7 @@ namespace ConsoleEnhancer.Motor
             si.LogDirectory = Program.DataDir;   // (18-11, MOTOR-CE: los logs de Streamline en datos=; antes la carpeta del exe)
             si.LogLevel = SlLogLevel.eDefault;
             long t = Clock.Now;
+            DvcFeatures(si);   // 22-11 (1.2.4, DLSS5LEGAL: EngineDvc.cs): Vibrancia RTX y DLSS 5 oficial de Streamline, si estan junto al motor
             SlResult r = Sl.Init(si);
             Log.Write("slInit: " + r + " (" + Clock.SinceMs(t).ToString("0") + " ms)");
             slOn = r == SlResult.eOk;
@@ -186,6 +187,7 @@ namespace ConsoleEnhancer.Motor
                 reflexOk = Sl.IsFeatureSupported(SlFeature.Reflex, luid) == SlResult.eOk && Sl.IsFeatureLoaded(SlFeature.Reflex, out l) == SlResult.eOk && l;
                 pclOk = Sl.IsFeatureLoaded(SlFeature.PCL, out l) == SlResult.eOk && l;
                 Log.Write("slSetD3DDevice: " + r + " (" + Clock.SinceMs(t).ToString("0") + " ms); DLSS " + dlssOk + ", generacion " + fgOk + ", Reflex " + reflexOk + ", PCL " + pclOk);
+                DvcCheck(luid);   // 22-11 (1.2.4, DLSS5LEGAL: EngineDvc.cs)
             }
             D3D12_COMMAND_QUEUE_DESC qd = new D3D12_COMMAND_QUEUE_DESC();
             qd.Type = D3D12_COMMAND_LIST_TYPE.DIRECT;
@@ -943,6 +945,7 @@ namespace ConsoleEnhancer.Motor
             GiroTake(slot);   // 20-11 (GIRO): el giro de la camara para la busqueda de vectores (EngineGiro.cs)
             RecordMotion(slot >= 0);
             RecordDlss5(slot >= 0);   // 20-11 (DLSS 5 EN EL MOTOR, EngineDlss5.cs): DLSSNR sobre inColor antes de DLSS SR
+            RecordDvc(slot >= 0, token);   // 22-11 (1.2.4, DLSS5LEGAL: EngineDvc.cs): Vibrancia RTX (oficial de NVIDIA) en el mismo sitio, si no va DLSS 5
             PassMark(3);
 
             // 2. Escalado: DLSS, FSR 1, Catmull-Rom o nada (captura ya a la resolucion de salida). 18-11 (MOTOR-CE): el de UpdateScaler
