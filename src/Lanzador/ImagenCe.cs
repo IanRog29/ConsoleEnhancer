@@ -154,7 +154,7 @@ namespace ConsoleEnhancer
                 cfg.EngineVrr = vrrMotor ? 1 : 0;
                 Log.Write("VRR " + (VrrAhora ? "encendido" : "apagado") + " (" + VrrPorque + "): motor vrr=" + (vrrMotor ? "1" + (cfg.EngineVrrFgVsync >= 0 ? " vrr_fg_vsync=" + cfg.EngineVrrFgVsync : "") : "0") +
                           (VrrAhora && !vrrMotor ? " (la pantalla no dice tener VRR o DXGI no deja presentar sin sincronizar: el motor sin VRR, para no dar cortes)" : "") +
-                          ", Magpie en los modos con DLSS FG " + (VrrAhora ? "si" : "no"));
+                          ", Magpie en los modos con DLSS FG " + (VrrAhora ? "si" + (cfg.RitmoFijo30Dlss ? " (salvo el 30 con x2: refresco fijo cada 2 refrescos, como XeSS FG; magpie_fijo_30_dlss=0 = por VRR)" : "") : "no"));   // (1.2.3 RITMO2)
                 // ---- HDR
                 bool hdrPant = pantalla != null && (pantalla.HdrPosible || pantalla.HdrActivo);
                 double nits = pantalla != null ? pantalla.NitsMax : 0;
