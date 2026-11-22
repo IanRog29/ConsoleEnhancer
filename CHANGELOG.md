@@ -48,6 +48,31 @@ publicada es una etiqueta `vX.Y.Z` de git; GitHub Actions monta su zip y copia a
   leaves the taskbar alone.
   *Al apagar la consola en modo consola ya no se ve la barra de tareas ni nada de Windows: una cubierta negra sin cursor hasta que
   vuelve la imagen de la consola, y la barra vuelve siempre, también si la app se cierra a la fuerza.*
+- **Magpie (DLSS 5, XeSS FG...) no longer crops the picture's edges nor adds a thin black band**: mpv's borderless window keeps
+  Windows' title and resize-frame styles, so Magpie treated it as a window with a border and cut it off, scaled by the display DPI (3
+  px per side at 300 %): a 1440p capture became 2554x1434, upscaled ×1.5035 to 3840x2156 with 2 px black bands; a 4K capture showed
+  inside a 3 px black frame. Those two styles are now removed from mpv's window before Magpie starts: it captures the whole
+  2560x1440 and upscales exactly ×1.5 to the full screen (measured in Magpie's log, before and after). `mpv_sin_marco=0` restores the
+  previous behaviour.
+  *Magpie ya no recorta los bordes de la imagen ni deja una franja negra: la ventana de mpv tenía estilos de título y marco y Magpie
+  le quitaba 3 px por lado (a 300 %); ahora captura la imagen entera y escala ×1,5 exacto a pantalla completa.*
+- **Frame generation in the app's own engine (DLSS FG) is much cleaner when the camera moves**: the generated frames get one
+  camera-motion vector, but it came from a histogram limited to ±32 px and from block vectors that stay at 0 on medium pans at 4K:
+  every turn faster than ~32 px per real frame was sent as 32 px and 5-64 px pans as 0, so DLSS FG guessed the in-between frame on its
+  own (doubled or smeared edges, the HUD dragged). The camera motion now has its own search over the whole picture (up to ±384 px,
+  sub-pixel), and still, textured parts (HUD, the character the camera follows) get no motion and are marked in front. Measured on
+  synthetic test scenes against the ideal in-between frame (4K, 30 fps mode): 100 px pan 2.80 → 0.03 average error, 200 px 7.9 → 0.07,
+  24 px 0.70 → 0.47, around a still HUD 11.7 → 0.6, parallax −46 % / −55 %, 1440p and 1080p with DLSS SR −92 / −97 %. It also costs less:
+  at 4K without DLSS 5 the block search is no longer needed (~2 ms less GPU per real frame, which is also latency).
+  `fg_global=0 fg_quieto=0 fg_quieto_prof=0 fg_solo_camara=0` in `motor_extra` restores the previous behaviour.
+  *La generación de fotogramas del motor propio (DLSS FG), mucho más limpia al mover la cámara: el vector del giro salía como mucho
+  de 32 px (y de 0 en los paneos medios a 4K); ahora tiene su propia búsqueda y lo quieto (interfaz, el personaje que sigue la cámara)
+  va sin movimiento y delante. Y ~2 ms menos de gráfica a 4K.*
+- **XeSS, FSR 3.1/4 and FSR 3 FG in the app's own engine had no motion vectors** (only DLSS asked for them), so moving things trailed
+  and blurred. They now get them (FSR 3 FG the same ones as DLSS FG). Error against the true 4K picture while panning, 1440p capture:
+  XeSS 7.9 → 2.7, FSR 5.2 → 2.8 (DLSS L 2.5); 1080p FSR 6.4 → 3.7. Costs ~1.3-1.9 ms of GPU on an RTX 4060 Ti. `mvsr_xess_ffx=0`
+  restores the previous behaviour.
+  *XeSS, FSR 3.1/4 y FSR 3 FG del motor propio iban sin vectores de movimiento (rastro y emborronado al moverse): ahora los reciben.*
 - **Built-in engine without NVIDIA Reflex (AMD, Intel or `motor_streamline=0`)**: after turning DLSS 5 on and off, 2-3 frames
   stayed queued for the screen for the rest of the session (+1-2 refreshes of delay). Now it stays at 1. NVIDIA with Reflex is not
   affected.

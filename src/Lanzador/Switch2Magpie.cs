@@ -1503,6 +1503,7 @@ namespace ConsoleEnhancer
                             if (c.ParseCierres(key, val)) break; // (20-11, CIERRES: apagado_confirmar y demas, src\Cierres.cs)
                             if (c.ParseSonidoDoble(key, val)) break; // (21-11: sonido_doble, src\SonidoDoble.cs)
                             if (c.ParseCapturaSegura(key, val)) break; // (21-11, 1.2.1: captura_segura, src\Lanzador\CapturaSegura.cs)
+                            if (MarcoMpv.Parse(key, val)) break; // (22-11, 1.2.1: mpv_sin_marco, src\Lanzador\MarcoMpv.cs)
                             if (key.StartsWith("mando_") && PadOptions.Parse(key, val)) break; // (18-11, MANDOS: modo PC, src\Mandos.cs)
                             Log.Write("Aviso: clave desconocida en ini: " + key); break;
                     }
@@ -13350,6 +13351,7 @@ namespace ConsoleEnhancer
                     // (con su primera imagen ya, como siempre: lo hace WaitForScaling)
                     if (h == IntPtr.Zero || mpv != p || p.HasExited || userExit || videoSignal || MagpieLive.IsScaling()) return;
                     earlyScaled = p;
+                    MarcoMpv.Quitar(h, "antes del escalado de Magpie"); // (1.2.1: antes de que Magpie mida la ventana, MarcoMpv.cs)
                     ForceForeground(h);
                     Log.Write("Primer plano a mpv a los " + sw.ElapsedMilliseconds + " ms de lanzarlo, antes de su primera imagen: Magpie empieza ya a preparar el escalado");
                 }
@@ -13379,6 +13381,7 @@ namespace ConsoleEnhancer
                         bool early = earlyScaled == p && MagpieLive.ScalingPhase() == MagpieLive.Phase.Starting;
                         if (!MagpieLive.IsScaling() && !early)
                         {
+                            MarcoMpv.Quitar(p.MainWindowHandle, "antes del escalado de Magpie"); // (1.2.1, MarcoMpv.cs)
                             if (GetForegroundWindow() == p.MainWindowHandle) BounceForeground();
                             ForceForeground(p.MainWindowHandle);
                         }
@@ -13817,6 +13820,7 @@ namespace ConsoleEnhancer
                         return int.MinValue;
                     }
                     Process started = p; // copia para el hilo (p cambia al relanzar)
+                    if (!eng) MarcoMpv.Vigilar(started); // (22-11, 1.2.1: sin titulo ni marco, Magpie captura la imagen entera; src\Lanzador\MarcoMpv.cs)
                     bool linkNow = woke != null; // (16-11: el despertado ya tiene su tuberia: el enlace al momento)
                     // Audio de Streaming Center + vigilancia de fotogramas
                     Thread link = new Thread(delegate () { MpvLinkLoop(started, ipc, linkNow); });
