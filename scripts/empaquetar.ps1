@@ -186,6 +186,8 @@ Texto "$Destino\README.txt" @(
     'when the console is turned off, DLSS 5 (your own file, in extras\), download mpv/Magpie again, logs and uninstall.',
     'Unzip it into one of your own folders, not Program Files.',
     "Help, issues and source code: $webTxt. Licenses: licenses\README.txt. No warranty (GPL-3.0).",
+    'DLSS 5: not included and never downloaded (nor dlssg_sm86). Legal DLSS 5 does not exist today outside NVIDIA''s own games on RTX 50;',
+    'whatever you add yourself is yours and at your own risk (extras\README.txt). The app works fully without it.',
     'ConsoleEnhancer is free and complete. If you find it useful and want to support it (optional): https://ko-fi.com/ianrog29',
     '',
     '--- ESPANOL ---',
@@ -204,6 +206,8 @@ Texto "$Destino\README.txt" @(
     'Requisitos: Windows 10 2004 o posterior (64 bits), .NET Framework 4.8, grafica con Direct3D 12, una capturadora.',
     "Ayuda, problemas y codigo fuente: $webTxt",
     'Licencias: licenses\README.txt. Extras no oficiales: extras\README.txt. Sin garantia (GPL-3.0).',
+    'DLSS 5: no viene ni se baja nunca (tampoco dlssg_sm86). DLSS 5 legal hoy no existe fuera de los juegos de NVIDIA en RTX 50; lo que',
+    'anadas tu es tuyo y bajo tu responsabilidad (extras\README.txt). La app funciona entera sin el.',
     'ConsoleEnhancer es gratis y completo. Si te es util y quieres apoyarlo (opcional): https://ko-fi.com/ianrog29')
 
 # ---- comprobaciones ----
