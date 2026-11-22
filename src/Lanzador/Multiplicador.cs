@@ -57,7 +57,8 @@ namespace ConsoleEnhancer
                 case "generacion_multiplicador": MultOn = val.Trim() != "0"; return true;
                 case "xess_fg_1080": XessFg1080 = val.Trim() != "0"; return true;
                 case "xess_fg_x4": XessX4 = val.Trim().ToLowerInvariant(); return true;
-                case "xess_fg_multi_cabe": XessMultiCabe = val.Trim() != "0"; return true;   // (1.2.3, MULTI2: ver MultXessCabe)
+                case "xess_fg_multi_cabe": XessMultiCabe = val.Trim() != "0"; return true;
+                case "xess_fg_fijo": XessFijo = val.Trim() != "0"; return true;   // (1.2.4, XEFG: ver XessFijoNow)   // (1.2.3, MULTI2: ver MultXessCabe)
                 // (solo pruebas: la pantalla como si fuera a N Hz para las reglas del multiplicador; p. ej. el menu con la tele apagada)
                 case "prueba_multiplicador_hz": { int h; if (int.TryParse(val.Trim(), out h)) multHzPrueba = Math.Max(0, h); } return true;
             }
@@ -166,6 +167,27 @@ namespace ConsoleEnhancer
             return false;
         }
         public bool MultBloqueado(bool cap30, int m, string tipo) { string es, en; return MultBloqueado(cap30, m, tipo, out es, out en); }
+
+        // ---- (1.2.4, XEFG) XeSS FG x3 / x4 de compatibilidad (no Intel) a REFRESCO FIJO cuando la salida es un divisor del refresco (x4 = 119,88
+        // en 120 Hz: cada imagen un refresco). MEDIDO el 22-11 (tele 3840x2160@120 con VRR, RTX 4060 Ti, Magpie con la escena de barrotes a 4K,
+        // sin DLSS 5, 30 s): por VRR 29,5-29,6 reales y 118 de salida con la espera del ritmo creciendo (extraWait 5-9 ms) y solo el 50 % de
+        // las imagenes a 8,3 +-2 ms (p95 11,2); a refresco fijo 29,85 reales, 119,4 de salida, extraWait 0 y el 99 % a 1 refresco (p95 8,40).
+        // Si la cadena no cabe en T/4 a refresco fijo se cae a la mitad (1440p + DLSS E x4: 16,7 reales; por VRR 24,4): para eso la prevision
+        // y la proteccion (Proteccion.cs). x3 (90 en 120) sigue por VRR. PERO con la app entera (captura yuyv de 4K a mpv, DXGI con la
+        // sincronizacion vertical forzada de RitmoFijo1Now) fue peor: fijo 25,7-26,5 reales (extraWait 25 ms), por VRR 29,1-29,6. De serie
+        // NO (por VRR, como la 1.2.3); xess_fg_fijo=1 para probarlo
+        public static volatile bool XessFijo = false;
+        public bool XessFijoNow
+        {
+            get
+            {
+                if (!XessFijo || FgOff || Mode120 || !CapMode || FgTypeNow != "xess" || GpuVendor == "intel") return false;
+                int m = FgMultNow, hz = MultHz();
+                if (m < 3 || hz <= 0) return false;
+                double k = hz / (MultBase(true) * m);
+                return Math.Abs(k - Math.Round(k)) <= 0.03 && Math.Round(k) >= 1;
+            }
+        }
 
         // ---- (1.2.3, MULTI2) XeSS FG x3 / x4 de compatibilidad: ¿cabe la cadena (sin DLSS 5) en T/m? (EscalaAuto.XessCompat, Presupuesto)
         // xess_fg_multi_cabe=0 = no mirarlo (como la 1.2.2: se ofrece y, si no llega, MultVigila baja el multiplicador jugando)
@@ -388,6 +410,21 @@ namespace ConsoleEnhancer
             bool okx3 = EscalaAuto.Prevision(x3, 0, 0, 1.0, 0) <= EscalaAuto.Presupuesto(x3);
             if (!okx3) fallos++;
             sb.AppendLine((okx3 ? "      " : "FALLO ") + "XeSS FG x3 a 4K sin DLSS 5 cabe (medido: 29,9 reales; " + EscalaAuto.Prevision(x3, 0, 0, 1.0, 0).ToString("0.0", CultureInfo.InvariantCulture) + " de " + EscalaAuto.Presupuesto(x3).ToString("0.0", CultureInfo.InvariantCulture) + " ms)");
+            // (1.2.4, XEFG) la prevision de las reales con el ritmo de compatibilidad (k 1): 4K x4 a prueba (ni lejos ni seguro), 1440p + DLSS E
+            // x4 lejos (medido 24,4), x3 a 4K y a 1440p + DLSS E llegan (medido 29,9)
+            string[][] casos = { new[] { "3840x2160", "4", "", "5", "27", "29.2" }, new[] { "2560x1440", "4", "dlss", "5", "0", "26.9" },
+                                 new[] { "3840x2160", "3", "", "5", "29.5", "99" }, new[] { "2560x1440", "3", "dlss", "5", "29", "99" },
+                                 new[] { "2560x1440", "4", "fsr", "5", "26", "29.2" } };
+            foreach (string[] cs in casos)
+            {
+                CadenaEscala x = MultCadenaPrueba(cs[0], "xess", int.Parse(cs[1]), cs[2], int.Parse(cs[3]), false);
+                double wx = EscalaAuto.XessCompatW(x, 1.0), rx = Math.Min(x.Objetivo, 1000.0 / (x.Mult * wx));
+                double lo = double.Parse(cs[4], CultureInfo.InvariantCulture), hi = double.Parse(cs[5], CultureInfo.InvariantCulture);
+                bool okc = rx >= lo && rx <= hi;
+                if (!okc) fallos++;
+                sb.AppendLine((okc ? "      " : "FALLO ") + "prevision XeSS FG x" + cs[1] + " " + cs[0] + (cs[2].Length > 0 ? " + " + cs[2] : "") + ": W " + wx.ToString("0.0", CultureInfo.InvariantCulture) +
+                              " ms -> " + rx.ToString("0.0", CultureInfo.InvariantCulture) + " reales (esperado " + cs[4] + "-" + cs[5] + ")");
+            }
             return fallos;
         }
 

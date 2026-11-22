@@ -180,7 +180,11 @@ namespace ConsoleEnhancer
             double k = EscalaAuto.KDe(c.Juego, c.Clave);
             w = EscalaAuto.Prevision(c, 0, 0, k, 0);
             presupuesto = EscalaAuto.Presupuesto(c);
-            if (EscalaAuto.XessCompat(c)) return Math.Min(c.Objetivo, 1000.0 / Math.Max(1, c.Mult * EscalaAuto.XessCompatPeriodo(w, c.Mult)));
+            if (EscalaAuto.XessCompat(c))
+            {
+                w = EscalaAuto.XessCompatW(c, k);
+                return Math.Min(c.Objetivo, 1000.0 / Math.Max(1, c.Mult * w));
+            }
             return Math.Min(c.Objetivo, 1000.0 / Math.Max(1, w));
         }
 

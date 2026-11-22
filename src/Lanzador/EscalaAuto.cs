@@ -242,8 +242,19 @@ namespace ConsoleEnhancer
         // sourceMs=37.6" -> 26,4 reales/s y la salida a 105 con huecos de 2 refrescos (P95 18 ms). Asi que el presupuesto es T/m
         public static double UsoXess = 0.95;      // xess_fg_multi_uso: parte de T/m que puede usar la cadena con XeSS FG x3 / x4 (compatibilidad)
         public static bool XessCompat(CadenaEscala c) { return c.Gen == "xess" && c.Mult >= 3 && !c.Intel && c.Modo < 100; }
-        // (1.2.4, XEFG) lo que dura de verdad el hilo por cada "hueco" T/m con el ritmo de compatibilidad (W en ms -> el periodo es m x esto)
-        public static double XessCompatPeriodo(double w, int m) { return w; }
+        // (1.2.4, XEFG) W = lo que necesita el hilo de Magpie por cada hueco T/m con el ritmo de compatibilidad (las reales quedan en
+        // 1 / (m x W)). Lo manda la salida (XeSS FG presentando a 4K), no la entrada: MEDIDO el 22-11 (RTX 4060 Ti, tele 4K a 120 con VRR,
+        // sin DLSS 5): x4 con captura 4K sin escalar 29,1-29,6 reales con la app (escena sintetica; en GTA VI el usuario 26,4), x4 1440p + DLSS
+        // E 24,4 (banco), x4 1440p + FSR 1 25,8-26,7 (el usuario), x3 a 4K y a 1440p + DLSS E 29,9. El modelo del hilo de antes (Prevision, con
+        // 1 ms por inventada) daba 4K x4 11,1 ms -> "24 de 30" y bloqueado; ahora ~9 ms -> ~28 (a prueba) y 1440p + DLSS E ~10,8 -> ~23.
+        // W = escala_coste_xess_compat (8,2 ms a 4K de salida) + 0,1 x lo de la entrada + 0,5 x el escalador (DLSS SR en la cola de la imagen)
+        public static double CosteXessCompat = 8.2;
+        public static double XessCompatW(CadenaEscala c, double k)
+        {
+            double s = PorGrafica(c), f = Mp4k(c.OutW, c.OutH);
+            double entrada = CosteBase(c) * s * k, esc = CosteEscalado(c) * (c.Esc == "dlss" ? Neuronal(c) : 1) * s * k;
+            return CosteXessCompat * f * s + 0.1 * entrada + 0.5 * esc;
+        }
 
         public static double Presupuesto(CadenaEscala c)
         {
@@ -1001,6 +1012,7 @@ namespace ConsoleEnhancer
                 case "escala_coste_xess_fg_hilo": if (double.TryParse(v.Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out d) && d >= 0) EscalaAuto.CosteXessFgHilo = Math.Min(30, d); return true;
                 case "escala_coste_dlss5_fijo": if (double.TryParse(v.Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out d) && d >= 0) EscalaAuto.CosteDlss5FijoMp = Math.Min(10, d); return true;
                 case "escala_credito_fijo_dlss": if (double.TryParse(v.Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out d) && d >= 0) EscalaAuto.CreditoFijoDlss = Math.Min(10, d); return true;
+                case "escala_coste_xess_compat": if (double.TryParse(v.Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out d) && d >= 0) EscalaAuto.CosteXessCompat = Math.Min(30, d); return true;   // (1.2.4)
                 case "generacion_dlss5_minimo": { int iv; if (int.TryParse(v.TrimEnd('%', ' '), out iv)) EscalaAuto.SueloMulti = Math.Max(0, Math.Min(100, iv)); } return true;   // (1.2.3)
                 // (1.2.3, MULTI2) XeSS FG x3 / x4 de compatibilidad (no Intel): parte de T/m para la cadena (95 de serie)
                 case "xess_fg_multi_uso":
