@@ -129,7 +129,7 @@ namespace ConsoleEnhancer
             try { vivo = p != null && !p.HasExited; } catch { }
             bool cambiando = !lsReady || passesBusy || entrando || relaunchSize != null || relaunchEngine;
             IntPtr fg = GetForegroundWindow();
-            if (!EsVentanaDeLaApp(fg))
+            if (!(ajDelantePrueba != null ? ajDelantePrueba() : EsVentanaDeLaApp(fg)))
             {
                 // (cambiando de imagen el primer plano puede estar un momento en ninguna: en cola; jugando, otra ventana delante: no)
                 porque = "la imagen no esta delante (delante: " + FgOwner() + ")";
@@ -421,6 +421,107 @@ namespace ConsoleEnhancer
             AvisoAjustes a = ajAviso;
             ajAviso = null;
             if (a != null) try { a.Dispose(); } catch { }
+        }
+
+        // ---------------- prueba sin consola ni grafica (--test-menu-ajustes -> games\test_menu_ajustes.txt) ----------------
+        // Lo que decide la Guia (AjustesPuede) y si el menu abierto sigue (AjustesSigue) en cada momento de la imagen, con el estado puesto
+        // a mano (como el de los logs del usuario). "Delante" se finge (ajDelantePrueba)
+        Func<bool> ajDelantePrueba;
+
+        public static string AjustesSelfTest(out int failures)
+        {
+            System.Text.StringBuilder sb = new System.Text.StringBuilder("Menu de ajustes: lo que hace la Guia segun el momento de la imagen\r\n\r\n");
+            int fails = 0;
+            Process yo = Process.GetCurrentProcess();
+            DateTime ahora = DateTime.Now;
+            // estado de partida: jugando, imagen lista hace rato, Magpie escalando
+            Func<TrayApp> jugando = delegate
+            {
+                TrayApp t = new TrayApp(new Config(), true);
+                t.mpv = yo; t.lsReady = true; t.cfg.HomeNative = false;
+                t.imageStart = ahora.AddSeconds(-60); t.salioMenuEn = ahora.AddSeconds(-60);
+                t.ajDelantePrueba = delegate { return true; };
+                return t;
+            };
+            Action<string, TrayApp, AjPuede, string> puede = delegate (string titulo, TrayApp t, AjPuede quiero, string porqueTiene)
+            {
+                string porque, aviso;
+                AjPuede r;
+                try { r = t.AjustesPuede(out porque, out aviso); }
+                catch (Exception ex) { r = (AjPuede)(-1); porque = "ERROR " + ex.GetType().Name + ": " + ex.Message; aviso = null; }
+                bool ok = r == quiero && (porqueTiene == null || (porque != null && porque.Contains(porqueTiene)));
+                if (!ok) fails++;
+                sb.Append(ok ? "OK    " : "FALLO ").Append(titulo).Append(": ").Append(r).Append(porque != null ? " (" + porque + ")" : "")
+                  .Append(aviso != null ? " aviso: " + (aviso == AjAvisoHome ? "el del menu de la consola" : aviso) : "")
+                  .Append(ok ? "" : "   <- se esperaba " + quiero + (porqueTiene != null ? " (\"" + porqueTiene + "\")" : "")).Append("\r\n");
+            };
+            Action<string, TrayApp, bool> sigue = delegate (string titulo, TrayApp t, bool quiero)
+            {
+                string porque;
+                bool r = t.AjustesSigue(out porque);
+                bool ok = r == quiero;
+                if (!ok) fails++;
+                sb.Append(ok ? "OK    " : "FALLO ").Append("(abierto) ").Append(titulo).Append(": ").Append(r ? "sigue" : "se cierra (" + porque + ")")
+                  .Append(ok ? "" : "   <- se esperaba " + (quiero ? "que siga" : "que se cierre")).Append("\r\n");
+            };
+            TrayApp a;
+            a = jugando(); puede("Jugando, imagen lista", a, AjPuede.Si, null);
+            a = jugando(); a.cfg.HomeNative = true; puede("En el menu de la consola (4K nativo)", a, AjPuede.No, "menu de la consola");
+            a = jugando(); a.homeGrace = true; puede("En el menu de la consola visto aun con Magpie (homeGrace)", a, AjPuede.No, "menu de la consola");
+            a = jugando(); a.homeBusy = true; a.homeSwitchToHome = true; a.lsReady = false; puede("Yendo al menu de la consola", a, AjPuede.No, "menu de la consola");
+            // Log del usuario 04:00:34-04:00:45: entrando en un juego, el puente encima y Magpie preparando 11 s; la Guia a 1,1 / 3,8 / 6,6 s
+            a = jugando(); a.homeBusy = true; a.homeSwitchToHome = false; a.cfg.HomeNative = true; a.lsReady = false; a.passesBusy = true; a.salioMenuEn = ahora.AddSeconds(-1.1);
+            puede("Entrando en un juego, 1,1 s tras salir del menu (aun HomeNative)", a, AjPuede.Espera, "se acaba de salir");
+            a.cfg.HomeNative = false; a.salioMenuEn = ahora.AddSeconds(-3.8); puede("Entrando en un juego, 3,8 s", a, AjPuede.Espera, "se acaba de salir");
+            a.salioMenuEn = ahora.AddSeconds(-6.6); puede("Entrando en un juego, 6,6 s (Magpie preparando)", a, AjPuede.Si, "mientras Magpie prepara");
+            sigue("Entrando en un juego (HomeNative aun puesto)", a, true);
+            // Log 04:01:27-04:01:38: "Aplicar" captura 1080p: mpv y Magpie reabiertos, la Guia a 3,6 y 6,1 s
+            a = jugando(); a.relaunchSize = "1920x1080"; a.lsReady = false; puede("Cambiando la captura (mpv cerrandose)", a, AjPuede.Espera, "captura");
+            a = jugando(); a.mpv = null; a.relaunchSize = "1920x1080"; a.lsReady = false; puede("Cambiando la captura (sin mpv)", a, AjPuede.Espera, "sin imagen");
+            sigue("Cambiando la captura (sin mpv)", a, true);
+            a = jugando(); a.lsReady = false; a.imageStart = ahora.AddSeconds(-3.6); Interlocked.Increment(ref a.ajEsperaMagpie);
+            puede("mpv reabierto hace 3,6 s, Magpie preparando", a, AjPuede.Espera, "acaba de abrirse");
+            a.imageStart = ahora.AddSeconds(-6.1); puede("mpv reabierto hace 6,1 s, Magpie preparando", a, AjPuede.Si, "mientras Magpie prepara");
+            sigue("mpv reabierto, Magpie preparando", a, true);
+            // Log 04:04:32-04:04:44: "Aplicar" pasadas 2: Magpie reabriendose (RestartLs) con el puente
+            a = jugando(); a.passesBusy = true; a.lsReady = false; puede("Magpie reabriendose (Aplicar, R3, modo...)", a, AjPuede.Si, "mientras Magpie prepara");
+            a = jugando(); a.relaunchEngine = true; a.lsReady = false; puede("Cambiando de motor (DLSS 5 si/no)", a, AjPuede.Espera, "motor");
+            a = jugando(); a.lsReady = false; puede("Sin imagen aun (esperando a la consola)", a, AjPuede.Espera, "preparandose");
+            a = jugando(); a.mpv = null; puede("Sin mpv", a, AjPuede.Espera, "sin imagen");
+            sigue("Sin mpv ni nada reabriendose", a, false);
+            a = jugando(); a.imageStart = ahora.AddSeconds(-2); puede("Imagen abierta hace 2 s (la app recien abierta)", a, AjPuede.Espera, "acaba de abrirse");
+            a = jugando(); a.ajDelantePrueba = delegate { return false; }; puede("Otra ventana delante, jugando", a, AjPuede.No, "no esta delante");
+            a = jugando(); a.ajDelantePrueba = delegate { return false; }; a.passesBusy = true; a.lsReady = false; puede("Otra ventana delante un momento al cambiar", a, AjPuede.Espera, "no esta delante");
+            a = jugando(); a.userExit = true; puede("Saliendo de la app", a, AjPuede.No, "saliendo");
+            a = jugando(); sigue("Jugando", a, true);
+            a = jugando(); a.cfg.HomeNative = true; sigue("Vuelta al menu de la consola", a, false);
+            a = jugando(); a.homeBusy = true; a.homeSwitchToHome = true; sigue("Yendo al menu de la consola", a, false);
+            // "Aplicar" en caliente: solo con Magpie preparando, sin otra captura ni el 120
+            Func<TrayApp, Dictionary<string, string>, bool> cal = delegate (TrayApp t, Dictionary<string, string> e) { return t.AjEnCaliente(e); };
+            Action<string, bool, bool> caliente = delegate (string titulo, bool r, bool quiero)
+            {
+                bool ok = r == quiero;
+                if (!ok) fails++;
+                sb.Append(ok ? "OK    " : "FALLO ").Append("(Aplicar) ").Append(titulo).Append(": ").Append(r ? "en caliente" : "lo de siempre")
+                  .Append(ok ? "" : "   <- se esperaba " + (quiero ? "en caliente" : "lo de siempre")).Append("\r\n");
+            };
+            Dictionary<string, string> nivel = new Dictionary<string, string>(); nivel["nivel"] = "3"; nivel["cap"] = "3840x2160"; nivel["modo"] = "30";
+            a = jugando(); a.cfg.VideoSize = "3840x2160"; a.cfg.CapMode = true;
+            caliente("Jugando con la imagen lista", cal(a, nivel), false);
+            a.passesBusy = true; a.lsReady = false; caliente("Magpie reabriendose", cal(a, nivel), true);
+            Dictionary<string, string> cap = new Dictionary<string, string>(nivel); cap["cap"] = "1920x1080";
+            caliente("Magpie reabriendose, con otra captura", cal(a, cap), false);
+            Dictionary<string, string> m120 = new Dictionary<string, string>(nivel); m120["modo"] = "120";
+            caliente("Magpie reabriendose, al modo 120", cal(a, m120), false);
+            Dictionary<string, string> m60 = new Dictionary<string, string>(nivel); m60["modo"] = "60";
+            caliente("Magpie reabriendose, al modo 60", cal(a, m60), true);
+            a = jugando(); a.cfg.VideoSize = "3840x2160"; a.cfg.CapMode = true; a.homeBusy = true; a.homeSwitchToHome = false; a.lsReady = false;
+            caliente("Entrando en un juego", cal(a, nivel), true);
+            a = jugando(); a.cfg.VideoSize = "3840x2160"; a.cfg.CapMode = true; a.relaunchSize = "1920x1080"; a.lsReady = false;
+            caliente("Cambiando la captura", cal(a, nivel), false);
+            sb.Append("\r\n").Append(fails == 0 ? "Todo bien" : fails + " fallos").Append("\r\n");
+            failures = fails;
+            return sb.ToString();
         }
     }
 

@@ -14436,6 +14436,15 @@ namespace ConsoleEnhancer
                     File.WriteAllText(Path.Combine(Paths.Datos, @"games\test_entrada.txt"), rep, new UTF8Encoding(false));
                     return fails;
                 }
+                // 22-11 (1.2.2, MENU): lo que decide la Guia en cada momento de la imagen (AjustesGuia.cs) -> games\test_menu_ajustes.txt
+                if (arg == "--test-menu-ajustes")
+                {
+                    int fails;
+                    string rep = TrayApp.AjustesSelfTest(out fails);
+                    Directory.CreateDirectory(Path.Combine(Paths.Datos, "games"));
+                    File.WriteAllText(Path.Combine(Paths.Datos, @"games\test_menu_ajustes.txt"), rep, new UTF8Encoding(false));
+                    return fails;
+                }
                 // 15-11: prueba de los perfiles guardados (cargar el formato de antes, cambiar nombres, juntar, escribir) sobre una COPIA:
                 // --test-perfiles=<carpeta con profiles.txt e game_icons.txt> -> <carpeta>\test_perfiles.txt
                 if (arg.StartsWith("--test-perfiles="))
