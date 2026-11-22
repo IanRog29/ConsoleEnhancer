@@ -9460,6 +9460,9 @@ namespace ConsoleEnhancer
                     else if (preparando) ev = Math.Max(ev, 1.0);
                     else if (cfg.CaptureNow == "3840x2160") ev = Math.Max(ev, cfg.RitmoGrab4kSecs);   // (22-11, 1.2.2 RITMO: src\Lanzador\Ritmo.cs)
                 }
+                // (1.2.3 RITMO2) las consolas sin menu propio (otra, Xbox...) jugando a 4K: como la PS5, una cada captura_juego_4k_s (1,5 s) y no
+                // cada captura_juego_s (0,6): cada una a 4K tiene a mpv ~18 ms y su hilo ~110 ms con el PNG (2,5 veces menos)
+                else if (!Consolas.Actual.MenuPropio && cfg.CaptureNow == "3840x2160" && !preparando && !InHome) ev = Math.Max(ev, cfg.RitmoGrab4kSecs);
                 if ((now - lastGrab).TotalSeconds >= ev - 1e-6) RequestGrab(true);
                 return;
             }
