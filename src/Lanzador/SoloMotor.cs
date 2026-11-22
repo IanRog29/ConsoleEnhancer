@@ -4,10 +4,10 @@
 // ningun sitio (fuera la fila "DLSS 5 por" del menu de ajustes, DLSS 5 > "En el motor propio / Por Magpie" de la bandeja, la pregunta de
 // "Añadir DLSS 5" y la clave motor_dlss5): la imagen la hace el motor (D3D12 + Streamline: DLSS SR / XeSS / FSR, DLSS 5 con
 // engine\PrismaNr.dll de 1 a 3 pasadas -motor_dlss5_pasadas=3-, DLSS FG x2, Smooth Motion, FSR 3 FG, modos 30 / 60 / 120, Reflex) siempre
-// que sepa hacer la combinacion. mpv + Magpie quedan SOLO de reserva, sin nombrarse: lo que el motor aun no hace (hoy XeSS FG, NVIDIA VFG,
-// DLSS FG x3 / x4, FSR 3 FG con DLSS de escalador, DLSS FG en RTX 30 con dlssg_sm86) y DLSS 5 sin engine\PrismaNr.dll (no se distribuye),
-// o si el DLSS 5 del motor se rompe en la sesion (MotorDlss5Roto). Y motor=magpie / el motor que se cae 3 veces, como siempre.
-// MOTORFG (rama wt4-motorfg): cuando el motor haga XeSS FG x2-x4 y DLSS FG x3 / x4, basta con darlos por buenos en MotorSabeGeneracion.
+// que sepa hacer la combinacion. mpv + Magpie quedan SOLO de reserva, sin nombrarse: lo que el motor aun no hace (NVIDIA VFG, XeSS FG x3 / x4
+// fuera de Intel, DLSS FG x3 / x4 fuera de RTX 50, FSR 3 FG con DLSS de escalador, DLSS FG en RTX 30 con dlssg_sm86) y DLSS 5 sin
+// engine\PrismaNr.dll (no se distribuye), o si el DLSS 5 del motor se rompe en la sesion (MotorDlss5Roto). Y motor=magpie / el motor que se
+// cae 3 veces, como siempre. (1.2.4 MOTORFG: XeSS FG x2 y DLSS FG x3 / x4 de RTX 50 en el motor: Config.MotorFgSabe, MotorFg.cs.)
 using System;
 using System.Globalization;
 using System.IO;
@@ -18,16 +18,17 @@ namespace ConsoleEnhancer
     partial class Config
     {
         // ===== EL REPARTO: ¿sabe el motor hacer esta generacion? (tipo: dlss, smooth, fsr3, xess, vfg; mult 2-4) =====
-        // MOTORFG: poner aqui true para "xess" (x2-x4) y para "dlss" con mult 3 / 4 cuando el motor los haga (el resto -FgMagpieOnly, la cadena
-        // del motor, el log- ya lo mira). Lo que no este aqui va por Magpie sin decirlo
+        // El resto (FgMagpieOnly, la cadena del motor, el log) ya lo mira. Lo que no este aqui va por Magpie sin decirlo.
+        // (1.2.4 integracion: XeSS FG y DLSS FG x3 / x4 los decide MOTORFG en Config.MotorFgSabe, src\Lanzador\MotorFg.cs: XeSS FG x2 en el
+        // motor -x3 / x4 solo en Intel-, DLSS FG x3 / x4 solo donde el runtime de NVIDIA los da -RTX 50-; lo demas, por Magpie)
         public static bool MotorSabeGeneracion(string tipo, int mult)
         {
             switch (tipo ?? "")
             {
-                case "dlss": return mult <= 2;   // DLSS-G de Streamline en el motor: x2 (x3 / x4: Magpie hasta MOTORFG)
+                case "dlss": return mult <= 2 || MotorFgSabe("dlss", mult);   // DLSS-G de Streamline en el motor: x2; x3 / x4 por la via oficial (RTX 50)
                 case "smooth": return true;       // Smooth Motion del driver sobre el motor
                 case "fsr3": return mult <= 2;   // FSR 3 FG del motor (EngineFgFfx.cs; con DLSS de escalador no: FgMagpieOnly)
-                case "xess": return false;        // XeSS FG: solo Magpie (MOTORFG)
+                case "xess": return MotorFgSabe("xess", mult);   // XeSS FG del motor (EngineFgXe.cs): x2; x3 / x4 solo en Intel
                 case "vfg": return false;         // NVIDIA VFG: solo Magpie
                 default: return true;              // "" / "no": sin generacion
             }
