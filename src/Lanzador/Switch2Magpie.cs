@@ -2550,6 +2550,39 @@ namespace ConsoleEnhancer
         public static volatile int StartLogPosInt;
         public static long StartLogPos { get { return StartLogPosInt; } set { StartLogPosInt = (int)Math.Min(int.MaxValue, value); } }
 
+        // 22-11 (1.2.2, ERRORES): Magpie pasa magpie.log a magpie.1.log cada ~500 KB y, con lo que escribe NGX, rota cada 3-6 min y a veces A
+        // MITAD de un arranque (22-11 04:01:30 y 04:04:42, durante la creacion de DLSSNR). Entonces el "empieza el escalado" de este proceso
+        // queda en magpie.1.log y ScalingPhase, que solo miraba magpie.log, decia None: "no se detecto el inicio" y el atajo (alterna) lo
+        // paraba. El principio de magpie.log al abrir Magpie: si ya no es el mismo, ha rotado
+        static volatile byte[] startLogHead;
+        static byte[] LogHead(string f, int max)
+        {
+            try
+            {
+                if (!File.Exists(f)) return null;
+                using (FileStream fs = new FileStream(f, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+                {
+                    byte[] b = new byte[max];
+                    int n = fs.Read(b, 0, max);
+                    if (n <= 0) return null;
+                    if (n < max) Array.Resize(ref b, n);
+                    return b;
+                }
+            }
+            catch { return null; }
+        }
+        public static void NoteStartLogHead() { startLogHead = LogHead(Paths.MagpieLog, 64); }
+        // ¿magpie.log ya no es el que habia al abrir este Magpie? (su principio ha cambiado)
+        static bool LogRotated()
+        {
+            byte[] a = startLogHead;
+            if (a == null) return false;
+            byte[] b = LogHead(Paths.MagpieLog, a.Length);
+            if (b == null || b.Length < a.Length) return true;
+            for (int i = 0; i < a.Length; i++) if (a[i] != b[i]) return true;
+            return false;
+        }
+
         // Proceso de Magpie abierto (-1 = ninguno): el nuestro si lo hay (15-11: no la copia del informe de errores de uno que ha fallado)
         public static int Pid()
         {
@@ -2704,6 +2737,7 @@ namespace ConsoleEnhancer
                     sw = Stopwatch.StartNew();
                 }
                 try { StartLogPos = File.Exists(Paths.MagpieLog) ? new FileInfo(Paths.MagpieLog).Length : 0; } catch { StartLogPos = 0; }
+                NoteStartLogHead(); // (22-11, 1.2.2: para ver si su log rota mientras arranca, ScalingPhase)
                 HideToasts();
                 MagpieOculto.Watch(); // (18-11, INTEGRADO: sin su icono en la bandeja, Integrado.cs)
                 startedTick = Environment.TickCount; // (17-11: el repaso de los avisos cada 30 ms desde ya, aunque aun no tenga ventanas)
@@ -2866,22 +2900,38 @@ namespace ConsoleEnhancer
             try
             {
                 if (!File.Exists(Paths.MagpieLog)) return Phase.None;
-                using (FileStream fs = new FileStream(Paths.MagpieLog, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+                // 22-11 (1.2.2, ERRORES): con el log rotado desde que se abrio este Magpie, todo magpie.log es suyo y lo de antes de rotar
+                // esta en magpie.1.log (desde donde empezo); ver LogRotated
+                bool rotado = LogRotated();
+                Phase? f = PhaseIn(Paths.MagpieLog, rotado ? 0 : StartLogPos);
+                if (f.HasValue) return f.Value;
+                if (rotado)
                 {
-                    long sp = StartLogPos > fs.Length ? 0 : StartLogPos; // (solo lo de este proceso: al matarlo no apunta el final)
-                    long from = Math.Max(sp, fs.Length - 512 * 1024);
-                    fs.Seek(from, SeekOrigin.Begin);
-                    string text;
-                    using (StreamReader r = new StreamReader(fs, Encoding.UTF8)) text = r.ReadToEnd();
-                    int st = text.LastIndexOf("|_StartImpl|缩放开始", StringComparison.Ordinal);   // "empieza el escalado"
-                    int sh = text.LastIndexOf("Scaling output shown", StringComparison.Ordinal);
-                    int en = text.LastIndexOf("缩放结束", StringComparison.Ordinal);              // "termina el escalado"
-                    int last = Math.Max(st, Math.Max(sh, en));
-                    if (last < 0) return Phase.None;
-                    return last == en ? Phase.Ended : last == sh ? Phase.Shown : Phase.Starting;
+                    string viejo = Path.Combine(Path.GetDirectoryName(Paths.MagpieLog), "magpie.1.log");
+                    if (File.Exists(viejo)) { Phase? g = PhaseIn(viejo, StartLogPos); if (g.HasValue) return g.Value; }
                 }
+                return Phase.None;
             }
             catch { return Phase.None; }
+        }
+
+        // La ultima marca de fase de ese log desde 'desde' (null = ninguna)
+        static Phase? PhaseIn(string path, long desde)
+        {
+            using (FileStream fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+            {
+                long sp = desde > fs.Length ? 0 : desde; // (solo lo de este proceso: al matarlo no apunta el final)
+                long from = Math.Max(sp, fs.Length - 512 * 1024);
+                fs.Seek(from, SeekOrigin.Begin);
+                string text;
+                using (StreamReader r = new StreamReader(fs, Encoding.UTF8)) text = r.ReadToEnd();
+                int st = text.LastIndexOf("|_StartImpl|缩放开始", StringComparison.Ordinal);   // "empieza el escalado"
+                int sh = text.LastIndexOf("Scaling output shown", StringComparison.Ordinal);
+                int en = text.LastIndexOf("缩放结束", StringComparison.Ordinal);              // "termina el escalado"
+                int last = Math.Max(st, Math.Max(sh, en));
+                if (last < 0) return null;
+                return last == en ? Phase.Ended : last == sh ? Phase.Shown : Phase.Starting;
+            }
         }
 
         // NGX roto en este proceso de Magpie ("restart required"): hay que cerrarlo y abrirlo
