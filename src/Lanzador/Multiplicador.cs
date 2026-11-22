@@ -159,7 +159,7 @@ namespace ConsoleEnhancer
                 else { es = "falta el componente dlssg_sm86"; en = "needs the dlssg_sm86 component"; }
                 return true;
             }
-            // (1.2.3, MULTI2: con DLSS 5, x3 / x4 no se bloquean por el: la escala automatica le pone como poco generacion_dlss5_minimo -30 %- y,
+            // (1.2.3, MULTI2: con DLSS 5, x3 / x4 no se bloquean por el: la escala automatica le pone como poco generacion_dlss5_minimo -35 %- y,
             // si no cabe, lo quita y el menu lo dice -"x4: DLSS 5 no cabe (se quita)"-; EscalaAuto.Suelo)
             return false;
         }
@@ -188,14 +188,14 @@ namespace ConsoleEnhancer
             try
             {
                 CadenaEscala c = CadenaEscalaPara(1);
-                c.Gen = "xess"; c.Mult = m;
+                c.Gen = "xess"; c.Mult = m; c.VectoresFg = false;   // (su flujo no alarga el hilo: medido, x3 a 4K llega)
                 c.Modo = cap30 ? 30 : 60; c.Objetivo = MultBase(cap30);
                 if (EscalaAuto.XessCompat(c))
                 {
                     double k = EscalaAuto.KDe(c.Juego, c.Clave);
                     w = EscalaAuto.Prevision(c, 0, 0, k, 0);
                     b = EscalaAuto.Presupuesto(c);
-                    reales = Math.Min(c.Objetivo, 1000.0 / Math.Max(1, m * w / Math.Max(0.5, EscalaAuto.UsoXess)));
+                    reales = Math.Min(c.Objetivo, 1000.0 / Math.Max(1, m * w));   // (el periodo se estira a ~m x W: x4 a 4K, W ~9 ms -> 27,4 medidas)
                     ok = w <= b;
                 }
             }
@@ -368,6 +368,11 @@ namespace ConsoleEnhancer
             bool okx4 = EscalaAuto.Prevision(x4, 0, 0, 1.0, 0) > EscalaAuto.Presupuesto(x4);
             if (!okx4) fallos++;
             sb.AppendLine((okx4 ? "      " : "FALLO ") + "XeSS FG x4 a 4K sin DLSS 5 no cabe (medido: 26,4 de 29,97 reales; " + EscalaAuto.Prevision(x4, 0, 0, 1.0, 0).ToString("0.0", CultureInfo.InvariantCulture) + " ms)");
+            // MEDIDO: XeSS FG x3 a 4K sin DLSS 5 (22-11 11:34, tele a 120): 29,9 reales / 89,7 -> cabe
+            CadenaEscala x3 = MultCadenaPrueba("3840x2160", "xess", 3, "", 5, false);
+            bool okx3 = EscalaAuto.Prevision(x3, 0, 0, 1.0, 0) <= EscalaAuto.Presupuesto(x3);
+            if (!okx3) fallos++;
+            sb.AppendLine((okx3 ? "      " : "FALLO ") + "XeSS FG x3 a 4K sin DLSS 5 cabe (medido: 29,9 reales; " + EscalaAuto.Prevision(x3, 0, 0, 1.0, 0).ToString("0.0", CultureInfo.InvariantCulture) + " de " + EscalaAuto.Presupuesto(x3).ToString("0.0", CultureInfo.InvariantCulture) + " ms)");
             return fallos;
         }
 
