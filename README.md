@@ -88,12 +88,17 @@ with help a lot too.
 - **Scaling that adapts to your PC** (`escalas_adaptables=1`, on by default): the wizard estimates the DLSS model and percentages for
   your GPU and display; while you play, the engine measures GPU time every second and lowers quality if it can't keep up (within 2 s)
   or raises it little by little if there is headroom (after 20 s), and remembers it for next time (`data\scales_engine.txt`). With
-  mpv + Magpie it adjusts between one session and the next. Tray > Picture > *Self-adjusting scales* / *Forget the learned scales*.
-  With the "DLSS 5" extra in the engine there is also an **emergency brake**: if the GPU is far over budget, it drops a pass or cuts the %
-  at once (so the GPU doesn't choke) and keeps that as the learned value, without fighting the fine adjustment.
-- **Steps down if the PC can't keep up** (built-in engine): if the mode's frame rate is missed for 5 s in a row because of the PC (not
-  the console game), a notice shows and one step is lowered (DLSS 5, 120 → 60, a lower capture, 60 → 30 with frame generation), saved
-  in the game's profile.
+  "DLSS 5" through Magpie, the **DLSS 5 scale follows your whole picture chain**: it is worked out from the capture, your TV, the
+  30 / 60 / 120 mode, the frame generation type, the DLSS upscaler model and the passes, scaled for your GPU (a lighter DLSS model
+  leaves room for more DLSS 5), and adjusted while you play (`dlss5_escala_auto=1`; 0 = the fixed tables). Tray > Picture >
+  *Self-adjusting scales* / *Forget the learned scales*. With the "DLSS 5" extra in the engine there is also an **emergency brake**: if
+  the GPU is far over budget, it drops a pass or cuts the % at once (so the GPU doesn't choke) and keeps that as the learned value.
+- **Checks that your frame rate is reached** (built-in engine and mpv + Magpie): if the mode's frame rate (or the output with frame
+  generation) is missed because of the PC (not the console game), it acts within seconds: first the DLSS 5 scale, then one pass less,
+  a lighter DLSS model, a cheaper frame generation type, and only then DLSS 5 off, 120 → 60, a lower capture, 60 → 30 with frame
+  generation. A notice says what changed ("60 fps not reached (52): DLSS 5 scale 50% -> 40%"). With GPU to spare for a few minutes, the
+  DLSS 5 scale goes back up the next time you enter the game, never to a value that already failed. Remembered per game and GPU
+  (`data\scales_auto.txt`).
 - **Backup engine** (`motor_reserva=1`): while you play, an engine with the mode's other frame generation type (Smooth Motion / DLSS
   FG) waits ready in the background, so switching between them takes ~0.5 s instead of 4-5 s. `motor_reserva=0` removes it (it uses
   ~0.9 GB of video memory).
@@ -105,6 +110,9 @@ with help a lot too.
   goes to the log and the app keeps running (`ConsoleEnhancer.exe.config`).
 - **No "No signal" on short drops**: when the console briefly changes HDMI mode (e.g. the PS5 switching to 120 Hz for a 120 Hz game),
   the last picture stays on screen; the usual notice only shows if it lasts more than 5 s.
+- **Never stuck on a capture format**: if no picture arrives right after the app changes the capture (console menu, a game's profile,
+  the settings menu, the 30 / 60 / 120 mode) while the console was on, it switches within seconds to a format your capture card does
+  give (same size at 59.94 fps, the last one that worked, 1080p) and says so on screen (`captura_segura=1`).
 - **HDR**: RTX HDR (NVIDIA) or Windows Auto HDR to convert the console's SDR picture, in the wizard's *Picture* step (off by default;
   they need Windows HDR turned on for the display).
 - **VRR** (`vrr=auto`): turns on by itself only if the display has VRR (G-SYNC / G-SYNC Compatible / FreeSync / HDMI VRR) and Windows and
@@ -155,10 +163,11 @@ with help a lot too.
   drop). The Windows key, the Start menu, the taskbar and Alt+Tab work normally while you play.
 - **No double sound (echo)**: while it plays the capture card's sound, the app turns off Windows *Listen to this device* on that input,
   closes leftover audio players and warns if another capture app plays it too (see the FAQ).
-- **Start with Windows** (a user task, no administrator rights needed) with a black screen until the picture shows and, optionally, a
-  black desktop while the app is open (tray > *Black desktop while the app is open*).
-- **Low-power mode when the console turns off**: the PC stays on but almost idle (screen off, app closed, Power saver plan) until the
-  console comes back. How it works and how much it uses is explained in the wizard's last step and in the tray: see
+- **Start with Windows** (a shortcut in your Startup folder, no administrator rights needed) with a black screen until the picture
+  shows and, optionally, a black desktop while the app is open (tray > *Black desktop while the app is open*).
+- **Low-power mode when the console turns off**: the PC stays on but almost idle (screen off, app closed, a low-power plan) until the
+  console comes back, with nothing of Windows on screen (no taskbar, desktop or pointer) from the moment the console turns off until its
+  picture is back. How it works and how much it uses is explained in the wizard's last step and in the tray: see
   [Power](#power-what-the-pc-does-when-the-console-turns-off).
 - **Console or normal PC** (tray > *How the PC is used*): *Like a console* (opens with Windows, black desktop, low-power mode when the
   console turns off) or *Like a normal PC* (regular Windows: the app only opens when you open it and the PC stays on when the console turns off).
@@ -193,12 +202,17 @@ power?*) or in `ConsoleEnhancer Settings.exe`.
 
 It is **not** sleep and **not** shutdown: the PC stays on, so nothing has to "turn it on" again. When the console turns off:
 
-1. No countdown: the screen goes off, ConsoleEnhancer closes (mpv, Magpie and the engine with it) and Windows switches to its
-   *Power saver* plan, so the CPU and GPU drop to their lowest clocks (the GPU idles in P8).
-2. Only a tiny watcher stays (under 1 % of the CPU, low priority, EcoQoS): once a second it looks at a small 720p picture from the
-   capture card and also listens for the controllers and the keyboard.
+1. No countdown: a black cover with no pointer goes over every screen at once (the taskbar stays hidden), the screen goes off,
+   ConsoleEnhancer closes (mpv, Magpie and the engine with it) and Windows switches to a temporary low-power plan (*Power saver*
+   with the processor capped at 50 % and no boost, `espera_cpu_max`; deleted on waking), so the CPU and GPU drop to their lowest
+   clocks (the GPU idles in P8; an RTX 4060 Ti measured 8.5-9 W with the screen off).
+2. Only a tiny watcher stays, in its own small process (about 0.1 % of one core, low priority, EcoQoS, without raising Windows' timer
+   resolution): it looks at a small 720p picture from the capture card and also listens for the controllers and the keyboard. The
+   Windows key doesn't open Start, and if another program turns the screen on with nobody touching anything, it is turned off again.
 3. When the console turns back on (the capture card gets a picture), a controller is turned on or a key is pressed, the screen comes
-   back, the normal power plan returns and ConsoleEnhancer opens in 2-3 s.
+   back black (the taskbar stays hidden until the console picture is back), the normal power plan returns and ConsoleEnhancer opens in
+   2-3 s. The taskbar always comes back when you close the app, switch to *Like a normal PC* or uninstall, even if the app is closed
+   by force (`espera_ocultar_barra=0` leaves it alone).
 4. If it was woken by a controller or a key and the console isn't turned on within 90 s, it goes back to low power
    (`espera_volver_sin_consola_s`; 0 = stays awake).
 
@@ -514,13 +528,18 @@ y contar en qué PC y con qué consola lo usas.
   YUY2 / NV12 se reconstruye bien, sin bordes rojos en escalones (`croma=2` en `motor_extra`; `croma=0` = como antes).
 - **Escalas que se adaptan a tu PC** (`escalas_adaptables=1`, de serie): el asistente estima el modelo de DLSS y los porcentajes para tu
   gráfica y tu pantalla; jugando, el motor mide el tiempo de gráfica cada segundo y baja la calidad si no llega (en 2 s) o la sube poco
-  a poco si sobra (tras 20 s), y lo recuerda para la próxima vez (`data\scales_engine.txt`). Con mpv + Magpie se ajusta entre una
-  partida y otra. Bandeja > Imagen > *Escalas que se adaptan solas* / *Olvidar las escalas aprendidas*. Con el extra "DLSS 5" en el
-  motor hay además un **freno de emergencia**: si la gráfica va muy por encima de lo que cabe, quita una pasada o baja el % de golpe
-  (para no atascar la gráfica) y eso queda como lo aprendido, sin pelearse con el ajuste fino.
-- **Baja un paso si el PC no llega** (motor propio): si 5 s seguidos no se llega a los fps del modo por culpa del PC (no del juego de la
-  consola), sale un aviso y se baja un paso (DLSS 5, 120 → 60, captura más baja, 60 → 30 con generación), guardado en el perfil del
-  juego.
+  a poco si sobra (tras 20 s), y lo recuerda para la próxima vez (`data\scales_engine.txt`). Con "DLSS 5" por Magpie, **la escala de
+  DLSS 5 sigue a toda la cadena**: sale de la captura, la tele, el modo 30 / 60 / 120, el tipo de generación, el modelo de DLSS y las
+  pasadas, a la medida de tu gráfica (un modelo de DLSS más ligero deja sitio a más DLSS 5), y se ajusta jugando
+  (`dlss5_escala_auto=1`; 0 = las tablas fijas). Bandeja > Imagen > *Escalas que se adaptan solas* / *Olvidar las escalas aprendidas*.
+  Con el extra "DLSS 5" en el motor hay además un **freno de emergencia**: si la gráfica va muy por encima de lo que cabe, quita una
+  pasada o baja el % de golpe (para no atascar la gráfica) y eso queda como lo aprendido.
+- **Comprueba que se llegan los fps** (motor propio y mpv + Magpie): si no se llega a los fps del modo (o a los de salida con la
+  generación) por culpa del PC (no del juego de la consola), actúa en segundos: primero la escala de DLSS 5, luego una pasada menos, un
+  modelo de DLSS más ligero, una generación más barata y solo después DLSS 5 fuera, 120 → 60, captura más baja, 60 → 30 con generación.
+  Un aviso dice qué ha cambiado ("No se llega a 60 fps (52) · DLSS 5 al 50 % → 40 %"). Si sobra gráfica unos minutos, la escala de
+  DLSS 5 vuelve a subir la próxima vez que entres al juego, nunca a un valor que ya falló. Se recuerda por juego y gráfica
+  (`data\scales_auto.txt`).
 - **Motor de reserva** (`motor_reserva=1`): jugando, queda preparado en segundo plano un motor con el otro tipo de generación del modo
   (Smooth Motion / DLSS FG), y cambiar entre ellos pasa de 4-5 s a ~0,5 s. `motor_reserva=0` lo quita (ocupa ~0,9 GB de memoria
   gráfica).
@@ -532,6 +551,9 @@ y contar en qué PC y con qué consola lo usas.
   sigue (`ConsoleEnhancer.exe.config`).
 - **Sin "Sin señal" en los cortes cortos**: cuando la consola cambia un momento de modo HDMI (p. ej. la PS5 pasando a 120 Hz con un
   juego a 120), se queda la última imagen; el aviso de siempre solo sale si dura más de 5 s.
+- **Nunca atascada en un formato de captura**: si tras un cambio de captura (menú de la consola, el perfil de un juego, el menú de
+  ajustes, el modo 30 / 60 / 120) no llega imagen con la consola encendida, pasa en segundos a un formato que tu capturadora sí da (el
+  mismo tamaño a 59,94 fps, el último que funcionó, 1080p) y lo dice en pantalla (`captura_segura=1`).
 - **HDR**: RTX HDR (NVIDIA) o Auto HDR de Windows para convertir la imagen SDR de la consola, en el paso *Imagen* del asistente
   (apagados de serie; necesitan el HDR de Windows encendido en la pantalla).
 - **VRR** (`vrr=auto`): se enciende solo si la pantalla tiene VRR (G-SYNC / G-SYNC Compatible / FreeSync / HDMI VRR) y Windows y el
@@ -581,10 +603,11 @@ y contar en qué PC y con qué consola lo usas.
   corte de la señal). La tecla Windows, el menú Inicio, la barra de tareas y Alt+Tab funcionan normal mientras juegas.
 - **Sin sonido doble (eco)**: mientras suena la capturadora por la app, quita *Escuchar este dispositivo* de Windows en esa entrada,
   cierra audios que se hayan quedado abiertos y avisa si otro programa de captura también la reproduce (ver las preguntas frecuentes).
-- **Iniciar con Windows** (tarea del usuario, sin permisos de administrador) con la pantalla en negro hasta que hay imagen y,
-  opcional, el escritorio en negro mientras la app está abierta (bandeja > *Escritorio negro con la app abierta*).
-- **Modo de bajo consumo al apagar la consola**: el PC sigue encendido pero casi parado (pantalla apagada, app cerrada, plan
-  Economizador) hasta que vuelve la consola. Cómo funciona y cuánto gasta se explica en el último paso del asistente y en la bandeja:
+- **Iniciar con Windows** (un acceso directo en tu carpeta Inicio, sin permisos de administrador) con la pantalla en negro hasta que
+  hay imagen y, opcional, el escritorio en negro mientras la app está abierta (bandeja > *Escritorio negro con la app abierta*).
+- **Modo de bajo consumo al apagar la consola**: el PC sigue encendido pero casi parado (pantalla apagada, app cerrada, un plan de
+  bajo consumo) hasta que vuelve la consola, sin nada de Windows en pantalla (ni barra de tareas, ni escritorio, ni cursor) desde que
+  se apaga la consola hasta que vuelve su imagen. Cómo funciona y cuánto gasta se explica en el último paso del asistente y en la bandeja:
   ver [Energía](#energía-qué-hace-el-pc-al-apagar-la-consola).
 - **Consola o PC normal** (bandeja > *Cómo se usa el PC*): *Como una consola* (se abre con Windows, escritorio negro y modo de bajo
   consumo al apagar la consola) o *Como un PC normal* (el Windows de siempre: la app solo se abre cuando la abres y el PC sigue encendido al apagar
@@ -620,12 +643,17 @@ cambia en el asistente, en bandeja > *Al apagar la consola, el PC* (con *¿Cómo
 
 **No** es suspender ni apagar: el PC sigue encendido, así que no hace falta "encenderlo" otra vez. Al apagar la consola:
 
-1. Sin cuenta atrás: la pantalla se apaga, ConsoleEnhancer se cierra (con mpv, Magpie y el motor) y Windows pasa al plan
-   *Economizador*, así que la CPU y la gráfica bajan a lo mínimo (la gráfica queda en reposo, en P8).
-2. Solo queda un vigilante muy pequeño (menos del 1 % de la CPU, prioridad baja, EcoQoS): una vez por segundo mira una imagen pequeña
-   de 720p de la capturadora y además atiende a los mandos y al teclado.
-3. Al volver a encender la consola (la capturadora recibe imagen), encender un mando o pulsar una tecla, vuelve la pantalla, vuelve el
-   plan de energía normal y ConsoleEnhancer se abre en 2-3 s.
+1. Sin cuenta atrás: una cubierta negra sin cursor tapa todas las pantallas al momento (la barra de tareas se queda oculta), la
+   pantalla se apaga, ConsoleEnhancer se cierra (con mpv, Magpie y el motor) y Windows pasa a un plan de bajo consumo temporal
+   (*Economizador* con el procesador al 50 % y sin turbo, `espera_cpu_max`; se borra al despertar), así que la CPU y la gráfica bajan a
+   lo mínimo (la gráfica queda en reposo, en P8; una RTX 4060 Ti midió 8,5-9 W con la pantalla apagada).
+2. Solo queda un vigilante muy pequeño, en su propio proceso (un 0,1 % de un núcleo, prioridad baja, EcoQoS, sin subir el temporizador
+   de Windows): mira una imagen pequeña de 720p de la capturadora y además atiende a los mandos y al teclado. La tecla Windows no abre
+   Inicio y, si otro programa enciende la pantalla sin que nadie toque nada, se vuelve a apagar.
+3. Al volver a encender la consola (la capturadora recibe imagen), encender un mando o pulsar una tecla, vuelve la pantalla en negro
+   (la barra de tareas sigue oculta hasta que vuelve la imagen de la consola), vuelve el plan de energía normal y ConsoleEnhancer se
+   abre en 2-3 s. La barra vuelve siempre al cerrar la app, pasar a *Como un PC normal* o desinstalar, también si la app se cierra a
+   la fuerza (`espera_ocultar_barra=0` la deja como está).
 4. Si lo ha traído un mando o una tecla y no enciendes la consola en 90 s, vuelve al bajo consumo (`espera_volver_sin_consola_s`;
    0 = se queda despierto).
 

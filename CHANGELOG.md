@@ -5,6 +5,94 @@ publicada es una etiqueta `vX.Y.Z` de git; GitHub Actions monta su zip y copia a
 
 ## [Sin publicar]
 
+## [1.2.1] - 2026-11-22
+
+### Fixed / Arreglado
+- **The app froze when going from a 120 fps game to the console menu** (Rocket League → PS5 menu: "turn on the console" forever).
+  The menu is shown at 4K native, but the capture was asked for 4K **at 120 fps**, which the capture card cannot do. The card refused
+  it, mpv stayed open with nothing loaded and the app waited forever. The menu now always uses 60 fps. There is also a safety net
+  for any capture change (menu, game profile, settings menu, 30/60/120 mode): if no picture arrives right after the change while the
+  console was on, the app switches within seconds to a format the card does give (same size at 59.94 fps, the last one that
+  worked, 1080p) and says so on screen. Without that evidence it retries instead of waiting forever, and a mode change to or from
+  120 fps is no longer taken for the console turning off. The app's own engine also picks the closest size and frame rate the card
+  offers instead of failing, and now follows the frame rate on switches that don't reopen it.
+  *La app se quedaba congelada al ir de un juego a 120 fps (Rocket League) al menú de la consola: se pedía 4K a 120, que la
+  capturadora no da. El menú va siempre a 60, y si un cambio de captura no da imagen con la consola encendida, la app pasa en
+  segundos a un formato que sí da y lo avisa.*
+- **Turning the console on no longer loads a game profile**: when the app opened with the console just switching on (e.g. from
+  standby), the PS5's dark start-up screens were taken for a game: the console-wide profile started with DLSS 5 and frame
+  generation, ~8 s of black, then back to the menu. Until the console menu has been seen, only a bright, steady game picture for
+  5 s (60 s if it is dark) leaves the menu; the welcome, user-selection and shutdown screens count as console screens. Once the
+  menu has been seen, starting a game is as fast as before.
+  *Al encender la consola ya no se carga un perfil de juego con sus pantallas de arranque oscuras.*
+- **Turning the console off no longer loads the last game**: after the power menu, the shutting-down screen took the app into the
+  last game's profile. For 20 s after the power menu only a bright picture with the console's sound counts, and the "will enter
+  rest mode in N minutes" notification no longer counts as the power menu.
+  *Al apagar la consola ya no se carga el último juego tras su menú de apagado.*
+- **PS5 game names are no longer saved half-read** ("PS5: Rocket" for Rocket League): a label read while it fades or slides never
+  beats the full name; a profile with a half-read name is renamed (with its icons and covers) the next time the full name is read; a
+  game's icon is only remembered from captures where label and icon agree; control-center cards and game options ("Check for
+  update") are no longer taken for game names.
+  *Los nombres de los juegos de la PS5 ya no se guardan a medias: gana el nombre entero y el perfil mal nombrado se renombra solo.*
+- **Fewer black screens when entering a game or changing the capture**: two hidden standby engines were launched at once and
+  closed each other, so the "bridge" (the console picture shown while Magpie prepares) was missing and you got 8-10 s of black.
+  Now there is one, it comes up as soon as it is ready, it also bridges when mpv and Magpie reopen (settings menu), and it runs
+  lighter at 120 fps; with no bridge, the live console picture is shown instead of black.
+  *Menos negro al entrar en un juego o cambiar la captura: el motor en espera ya no se cierra solo, hace de puente en más casos y,
+  si no hay puente, se ve la imagen en vivo.*
+- **No taskbar (or anything of Windows) when the console turns off in console mode**: the picture was closed with nothing in front
+  and the screen only went off about a second later, so the desktop, the mouse pointer and the taskbar showed. Now a black cover
+  without pointer goes over every screen the moment the console is seen off, and the taskbar stays hidden through the shutdown
+  notice, the whole standby and the wake-up, until the console picture is back. It always comes back: when the picture returns,
+  when you close the app, switch to "Like a normal PC", uninstall, or even if the app is closed by force. `espera_ocultar_barra=0`
+  leaves the taskbar alone.
+  *Al apagar la consola en modo consola ya no se ve la barra de tareas ni nada de Windows: una cubierta negra sin cursor hasta que
+  vuelve la imagen de la consola, y la barra vuelve siempre, también si la app se cierra a la fuerza.*
+- **Built-in engine without NVIDIA Reflex (AMD, Intel or `motor_streamline=0`)**: after turning DLSS 5 on and off, 2-3 frames
+  stayed queued for the screen for the rest of the session (+1-2 refreshes of delay). Now it stays at 1. NVIDIA with Reflex is not
+  affected.
+  *Motor propio sin Reflex (AMD, Intel): la cola de la pantalla ya no crece a 2-3 imágenes tras pasar por DLSS 5.*
+- Also fixed: keyboard and mouse hooks reinstalled every 2 s while playing with a controller (and the log spam); audio meter error
+  at startup (`MMDeviceEnumeratorCom`); "unknown ini key: defender_aviso"; first-run `SetUnhandledExceptionMode` error; the settings
+  menu losing the frame generation type on refresh; the frame generation substitute ignoring the mode's list; Magpie's scaling
+  hotkey sent while Magpie was still loading or not running; game entry and the settings menu's Apply at the same time clearing
+  each other's "applying" state; low-fps notices only in Spanish; the low-fps helper not noticing the shortfall at 120 fps; the
+  diagnostic capture delaying the exit from the console menu; a new version could inherit the standby power-plan marker.
+  *También: ganchos cada 2 s con el mando, error del medidor de audio, clave defender_aviso, error del primer arranque, tipo de
+  generación del menú, atajo de Magpie a destiempo, avisos de fps bajos en el idioma elegido y a 120 fps, y otros detalles.*
+
+### Changed / Cambiado
+- **The DLSS 5 scale now follows your whole picture chain**: with DLSS 5 on, its input resolution is no longer a fixed value per
+  mode. The app works it out from the capture, the output (your TV), the 30 / 60 / 120 fps mode, the frame generation type, the
+  DLSS upscaler model and the DLSS 5 passes, scaled for your GPU. A lighter upscaler leaves room for more DLSS 5: on an RTX
+  4060 Ti, 1440p 30 fps with frame generation to 4K now gets ~75 % with DLSS E and ~50 % with M (before, 40 % with any). In 120 fps
+  mode, where DLSS 5 couldn't keep up (~100 of 120 fps), it steps aside and the 120 fps are kept. `dlss5_escala_auto=0` restores
+  the old tables.
+  *La escala de DLSS 5 sigue a toda la cadena (captura, tele, modo, generación, modelo de DLSS, pasadas y tu gráfica); a 120 fps,
+  si no cabe, se quita y se mantienen los 120.*
+- **Console-mode standby is closer to "almost off"**: it runs in its own small process (the closed app's controller loops kept
+  running every 50 ms), the screen goes off first, the console watcher no longer raises Windows' timer resolution and uses about
+  30 % fewer CPU cycles and half the wake-ups, a temporary power plan (Power saver with the processor capped at 50 % and no boost)
+  is used and deleted on waking (`espera_cpu_max`, 0 = Power saver as before), the screen is turned off again if another program
+  turns it on with nobody touching anything, and the Windows key no longer opens Start during standby. Turning the console on is
+  noticed sooner. Measured on an RTX 4060 Ti: graphics card 11.5 W → 8.5-9 W; the standby process uses 0.1 % of one core.
+  *La espera del modo consola, más parecida a un PC casi apagado: proceso propio pequeño, pantalla apagada lo primero, menos
+  consumo y un plan de energía propio que se borra al despertar.*
+
+### Added / Añadido
+- **The app checks that the fps you chose are really reached** (real frames, and output frames with frame generation) and, if
+  not, acts at once: first the DLSS 5 scale, then one pass less, a lighter DLSS model, a cheaper frame generation type, and only
+  then the old steps (DLSS 5 off, FSR 1, 120 → 60…). It is done in one reopen without a black screen, and it tells you on screen
+  what it changed ("60 fps not reached (52): DLSS 5 scale 50% -> 40%"). When there is GPU to spare for a few minutes, the scale goes
+  back up the next time you start the game (Magpie can't change it while running), never to a value that already failed. What
+  works is remembered per game and GPU in `data\scales_auto.txt`.
+  *La app comprueba que se llegan los fps elegidos y, si no, baja primero la escala de DLSS 5 (luego pasadas, modelo de DLSS,
+  tipo de generación…) y te dice qué ha cambiado; si sobra gráfica la sube al volver a entrar en el juego.*
+- **Latency diagnostics in the log** (mpv's capture queue every 20 s, the console sound queue every 5 min, the capture thread
+  priority, and a note when NVIDIA Reflex makes captured frames wait) and settings to try lower latency, off or unchanged by
+  default: `mpv_cola_ms`, `audio_bloque_ms`, `audio_cola_alta_ms`, `audio_cola_baja_ms`, and `mmcss=1` in `motor_extra`.
+  *Diagnóstico de latencia en el log y ajustes nuevos para probar menos retraso (apagados o como antes).*
+
 ## [1.2.09] - 2026-11-21
 
 ### Fixed / Arreglado
