@@ -60,15 +60,20 @@ namespace ConsoleEnhancer.Deteccion
         }
 
         // ms por imagen real de la generacion (a la salida de ahora; esc = pixeles de salida / 4K / indice)
-        public static double CosteGeneracion(string gen, GpuInfo g, double esc)
+        public static double CosteGeneracion(string gen, GpuInfo g, double esc) { return CosteGeneracion(gen, g, esc, 2); }
+
+        // mult: imagenes por cada real (x3 / x4 de DLSS-G y XeSS FG: una inventada mas cada vez, como en EscalaAuto). Smooth Motion, FSR 3 FG
+        // y AFMF son x2 fijos
+        public static double CosteGeneracion(string gen, GpuInfo g, double esc, int mult)
         {
             bool arc = g != null && (g.Familia == FamiliaGpu.IntelArc || g.Familia == FamiliaGpu.IntelArcB);
+            double n = Math.Max(1, mult - 1);
             switch (gen)
             {
-                case "dlssg": return RefFgDlss2 * esc;
+                case "dlssg": return RefFgDlss2 * esc * n;
                 case "smooth": return RefFgSmooth2 * esc;
                 case "fsr3fg": return RefFgFsr3 * esc;
-                case "xessfg": return (arc ? RefFgXessArc : RefFgXess) * esc;
+                case "xessfg": return (arc ? RefFgXessArc : RefFgXess) * esc * n;
                 case "afmf": return RefFgAfmf * esc;
                 default: return 0;
             }
@@ -222,7 +227,9 @@ namespace ConsoleEnhancer.Deteccion
             for (int i = 0; i < tipos.Length; i++)
             {
                 if (!lista.Contains(tipos[i]) && !(tipos[i] == "afmf" && gen == "afmf")) continue;
-                double c = fijo + CosteGeneracion(gens[i], g, esc);
+                // (con x3 / x4 de serie, lo de serie con su multiplicador; lo demas del selector, x2: lo minimo que se puede elegir)
+                int mult = gen == gens[i] ? (modo == "60" ? p.Mult60 : p.Mult30) : 2;
+                double c = fijo + CosteGeneracion(gens[i], g, esc, mult);
                 if (c <= periodo) continue;
                 lista.Remove(tipos[i]);
                 p.Motivos.Add(Tx.T("Modo " + modo + ": " + NombreGen(gens[i]) + " no cabe en esta gráfica a esta salida (" + Tx.N(c, "0.0") + " de " + Tx.N(periodo, "0.0") + " ms por imagen real): fuera del selector",

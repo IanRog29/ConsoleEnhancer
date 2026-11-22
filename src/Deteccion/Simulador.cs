@@ -28,7 +28,7 @@ namespace ConsoleEnhancer.Deteccion
         // (1.2.2) La matriz (DeteccionTest --simula=matriz): graficas x pantallas x capturadoras, con hardware inventado entero (sin detectar
         // nada: rapido) y la revision automatica de cada plan (Revisar)
         public static readonly string[] MatrizGpus = { "gtx1660", "rtx2060", "rtx3060", "rtx4060", "rtx4060ti", "rtx5070", "amd-rx6600", "amd-rx7800xt", "amd-rx9070xt", "intel-arc-a750", "intel-arc-b580", "intel-iris-xe", "amd-780m" };
-        public static readonly string[] MatrizPantallas = { "tele-4k120-vrr", "tele-4k60", "monitor-1440p144-vrr", "monitor-1080p144", "monitor-1080p60" };
+        public static readonly string[] MatrizPantallas = { "tele-4k120-vrr", "tele-4k60", "monitor-1440p144-vrr", "monitor-1440p240", "monitor-1080p144", "monitor-1080p60" };
 
         public static OpcionesDeteccion Opciones(string caso, OpcionesDeteccion baseOp)
         {

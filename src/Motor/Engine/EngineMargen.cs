@@ -50,6 +50,8 @@ namespace ConsoleEnhancer.Motor
             double q = Math.Max(0.1, outW * (double)outH / (3840.0 * 2160.0));
             double idx = s.GpuIndice > 0.05 ? s.GpuIndice : 1.0;
             if (s.SmoothMode > 0) t -= Math.Max(0.8, 2.5 * q / idx);
+            // (DLSS-G x2: numFramesToGenerate = 1 en Engine.cs. Si el motor genera x3 / x4 -agente MULTI, 1.2.2-, la reserva va por cada
+            // imagen inventada: multiplicar por las que genere por cada real)
             else if (fgApplied) t -= Math.Max(1.0, 4.5 * q / idx);
             return Math.Max(periodo * 0.4, t);
         }

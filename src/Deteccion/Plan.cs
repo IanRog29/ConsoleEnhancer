@@ -570,7 +570,8 @@ namespace ConsoleEnhancer.Deteccion
                 // XeSS, FSR 4- o la generacion); con FSR 1 sin generacion no se calculan
                 double mvAqui = fg || (p.CapH > 0 && p.CapH < p.OutH && (p.Escalador == "dlss" || p.Escalador == "xess" || p.Escalador == "fsr4")) ? mv : 0;
                 // (1.2.2, UNIVERSAL: costes de la generacion con lo medido, PlanMargen.CosteGeneracion; AFMF tambien gasta)
-                double fgc = !fg ? 0 : gen == "dlssg" ? Medido(cal, p.Calibrado, "fg_dlssg", CosteGeneracion(gen, g, esc)) : gen == "smooth" ? Medido(cal, p.Calibrado, "fg_smooth", CosteGeneracion(gen, g, esc)) : CosteGeneracion(gen, g, esc);
+                int multK = k.StartsWith("60") ? p.Mult60 : p.Mult30;   // (x3 / x4: mas imagenes inventadas por cada real)
+                double fgc = !fg ? 0 : gen == "dlssg" ? Medido(cal, p.Calibrado, "fg_dlssg", CosteGeneracion(gen, g, esc, multK)) : gen == "smooth" ? Medido(cal, p.Calibrado, "fg_smooth", CosteGeneracion(gen, g, esc, multK)) : CosteGeneracion(gen, g, esc, multK);
                 double fijo = bas + mvAqui + fgc;
                 if (p.Escalador == "dlss")
                 {
