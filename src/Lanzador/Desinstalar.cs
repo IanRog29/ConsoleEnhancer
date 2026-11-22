@@ -154,7 +154,8 @@ namespace ConsoleEnhancer
             ps.AppendLine("Add-Content $log ((Get-Date).ToString('s') + ' esperando a que se cierre ConsoleEnhancer (pid " + pid + ")')");
             ps.AppendLine("Wait-Process -Id " + pid + " -Timeout 120");
             ps.AppendLine("Start-Sleep -Seconds 2");
-            ps.AppendLine("foreach ($n in @('mpv','Magpie','ConsoleEnhancerEngine')) { Get-Process -Name $n | Where-Object { $_.Path -like '" + app.Replace("'", "''") + "\\*' } | Stop-Process -Force }");
+            // (1.2.1: tambien un ConsoleEnhancer.exe que quedara de esa carpeta, p. ej. la guarda de la barra de tareas: si no, el exe no se borra)
+            ps.AppendLine("foreach ($n in @('mpv','Magpie','ConsoleEnhancerEngine','ConsoleEnhancer')) { Get-Process -Name $n | Where-Object { $_.Path -like '" + app.Replace("'", "''") + "\\*' } | Stop-Process -Force }");
             foreach (string r in borrarRutas)
             {
                 string q = r.Replace("'", "''");

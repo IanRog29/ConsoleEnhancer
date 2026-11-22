@@ -102,6 +102,9 @@ namespace ConsoleEnhancer
         public static void Cambiar(bool negro)
         {
             if (negro) { if (!activo || cerrando) Abrir(); return; }
+            // 21-11 (1.2.1): al pasar a "como un PC normal" (bandeja y Panel), sin escritorio negro o al desinstalar: la barra de tareas,
+            // si la habia ocultado la espera (src\Lanzador\EsperaCubierta.cs), otra vez visible. Tambien en otro proceso (el Panel)
+            try { CeBarra.Mostrar("escritorio normal / como un PC normal"); } catch (Exception ex) { Log.Error("Escritorio: la barra de tareas", ex); }
             if (!activo) return;
             AlCerrar(false);
             activo = false;
@@ -181,7 +184,7 @@ namespace ConsoleEnhancer
             try
             {
                 if (negro) PonerNegro("a mano (--escritorio-negro)");
-                else Restaurar("a mano (--restaurar-escritorio)");
+                else { Restaurar("a mano (--restaurar-escritorio)"); CeBarra.Mostrar("a mano (--restaurar-escritorio)"); } // (1.2.1: y la barra, si la oculto la espera)
                 return 0;
             }
             catch (Exception ex) { Log.Error("Escritorio: a mano", ex); return 1; }

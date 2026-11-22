@@ -10175,6 +10175,7 @@ namespace ConsoleEnhancer
             }
             Log.Write("Pantalla No Signal (" + (reason == "no-signal-app" ? "capturas seguidas de la app" : "script de mpv, " + reason) +
                       (string.IsNullOrEmpty(detail) ? "" : ": " + detail) + "): la consola se ha apagado, se cierra todo");
+            CeEspera.AlApagarConsola(cfg.ShutdownPc); // (21-11, 1.2.1: con apagar_pc=1, la cubierta negra y la barra oculta ANTES de quitar la imagen; src\Lanzador\EsperaCubierta.cs)
             try { File.WriteAllText(Paths.FlagFile, reason + " " + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")); }
             catch (Exception ex) { Log.Error("Escribiendo flag", ex); }
             try { if (!p.HasExited) p.Kill(); } catch (Exception ex) { Log.Error("Cerrando mpv", ex); }
@@ -14617,6 +14618,7 @@ namespace ConsoleEnhancer
                     // 19-11 (ESCRITORIO): cerrada a mano -> el escritorio normal; si se apaga el PC (consola apagada o Windows) sigue negro
                     Escritorio.AlCerrar(apagaPc);
                     CeImagen.AlCerrar(); // (ConsoleEnhancer: el HDR de Windows, RTX HDR y Auto HDR como estaban)
+                    CeEspera.AlCerrarApp(apagaPc); // (21-11, 1.2.1: si el PC sigue encendido, fuera la cubierta negra y la barra visible; src\Lanzador\Espera.cs)
                 }
                 if (TrayApp.PowerOffClock != null)
                     Log.Write("Cierre por consola apagada: " + TrayApp.PowerOffClock.ElapsedMilliseconds + " ms desde que se vio");
