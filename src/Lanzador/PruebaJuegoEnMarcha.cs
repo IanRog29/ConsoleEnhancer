@@ -147,6 +147,16 @@ namespace ConsoleEnhancer
             v.Observa(t0.AddSeconds(1.7), null, rl[0]);
             ok = v.Observa(t0.AddSeconds(2.0), "Rocket League", rl[0]);
             Mira(!ok && v.Nombre == null, "f) un icono visto a los 1,7 s (el foco ya movido) no vale de principio");
+            // h) el boton PS abrio antes el centro de control (sin el inicio ni la etiqueta) y a los 3 s se pasa al inicio: cuenta desde ahi
+            v.Reinicia(); v.Empieza(t0);
+            v.VeInicio(t0.AddSeconds(3));
+            bool sigue = v.PorLeer(t0.AddSeconds(7));
+            ok = v.Observa(t0.AddSeconds(3.4), "Grand Theft Auto VI", gta[0]);
+            Mira(sigue && ok && v.Nombre == "Grand Theft Auto VI", "h) centro de control 3 s y luego el inicio: leido a los 0,4 s del inicio (" + v.Porque + ")");
+            // i) VeInicio solo la primera vez (volver al inicio desde la Store no reinicia el plazo) y nunca con el foco ya sabido
+            v.Reinicia(); v.Empieza(t0);
+            v.VeInicio(t0.AddSeconds(0.2)); v.VeInicio(t0.AddSeconds(4));
+            Mira(!v.PorLeer(t0.AddSeconds(5.3)), "i) el inicio visto otra vez no reinicia el plazo");
             // g) sin visita (la app se abrio ya en el menu): nada
             v.Reinicia();
             Mira(!v.PorLeer(t0) && !v.Observa(t0, "Grand Theft Auto VI", gta[0]), "g) sin visita desde un juego: no se busca nada");

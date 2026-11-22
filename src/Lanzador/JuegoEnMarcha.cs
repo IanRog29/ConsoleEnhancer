@@ -50,6 +50,8 @@ namespace ConsoleEnhancer
 
         readonly object sync = new object();   // (la usan el hilo de las capturas y el de entrar / salir del menu)
 
+        public bool InicioVisto;                     // ya se vio el inicio (sus pestañas): desde ahi cuenta el plazo
+
         public bool Activa { get { return Desde != DateTime.MinValue; } }
         public bool Sabida { get { return Nombre != null; } }
 
@@ -58,11 +60,25 @@ namespace ConsoleEnhancer
             lock (sync)
             {
                 Desde = DateTime.MinValue; Nombre = null; Icono = null; At = DateTime.MinValue; Cerrada = false; Aplicado = false; Porque = null;
+                InicioVisto = false;
                 tempranos.Clear();
             }
         }
 
         public void Empieza(DateTime t) { lock (sync) { if (Activa) return; Reinicia(); Desde = t; } }
+
+        // La primera captura con el INICIO de la consola en esta visita (con la PS5 el boton PS puede abrir antes el centro de control, sin
+        // la etiqueta del juego; al pasar al inicio el juego en marcha esta en foco): el plazo y los iconos del principio cuentan desde aqui
+        public void VeInicio(DateTime t)
+        {
+            lock (sync)
+            {
+                if (!Activa || InicioVisto || Sabida) return;
+                InicioVisto = true;
+                Desde = t; Cerrada = false; Porque = null;
+                tempranos.Clear();
+            }
+        }
 
         // ¿Aun se busca? (capturas mas seguidas y tambien mientras la app pasa al menu)
         public bool PorLeer(DateTime t)
@@ -90,7 +106,7 @@ namespace ConsoleEnhancer
                 return false;
             }
             string ss = s.ToString("0.0", CultureInfo.InvariantCulture);
-            if (s <= TempranoS) { Pon(t, nombre, icono, "leido a los " + ss + " s de ver el menu"); return true; }
+            if (s <= TempranoS) { Pon(t, nombre, icono, "leido a los " + ss + " s de ver " + (InicioVisto ? "el inicio" : "el menu")); return true; }
             // Mas tarde (el inicio apareciendo, la app pasando al menu): solo con el icono en foco de una captura del principio
             double mejor = 999;
             if (icono != null) foreach (double[] e in tempranos) mejor = Math.Min(mejor, JuegoConsola.DistHuella(e, icono));
@@ -135,9 +151,19 @@ namespace ConsoleEnhancer
         }
 
         // MenuPs5Captura, cada captura con el menu en una visita: el icono en foco (aunque la etiqueta no se lea) y la etiqueta leida
-        void FocoVisitaObserva(Bitmap full, DateTime now, ConsolaPerfil c, string nombreFuerte, double[] icFoco)
+        // pestanas = esta captura se reconocio por las pestañas del inicio (DetectorMenu: l.Hora "pestañas")
+        void FocoVisitaObserva(Bitmap full, DateTime now, ConsolaPerfil c, string nombreFuerte, double[] icFoco, bool pestanas)
         {
-            if (ps5CiegoDesde != DateTime.MinValue || !ps5Visita.PorLeer(now)) return;
+            if (ps5CiegoDesde != DateTime.MinValue || !ps5Visita.Activa || ps5Visita.Sabida) return;
+            if (!ps5Visita.InicioVisto)
+            {
+                // (la PS5: la etiqueta del juego en foco solo sale en el inicio; sin ella, sus pestañas -OCR de su zona, ~20 ms- dicen si ya
+                // se ve el inicio o aun el centro de control. La Xbox: desde la primera captura de su menu)
+                bool inicio = c.Familia != "playstation" || !string.IsNullOrEmpty(nombreFuerte) || pestanas || JuegoConsola.EsInicio(full);
+                if (!inicio) return;
+                ps5Visita.VeInicio(now);
+            }
+            if (!ps5Visita.PorLeer(now)) return;
             double[] ic = icFoco;
             if (ic == null && (c.Familia == "playstation" || c.Familia == "xbox"))
             {

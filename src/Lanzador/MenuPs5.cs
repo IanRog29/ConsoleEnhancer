@@ -1001,7 +1001,7 @@ namespace ConsoleEnhancer
                         lock (homeSync) FocoObserva(icFoco, now, nombre);
                     // 1.2.05: el primer juego en foco al abrir el menu desde un juego (el que esta en marcha), si se lee en 1,5 s. 1.2.3 (JUEGO,
                     // src\JuegoEnMarcha.cs): tambien despues (entrando en el menu y ya en el) si el icono en foco es el de las capturas del principio
-                    FocoVisitaObserva(full, now, c, fuerte && !string.IsNullOrEmpty(nombre) ? nombre : null, icFoco);
+                    FocoVisitaObserva(full, now, c, fuerte && !string.IsNullOrEmpty(nombre) ? nombre : null, icFoco, l.Hora == "pestañas");
                     // 21-11: cada lectura nueva al log (para ver que lee en el menu)
                     string lect = (nombre ?? "") + (fuerte ? "/f" : "");
                     if (nombre != null && lect != ps5LecturaLog)
