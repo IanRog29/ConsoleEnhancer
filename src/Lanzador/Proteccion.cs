@@ -352,6 +352,25 @@ namespace ConsoleEnhancer
             return true;
         }
 
+        // (1.2.4) El motor propio no llega ("switch2-fps bajo", FpsBajo.cs; antes ya ha bajado lo suyo: % de DLSS 5, pasadas, modelo -EngineAdapta-):
+        // con x3 / x4 en el motor (agente MOTORFG) lo siguiente es el multiplicador, recordado por combinacion como con Magpie. true = hecho
+        DateTime proteMotorAt = DateTime.MinValue;
+        bool ProteMotor(double real, double obj)
+        {
+            try
+            {
+                if (!Config.ProteOn || !Config.EngineActive || (DateTime.Now - proteMotorAt).TotalSeconds < 30) return false;
+                PrepareCfg();
+                string tipo = cfg.FgTypeNow;
+                if (cfg.FgOff || cfg.Mode120 || !Config.MultTipo(tipo)) return false;
+                int m = cfg.FgMultNow;
+                if (m <= 2) return false;
+                proteMotorAt = DateTime.Now;
+                return ProteBajar(m, tipo, real, Config.MultBase(cfg.CapMode), real * m, Config.MultBase(cfg.CapMode) * m);
+            }
+            catch (Exception ex) { Log.Error("Proteccion (motor)", ex); return false; }
+        }
+
         // (MultVigila, ventana buena) 60 s llegando con una combinacion "a prueba" (lo previsto o lo recordado decia que no): se recuerda que si
         void ProteBien(int m, string tipo, double real, double modo)
         {

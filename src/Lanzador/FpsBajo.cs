@@ -42,6 +42,7 @@ namespace ConsoleEnhancer
                 Log.Write("Fps: el motor no llega (" + m.Groups[1].Value + " de " + m.Groups[2].Value + "), pero algo esta cambiando: nada");
                 return true;
             }
+            if (ProteMotor(real, obj)) return true;   // (1.2.4, XEFG: con x3 / x4 en el motor, primero el multiplicador; Proteccion.cs)
             FpsLanza(real, obj, gpu, "el motor");
             return true;
         }
