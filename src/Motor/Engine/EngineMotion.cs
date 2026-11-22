@@ -100,7 +100,7 @@ namespace ConsoleEnhancer.Motor
         bool uiValid;               // la de interfaz es de la imagen que se pinta
         int fgUiApplied;            // fgui/fgui_recomp con los que se configuro la generacion
 
-        bool QualityMotion { get { return s.MvMask > 0 || MvPxNow || s.FgUi > 0 || s.MvCapas; } }   // (17-11, REJAS: mvcapas usa blockInfo)
+        bool QualityMotion { get { return s.MvMask > 0 || MvPxNow || (s.FgUi > 0 && fgApplied) || s.MvCapas; } }   // (17-11, REJAS: mvcapas usa blockInfo) (1.2.4: fgui solo con DLSS-G)
 
         // 16-11 (E, tirones a 1440p): mvpx solo por debajo de 1440p cuando hay generacion en el modo 60 (mvpx_auto=1, de serie). Medido a
         // 1440p con K: los vectores 2,37 ms con mvpx y 1,26 sin (+1,1 ms, no los 0,45 de arriba), y con la generacion de NVIDIA no cabia
