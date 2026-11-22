@@ -311,7 +311,7 @@ namespace ConsoleEnhancer
         // en la carpeta de la app). Si %TEMP% esta en otro disco, se queda (lo dice el aviso del final)
         static bool MoverExe(string exe)
         {
-            string a = Path.Combine(Path.GetTempPath(), Resto + DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".tmp");
+            string a = Path.Combine(Path.GetTempPath(), Resto + DateTime.Now.ToString("yyyyMMdd-HHmmss") + "-" + Process.GetCurrentProcess().Id + ".tmp");
             try
             {
                 File.Move(exe, a);
