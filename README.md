@@ -346,7 +346,9 @@ Short and honest (this is what the licences say; it is not legal advice):
   circulates for RTX 20 / 30 / 40 is a modified NVIDIA binary, and loading it outside NVIDIA's runtime means skipping NVIDIA's checks,
   which its terms don't allow.
 - **Each person adds their own**: the app works fully without any of this. If you add a file yourself (*Add DLSS 5*, `extras\`,
-  `engine\`), it is your file and your responsibility; the app only uses it if it is there and never fetches it.
+  `engine\`), it is your file and your responsibility; the app only uses it if it is there and never fetches it. With a
+  `nvngx_dlssnr.dll` you added (and no private engine helper), DLSS 5 goes through Magpie Experimental: it is Magpie, a separate
+  program, that loads that file without NVIDIA's check, not ConsoleEnhancer's code.
 - What every RTX gets officially in the engine: DLSS Super Resolution, DLSS Frame Generation (RTX 40 / 50; ×3 / ×4 on RTX 50), Reflex
   and, optionally, RTX Dynamic Vibrance (it is not DLSS 5: it adds colour and clarity, it doesn't relight). The engine never alters
   NVIDIA's or Intel's libraries: where they don't offer ×3 / ×4, the engine uses its own frame generation (own code, legal on any GPU).
@@ -852,7 +854,9 @@ En corto y sin rodeos (es lo que dicen las licencias; no es asesoramiento legal)
   circula para RTX 20 / 30 / 40 es un binario de NVIDIA modificado, y cargarla fuera del runtime de NVIDIA es saltarse sus
   comprobaciones, cosa que sus condiciones no permiten.
 - **Cada uno añade lo suyo**: la app funciona entera sin nada de esto. Si añades tú un archivo (*Añadir DLSS 5*, `extras\`, `engine\`),
-  es tuyo y bajo tu responsabilidad; la app solo lo usa si está y nunca lo va a buscar.
+  es tuyo y bajo tu responsabilidad; la app solo lo usa si está y nunca lo va a buscar. Con una `nvngx_dlssnr.dll` que hayas añadido (y
+  sin complemento privado del motor), DLSS 5 va por Magpie Experimental: es Magpie, un programa aparte, quien carga ese archivo sin la
+  comprobación de NVIDIA, no el código de ConsoleEnhancer.
 - Lo que tiene cualquier RTX de forma oficial en el motor: DLSS Super Resolution, DLSS Frame Generation (RTX 40 / 50; ×3 / ×4 en RTX 50),
   Reflex y, si quieres, la Vibrancia RTX (no es DLSS 5: da color y claridad, no cambia la luz). El motor nunca cambia las DLL de NVIDIA ni
   de Intel: donde ellas no dan ×3 / ×4, el motor usa su generación propia (código propio, legal en cualquier gráfica).

@@ -129,11 +129,15 @@ publicada es una etiqueta `vX.Y.Z` de git; GitHub Actions monta su zip y copia a
 - ConsoleEnhancer's own code and its zip never bypass NVIDIA's or Intel's checks and never alter their libraries: NVIDIA's DLSS FG
   ×3 / ×4 only on RTX 50, Intel's XeSS FG ×3 / ×4 only on Intel GPUs, and everywhere else ×3 / ×4 come from the engine's own frame
   generation. Magpie (a separate program the app downloads) is only a fallback, and does things its own way. DLSS 5 is not legally
-  available to apps today (see *DLSS 5 and the law* in the README). Private engine helpers (`PrismaNr.dll`, `PrismaFg.dll`) are never in
+  available to apps today (see *DLSS 5 and the law* in the README): with a `nvngx_dlssnr.dll` you add yourself (and no private engine
+  helper), DLSS 5 goes through Magpie Experimental, which is what loads that file without NVIDIA's check, not ConsoleEnhancer's code;
+  the file is each user's, at their own risk. Private engine helpers (`PrismaNr.dll`, `PrismaFg.dll`) are never in
   the repository or the zip; the engine only uses them if someone puts them in `engine\`.
   *Ni el código de ConsoleEnhancer ni su zip se saltan las comprobaciones de NVIDIA o Intel ni cambian sus DLL: DLSS FG ×3 / ×4 de NVIDIA
   solo en RTX 50, XeSS FG ×3 / ×4 de Intel solo en Intel, y en lo demás ×3 / ×4 salen de la generación propia del motor. Magpie (programa
-  aparte que baja la app) es solo reserva. DLSS 5 legal para otras apps hoy no existe. Los complementos privados del motor nunca van en
+  aparte que baja la app) es solo reserva. DLSS 5 legal para otras apps hoy no existe: con una `nvngx_dlssnr.dll` que añadas tú (y sin
+  complemento privado del motor), DLSS 5 va por Magpie Experimental, que es quien carga ese archivo sin la comprobación de NVIDIA, no el
+  código de ConsoleEnhancer; el archivo lo pone cada usuario bajo su responsabilidad. Los complementos privados del motor nunca van en
   el repositorio ni en el zip.*
 - **To go back** (add the line at the end of `consoleenhancer.ini`): `motor_dlss5_pasadas=1` (2-3 DLSS 5 passes through Magpie, as in
   1.2.3) · `motor_fg_multi=0` (XeSS FG and ×3 / ×4 not in the engine) · `motor_fg_propia=0` (×3 / ×4 without the own frame generation) · `proteccion=0` (no protection; XeSS FG ×3 / ×4 locked as
