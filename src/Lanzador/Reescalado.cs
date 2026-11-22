@@ -23,6 +23,8 @@
 //     antes). El motor ya lo hacia (motor_nitidez_transformer): con K y CAS 0,5 sale un halo oscuro alrededor de las letras; a 0,3 limpio.
 //     Magpie seguia dando 0,5 a 1080p (0,25 con 2-3 pasadas) a K/L/M.
 //  3) "Sin reescalado" en el motor (Catmull-Rom) sin enfoque CAS, como en Magpie (x enfoque_sin_reescalado, de serie 0; 1 = como antes).
+//  4) DLSS SR de Magpie con L / M (transformer 2) con el flujo optico de DLSS 5 aunque el modo diga "sin flujo" (flujo_30_fg_dlss5=ninguno):
+//     sin vectores L / M borran la textura al mover la camara (dlss_flujo_transformer=nvidia de serie; vacio = como antes).
 // C# 5
 using System;
 using System.Globalization;
@@ -62,12 +64,35 @@ namespace ConsoleEnhancer
         // 3840x2160, enfoque CAS 0.50"), halos en los bordes que el estirado no tiene. 1 = como antes
         public double SharpenNoScale = 0;
 
+        // (4) dlss_flujo_transformer=ninguno|amd|nvidia (vacio = el del modo): el flujo optico de DLSS SR de Magpie con los modelos L / M
+        // (transformer 2). Con DLSS 5 en el modo 30 con generacion DLSS SR va sin flujo (flujo_30_fg_dlss5=ninguno: con el, el HUD quieto
+        // sobre el fondo que se mueve salia con letras partidas) y L / M sin vectores creen la escena quieta: en movimiento borran textura
+        // (detalle movido/quieto 0,60 con L; K 0,90, GTA 19-11). Elegidos en el menu de ajustes, ese era el "borroso al mover la camara".
+        // MEDIDO 22-11 (cadena de verdad mpv + Magpie con DLSS 5 nivel 3 al 70 %, captura 1080p, M; capturas de Magpie con la tele en
+        // reposo): con el flujo, paneo rapido detalle 0,48 -> 0,73 de la verdad y error 12,5 -> 11,3; paneo lento error 8,9 -> 8,2 y la
+        // correccion entre capturas 4,4 -> 3,0; el anillo alrededor del HUD casi igual (7,0 -> 7,3 lento, 13,3 -> 12,1 rapido).
+        // Solo donde el flujo ya se calcula para DLSS 5 (dlss5_flujo, compartido por toda la cadena de Magpie): no cuesta nada mas.
+        // De serie nvidia; vacio = como antes (el del modo, flujo_<modo>_dlss5)
+        public int SrFlowTransformer2 = 2;
+        public int DlssFlowSrNow
+        {
+            get
+            {
+                int f = DlssFlowNow;
+                if (f > 0 || SrFlowTransformer2 < 0 || !D5Tuned || Dlss5FlowNow <= 0) return f;
+                int m = DlssModelNow;
+                // (el mismo proveedor que DLSS 5 -AMD o NVIDIA-: el flujo que ya se calcula)
+                return m == 12 || m == 13 ? (SrFlowTransformer2 > 0 ? Dlss5FlowNow : 0) : f;
+            }
+        }
+
         bool CeParseReescalado(string key, string val)
         {
             switch (key)
             {
                 case "magpie_nitidez_transformer": MagpieSharpenTransformer = Math.Max(0, Math.Min(1, ParseNum(val))); return true;
                 case "enfoque_sin_reescalado": SharpenNoScale = Math.Max(0, Math.Min(1, ParseNum(val))); return true;
+                case "dlss_flujo_transformer": SrFlowTransformer2 = val.Trim().Length == 0 ? -1 : ParseFlow(val); return true;   // (vacio = como antes)
             }
             return false;
         }

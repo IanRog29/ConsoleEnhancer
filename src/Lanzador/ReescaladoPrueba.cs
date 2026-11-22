@@ -88,6 +88,11 @@ namespace ConsoleEnhancer
                                     // 2) CAS tras DLSS SR: x magpie_nitidez_transformer con J/K/L/M, igual con E
                                     if (sr != null)
                                     {
+                                        // 4) flujo de DLSS SR: con L/M el de DLSS 5 si el modo dice ninguno (dlss_flujo_transformer)
+                                        int fm = cfg.DlssFlowNow, f5 = cfg.Dlss5FlowNow, mod = (int)Num(sr, "renderPreset");
+                                        int fEsp = fm == 0 && f5 > 0 && cfg.SrFlowTransformer2 > 0 && (mod == 12 || mod == 13) ? f5 : fm;
+                                        Ok((int)Num(sr, "opticalFlowMethod") == fEsp, cap + " modo " + modo + (fg ? " fg" : "") + " p" + pasReal + " modelo " + mod + ": flujo de DLSS SR " + N(Num(sr, "opticalFlowMethod")) +
+                                           " (el del modo " + fm + ", DLSS 5 " + f5 + ")");
                                         double s0 = cfg.SharpenNow, k = Config.EsTransformer((int)Num(sr, "renderPreset")) ? cfg.MagpieSharpenTransformer : 1;
                                         double esperado = s0 * k;
                                         double visto = cas != null ? Num(cas, "sharpness") : 0;

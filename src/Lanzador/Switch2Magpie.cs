@@ -1819,7 +1819,8 @@ namespace ConsoleEnhancer
                                       Pars("opticalFlowMethod", cfg.DlssFlow, "amdOpticalFlowMode", flowAmd, "nvidiaOpticalFlowQuality", flowNv)));
                         break;
                     default:
-                        fx.Add(Effect("DLSS\\DLSS_SR", true, Pars("renderPreset", cfg.DlssModelNow, "opticalFlowMethod", cfg.DlssFlowNow,
+                        // (22-11, 1.2.2 REESCALADO: DlssFlowSrNow = con L/M, el flujo de DLSS 5 aunque el modo diga ninguno: Reescalado.cs)
+                        fx.Add(Effect("DLSS\\DLSS_SR", true, Pars("renderPreset", cfg.DlssModelNow, "opticalFlowMethod", cfg.DlssFlowSrNow,
                                                                   "amdOpticalFlowMode", flowAmd, "nvidiaOpticalFlowQuality", flowNv)));
                         break;
                 }
