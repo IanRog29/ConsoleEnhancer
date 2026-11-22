@@ -314,7 +314,7 @@ namespace ConsoleEnhancer.Motor
             // solo con DLSS o DLSS-G: XeSS y FSR reescalaban con los vectores a 0 (medido: el volcado de mvec, todo 0 en un paneo) y lo que se
             // mueve dejaba rastro y se emborronaba; FSR 3 FG generaba sin vectores. mvsr_xess_ffx=0 = como antes
             bool srTemporal = (inW != outW || inH != outH) && (scalerNow == "dlss" || (s.MvXessFfx && (scalerNow == "xess" || scalerNow == "ffx")));
-            bool on = s.Motion && newFrame && (srTemporal || fgApplied || (s.MvXessFfx && ExtFgOn) || (s.MvNativeNr && s.Nr && s.Mode == 30));   // (1.0.5: mv_nativo_dlss5, DLSS 5 a 4K nativo sin FG)
+            bool on = s.Motion && newFrame && (srTemporal || fgApplied || (s.MvXessFfx && ExtFgOn) || (s.MvNativeNr && s.Nr && s.Mode == 30) || FpWanted());   // (22-11, 1.2.4 DLSS5LEGAL: + la generacion propia, EngineFgPropia.cs)   // (1.0.5: mv_nativo_dlss5, DLSS 5 a 4K nativo sin FG)
             // 22-11 (1.2.1): si solo los usa la generacion con el vector de la camara (fg_global, EngineFgGlobal.cs) y nadie mas los vectores
             // por bloque (4K nativo sin DLSS 5, o un escalador espacial), sin la busqueda por bloques: solo la piramide de luma. Medido a 4K,
             // modo 30 + DLSS-G (3 pasadas de cada, grafica compartida): grafica por imagen real 9,1 -> 7,1 ms, la seccion de vectores 5,5 ->
