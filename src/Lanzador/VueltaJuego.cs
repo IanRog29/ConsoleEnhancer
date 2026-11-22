@@ -735,6 +735,19 @@ namespace ConsoleEnhancer
             return null;
         }
 
+        // El juego en marcha resulto ser otro (la comprobacion, o el juego en foco al volver al menu): lo que se guardo mientras tanto en el
+        // perfil de "nombre" (el mando, el menu de ajustes) era del otro: sus ajustes vuelven a los de la salida
+        void VueltaDevuelveAjustes(string nombre)
+        {
+            GameProfile copia = ps5VueltaCopia;
+            ps5VueltaCopia = null;
+            if (copia == null || nombre == null || copia.Name != nombre) return;
+            GameProfile gp = GameProfiles.Find(copia.Name);
+            if (gp == null || gp.Name != copia.Name || MismosAjustes(gp, copia)) return;
+            GameProfiles.SaveSettings(gp, copia);
+            Log.Write("Ajustes de \"" + copia.Name + "\": vuelven a los de antes de la salida del menu (lo cambiado entre medias era del otro juego): " + copia.Summary());
+        }
+
         static GameProfile CopiaPerfil(GameProfile p)
         {
             GameProfile c = new GameProfile();
@@ -774,17 +787,7 @@ namespace ConsoleEnhancer
                 return;
             }
             // Era el otro: los ajustes que el de antes cogiera mientras tanto (el mando, el menu de ajustes) no son suyos
-            GameProfile copia = ps5VueltaCopia;
-            ps5VueltaCopia = null;
-            if (copia != null)
-            {
-                GameProfile gp = GameProfiles.Find(copia.Name);
-                if (gp != null && gp.Name == copia.Name && !MismosAjustes(gp, copia))
-                {
-                    GameProfiles.SaveSettings(gp, copia);
-                    Log.Write("Ajustes de \"" + copia.Name + "\": vuelven a los de antes de la salida (lo cambiado era del juego que se habia arrancado): " + copia.Summary());
-                }
-            }
+            VueltaDevuelveAjustes(v.EnMarcha);
             ps5ArranqueProbable = v.Arranque;
             // (lo quieto de despues ya no se apunta como portada: el juego aun es el de antes hasta que MenuPs5Tick ponga este; la portada
             // vista al arrancarlo, abajo)

@@ -1199,8 +1199,10 @@ namespace ConsoleEnhancer
                     Log.Write("Menu de la consola: el juego en foco al abrirlo (el que esta en marcha) es \"" + pf + "\", no \"" + antes +
                               "\" (se arranco sin que la app lo viera): se toma ese como el juego de antes del menu");
                     ps5JuegoAntesMenu = pf;
+                    VueltaDevuelveAjustes(antes);   // (1.2.2: lo guardado en el de antes mientras tanto era de este)
                 }
             }
+            ps5VueltaCopia = null;
             ps5PrimerFoco = null; ps5PrimerFocoIcono = null; ps5PrimerMenuAt = DateTime.MinValue;
             pendingPassesRestart = false;
             bool sm = Config.EngineActive && Config.EngineSmoothRunning > 0;
