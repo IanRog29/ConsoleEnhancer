@@ -57,11 +57,12 @@ namespace ConsoleEnhancer
                 case "generacion_multiplicador": MultOn = val.Trim() != "0"; return true;
                 case "xess_fg_1080": XessFg1080 = val.Trim() != "0"; return true;
                 case "xess_fg_x4": XessX4 = val.Trim().ToLowerInvariant(); return true;
-                case "xess_fg_multi_cabe": XessMultiCabe = val.Trim() != "0"; return true;   // (1.2.3, MULTI2: ver MultXessCabe)
+                case "xess_fg_multi_cabe": XessMultiCabe = val.Trim() != "0"; return true;
+                case "xess_fg_fijo": XessFijo = val.Trim() != "0"; return true;   // (1.2.4, XEFG: ver XessFijoNow)   // (1.2.3, MULTI2: ver MultXessCabe)
                 // (solo pruebas: la pantalla como si fuera a N Hz para las reglas del multiplicador; p. ej. el menu con la tele apagada)
                 case "prueba_multiplicador_hz": { int h; if (int.TryParse(val.Trim(), out h)) multHzPrueba = Math.Max(0, h); } return true;
             }
-            return false;
+            return CeParseProte(key, val);   // (1.2.4, XEFG: proteccion*, src\Lanzador\Proteccion.cs)
         }
 
         // ---- XeSS FG con la ventana de 1080p (19-11, Magpie de antes: "no arranca, 0 imagenes"). xess_fg_1080=1: se ofrece y se usa
@@ -141,7 +142,9 @@ namespace ConsoleEnhancer
             }
             // (1.2.3, MULTI2) XeSS FG x3 / x4 fuera de Intel (el ritmo de compatibilidad de Magpie): la cadena, sin DLSS 5, tiene que caber en
             // T/m; si no, las reales bajan (EscalaAuto.XessCompat). Con DLSS 5, la escala automatica le da lo que quede o lo quita
-            if (tipo == "xess" && XessMultiCabe && !multGpuDentro)
+            // (1.2.4, XEFG: con la proteccion -de serie- ya no se bloquea por la grafica: se elige, con el aviso de lo que pasa, y la
+            // prevision / la vigilancia de Proteccion.cs deciden; proteccion=0 = como la 1.2.3)
+            if (tipo == "xess" && XessMultiCabe && !ProteOn && !multGpuDentro)
             {
                 double w, b, r;
                 if (!MultXessCabe(cap30, m, out w, out b, out r))
@@ -165,6 +168,27 @@ namespace ConsoleEnhancer
         }
         public bool MultBloqueado(bool cap30, int m, string tipo) { string es, en; return MultBloqueado(cap30, m, tipo, out es, out en); }
 
+        // ---- (1.2.4, XEFG) XeSS FG x3 / x4 de compatibilidad (no Intel) a REFRESCO FIJO cuando la salida es un divisor del refresco (x4 = 119,88
+        // en 120 Hz: cada imagen un refresco). MEDIDO el 22-11 (tele 3840x2160@120 con VRR, RTX 4060 Ti, Magpie con la escena de barrotes a 4K,
+        // sin DLSS 5, 30 s): por VRR 29,5-29,6 reales y 118 de salida con la espera del ritmo creciendo (extraWait 5-9 ms) y solo el 50 % de
+        // las imagenes a 8,3 +-2 ms (p95 11,2); a refresco fijo 29,85 reales, 119,4 de salida, extraWait 0 y el 99 % a 1 refresco (p95 8,40).
+        // Si la cadena no cabe en T/4 a refresco fijo se cae a la mitad (1440p + DLSS E x4: 16,7 reales; por VRR 24,4): para eso la prevision
+        // y la proteccion (Proteccion.cs). x3 (90 en 120) sigue por VRR. PERO con la app entera (captura yuyv de 4K a mpv, DXGI con la
+        // sincronizacion vertical forzada de RitmoFijo1Now) fue peor: fijo 25,7-26,5 reales (extraWait 25 ms), por VRR 29,1-29,6. De serie
+        // NO (por VRR, como la 1.2.3); xess_fg_fijo=1 para probarlo
+        public static volatile bool XessFijo = false;
+        public bool XessFijoNow
+        {
+            get
+            {
+                if (!XessFijo || FgOff || Mode120 || !CapMode || FgTypeNow != "xess" || GpuVendor == "intel") return false;
+                int m = FgMultNow, hz = MultHz();
+                if (m < 3 || hz <= 0) return false;
+                double k = hz / (MultBase(true) * m);
+                return Math.Abs(k - Math.Round(k)) <= 0.03 && Math.Round(k) >= 1;
+            }
+        }
+
         // ---- (1.2.3, MULTI2) XeSS FG x3 / x4 de compatibilidad: ¿cabe la cadena (sin DLSS 5) en T/m? (EscalaAuto.XessCompat, Presupuesto)
         // xess_fg_multi_cabe=0 = no mirarlo (como la 1.2.2: se ofrece y, si no llega, MultVigila baja el multiplicador jugando)
         public static volatile bool XessMultiCabe = true;
@@ -177,34 +201,41 @@ namespace ConsoleEnhancer
 
         public bool MultXessCabe(bool cap30, int m, out double w, out double b, out double reales)
         {
-            string key = (cap30 ? 30 : 60) + "|" + m + "|" + VideoSize + "|" + GpuVendor;
+            // (1.2.4, XEFG: la clave con la cadena entera -escalador, modelo de DLSS SR...-. Antes solo modo, multiplicador, captura y
+            // fabricante: el log del usuario, 22-11 14:55:48, "sin reescalado" -> "DLSS E" en menos de 2 s valio lo de sin reescalado -cabe-,
+            // Magpie se abrio con x4 y luego la app creia que iba x3: "AVISO, se pidio XeSS FG x3 y Magpie ha puesto x4", a tirones)
+            w = b = 0; reales = MultBase(cap30);
+            bool ok = true;
+            CadenaEscala c;
+            try { c = ProteCadena(cap30, m, "xess"); }
+            catch (Exception ex) { Log.Error("Multiplicador: XeSS FG x" + m + " (cadena)", ex); return true; }
+            c.VectoresFg = false;   // (su flujo no alarga el hilo: medido, x3 a 4K llega)
+            string key = c.ClaveCompleta(0) + "|" + c.Modelo + "|" + c.Juego + "|" + GpuVendor;
             lock (multXeSync)
             {
                 if (key == multXeKey && (DateTime.UtcNow - multXeCalc).TotalSeconds < 2) { w = multXeW; b = multXeB; reales = multXeR; return multXeOk; }
             }
-            w = b = 0; reales = MultBase(cap30);
-            bool ok = true;
-            multGpuDentro = true;
             try
             {
-                CadenaEscala c = CadenaEscalaPara(1);
-                c.Gen = "xess"; c.Mult = m; c.VectoresFg = false;   // (su flujo no alarga el hilo: medido, x3 a 4K llega)
-                c.Modo = cap30 ? 30 : 60; c.Objetivo = MultBase(cap30);
                 if (EscalaAuto.XessCompat(c))
                 {
-                    double k = EscalaAuto.KDe(c.Juego, c.Clave);
-                    w = EscalaAuto.Prevision(c, 0, 0, k, 0);
-                    b = EscalaAuto.Presupuesto(c);
-                    reales = Math.Min(c.Objetivo, 1000.0 / Math.Max(1, m * w));   // (el periodo se estira a ~m x W: x4 a 4K, W ~9 ms -> 27,4 medidas)
+                    reales = ProteReales(c, out w, out b);
                     ok = w <= b;
                 }
             }
             catch (Exception ex) { Log.Error("Multiplicador: XeSS FG x" + m + " (cuenta de la grafica)", ex); ok = true; }
-            finally { multGpuDentro = false; }
             lock (multXeSync) { multXeKey = key; multXeOk = ok; multXeW = w; multXeB = b; multXeR = reales; multXeCalc = DateTime.UtcNow; }
             return ok;
         }
         public string MultMotivo(bool cap30, int m, string tipo) { string es, en; return MultBloqueado(cap30, m, tipo, out es, out en) ? Tx.T(es, en) : ""; }
+        // (1.2.4, XEFG) lo bloqueado o, si no, por que no va solo (Proteccion.cs: lo recordado o la prevision lejos); "" = va
+        public string MultMotivoVa(bool cap30, int m, string tipo)
+        {
+            string r = MultMotivo(cap30, m, tipo);
+            if (r.Length > 0) return r;
+            string en, es = ProteNoVa(cap30, m, tipo, out en);
+            return es != null ? Tx.T(es, en) : "";
+        }
 
         // Lo que va de verdad en un modo con un tipo (Config.FgMultNow): lo pedido o, si no cabe, el mayor que cabe
         public int MultAhora(bool cap30, string tipo)
@@ -213,6 +244,10 @@ namespace ConsoleEnhancer
             if (!MultTipo(tipo)) return 2;
             int m = MultPedido(cap30);
             while (m > 2 && MultBloqueado(cap30, m, tipo)) m--;
+            // (1.2.4, XEFG) y la proteccion: lo que ya no llego en esta combinacion o lo que la prevision ve lejos va al de abajo (con el motivo en
+            // el aviso; elegido a mano se prueba: Config.ProtePrueba). Proteccion.cs
+            string en;
+            while (m > 2 && ProteNoVa(cap30, m, tipo, out en) != null) { m--; while (m > 2 && MultBloqueado(cap30, m, tipo)) m--; }
             return m;
         }
 
@@ -224,7 +259,8 @@ namespace ConsoleEnhancer
             int fallos = 0;
             bool vrrAntes = CeImagen.VrrAhora;
             string x4Antes = XessX4;
-            bool cabeAntes = XessMultiCabe;
+            bool cabeAntes = XessMultiCabe, proteAntes = ProteOn;
+            ProteOn = false;   // (1.2.4: la tabla sin la proteccion, que va aparte: MultPruebaProte)
             XessX4 = "1";   // (la tabla, sin el arreglo de XeSS FG x4: ese va aparte, abajo)
             XessMultiCabe = false;   // (1.2.3: y sin la cuenta de la grafica de XeSS FG x3 / x4, que va aparte: MultPruebaGrafica)
             // esperado: "hz vrr modo" -> los que caben de x2 x3 x4 (DLSS FG con el componente o XeSS FG)
@@ -307,8 +343,9 @@ namespace ConsoleEnhancer
                 sb.AppendLine((okp ? "      " : "FALLO ") + "perfil: \"dlss,xess,0,4\" -> " + p.Pick60 + "/" + p.Pick30 + " x" + p.Mult60 + "/x" + p.Mult30 + " -> \"" + p.PickText + "\"; \"smooth,\" -> \"" + q.PickText + "\"");
             }
             catch (Exception ex) { fallos++; sb.AppendLine("EXCEPCION: " + ex); }
-            finally { multHzPrueba = 0; CeImagen.VrrAhora = vrrAntes; XessX4 = x4Antes; XessMultiCabe = cabeAntes; }
+            finally { multHzPrueba = 0; CeImagen.VrrAhora = vrrAntes; XessX4 = x4Antes; XessMultiCabe = cabeAntes; ProteOn = proteAntes; }
             try { fallos += MultPruebaGrafica(sb); } catch (Exception ex) { fallos++; sb.AppendLine("EXCEPCION (grafica): " + ex); }
+            try { fallos += MultPruebaProte(sb); } catch (Exception ex) { fallos++; sb.AppendLine("EXCEPCION (proteccion): " + ex); }
             sb.AppendLine(fallos == 0 ? "OK" : fallos + " fallos");
             string f = string.IsNullOrEmpty(informe) ? Path.Combine(Paths.Datos, @"games\test_multiplicador.txt") : informe;
             try { Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(f))); File.WriteAllText(f, sb.ToString(), new System.Text.UTF8Encoding(false)); } catch { }
@@ -373,9 +410,62 @@ namespace ConsoleEnhancer
             bool okx3 = EscalaAuto.Prevision(x3, 0, 0, 1.0, 0) <= EscalaAuto.Presupuesto(x3);
             if (!okx3) fallos++;
             sb.AppendLine((okx3 ? "      " : "FALLO ") + "XeSS FG x3 a 4K sin DLSS 5 cabe (medido: 29,9 reales; " + EscalaAuto.Prevision(x3, 0, 0, 1.0, 0).ToString("0.0", CultureInfo.InvariantCulture) + " de " + EscalaAuto.Presupuesto(x3).ToString("0.0", CultureInfo.InvariantCulture) + " ms)");
+            // (1.2.4, XEFG) la prevision de las reales con el ritmo de compatibilidad (k 1): 4K x4 a prueba (ni lejos ni seguro), 1440p + DLSS E
+            // x4 lejos (medido 24,4), x3 a 4K y a 1440p + DLSS E llegan (medido 29,9)
+            string[][] casos = { new[] { "3840x2160", "4", "", "5", "27", "29.2" }, new[] { "2560x1440", "4", "dlss", "5", "0", "26.9" },
+                                 new[] { "3840x2160", "3", "", "5", "29.5", "99" }, new[] { "2560x1440", "3", "dlss", "5", "29", "99" },
+                                 new[] { "2560x1440", "4", "fsr", "5", "26", "29.2" } };
+            foreach (string[] cs in casos)
+            {
+                CadenaEscala x = MultCadenaPrueba(cs[0], "xess", int.Parse(cs[1]), cs[2], int.Parse(cs[3]), false);
+                double wx = EscalaAuto.XessCompatW(x, 1.0), rx = Math.Min(x.Objetivo, 1000.0 / (x.Mult * wx));
+                double lo = double.Parse(cs[4], CultureInfo.InvariantCulture), hi = double.Parse(cs[5], CultureInfo.InvariantCulture);
+                bool okc = rx >= lo && rx <= hi;
+                if (!okc) fallos++;
+                sb.AppendLine((okc ? "      " : "FALLO ") + "prevision XeSS FG x" + cs[1] + " " + cs[0] + (cs[2].Length > 0 ? " + " + cs[2] : "") + ": W " + wx.ToString("0.0", CultureInfo.InvariantCulture) +
+                              " ms -> " + rx.ToString("0.0", CultureInfo.InvariantCulture) + " reales (esperado " + cs[4] + "-" + cs[5] + ")");
+            }
             return fallos;
         }
 
+
+        // ---- (1.2.4, XEFG) --test-multiplicador, la proteccion: lo recordado baja el multiplicador; elegido a mano se prueba; "si" lo deja
+        static int MultPruebaProte(System.Text.StringBuilder sb)
+        {
+            int fallos = 0;
+            string antesF = ProteMemoria.Fichero;
+            bool antesOn = ProteOn, antesCabe = XessMultiCabe, vrrAntes = CeImagen.VrrAhora;
+            string tmp = Path.Combine(Path.GetTempPath(), "ce_proteccion_prueba_" + System.Diagnostics.Process.GetCurrentProcess().Id + ".txt");
+            try
+            {
+                ProteMemoria.Fichero = tmp;
+                ProteOn = true; XessMultiCabe = false;   // (sin la prevision: solo lo recordado)
+                multHzPrueba = 120; CeImagen.VrrAhora = true;
+                Config c = new Config();
+                c.CapMode = true; c.MultPick30 = 4;
+                string clave = c.ProteClave(c.ProteCadena(true, 4, "xess"));
+                int va0 = c.MultAhora(true, "xess");
+                ProteMemoria.Anota(clave, "no", 27.4, 29.97);
+                int va1 = c.MultAhora(true, "xess");
+                string en, es = c.ProteNoVa(true, 4, "xess", out en);
+                c.ProtePrueba(true, 4, "xess");
+                int va2 = c.MultAhora(true, "xess");
+                string av = c.ProteAviso(true, 4, "xess", out en);
+                ProtePruebaFuera(clave);
+                ProteMemoria.Anota(clave, "si", 29.9, 29.97);
+                int va3 = c.MultAhora(true, "xess");
+                bool ok = va0 == 4 && va1 == 3 && es != null && va2 == 4 && av != null && va3 == 4;
+                if (!ok) fallos++;
+                sb.AppendLine((ok ? "      " : "FALLO ") + "proteccion (XeSS FG x4 pedido, modo 30): sin nada x" + va0 + "; recordado \"no\" x" + va1 + " (" + es + "); elegido a mano x" + va2 +
+                              " (" + av + "); recordado \"si\" x" + va3 + " (esperado 4, 3, 4, 4)");
+            }
+            finally
+            {
+                ProteMemoria.Fichero = antesF; ProteOn = antesOn; XessMultiCabe = antesCabe; multHzPrueba = 0; CeImagen.VrrAhora = vrrAntes;
+                try { File.Delete(tmp); } catch { }
+            }
+            return fallos;
+        }
 
         // ¿Cabe DLSS 5 (1 pasada, al minimo) en la cadena de ahora con este tipo y multiplicador? (escala automatica de DLSS 5; sin ella, si).
         // MEDIDO el 22-11: 1440p, DLSS L, DLSS FG x4 sin DLSS 5 = 81 % de grafica; con DLSS 5 encendido la app lo quita ("NO CABE")
@@ -452,7 +542,10 @@ namespace ConsoleEnhancer
             string t = cfg.FgTypeNow;
             if (!Config.MultTipo(t)) return "";
             int quiere = cfg.MultPedido(cfg.CapMode), va = cfg.FgMultNow;
-            if (quiere > va) return " · x" + quiere + " → x" + va + " (" + cfg.MultMotivo(cfg.CapMode, quiere, t) + ")";
+            if (quiere > va) return " · x" + quiere + " → x" + va + " (" + cfg.MultMotivoVa(cfg.CapMode, quiere, t) + ")";
+            // (1.2.4, XEFG: "a prueba" -justo-: que se diga)
+            string aen, aes = cfg.ProteAviso(cfg.CapMode, va, t, out aen);
+            if (aes != null && va > 2) return " · x" + va + " " + Tx.T(aes, aen);
             if (!cfg.CapMode)
             {
                 int m30 = cfg.MultAhora(true, t);
@@ -462,7 +555,9 @@ namespace ConsoleEnhancer
         }
 
         // El multiplicador m en el modo de ahora (bandeja, Ctrl+X). Reabre lo que haga falta (como el tipo de generacion)
-        void MultElegir(int m, int tries)
+        void MultElegir(int m, int tries) { MultElegir(m, tries, false); }
+        // auto = la app (la vigilancia, el arranque de Magpie); si no, elegido a mano
+        void MultElegir(int m, int tries, bool auto)
         {
             if (InHome || homeBusy || userExit) return;
             System.Diagnostics.Process p = mpv;
@@ -471,7 +566,7 @@ namespace ConsoleEnhancer
             {
                 if (tries >= 40) { Log.Write("Multiplicador: x" + m + " sin poner (la imagen seguia cambiando)"); return; }
                 Thread.Sleep(250);
-                MultElegir(m, tries + 1);
+                MultElegir(m, tries + 1, auto);
                 return;
             }
             try
@@ -485,6 +580,7 @@ namespace ConsoleEnhancer
                 int antes = cfg.FgMultNow;
                 if (m == antes && cfg.MultPedido(cfg.CapMode) == m) { Osd(cfg.FgName + " x" + m + Tx.T(" · ya activo", " · already on")); return; }
                 bool engineAntes = Config.EngineActive;
+                if (!auto) cfg.ProtePrueba(cfg.CapMode, m, t);   // (1.2.4, XEFG: elegido a mano = se prueba, con su aviso; Proteccion.cs)
                 if (cfg.CapMode) SetMults(cfg.MultPick60, m); else SetMults(m, cfg.MultPick30);
                 if (m > 2 && t == "dlss") Config.MultPideSm86 = true;
                 lastPadAction = DateTime.Now;
@@ -495,6 +591,7 @@ namespace ConsoleEnhancer
                 SaveCurProfile();
                 double b = Config.MultBase(cfg.CapMode);
                 RestartLs(cfg.FgName + " x" + m, (cfg.CapMode ? "30" : "60") + " → " + Math.Round(b * m).ToString(CultureInfo.InvariantCulture) + " fps", false, true);
+                if (!auto) MultAvisoPrueba(m, t);
             }
             finally { Interlocked.Exchange(ref fgBusy, 0); }
         }
@@ -577,7 +674,11 @@ namespace ConsoleEnhancer
                         int mm = m;
                         string es, en;
                         bool bloq = cfg.MultBloqueado(cfg.CapMode, m, t, out es, out en);
-                        ToolStripMenuItem it = new ToolStripMenuItem("x" + m + "  (" + Math.Round(b * m).ToString(CultureInfo.InvariantCulture) + " fps)" + (bloq ? " · " + Tx.T(es, en) : ""), null, delegate
+                        // (1.2.4, XEFG: lo que la proteccion no pone sola o pone a prueba, con su motivo; se elige igual)
+                        string nota = bloq ? " · " + Tx.T(es, en) : "";
+                        if (!bloq && (es = cfg.ProteNoVa(cfg.CapMode, m, t, out en)) != null) nota = " · " + Tx.T(es + " (se prueba)", en + " (tried if picked)");
+                        else if (!bloq && (es = cfg.ProteAviso(cfg.CapMode, m, t, out en)) != null) nota = " · " + Tx.T(es, en);
+                        ToolStripMenuItem it = new ToolStripMenuItem("x" + m + "  (" + Math.Round(b * m).ToString(CultureInfo.InvariantCulture) + " fps)" + nota, null, delegate
                         {
                             DesdeBandeja("multiplicador x" + mm, true, delegate { MultElegir(mm, 0); });
                         });
@@ -661,6 +762,20 @@ namespace ConsoleEnhancer
                 for (int m = 3; m <= 4; m++) if (!f.Bloqueado(m - 2) && !cfg.MultCabeDlss5(m, tipoSel)) sinD5.Add("x" + m);
                 if (sinD5.Count > 0) f.Ayuda += " · " + string.Join(" / ", sinD5.ToArray()) + Tx.T(": DLSS 5 no cabe (se quita)", ": DLSS 5 doesn't fit (it's removed)");
             }
+            // (1.2.4, XEFG) lo que la proteccion no pone sola (lo recordado / la prevision lejos) o pone "a prueba": se elige igual, con el
+            // motivo (antes, "bloqueado" en gris sin poder probarlo). Con la captura y el modo de ahora (la cuenta es la de la cadena de ahora)
+            if (f.Visible && mismo && Config.ProteOn)
+            {
+                List<string> notas = new List<string>();
+                for (int m = 3; m <= 4; m++)
+                {
+                    if (f.Bloqueado(m - 2)) continue;
+                    string en, es = cfg.ProteNoVa(cap30, m, tipoSel, out en);
+                    if (es != null) notas.Add("x" + m + ": " + Tx.T(es + " (elegido, se prueba y se vigila)", en + " (if picked, it's tried and watched)"));
+                    else if ((es = cfg.ProteAviso(cap30, m, tipoSel, out en)) != null) notas.Add("x" + m + ": " + Tx.T(es, en));
+                }
+                if (notas.Count > 0) f.Ayuda += " · " + string.Join("; ", notas.ToArray());
+            }
         }
 
         // (AjustesOrden) lo elegido a mano en la fila
@@ -673,9 +788,15 @@ namespace ConsoleEnhancer
             if (!e.TryGetValue("mult", out v) || modo == 120) return;
             int m;
             if (!int.TryParse(v, out m) || m < 2 || m > 4) return;
+            string t = cfg.FgTypeNow;
+            string ty;
+            if (e.TryGetValue("tipo", out ty) && ty.Length > 0) t = ty;
+            cfg.ProtePrueba(modo == 30, m, t);   // (1.2.4, XEFG: elegido en el menu = se prueba, con su aviso; Proteccion.cs)
             if (modo == 30) SetMults(cfg.MultPick60, m); else SetMults(m, cfg.MultPick30);
             if (m > 2) Config.MultPideSm86 = true;
             Log.Write("Menu de ajustes: multiplicador x" + m + " en el modo " + modo);
+            int mm = m; string tt = t;
+            ThreadPool.QueueUserWorkItem(delegate { try { Thread.Sleep(4000); MultAvisoPrueba(mm, tt); } catch { } });
         }
 
         // Altura del menu en filas (las de dos lineas cuentan dos; las escondidas, nada)
@@ -781,16 +902,29 @@ namespace ConsoleEnhancer
             }
         }
 
-        // CheckLsPacing cada 5 s con Magpie. true = ha bajado el multiplicador (lo demas no juzga esta vez)
+        // CheckLsPacing cada 5 s con Magpie. true = ha bajado algo (lo demas no juzga esta vez).
+        // (1.2.4, XEFG: la proteccion de Proteccion.cs, con cualquier generacion de Magpie -tambien x2- y por orden: con DLSS 5 por Magpie y su
+        // escala automatica, primero su % y sus pasadas -EscalaVigila, que va detras: aqui no se juzga mientras se puedan bajar-; luego el
+        // multiplicador, el modelo de DLSS SR y la escalera de FpsBajo. Reales por debajo del 95 % -proteccion_umbral- o la salida del 92 %, dos
+        // ventanas seguidas. proteccion=0 = como la 1.2.3: solo el multiplicador con x3 / x4, 90 % -95 % con XeSS FG de compatibilidad-)
         bool MultVigila(LsStats st)
         {
             try
             {
                 PrepareCfg();
-                bool xess = cfg.FgTypeNow == "xess";
-                if (xess && cfg.MultAlto) MultLeerXess();
-                if (!cfg.MultAlto || Config.EngineActive || cfg.HomeNative || InHome || homeBusy || passesBusy || relaunchSize != null || relaunchEngine ||
+                string tipo = cfg.FgTypeNow;
+                bool xess = tipo == "xess";
+                bool prote = Config.ProteOn;
+                bool fgMagpie = !cfg.FgOff && !cfg.Mode120 && fgWanted && tipo != "smooth" && tipo.Length > 0;
+                if (xess && fgMagpie && (cfg.MultAlto || prote)) MultLeerXess();
+                if (!fgMagpie || (!prote && !cfg.MultAlto) || Config.EngineActive || cfg.HomeNative || InHome || homeBusy || passesBusy || relaunchSize != null || relaunchEngine ||
                     userExit || !lsReady || applying || MagpieLive.RunningFor() < 20 || (DateTime.Now - multBajadoAt).TotalSeconds < 30) { multMal = 0; return false; }
+                // (el % de DLSS 5 y sus pasadas, antes: los baja EscalaVigila)
+                if (prote && cfg.Dlss5AutoAhora && cfg.D5Tuned && !cfg.EngineDlss5Now)
+                {
+                    int n5 = cfg.Dlss5PassesNow, p5 = cfg.Dlss5PctNow;
+                    if (n5 > 1 || p5 > EscalaAuto.Suelo(cfg.CadenaEscalaPara(Math.Max(1, n5)))) { multMal = 0; return false; }
+                }
                 double fuente = FuenteFps(), modo = Config.MultBase(cfg.CapMode);
                 if (fuente < modo * 0.92) { multMal = 0; return false; }   // (el juego no da el modo entero: no es cosa del PC)
                 int m = cfg.FgMultNow, hz = Config.MultHz();
@@ -805,28 +939,50 @@ namespace ConsoleEnhancer
                 {
                     if (st.CapN == 0 || st.CapTime <= 0) return false;
                     salida = (st.NewSum + st.GenSum) / st.CapTime; real = st.NewSum / st.CapTime;
+                    if (tipo != "dlss" && st.GenSum == 0) salida = real * m;   // (FSR 3 FG / VFG: sin inventadas en el resumen, solo las reales)
                 }
                 double objetivo = Math.Min(modo * m, hz >= 60 ? hz - 0.2 : modo * m);
                 // (1.2.3, MULTI2) XeSS FG x3 / x4 de compatibilidad (no Intel): con las reales un 5 % por debajo ya va a saltos (el ritmo reparte
                 // las inventadas sobre un periodo que se estira: x4 a 4K, 27,4 reales = huecos de 2 refrescos); antes, un 10 %
-                double umbral = xess && cfg.GpuVendor != "intel" ? 0.95 : 0.9;
-                bool mal = salida < objetivo * umbral || real < modo * umbral;
+                double umbral = prote ? Config.ProteUmbral : xess && cfg.GpuVendor != "intel" ? 0.95 : 0.9;
+                bool mal = salida < objetivo * (prote ? 0.92 : umbral) || real < modo * umbral;
                 multMal = mal ? multMal + 1 : 0;
+                if (!mal) { if (prote) ProteBien(m, tipo, real, modo); return false; }
+                proteBienClave = "";
                 if (multMal < 2) return false;
                 multMal = 0;
                 multBajadoAt = DateTime.Now;
+                if (prote) return ProteBajar(m, tipo, real, modo, salida, objetivo);
+                if (m <= 2) return false;
                 int nuevo = m - 1;
                 while (nuevo > 2 && cfg.MultBloqueado(cfg.CapMode, nuevo, cfg.FgTypeNow)) nuevo--;
                 string fs = Math.Round(salida).ToString(CultureInfo.InvariantCulture), fo = Math.Round(objetivo).ToString(CultureInfo.InvariantCulture);
                 Log.Write("Multiplicador: no se llega con x" + m + " (salida " + salida.ToString("0.0", CultureInfo.InvariantCulture) + " de " + objetivo.ToString("0.0", CultureInfo.InvariantCulture) +
                           ", reales " + real.ToString("0.0", CultureInfo.InvariantCulture) + " de " + modo.ToString("0.00", CultureInfo.InvariantCulture) + "): se baja a x" + nuevo + " (guardado en el perfil del juego)");
-                string tipo = cfg.FgName;
-                OnUi(delegate { OsdWarn(Tx.T("No se llega a " + fo + " fps (" + fs + ") · cambiado a " + tipo + " x" + nuevo, fo + " fps not reached (" + fs + "): changed to " + tipo + " x" + nuevo), "7000"); });
+                string tn = cfg.FgName;
+                OnUi(delegate { OsdWarn(Tx.T("No se llega a " + fo + " fps (" + fs + ") · cambiado a " + tn + " x" + nuevo, fo + " fps not reached (" + fs + "): changed to " + tn + " x" + nuevo), "7000"); });
                 int nn = nuevo;
-                ThreadPool.QueueUserWorkItem(delegate { try { MultElegir(nn, 0); } catch (Exception ex) { Log.Error("Multiplicador: bajando", ex); } });
+                ThreadPool.QueueUserWorkItem(delegate { try { MultElegir(nn, 0, true); } catch (Exception ex) { Log.Error("Multiplicador: bajando", ex); } });
                 return true;
             }
             catch (Exception ex) { Log.Error("Multiplicador (vigilancia)", ex); return false; }
+        }
+
+        // (1.2.4, XEFG) elegido a mano y "a prueba" (justo, o ya no llego antes): que se sepa lo que pasa y que se vigila
+        void MultAvisoPrueba(int m, string t)
+        {
+            try
+            {
+                PrepareCfg();
+                string en, es = cfg.ProteAviso(cfg.CapMode, m, t, out en);
+                if (es == null || cfg.FgMultNow != m) return;
+                string n = GenLabel(t, false);
+                int baja = m > 2 ? m - 1 : 2;
+                string tes = n + " x" + m + " · " + es + (m > 2 ? ": si va a tirones, x" + baja : ""), ten = n + " x" + m + " · " + en + (m > 2 ? ": if it stutters, x" + baja : "");
+                Log.Write("Proteccion: " + tes);
+                OnUi(delegate { OsdWarn(Tx.T(tes, ten), "7000"); });
+            }
+            catch (Exception ex) { Log.Error("Proteccion: aviso a prueba", ex); }
         }
 
         // ---------------- el tipo elegido que no puede ir (la app pone otro: que se diga, nunca en silencio) ----------------
@@ -913,7 +1069,7 @@ namespace ConsoleEnhancer
                         Log.Write("Multiplicador: XeSS FG x" + pedido + " no ha arrancado en Magpie (" + msg + "): se pasa a x2");
                         int pe2 = pedido;
                         OnUi(delegate { OsdWarn(Tx.T("XeSS FG x" + pe2 + " no arranca en esta gráfica: x2", "XeSS FG x" + pe2 + " doesn't start on this GPU: x2"), "7000"); });
-                        ThreadPool.QueueUserWorkItem(delegate { try { MultElegir(2, 0); } catch (Exception ex) { Log.Error("Multiplicador: a x2", ex); } });
+                        ThreadPool.QueueUserWorkItem(delegate { try { MultElegir(2, 0, true); } catch (Exception ex) { Log.Error("Multiplicador: a x2", ex); } });
                     }
                     return;
                 }
@@ -930,7 +1086,7 @@ namespace ConsoleEnhancer
                                   bt.ToString("0.##", CultureInfo.InvariantCulture) + ") a una pantalla de " + hzx + " Hz: se pasa a x3 (con x4 asi se pierde la mitad de imagenes reales; xess_fg_x4=1 = no mirarlo)");
                         string pide = Math.Round(ot).ToString(CultureInfo.InvariantCulture);
                         OnUi(delegate { OsdWarn(Tx.T("XeSS FG x4 pide " + pide + " fps a una tele de " + hzx + " Hz: x3", "XeSS FG x4 asks for " + pide + " fps on a " + hzx + " Hz TV: x3"), "7000"); });
-                        ThreadPool.QueueUserWorkItem(delegate { try { MultElegir(3, 0); } catch (Exception ex) { Log.Error("Multiplicador: a x3", ex); } });
+                        ThreadPool.QueueUserWorkItem(delegate { try { MultElegir(3, 0, true); } catch (Exception ex) { Log.Error("Multiplicador: a x3", ex); } });
                         return;
                     }
                 }

@@ -34,7 +34,7 @@ namespace ConsoleEnhancer
         public string CeModeloMax = "auto";      // escalas_modelo_max
         // (1.2.2, UNIVERSAL) motor_uso_grafica: % del tiempo de una imagen que el motor deja usar a la grafica jugando (el tope de su p95,
         // menos la generacion de NVIDIA: src\Motor\Engine\EngineMargen.cs). 85 de serie; 93 ~ como antes de la 1.2.2
-        public double CeUsoGrafica = 85;
+        public double CeUsoGrafica = 90;   // (1.2.4, XEFG: antes 85)
 
         bool CeParseEscalas(string key, string val)
         {
