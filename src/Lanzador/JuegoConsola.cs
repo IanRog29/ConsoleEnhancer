@@ -423,7 +423,7 @@ namespace ConsoleEnhancer
         // (< IconoQuieto). Si no, puede ser la etiqueta nueva con el icono del juego de antes mientras se mueve la fila (el icono de
         // "PS5: PLAYÑOOM" del usuario, 18:57:24, es casi el de GTA VI: 29,0, con las mismas filas) o el fundido al arrancarlo / apagarla
         // (el segundo icono de GTA VI, 19:08:44: oscuro arriba y claro abajo)
-        static bool Confirmada(List<LecturaFoco> l, int i)
+        internal static bool Confirmada(List<LecturaFoco> l, int i)
         {
             for (int j = i - 1; j <= i + 1; j += 2)
                 if (j >= 0 && j < l.Count && l[j].Icono != null && l[i].Icono != null && Relacionado(l[i].Nombre, l[j].Nombre) &&

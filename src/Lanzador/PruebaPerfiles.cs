@@ -113,10 +113,51 @@ namespace ConsoleEnhancer
                 string got = JuegoConsola.LimpiaEtiqueta(q[0]);
                 Mira(got == q[1], "limpia \"" + q[0] + "\" -> \"" + got + "\"");
             }
+            // Los otros juegos en foco de la visita (22-11 04:06:04-17: Bloodborne, GTA VI y Rocket League en foco; se arranca otro)
+            {
+                double[] icRl = IconoSint(2), icGta = IconoSint(1), icBb = IconoSint(3);
+                DateTime t = new DateTime(2026, 11, 22, 4, 6, 4);
+                List<JuegoConsola.LecturaFoco> l = new List<JuegoConsola.LecturaFoco> {
+                    Lf("Bloodborne", icBb, t), Lf("Grand Theft Auto VI", icGta, t.AddSeconds(1.3)), Lf("Bloodborne", icBb, t.AddSeconds(2.9)),
+                    Lf("Rocket League", icRl, t.AddSeconds(4)), Lf("Rocket agu", icRl, t.AddSeconds(4.6)), Lf("Rocket League", icRl, t.AddSeconds(8.3)),
+                    Lf("Rocket Leagueñ", icRl, t.AddSeconds(8.8)), Lf("Rocket LeagueF", icRl, t.AddSeconds(12.7)), Lf("Rocket Leagueñ", icRl, t.AddSeconds(13.1)) };
+                Func<double[], string> perfil = delegate (double[] ic) { return ic == icRl ? "PS5: Rocket" : ic == icGta ? "PS5: Grand Theft Auto VI" : ic == icBb ? "PS5: Rocket League" : null; };
+                Dictionary<string, List<string>> g = NombresConsola.NombresPorIcono(l, perfil, "PS5: Grand Theft Auto VI");
+                List<string> rl;
+                int ap = 0;
+                string n = g.TryGetValue("PS5: Rocket", out rl) ? JuegoConsola.MejorNombre(rl, null, out ap) : null;
+                bool renF = n != null && JuegoConsola.MejorNombreQue("PS5: Rocket", n, ap, false);
+                // (el icono de Bloodborne parecido al de un perfil "PS5: Rocket League": su lectura no tiene que ver con ese nombre: fuera)
+                Mira(renF && n == "Rocket League" && !g.ContainsKey("PS5: Rocket League") && !g.ContainsKey("PS5: Grand Theft Auto VI"),
+                     "en foco sin arrancarlo: \"PS5: Rocket\" con " + (rl != null ? rl.Count : 0) + " lecturas confirmadas -> \"" + n + "\" (" + (renF ? "se renombra" : "no") +
+                     "); un icono parecido de otro juego no renombra; el que se arranca lo mira PerfilPorIcono");
+            }
             // La Bienvenida no da nombre ni es el menu de verdad (tambien con la errata del OCR del 22-11 04:07:29)
             Mira(JuegoConsola.EsBienvenida("Te demos la bienvenida de nuevo a PlayStation | ¿Quién está usando est..."), "Bienvenida con la errata \"Te demos\"");
             Mira(JuegoConsola.EsBienvenida("Who's using this controller?"), "Bienvenida en ingles");
             Mira(!JuegoConsola.EsBienvenida("Juegos Contenido multimedia Bienvenida Grand Theft Auto VI"), "el inicio con su seccion \"Bienvenida\" no es la Bienvenida");
+        }
+
+        static JuegoConsola.LecturaFoco Lf(string n, double[] ic, DateTime at)
+        {
+            JuegoConsola.LecturaFoco r = new JuegoConsola.LecturaFoco();
+            r.Nombre = n; r.Icono = ic; r.At = at; r.Quieto = true;
+            return r;
+        }
+
+        // Un icono sintetico (12x12, normalizado) distinto por semilla
+        static double[] IconoSint(int semilla)
+        {
+            Random rnd = new Random(semilla * 7919);
+            double[] s = new double[JuegoConsola.IcoN * JuegoConsola.IcoN];
+            double m = 0;
+            for (int i = 0; i < s.Length; i++) { s[i] = rnd.Next(0, 256); m += s[i]; }
+            m /= s.Length;
+            double v = 0;
+            foreach (double x in s) v += (x - m) * (x - m);
+            double sd = Math.Sqrt(v / s.Length);
+            for (int i = 0; i < s.Length; i++) s[i] = (s[i] - m) * 50.0 / sd;
+            return s;
         }
 
         // ---------------- Migracion de lo guardado ----------------

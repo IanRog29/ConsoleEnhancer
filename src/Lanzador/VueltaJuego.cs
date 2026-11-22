@@ -278,6 +278,28 @@ namespace ConsoleEnhancer
             return tag != null ? tag + ": " + cand : cand;
         }
 
+        // ---------------- Los demas juegos en foco de una visita al menu ----------------
+        // Las lecturas CONFIRMADAS (etiqueta e icono juntos dos veces: JuegoConsola.Confirmada) agrupadas por el perfil de su icono
+        // (perfilDeIcono: el guardado mas parecido, o null), solo las que tienen que ver con el nombre de ese perfil (JuegoConsola.Relacionado:
+        // un icono parecido de otro juego no le cambia el nombre). Sin "excepto" (el que se arranca: ya lo mira PerfilPorIcono)
+        public static Dictionary<string, List<string>> NombresPorIcono(List<JuegoConsola.LecturaFoco> l, Func<double[], string> perfilDeIcono, string excepto)
+        {
+            Dictionary<string, List<string>> r = new Dictionary<string, List<string>>();
+            if (l == null || perfilDeIcono == null) return r;
+            for (int i = 0; i < l.Count; i++)
+            {
+                JuegoConsola.LecturaFoco x = l[i];
+                if (x.Icono == null || string.IsNullOrEmpty(x.Nombre) || !JuegoConsola.Confirmada(l, i)) continue;
+                string p = perfilDeIcono(x.Icono);
+                if (p == null || p == excepto || JuegoConsola.TagConsola(p) == null) continue;
+                if (!JuegoConsola.Relacionado(JuegoConsola.SinTag(p), x.Nombre)) continue;
+                List<string> n;
+                if (!r.TryGetValue(p, out n)) r[p] = n = new List<string>();
+                n.Add(x.Nombre);
+            }
+            return r;
+        }
+
         // ---------------- Migracion de lo guardado (al abrir la app) ----------------
         // Los nombres guardados de una consola (perfiles, iconos, portadas, el ultimo juego) con basura pegada pasan a su nombre bueno: el de
         // otro nombre guardado del que son "basura pegada" (y el diccionario no dice lo contrario), la base comun de dos o mas con basura
@@ -821,6 +843,25 @@ namespace ConsoleEnhancer
         {
             DateTime a = PrudenteTrasApagado(), b = ps5Bienvenida.Hasta;
             return a > b ? a : b;
+        }
+
+        // 1.2.2: al salir del menu, los OTROS juegos que estuvieron en foco en la visita (no solo el que se arranca): si su icono es el de
+        // un perfil y su nombre leido es mejor (consenso de sus lecturas confirmadas; MejorNombrePerfil: a medias, provisional, con basura),
+        // el perfil se renombra ya ("PS5: Rocket" al pasar por Rocket League en el inicio sin arrancarlo, 22-11 04:06:08-17)
+        void RenombraFocosDeLaVisita(ConsolaPerfil c, List<JuegoConsola.LecturaFoco> lecturas, string excepto)
+        {
+            try
+            {
+                Dictionary<string, List<string>> g = NombresConsola.NombresPorIcono(lecturas, delegate (double[] ic) { double d; return IconosConsola.Busca(ic, out d); }, excepto);
+                foreach (KeyValuePair<string, List<string>> kv in g)
+                {
+                    if (kv.Value.Count < 2) continue;
+                    int ap;
+                    string n = JuegoConsola.MejorNombre(kv.Value, PerfilExiste(c), out ap);
+                    if (n != null && ap >= 2) MejorNombrePerfil(c, kv.Key, n, ap, lecturas);
+                }
+            }
+            catch (Exception ex) { Log.Error("Renombrando los juegos en foco del menu", ex); }
         }
 
         // ---------------- 1.2.2: al abrir la app, los nombres con basura pegada a su nombre bueno ----------------

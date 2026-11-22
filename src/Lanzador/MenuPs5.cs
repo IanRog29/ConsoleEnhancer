@@ -1268,6 +1268,7 @@ namespace ConsoleEnhancer
                 FotoFoco foto;
                 lock (homeSync) foto = TomaFoco();
                 pi = PerfilPorIcono(c, DateTime.Now, primeraFuera, foto, out infoIcono, 4);
+                RenombraFocosDeLaVisita(c, foto.Lecturas, pi);   // (1.2.2: los otros juegos en foco, con su nombre bueno)
                 // 1.2.1: sin icono y sin la etiqueta del inicio leida en esta visita, el nombre reconocido son 2 lecturas iguales de otra
                 // cosa (el centro de control: "ácil de usar" de su tarjeta "Fácil de usar"): sin un perfil con ese nombre no se crea uno
                 // nuevo ni se cambia el juego en marcha
