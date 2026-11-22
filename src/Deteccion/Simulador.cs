@@ -105,8 +105,16 @@ namespace ConsoleEnhancer.Deteccion
         {
             ModeloCaptura m = DetectorCapturadoras.Catalogo.Find(delegate(ModeloCaptura x) { return x.Clave == clave; });
             if (m == null) return;
+            // (como las UVC: cada formato con velocidades fijas -la mayor, 60 y 30-, no un rango)
             List<FormatoCaptura> fl = new List<FormatoCaptura>();
-            foreach (FormatoCaptura f in m.Previstos()) { f.Previsto = false; f.FpsMin = f.FpsMax; fl.Add(f); }
+            foreach (FormatoCaptura f in m.Previstos())
+                foreach (double v in new[] { f.FpsMax, 60, 30 })
+                {
+                    if (v > f.FpsMax + 0.01 || fl.Exists(delegate(FormatoCaptura x) { return x.Alto == f.Alto && x.Subtipo == f.Subtipo && Math.Abs(x.FpsMax - v) < 0.01; })) continue;
+                    FormatoCaptura d = new FormatoCaptura();
+                    d.Ancho = f.Ancho; d.Alto = f.Alto; d.Subtipo = f.Subtipo; d.Comprimido = f.Comprimido; d.FpsMax = v; d.FpsMin = v;
+                    fl.Add(d);
+                }
             string nombre = m.Patrones.Length > 0 ? m.Patrones[0] : m.Modelo;
             Captura(h, nombre, m.Vid != 0 ? m.Vid : 0x1234, m.Pid != 0 ? m.Pid : 0x0001, m.Bus.StartsWith("PCI") ? "PCI" : "USB", fl.ToArray(), "Digital Audio Interface (" + nombre + ")", false);
         }
@@ -144,7 +152,9 @@ namespace ConsoleEnhancer.Deteccion
                     double fps = c.FpsDe(elegido);
                     bool hay60 = fl.Exists(delegate(FormatoCaptura x) { return !x.Comprimido && x.Alto >= 720 && c.FpsDe(x) >= 59; });
                     if (fps < 59 && hay60) r.Add("captura a " + Tx.N(fps, "0.#") + " fps habiendo 60 sin comprimir");
-                    if (elegido.Comprimido && elegido.Alto > Planificador.TopeComprimido(h)) r.Add("MJPEG a " + elegido.Alto + "p con " + h.Sistema.Hilos + " hilos");
+                    int tc = Planificador.TopeComprimido(h);
+                    if (elegido.Comprimido && elegido.Alto > tc && fl.Exists(delegate(FormatoCaptura x) { return x.Alto <= tc && x.Alto >= 480; }))
+                        r.Add("MJPEG a " + elegido.Alto + "p con " + h.Sistema.Hilos + " hilos");
                     if (!elegido.Previsto && p.CapFps == "60000/1001" && elegido.FpsMin > 59.95 && Math.Abs(elegido.FpsMax - 60) < 0.05) r.Add("pide 59,94 a una capturadora que solo lista 60 (mpv no abre)");
                     if (elegido.Comprimido && fl.Exists(delegate(FormatoCaptura x) { return !x.Comprimido && x.Alto >= 720 && c.FpsDe(x) >= Math.Min(59, fps); })) r.Add("comprimida habiendo sin comprimir");
                 }

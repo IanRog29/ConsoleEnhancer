@@ -147,7 +147,10 @@ static class DeteccionTest
                         string modos = "";
                         foreach (KeyValuePair<string, ModoPlan> kv in p.Modos)
                             modos += " " + kv.Key + "=" + (kv.Value.Modelo.Length > 0 ? kv.Value.Modelo : p.Escalador) + "@" + Math.Round(100 * kv.Value.CosteMs / ((kv.Key.StartsWith("60") ? 1000.0 : 2000.0) / 59.94)) + "%";
-                        W((r.Count > 0 ? "MAL " : "ok  ") + gpu + " | " + pan + " | " + cap + " -> " + p.Motor + " " + p.CapW + "x" + p.CapH + " " + p.CapFormato + " " + p.CapFps +
+                        // (LIM = solo lo que la grafica no da y el plan ya avisa: integradas a 4K)
+                        bool lim = r.Count > 0 && r.TrueForAll(delegate(string x) { return x.Contains("[avisado"); });
+                        if (lim) { r.Clear(); }
+                        W((r.Count > 0 ? "MAL " : lim ? "LIM " : "ok  ") + gpu + " | " + pan + " | " + cap + " -> " + p.Motor + " " + p.CapW + "x" + p.CapH + " " + p.CapFormato + " " + p.CapFps +
                           " | " + p.Escalador + " | gen " + p.Gen60 + "/" + p.Gen30 + (p.GenDeSerie ? " (serie)" : "") + " | 120: " + (c120.Length > 0 ? c120 : "-") + " |" + modos +
                           (r.Count > 0 ? " || " + string.Join("; ", r.ToArray()) : ""));
                         if (r.Count > 0)

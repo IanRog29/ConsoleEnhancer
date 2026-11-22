@@ -159,8 +159,14 @@ namespace ConsoleEnhancer.Deteccion
                 if (f.Alto > topeAlto || f.Alto < 360) continue;
                 if (f.Comprimido && f.Alto > topeComprimido) continue;
                 double fps = FpsDe(f);
-                // (por encima de lo pedido los fps ya no cuentan: YUY2 a 60 antes que NV12 a 120 para el modo 60)
-                double s = (fps >= fpsMin ? 1000000 : Math.Min(fps, 240) / 10.0) + (f.Comprimido ? 0 : 500000) + f.Alto * 100.0 + SubtipoPuntos(f.Subtipo);
+                // (por encima de lo pedido los fps ya no cuentan: YUY2 a 60 antes que NV12 a 120 para el modo 60; pero mejor uno que admita
+                // 59,94-60 tal cual: la GC573 lista 1440p "a 120" fijos y "59,94-144"; con el de 120 fijos se pediria 120 para el modo 60)
+                double mn = f.FpsMin > 0 ? f.FpsMin : fps;
+                bool modo60 = fpsMin >= 59 && fpsMin <= 61;
+                bool justo = modo60 && mn <= 60.05 && fps >= 59.9;
+                // (para el modo 60 solo vale un formato que de 59,94-60 de verdad: uno que solo lista 120 o 240 fijos no es "de 60")
+                bool llega = fps >= fpsMin && (!modo60 || justo);
+                double s = (llega ? 1000000 : Math.Min(fps, 240) / 10.0) + (f.Comprimido ? 0 : 500000) + f.Alto * 100.0 + SubtipoPuntos(f.Subtipo) + (justo ? 50 : 0);
                 if (s > bestScore) { bestScore = s; best = f; }
             }
             return best;
@@ -190,37 +196,8 @@ namespace ConsoleEnhancer.Deteccion
     public static class DetectorCapturadoras
     {
         // ------------------------------------------------------------------ catalogo (lo que se sabe sin abrir; el asistente lo confirma)
-        public static readonly List<ModeloCaptura> Catalogo = new List<ModeloCaptura>
-        {
-            new ModeloCaptura("AVerMedia", "Live Gamer 4K (GC573)", 0x1461, 0x0054, "PCIe", new[] { "GC573" }, 3840, 2160, 60, false,
-                              "4K60 / 1440p144 / 1080p240; YUY2, NV12, RGB24", "audio en el mismo filtro DirectShow (pines «Audio» y «Audio Mixer»); Media Foundation no la abre (0xC00D36B4); a 4K en RGB24 llega a ~53 fps (medido)").Con(true, true),
-            new ModeloCaptura("AVerMedia", "Live Gamer 4K 2.1 (GC575)", 0, 0, "PCIe", new[] { "GC575" }, 3840, 2160, 60, false, "4K60 HDR / 1440p144 / 1080p240", ""),
-            new ModeloCaptura("AVerMedia", "Live Gamer Ultra 2.1 (GC553G2)", 0, 0, "USB3", new[] { "GC553G2", "Ultra 2.1" }, 3840, 2160, 60, false, "4K60 / 1440p120 / 1080p240", ""),
-            new ModeloCaptura("AVerMedia", "Live Gamer Ultra (GC553)", 0, 0, "USB3", new[] { "GC553", "Live Gamer Ultra" }, 3840, 2160, 30, false, "4K30 / 1080p60 (UVC)", ""),
-            new ModeloCaptura("AVerMedia", "Live Gamer Extreme (GC550/GC551)", 0, 0, "USB3", new[] { "GC550", "GC551", "Live Gamer Extreme" }, 1920, 1080, 60, false, "1080p60", ""),
-            new ModeloCaptura("AVerMedia", "Live Gamer Mini (GC311)", 0, 0, "USB2", new[] { "GC311", "Live Gamer Mini" }, 1920, 1080, 60, false, "1080p60 (USB 2.0)", "USB 2.0: puede ir comprimida"),
-            new ModeloCaptura("AVerMedia", "Live Gamer (genérica)", 0x07CA, 0, "USB", new[] { "Live Gamer", "AVerMedia" }, 1920, 1080, 60, false, "", ""),
-            new ModeloCaptura("Elgato", "HD60 X", 0, 0, "USB3", new[] { "HD60 X" }, 3840, 2160, 30, false, "1080p60 / 1440p60 / 4K30; NV12, YUY2 (UVC)", ""),
-            new ModeloCaptura("Elgato", "HD60 S+", 0, 0, "USB3", new[] { "HD60 S+" }, 1920, 1080, 60, false, "1080p60 (driver de Elgato)", ""),
-            new ModeloCaptura("Elgato", "HD60 S", 0, 0, "USB3", new[] { "HD60 S" }, 1920, 1080, 60, false, "1080p60 (driver de Elgato)", ""),
-            new ModeloCaptura("Elgato", "4K X / 4K S", 0, 0, "USB3", new[] { "4K X", "4K S" }, 3840, 2160, 60, false, "4K60 / 1440p120 / 1080p240 (UVC)", ""),
-            new ModeloCaptura("Elgato", "4K60 Pro / 4K Pro", 0, 0, "PCIe", new[] { "4K60 Pro", "4K Pro" }, 3840, 2160, 60, false, "4K60 (PCIe)", ""),
-            new ModeloCaptura("Elgato", "4K60 S+", 0, 0, "USB3", new[] { "4K60 S+" }, 3840, 2160, 60, false, "4K60 (comprimida, HEVC)", "la captura llega comprimida"),
-            new ModeloCaptura("Elgato", "Cam Link 4K", 0, 0, "USB3", new[] { "Cam Link" }, 3840, 2160, 30, false, "4K30 / 1080p60; NV12, YUY2 (UVC)", ""),
-            new ModeloCaptura("Elgato", "Game Capture (genérica)", 0x0FD9, 0, "USB", new[] { "Elgato", "Game Capture" }, 1920, 1080, 60, false, "", ""),
-            new ModeloCaptura("Magewell", "USB Capture HDMI", 0x2935, 0, "USB3", new[] { "USB Capture HDMI", "Magewell" }, 1920, 1080, 60, false, "1080p60; YUY2, NV12, RGB24 (UVC; 4K Plus: 4K30)", ""),
-            new ModeloCaptura("Magewell", "Pro Capture (PCIe)", 0x1CD7, 0, "PCIe", new[] { "Pro Capture" }, 3840, 2160, 60, false, "", ""),
-            new ModeloCaptura("MacroSilicon", "MS2109 (USB 2.0, genérica)", 0x534D, 0x2109, "USB2", new string[0], 1920, 1080, 30, true,
-                              "MJPEG 1080p30 / 720p60; YUY2 solo a poca resolución", "USB 2.0: a 1080p solo MJPEG a 30 fps (más latencia y CPU)"),
-            new ModeloCaptura("MacroSilicon", "MS2130 (USB 3.0, genérica)", 0x345F, 0x2130, "USB3", new string[0], 1920, 1080, 60, false, "YUY2 1080p60; MJPEG hasta 4K30", ""),
-            new ModeloCaptura("MacroSilicon", "MS2130 (USB 3.0, genérica)", 0x534D, 0x2130, "USB3", new string[0], 1920, 1080, 60, false, "YUY2 1080p60; MJPEG hasta 4K30", ""),
-            new ModeloCaptura("Razer", "Ripsaw", 0, 0, "USB3", new[] { "Ripsaw" }, 1920, 1080, 60, false, "1080p60", ""),
-            new ModeloCaptura("Hauppauge", "HD PVR / Colossus", 0x2040, 0, "", new[] { "Hauppauge", "HD PVR", "Colossus" }, 1920, 1080, 60, false, "", "suele llegar comprimida (H.264)"),
-            new ModeloCaptura("Blackmagic", "DeckLink / UltraStudio", 0, 0, "", new[] { "Decklink", "DeckLink", "Blackmagic", "UltraStudio" }, 3840, 2160, 60, false, "UYVY / v210", ""),
-            new ModeloCaptura("Genki", "ShadowCast", 0, 0, "USB", new[] { "ShadowCast" }, 1920, 1080, 30, true, "", ""),
-            new ModeloCaptura("EVGA", "XR1", 0, 0, "USB3", new[] { "XR1" }, 1920, 1080, 60, false, "", ""),
-            new ModeloCaptura("NZXT", "Signal", 0, 0, "USB3", new[] { "NZXT Signal" }, 3840, 2160, 30, false, "", ""),
-        };
+        // (1.2.2, UNIVERSAL) el catalogo es una tabla de datos aparte: CatalogoCapturas.cs (modelos, formatos previstos, modos malos, rarezas)
+        public static readonly List<ModeloCaptura> Catalogo = CatalogoCapturas.Modelos;
 
         static readonly string[] PalabrasCaptura = { "capture", "captura", "hdmi", "game", "live gamer", "cam link", "usb video", "uvc", "grabber", "video capture", "usb3.0 capture", "usb3. 0 capture" };
         static readonly string[] PalabrasWebcam = { "webcam", "camera", "cámara", "camara", "facecam", "brio", "c920", "c922", "c930", "c270", "streamcam", "lifecam", "kiyo", "integrated", "ir cam", "user facing", "front", "rear" };
