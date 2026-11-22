@@ -18,4 +18,4 @@ magpie-dlssfg-vsync-pacing.patch (20-11-2026)
 
 PrismaNr ("DLSS 5" dentro del motor, C++) no esta en este repositorio: necesita las cabeceras propietarias del SDK de DLSS y carga la
 DLL no oficial de un modo que la licencia de los SDK de NVIDIA RTX no permite. Sin PrismaNr.dll el motor funciona igual
-(src\Motor\Engine\EngineDlss5.cs solo la usaba si estaba). Desde la 1.2.4 DLSS 5 va siempre por Magpie: el motor no la carga nunca.
+(src\Motor\Engine\EngineDlss5.cs solo la usa si esta).

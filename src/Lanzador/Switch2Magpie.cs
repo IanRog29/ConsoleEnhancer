@@ -743,9 +743,7 @@ namespace ConsoleEnhancer
             {
                 if (Integrado.MagpieDlssgOk) return false;
                 if (Ce.DlssgSoloMagpie) return true;
-                // (22-11, 1.2.4 SOLOMAGPIE: el juego va siempre por Magpie, tambien con DLSS 5 apagado o sin caber: su DLSS FG pide el runtime)
-                if (SoloMagpieOn) return true;
-                if (Dlss5Off || !Integrado.Dlss5Available) return false;
+                if (Dlss5Off || !Integrado.Dlss5Available || MotorDlss5Pedido) return false;   // (22-11, 1.2.3 MOTOR5: si DLSS 5 lo hace de verdad el motor, src\Lanzador\MotorDlss5.cs)
                 // (1.2.04) el usuario, 21-11: "pantallazo negro unos segundos cada vez que cambio de juego o al menu". Con DLSS 5 que NO
                 // CABE (captura 4K: nada que escalar) DLSS FG la hace el motor propio y no hace falta dlssg_sm86; antes se cambiaba por XeSS
                 // FG (solo Magpie) y cada vuelta del menu (motor propio) al juego reabria mpv + Magpie con ~2 s de negro. Dlss5FitsNow pasa
@@ -888,7 +886,10 @@ namespace ConsoleEnhancer
         public int EngineVrr = 0;
         // motor_vrr_fg_vsync (con motor_vrr=1 y la generacion): -1 = auto (sin sincronizacion en el modo 30, con ella en el 60), 0 = nunca, 1 = siempre
         public int EngineVrrFgVsync = -1;
-        // (motor_dlss5_home, 20-11 LATENCIA4: DLSS 5 del motor en el HOME; fuera en la 1.2.4 con todo el DLSS 5 del motor: SOLOMAGPIE)
+        // 20-11 (LATENCIA4, motor_dlss5_home): DLSS 5 del motor tambien en el HOME / menu de la consola a 4K nativo (1, como del 20-11
+        // 03:15 a las 06:00) o no (0, de serie: el menu tal cual, como con Magpie, que no lo escalaba). Medido (menu 4K, fuente de prueba,
+        // PresentMon): de la llegada a verse 20,5 -> 10,0 ms y grafica 13,3 -> 3,4 ms; DLSS 5 en los menus cambiaba el tono de lo plano
+        public bool EngineDlss5Home = false;
         public string EngineExtra = "";               // motor_extra: ajustes tal cual (clave=valor separados por espacios)
         // 16-11 (motor_en_espera, ini 0/1; de serie 1): el motor no se cierra al pasar a mpv + Magpie (DLSS 5 encendido, otra captura,
         // un juego con DLSS 5): suelta la capturadora y se queda escondido y listo ("switch2-standby"); al volver a el (DLSS 5 apagado)
@@ -948,8 +949,9 @@ namespace ConsoleEnhancer
         // 19-11 (GENERACION): la generacion de ahora solo la hace Magpie (FSR 3 FG, XeSS FG, NVIDIA VFG): con DLSS 5 apagado, mpv + Magpie sin el
         // 21-11 (1.0.9): FSR 3 FG ya la hace el motor propio (src\Motor\Engine\EngineFgFfx.cs) salvo con DLSS de escalador (con ella el motor
         // va sin Streamline, sin DLSS): entonces sigue Magpie. XeSS FG y la de NVIDIA VFX, Magpie
-        public bool FgMagpieOnly { get { return !FgOff && !HomeNative && ((FgTypeNow == "fsr3" && Ce.EngineUpscaler(this) == "dlss") || FgTypeNow == "xess" || FgTypeNow == "vfg" ||
-                                                                         (FgTypeNow == "dlss" && Ce.DlssgSoloMagpie) || MultPorMagpie); } }   // (1.0.10: RTX 30 + dlssg_sm86, DLSS FG por Magpie; 1.2.2: DLSS FG x3 / x4, Multiplicador.cs)
+        // (22-11, 1.2.4 SOLOMOTOR: los tipos / multiplicadores que el motor sabe, en MotorSabeGeneracion de SoloMotor.cs -MOTORFG: XeSS FG y x3 / x4-)
+        public bool FgMagpieOnly { get { return !FgOff && !HomeNative && !Mode120 && ((FgTypeNow == "fsr3" && Ce.EngineUpscaler(this) == "dlss") || !MotorSabeGeneracion(FgTypeNow, MultOn && !Mode120 ? FgMultNow : 2) ||
+                                                                         (FgTypeNow == "dlss" && Ce.DlssgSoloMagpie)); } }   // (1.0.10: RTX 30 + dlssg_sm86, DLSS FG por Magpie; 1.2.2: DLSS FG x3 / x4, Multiplicador.cs)
         // El motor con FSR 3 FG (fg_tipo=fsr3 al abrirlo: su cadena de presentacion es la de FidelityFX; no se cambia en marcha)
         public bool EngineFfxWanted { get { return !FgOff && !HomeNative && !Mode120 && FgTypeNow == "fsr3" && Ce.EngineUpscaler(this) != "dlss"; } }
         public static volatile int EngineFfxLaunched = -1;
@@ -981,20 +983,41 @@ namespace ConsoleEnhancer
         public static int EngineFixedOf(Process p) { if (p == null) return -1; try { int v; lock (engineFixedByPid) return engineFixedByPid.TryGetValue(p.Id, out v) ? v : -1; } catch { return -1; } }
         // DLSS 5 apagado, o que no cabe en este modo (60 con generacion: Magpie iria sin el, peor que el motor)
         // (19-11, GENERACION: y no con una generacion que solo hace Magpie, FgMagpieOnly)
-        // 22-11 (1.2.4, SOLOMAGPIE; el usuario: "Quita lo de elegir entre motor y magpie, haz que solo haya magpie"): el juego se ve
-        // SIEMPRE por mpv + Magpie, tambien con DLSS 5 apagado, sin caber o en el modo 120. El motor propio queda solo por dentro, sin
-        // elegirse en ningun sitio: el puente mientras Magpie se (re)abre (motor en espera + puente_ligero, src\Lanzador\SinTelon.cs).
-        // El HOME / menu de la consola a 4K nativo va por mpv, como ya iba con DLSS 5 encendido. ini solo_magpie=0 (no esta en base.ini;
-        // solo para comparar): como la 1.2.3 sin DLSS 5 (el motor hace la imagen con DLSS 5 apagado o sin caber). DLSS 5 nunca en el motor
-        public static volatile bool SoloMagpieOn = true;
-        public bool EngineNow { get { return !SoloMagpieOn && Engine == "propio" && (Dlss5Off || !Dlss5FitsNow) && !FgMagpieOnly && !ScalerMagpieOnly && File.Exists(EnginePath); } }
+        // (22-11, 1.2.4 SOLOMOTOR: el reparto entero en MotorSabeAhora, src\Lanzador\SoloMotor.cs: el motor en todo lo que sabe hacer)
+        public bool EngineNow { get { return Engine == "propio" && MotorSabeAhora && File.Exists(EnginePath); } }
         // 21-11 (1.0.9): XeSS y FSR 4 de escalador solo los tiene Magpie (el motor ponia FSR 1 sin decirlo): con ellos, mpv + Magpie
         public bool ScalerMagpieOnly { get { return false; } }   // (1.0.9: ya no: el motor propio hace XeSS y FSR 3/4, EngineSr.cs)
-        // (20-11 a 1.2.3: DLSS 5 en el motor propio con engine\PrismaNr.dll -motor_dlss5, motor_dlss5_pasadas, motor_dlss5_entrada*,
-        // motor_dlss5_home-. 1.2.4 SOLOMAGPIE: fuera; DLSS 5 va siempre por Magpie, el motor no lo hace aunque se le pida, Common.cs.)
-        // Siempre false: solo para que compilen las ramas de la 1.2.4 hechas sobre la 1.2.3 al fusionarlas (quitar despues)
-        public bool EngineDlss5Now { get { return false; } }
-        public bool MotorDlss5Pedido { get { return false; } }
+        // 20-11 (DLSS 5 EN EL MOTOR): ini motor_dlss5=1 = DLSS 5 con 1 pasada lo hace el motor propio (PrismaNr.dll, de uso propio y fuera del repositorio, +
+        // EngineDlss5.cs: DLSSNR sobre la captura antes de DLSS SR) en vez de mpv + Magpie: sin mpv, DWM ni la captura de Windows (el motor
+        // va a ~35-48 ms con DLSS-G frente a 72-94 de Magpie con DLSS 5 y FG). 2-3 pasadas siguen en Magpie. Con la "fuerza total" (dlss5_fuerza, 20-11). Sin el 5o
+        // numero del nivel) ni % de entrada: DLSS 5 a la resolucion de entrada del motor
+        // (22-11, 1.2.4 SOLOMOTOR: sin eleccion ni clave -motor_dlss5 ya no se lee-: con engine\PrismaNr.dll, DLSS 5 siempre en el motor
+        // si sabe hacer la combinacion, MotorDlss5Pedido. Solo las pruebas lo ponen a false)
+        public bool EngineDlss5 = true;
+        // 20-11: % de entrada de DLSS 5 en el motor (dlss5_entrada del motor: DLSS 5 sobre la captura reducida y lo que cambia sumado
+        // ampliado). ini motor_dlss5_entrada=N (todos los modos; 0 = lo de abajo), motor_dlss5_entrada_30 (100: 1440p cabe entera, 14 ms de
+        // grafica) y motor_dlss5_entrada_30_4k (75: 4K 100 % = 24,3 ms, 75 % = 15,8, 50 % = 9,4; 30 reales en los tres). En el 60, la tabla de
+        // % de DLSS 5 de Magpie de ese modo (tabla_dlss5_*), o 100 si no hay
+        // 20-11 03:40 (2-3 pasadas en el motor): un % por pasadas (1,2,3). Medido modo 30 + FG con antiparpadeo 3: 1440p 2 pasadas al 100 %
+        // 23,7 ms, 3 al 75 % 22,1 (al 100 % 31 ms y 26,8 reales: no); 4K 2 al 60 % 19,6, 3 al 45 % 17,2 (30 reales todos)
+        public int EngineDlss5PctAll = 0;
+        public int[] EngineDlss5Pct30 = { 100, 100, 75 }, EngineDlss5Pct30_4k = { 75, 60, 45 };
+        public int EngineDlss5PctNow
+        {
+            get
+            {
+                if (EngineDlss5PctAll > 0) return EngineDlss5PctAll;
+                int i = Math.Max(1, Math.Min(3, Dlss5PassesNow)) - 1;
+                if (CapMode) return (CaptureNow == "3840x2160" ? EngineDlss5Pct30_4k : EngineDlss5Pct30)[i];
+                int p = Dlss5PctNow; return p > 0 ? p : 100;
+            }
+        }
+        // (20-11 03:40: ya con 2-3 pasadas y el antiparpadeo; antes solo 1 pasada)
+        // (22-11, 1.2.3 MOTOR5: y solo lo que el motor hace -con PrismaNr.dll, hasta motor_dlss5_pasadas, sin x3 / x4 ni XeSS FG-; lo demas por
+        // Magpie como siempre. Antes con motor_dlss5=1 y x4 o 2 pasadas Magpie iba sin su escala automatica y los textos decian "motor propio")
+        public bool EngineDlss5Now { get { return EngineDlss5 && Engine == "propio" && !Dlss5Off && Dlss5FitsNow && MotorDlss5Pedido; } }
+        // El % de entrada de DLSS 5 que se aplica de verdad (para los textos): el del motor si DLSS 5 va en el, si no el de Magpie
+        public int Dlss5PctShownNow { get { return EngineDlss5Now ? EngineDlss5PctNow : Dlss5PctNow; } }
         // 16-11 noche: motor_modelo_<modo>_1080= / _1440= / _720= (por captura; sin ella, la del modo)
         // 19-11 (GENERACION): el motor con DLSS-G en el modo 60. MEDIDO 19-11 (motor solo, imagen de prueba, 1440p): K 58,69 reales (5,95 ms de
         // grafica), M 59,02 (9,55 ms); 1080p M 59,60 (6,99 ms): la grafica sobra, lo que no llega es el ritmo (Reflex con la sincronizacion,
@@ -1217,8 +1240,8 @@ namespace ConsoleEnhancer
                        (UpscaleOn ? " -> 4K con " + ScalerName(ScalerNow) : " sin escalar") +
                        (Mode120 ? ", modo 120 fps (esports)" : CapMode ? ", modo 30 fps" : ", modo 60 fps") +
                        (Dlss5Off ? ", DLSS 5 apagado" : !Integrado.Dlss5Available ? ", DLSS 5 NO DISPONIBLE (falta " + Integrado.Dlss5Dll + ")" : !Dlss5FitsNow ? ", DLSS 5 NO CABE en este modo (quitado)" : ", DLSS 5 (DLSSNR) nivel " + Level30 + ", " + Dlss5PassesNow + " pasada" + (Dlss5PassesNow > 1 ? "s" : "") + (Dlss5PassesNow < Passes30 ? " (pedidas " + Passes30 + ")" : "") +
-                        ", entrada " + (Dlss5PctNow > 0 ? Dlss5PctNow + " %" : "adaptativa") + (LightNow ? ", ligero" : "") +
-                        (Dlss5EveryNow > 1 ? ", modelo 1 de cada " + Dlss5EveryNow : "") +
+                        ", entrada " + (Dlss5PctShownNow > 0 ? Dlss5PctShownNow + " %" : "adaptativa") + (EngineDlss5Now ? ", en el motor propio" : LightNow ? ", ligero" : "") +
+                        (!EngineDlss5Now && Dlss5EveryNow > 1 ? ", modelo 1 de cada " + Dlss5EveryNow : "") +
                         (AntiFlickerNow > 0 ? ", antiparpadeo " + AntiFlickerNow : "")) +
                        (FgOff ? ", sin generacion" : ", " + FgName + " x" + FgMultNow) + (RtxHdr ? ", RTX HDR " + RtxHdrNits + " nits" : "") + (ReflexNow ? ", Reflex" : "");
             }
@@ -1389,10 +1412,11 @@ namespace ConsoleEnhancer
                         case "rtx_hdr_saturacion": c.RtxHdrSaturation = Math.Max(0, Math.Min(200, ParseInt(val))); break;
                         case "reflex": c.Reflex = ParseBool(val); break;
                         case "motor": c.Engine = val.Trim().ToLowerInvariant(); break;
-                        // (1.2.4 SOLOMAGPIE: DLSS 5 ya no va en el motor; las de un ini viejo no hacen nada y la puesta al dia las quita)
-                        case "motor_dlss5": case "motor_dlss5_pasadas": case "motor_dlss5_entrada": case "motor_dlss5_entrada_30":
-                        case "motor_dlss5_entrada_30_4k": case "motor_dlss5_home": break;
-                        case "solo_magpie": SoloMagpieOn = ParseInt(val) != 0; break;   // (1.2.4 SOLOMAGPIE: 0 = sin DLSS 5, el motor como en la 1.2.3)
+                        case "motor_dlss5": break;   // (1.2.3 MOTOR5: 0 / 1 / auto. 1.2.4 SOLOMOTOR: ya no se elige; la puesta al dia la quita)
+                        case "motor_dlss5_pasadas": c.EngineDlss5MaxPasses = Math.Max(1, Math.Min(3, ParseInt(val))); break;   // (1.2.3 MOTOR5)
+                        case "motor_dlss5_entrada": c.EngineDlss5PctAll = Math.Max(0, Math.Min(100, ParseInt(val))); break;
+                        case "motor_dlss5_entrada_30": ParsePctList(val, c.EngineDlss5Pct30); break;
+                        case "motor_dlss5_entrada_30_4k": ParsePctList(val, c.EngineDlss5Pct30_4k); break;
                         case "motor_ruta": c.EnginePath = val.Trim(); break;
                         case "motor_modelo_60": c.EnginePreset60 = val.Trim().ToUpperInvariant(); break;
                         case "motor_modelo_60_fg": c.EnginePreset60Fg = val.Trim().ToUpperInvariant(); break;
@@ -1410,6 +1434,7 @@ namespace ConsoleEnhancer
                         case "motor_reflex": c.EngineReflex = Math.Max(0, Math.Min(2, ParseInt(val))); break;
                         case "motor_vrr": c.EngineVrr = Math.Max(0, Math.Min(1, ParseInt(val))); break;   // 20-11 (LATENCIA4)
                         case "motor_vrr_fg_vsync": c.EngineVrrFgVsync = Math.Max(-1, Math.Min(1, ParseInt(val))); break;
+                        case "motor_dlss5_home": c.EngineDlss5Home = ParseInt(val) != 0; break;
                         case "motor_60fg_refresco_fijo": c.EngineFixed60Fg = ParseInt(val) != 0; break;   // 20-11 (LATENCIA5)
                         case "motor_extra": c.EngineExtra = val.Trim(); break;
                         case "motor_generacion_60": c.EngineSmooth60 = val.Trim().ToLowerInvariant() == "smooth"; break;   // 17-11 16:55
@@ -8131,14 +8156,14 @@ namespace ConsoleEnhancer
         {
             PrepareCfg();
             if (!cfg.Dlss5FitsNow) return Integrado.Dlss5Available ? "DLSS 5 no cabe en este modo" : Integrado.Dlss5MissingText;
-            int now = cfg.Dlss5PassesNow, pct = cfg.Dlss5PctNow;   // (20-11: con DLSS 5 en el motor, su % de entrada)
+            int now = cfg.Dlss5PassesNow, pct = cfg.Dlss5PctShownNow;   // (20-11: con DLSS 5 en el motor, su % de entrada)
             string t = Pasadas(now) + (pct > 0 ? " al " + pct + " %" : " · resolución adaptativa");
             // 16-11 (coordinador): en el 60 con generacion las 3 pasadas no caben ni con lo ligero (medido: 93-94 % de grafica a 720p); la
             // generacion no se quita sola: se dice que sin ella si caben
             if (now < dlss5Passes && !cfg.CapMode && !cfg.FgOff && cfg.PassesFitWithoutFg(dlss5Passes))
                 t = Pasadas(dlss5Passes) + " solo caben sin generación (botón de captura): " + (now == 1 ? "va " : "van ") + t;
             else if (now < dlss5Passes) t += " (" + Pasadas(dlss5Passes) + " no caben en este modo)";
-            string note = cfg.D5PassNote; // (16-11: lo que se quita para que quepan estas pasadas, p. ej. "ligero: sin antiparpadeo, sin enfoque")
+            string note = cfg.EngineDlss5Now ? "motor propio" : cfg.D5PassNote; // (20-11: con el motor, nada de lo de Magpie) (16-11: lo que se quita para que quepan estas pasadas, p. ej. "ligero: sin antiparpadeo, sin enfoque")
             if (note.Length > 0) t += " · " + note;
             return t;
         }
@@ -8349,7 +8374,7 @@ namespace ConsoleEnhancer
                        (!dlss5Shown ? " · DLSS 5 desactivado" : " · DLSS 5 no cabe en este modo");
             return (curGame ?? "Juego") + " · " + SizeName(cfg.VideoSize) + " · " +
                    (fgWanted ? (cfg.CapMode ? "30" : "60") + " → " + fps + " fps (" + cfg.FgName + cfg.MultEtiqueta + ")" + MultNota() : fps + " fps sin generación") + " · " +
-                   (!dlss5Shown ? "DLSS 5 desactivado" : !Integrado.Dlss5Available ? Integrado.Dlss5MissingText : !cfg.Dlss5FitsNow ? "DLSS 5 no cabe en este modo (se quita)" : "DLSS 5 nivel " + dlss5Level + " · " + Pasadas(cfg.Dlss5PassesNow) + (cfg.Dlss5PassesNow < dlss5Passes ? " (" + dlss5Passes + " no caben)" : "") + " · " + (cfg.Dlss5PctNow > 0 ? cfg.Dlss5PctNow + " %" : "adaptativo")) +
+                   (!dlss5Shown ? "DLSS 5 desactivado" : !Integrado.Dlss5Available ? Integrado.Dlss5MissingText : !cfg.Dlss5FitsNow ? "DLSS 5 no cabe en este modo (se quita)" : "DLSS 5 nivel " + dlss5Level + " · " + Pasadas(cfg.Dlss5PassesNow) + (cfg.Dlss5PassesNow < dlss5Passes ? " (" + dlss5Passes + " no caben)" : "") + " · " + (cfg.Dlss5PctShownNow > 0 ? cfg.Dlss5PctShownNow + " %" : "adaptativo") + (cfg.EngineDlss5Now ? " · motor propio" : "")) +
                    (cfg.UpscaleOn ? " · " + cfg.ScalerName(cfg.ScalerNow) : "");
         }
 
@@ -11972,7 +11997,32 @@ namespace ConsoleEnhancer
                    // Repetidas fuera con generacion (o en el modo 30), como el filtro de mpv: tambien al encenderla o apagarla en marcha
                    " dedupe=" + (DedupeOn(cfg, !cfg.FgOff) ? "1" : "0") +
                    // 16-11 noche: la captura reducida antes de DLSS (motor_entrada_<modo>_<captura>=WxH; 0 = tal cual)
-                   " entrada=" + cfg.EngineInNow;   // (1.2.4 SOLOMAGPIE: sin los dlss5=... de antes: el motor ya no hace DLSS 5)
+                   " entrada=" + cfg.EngineInNow + EngineDlss5Args(cfg);
+        }
+
+        // 20-11 (DLSS 5 EN EL MOTOR): nivel, estilo, modelo, mascara e interfaz de DLSS 5 para el motor (EngineDlss5.cs); dlss5=0 si no toca
+        static string EngineDlss5Args(Config cfg)
+        {
+            // (20-11 LATENCIA4: motor_dlss5_home=0, el HOME / menu a 4K nativo sin DLSS 5)
+            // (22-11, 1.2.3 REVISION3: dlss5=0 tambien con motor_dlss5=0 si esta engine\PrismaNr.dll. Desde la 1.2.3 "DLSS 5 por: Magpie" se
+            // elige en marcha y el motor -en espera o de puente- seguia con el dlss5=1 de antes: al apagar DLSS 5 con el A el motor lo volvia
+            // a crear -prueba de las 13:38:04, "DLSSNR creado a 2688x1512" con DLSS 5 apagado- y de puente lo tenia a la vez que Magpie)
+            if (!cfg.EngineDlss5Now || (cfg.HomeNative && !cfg.EngineDlss5Home)) return cfg.EngineDlss5 || cfg.MotorDlss5Disponible ? " dlss5=0" : "";
+            double[] n = cfg.LevelNums(cfg.Level30);
+            Func<double, string> f = x => Math.Min(2, x).ToString("0.###", CultureInfo.InvariantCulture);
+            int passes = Math.Max(1, Math.Min(3, cfg.Dlss5PassesNow));
+            return " dlss5=1 dlss5_nivel=" + f(n[0]) + "," + f(n[1]) + "," + f(n[2]) + "," + f(n[3]) +
+                   // 20-11 03:40: las pasadas, su fuerza (dlss5_fuerza_pasadas) y el antiparpadeo del modo (lo mismo que a Magpie)
+                   " dlss5_pasadas=" + passes.ToString(CultureInfo.InvariantCulture) +
+                   " dlss5_fuerza_pasadas=" + f(cfg.Dlss5PassStrength[0]) + "," + f(cfg.Dlss5PassStrength[1]) + "," + f(cfg.Dlss5PassStrength[2]) +
+                   " dlss5_antiparpadeo=" + Math.Max(0, Math.Min(3, cfg.AntiFlickerNow)).ToString(CultureInfo.InvariantCulture) +
+                   " dlss5_antiparpadeo_ms=" + cfg.Dlss5AntiFlickerMs.ToString(CultureInfo.InvariantCulture) +
+                   " dlss5_fuerza=" + f(n[4]) +   // 20-11: la "fuerza total" (5o numero del nivel; residualMultiplier en Magpie)
+                   " dlss5_entrada=" + cfg.EngineDlss5PctNow.ToString(CultureInfo.InvariantCulture) +   // 20-11: % de entrada (Config.EngineDlss5PctNow)
+                   " dlss5_estilo=" + cfg.Dlss5Style.ToString(CultureInfo.InvariantCulture) +
+                   " dlss5_modelo=" + cfg.Dlss5Model.ToString(CultureInfo.InvariantCulture) +
+                   " dlss5_mascara=" + (cfg.Dlss5AutoMask ? "1" : "0") + " dlss5_interfaz=" + (cfg.Dlss5UiFix ? "1" : "0") +
+                   " dlss5_dir=" + Paths.MagpieDir;
         }
 
         static string EngineArgs(Config cfg, string ipc) { return EngineArgs(cfg, ipc, -1, -1); }
@@ -12303,7 +12353,7 @@ namespace ConsoleEnhancer
                     try { Log.Write("NVIDIA: Smooth Motion en el perfil de Magpie.exe al abrir: " + (NvProfiles.SmoothOn ? "si" : "no")); }
                     catch (Exception ex) { Log.Error("NVIDIA: mirando Smooth Motion", ex); }
                 });
-                try { Log.Write("Imagen: " + cfg.SoloMagpieTexto); } catch { }   // (1.2.4 SOLOMAGPIE)
+                try { Log.Write("Imagen: " + cfg.SoloMotorTexto); } catch { }   // (1.2.4 SOLOMOTOR)
                 // Lo ultimo elegido con el mando
                 string size = LoadText(Paths.CaptureFile);
                 if ((cfg.TestSource.Length == 0 || cfg.TestSource.Contains("{w}")) &&
@@ -13135,6 +13185,7 @@ namespace ConsoleEnhancer
                     else if (line.Contains("\"request_id\":79")) CierresCaptura(line); // (20-11, CIERRES: switch2-captura-ms del motor)
                     else if (line.Contains("\"client-message\"") && CierresEvent(line)) { } // (20-11, CIERRES: switch2-gpu del motor)
                     else if (line.Contains("\"client-message\"") && FpsEvent(line)) { } // (21-11: switch2-fps del motor, src\Lanzador\FpsBajo.cs)
+                    else if (line.Contains("\"client-message\"") && MotorDlss5Evento(line)) { } // (22-11, 1.2.3 MOTOR5: switch2-dlss5 roto del motor, MotorDlss5.cs)
                     else if (line.Contains("\"client-message\"") && AjPruebaEvento(line)) { } // (22-11, 1.2.2: pruebas del menu de ajustes, AjustesGuia.cs)
                     else if (line.Contains("\"client-message\"") && line.Contains("\"args\":[\"switch2-pad\""))
                     {
@@ -14586,9 +14637,12 @@ namespace ConsoleEnhancer
                 if (arg == "--test-multiplicador" || arg.StartsWith("--test-multiplicador=")) return Config.MultPrueba(arg.Length > 21 ? arg.Substring(21) : null);
                 // 22-11 (1.2.2, REESCALADO): la config de Magpie de reescalado y DLSS 5 por combinacion: --test-reescalado[=<informe>]
                 if (arg == "--test-reescalado" || arg.StartsWith("--test-reescalado=")) return ReescaladoPrueba.Run(arg.Length > 18 ? arg.Substring(18) : null);
-                // 22-11 (1.2.4, SOLOMAGPIE; antes --test-motor-dlss5): el juego siempre por Magpie, tambien con engine\PrismaNr.dll, con cada
-                // combinacion: --test-solo-magpie[=<informe>] (src\Lanzador\SoloMagpie.cs)
-                if (arg == "--test-solo-magpie" || arg.StartsWith("--test-solo-magpie=")) return Config.SoloMagpiePrueba(arg.Length > 19 ? arg.Substring(19) : null);
+                // 22-11 (1.2.3, MOTOR5): por donde va DLSS 5 (motor con PrismaNr.dll / Magpie) con cada combinacion: --test-motor-dlss5[=<informe>]
+                if (arg == "--test-motor-dlss5" || arg.StartsWith("--test-motor-dlss5=")) return Config.MotorDlss5Prueba(arg.Length > 19 ? arg.Substring(19) : null);
+                // 22-11 (1.2.4, SOLOMOTOR): el reparto motor / Magpie (reserva) con cada combinacion: --test-solo-motor[=<informe>] (SoloMotor.cs)
+                if (arg == "--test-solo-motor" || arg.StartsWith("--test-solo-motor=")) return Config.SoloMotorPrueba(arg.Length > 18 ? arg.Substring(18) : null);
+                // 22-11 (1.2.3, MOTOR5): PrismaNr.dll junto a la DLL elegida en "Añadir DLSS 5": --test-extras-guardados[=<informe>]
+                if (arg == "--test-extras-guardados" || arg.StartsWith("--test-extras-guardados=")) return ExtrasGuardados.Prueba(arg.Length > 24 ? arg.Substring(24) : null);
                 if (arg.StartsWith("--ui-preview=")) return PrismaPreview.Run(arg.Substring(13));
                 // 18-11 (MANDOS): --test-mandos=<segundos>;<archivo>: mandos detectados, botones pulsados y el modo PC (sin mandar nada)
                 if (arg.StartsWith("--test-mandos=")) return PadTest.Run(arg.Substring(14), args);
@@ -14870,7 +14924,7 @@ namespace ConsoleEnhancer
                 Log.Write("DRY RUN copia de Magpie: " + (ok ? "ok" : "FALLO") + " (" + detail + ")");
                 Log.Write("DRY RUN rutas: " + Integrado.Describe(cfg)); // (18-11, INTEGRADO)
                 Log.Write("DRY RUN perfil: " + cfg.ProfileText);
-                Log.Write("DRY RUN camino: " + cfg.SoloMagpieTexto);   // (1.2.4 SOLOMAGPIE)
+                Log.Write("DRY RUN camino: " + cfg.SoloMotorTexto);   // (1.2.4 SOLOMOTOR)
                 List<string> changes = MagpieConfig.Patch(cfg, false);
                 if (changes.Count == 0) Log.Write("DRY RUN: sin cambios necesarios");
                 foreach (string c in changes) Log.Write("DRY RUN cambio: " + c);

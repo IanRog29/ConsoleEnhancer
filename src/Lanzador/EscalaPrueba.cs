@@ -377,6 +377,7 @@ namespace ConsoleEnhancer
             {
                 EscalaAuto.Reiniciar(Path.Combine(Path.GetTempPath(), "ce_test_escala_ini.txt"));
                 Config cfg = Config.Load();
+                cfg.EngineDlss5 = false;   // (1.2.3 MOTOR5: esto prueba la escala de Magpie; con motor_dlss5=1 y PrismaNr.dll DLSS 5 lo haria el motor)
                 CadenaEscala g0 = new CadenaEscala(); EscalaAuto.GpuPara(g0);
                 int ow, oh; EscalaAuto.Salida(out ow, out oh);
                 sb.AppendLine("  grafica: indice " + g0.Indice.ToString("0.##", CultureInfo.InvariantCulture) + ", " + g0.Familia + ", " + g0.VramGb + " GB; pantalla " + ow + "x" + oh +
@@ -510,6 +511,7 @@ namespace ConsoleEnhancer
                             {
                                 EscalaAuto.Reiniciar(Path.Combine(Path.GetTempPath(), "ce_test_escala_cfg.txt"));
                                 Config cfg = new Config();
+                                cfg.EngineDlss5 = false;   // (1.2.4 SOLOMOTOR: de serie DLSS 5 al motor con PrismaNr.dll; esto prueba la escala de Magpie)
                                 cfg.VideoSize = "2560x1440"; cfg.CapMode = modo == 30; cfg.Mode120 = modo == 120; cfg.FgOff = false; cfg.Dlss5Off = false;
                                 cfg.Capturas120 = new[] { "1920x1080", "2560x1440" }; cfg.Framerate120 = "120";
                                 cfg.Passes30 = n; cfg.DlssModel = modelo;

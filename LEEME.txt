@@ -25,7 +25,7 @@ PUBLICAR (20-11, agente PUBLICAR: https://github.com/IanRog29/ConsoleEnhancer, a
     "Anadir DLSS 5 (tu propio archivo)..." / "Quitar DLSS 5" y "Apoyar el proyecto (Ko-fi)" (src\Lanzador\Extras.cs).
   - DLSS 5: el usuario elige SU nvngx_dlssnr.dll (y en RTX 30 su carpeta dlssg_sm86); se comprueba la cabecera PE (x64, DLL) y el
     nombre, aviso de no oficial, copia a <app>\extras\ (Ce.PrepararExtras la pasa a magpie\), y encender (juegos\dlss5_activo.txt);
-    DLSS 5 siempre por Magpie (1.2.4: sin motor_dlss5 ni PrismaNr.dll). Sin enlaces ni nombres de webs de descarga en ningun sitio.
+    DLSS 5 en el motor siempre que haya engine\PrismaNr.dll (1.2.4: sin motor_dlss5 ni pregunta). Sin enlaces ni nombres de webs de descarga en ningun sitio.
   - Asistente, ultimo paso: estado de los componentes, boton "Anadir / Quitar DLSS 5" (GeForce RTX) y un enlace discreto a Ko-fi.
   - Ko-fi: .github\FUNDING.yml (boton Sponsor), README (es / en), Acerca de, LEEME.txt del zip. Voluntario: la app es gratis y completa.
 

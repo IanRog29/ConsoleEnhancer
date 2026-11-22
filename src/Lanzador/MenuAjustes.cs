@@ -559,7 +559,7 @@ namespace ConsoleEnhancer
             esc.Carrusel = ev.Count > 3;
             esc.Visible = ev.Count > 1;
 
-            // (1.2.3 MOTOR5 tenia aqui la fila "DLSS 5 por: Motor / Magpie"; 1.2.4 SOLOMAGPIE: fuera, DLSS 5 siempre por Magpie)
+            // (1.2.3 MOTOR5 tenia aqui la fila "DLSS 5 por: Motor / Magpie"; 1.2.4 SOLOMOTOR: fuera, no se elige: el motor siempre que sepa, SoloMotor.cs)
             ajFilas.AddRange(new[] { cap, mo, fg, tipo, mult, fgno, d5, d5no, niv, pas, esc });
             ajFilas.RemoveAll(delegate(FilaAjuste f) { return !f.Visible; });
             AjustesDepende(true);

@@ -318,7 +318,7 @@ namespace ConsoleEnhancer
         // 22-11 (1.2.2): base.ini con valores de serie nuevos (dlss5_antiparpadeo_30_1pasada=3, magpie_nitidez_transformer, dlss_flujo_transformer,
         // color / detalle / contener de 2-3 pasadas a 4K, enfoque_sin_reescalado, motor_uso_grafica, espera_sonda_cada_ms) y, en graficas lentas,
         // el plan pone tabla_ligero_30* (Escalas.cs). (1.0.10): DLSS FG en RTX 30 con dlssg_sm86 (dlssg_solo_magpie); (1.0.9) capturas_120 y XeSS FG
-        // 22-11 (1.2.4, SOLOMAGPIE): motor_dlss5* fuera (DLSS 5 siempre por Magpie; SinClavesQuitadas las quita tambien de lo de abajo)
+        // 22-11 (1.2.4, SOLOMOTOR): motor_dlss5 fuera (SinClavesQuitadas, tambien de lo de abajo); motor_dlss5_pasadas=3
         // 22-11 (1.2.3): motor_dlss5=auto y motor_dlss5_pasadas (DLSS 5 en el motor con engine\PrismaNr.dll), la escala de DLSS 5 por el hilo de
         // Magpie (dlss5_escala_hilo / dlss5_escala_grafica / generacion_dlss5_minimo) y comentarios del ritmo (magpie_fijo_30*)
         public const string IniVersion = "1.2.3";
@@ -358,8 +358,12 @@ namespace ConsoleEnhancer
                 }
                 Dictionary<string, string> elegidas = new Dictionary<string, string>();
                 foreach (string k in ClavesElegidas) { string v = IniLeer(k); if (v != null) elegidas[k] = v; }
-                // (1.2.3 conservaba aqui motor_dlss5 -DLSS 5 en el motor con engine\PrismaNr.dll-. 1.2.4 SOLOMAGPIE: DLSS 5 siempre por Magpie:
-                // motor_dlss5* fuera del ini, tambien de lo del plan y de lo conservado de antes -ClavesQuitadas-; la app ya no las lee)
+                // (22-11, 1.2.3 REVISION3) motor_dlss5=0 era el valor de serie del base.ini hasta la 1.2.2 y nada lo elegia ("Añadir DLSS 5"
+                // solo escribia el 1; "Quitar DLSS 5", el 0 al quitarla): en un ini de antes de la 1.2.3 ese 0 no es una eleccion, y se quedaba
+                // encima del auto nuevo (con engine\PrismaNr.dll DLSS 5 seguia por Magpie tras actualizar; simulado con el ini del usuario: la
+                // ultima linea salia motor_dlss5=0). Desde la 1.2.3 el 0 si se elige (menu de ajustes, bandeja, "Añadir DLSS 5" -> No): se conserva
+                // (1.2.4 SOLOMOTOR: motor_dlss5 ya no se elige -con engine\PrismaNr.dll DLSS 5 siempre en el motor-: fuera de todo el ini, tambien
+                // de lo del plan y de lo conservado de antes; un motor_dlss5=0 del usuario ya no lo manda a Magpie)
                 resto = SinClavesQuitadas(resto);
                 cola = SinClavesQuitadas(cola);
                 StringBuilder gen = new StringBuilder();
@@ -418,11 +422,10 @@ namespace ConsoleEnhancer
         // (22-11, 1.2.2) lo elegido en la bandeja / el panel / el asistente que puede estar en una linea del base.ini viejo (ActualizarIni)
         static readonly string[] ClavesElegidas = { "apagar_pc_modo", "apagar_pc_aviso_s", "escritorio_negro" };
 
-        // (22-11, 1.2.4 SOLOMAGPIE) las claves que ya no existen: DLSS 5 en el motor propio (motor_dlss5=0|1|auto, motor_dlss5_pasadas,
-        // motor_dlss5_entrada*, que escribia el plan, y motor_dlss5_home). Al poner el ini al dia se quitan de todo el ini
-        static readonly string[] ClavesQuitadas = { "motor_dlss5", "motor_dlss5_pasadas", "motor_dlss5_entrada", "motor_dlss5_entrada_30",
-                                                    "motor_dlss5_entrada_30_4k", "motor_dlss5_home" };
-        public static string SinClavesQuitadasPrueba(string texto) { return SinClavesQuitadas(texto); }   // (--test-solo-magpie)
+        // (22-11, 1.2.4 SOLOMOTOR) las claves que ya no existen y se quitan de todo el ini al ponerlo al dia: motor_dlss5=0|1|auto (la eleccion
+        // del DLSS 5 por el motor o por Magpie)
+        static readonly string[] ClavesQuitadas = { "motor_dlss5" };
+        public static string SinClavesQuitadasPrueba(string texto) { return SinClavesQuitadas(texto); }   // (--test-solo-motor)
         static string SinClavesQuitadas(string texto)
         {
             if (string.IsNullOrEmpty(texto)) return texto;
