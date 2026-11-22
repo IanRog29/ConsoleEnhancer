@@ -392,9 +392,10 @@ namespace ConsoleEnhancer
         }
     }
 
-    // ---- Como presenta Magpie cada modo (22-11, 1.2.2). Lo de serie es lo de antes:
+    // ---- Como presenta Magpie cada modo (22-11, 1.2.2; 1.2.3 RITMO2: DLSS FG x2 a refresco fijo como XeSS FG). De serie:
     //   modo 30 sin generacion      DirectComposition (sin VRR)                       magpie_vrr_30=1: por VRR (DXGI + sincronizacion forzada)
-    //   modo 30, DLSS FG x2         VRR (DXGI + sincronizacion forzada)               magpie_fijo_30_dlss=1: refresco fijo "cada 2 refrescos"
+    //   modo 30, DLSS FG x2         refresco fijo "cada 2 refrescos" (1.2.3)          magpie_fijo_30_dlss=0: por VRR (lo de la 1.2.2)
+    //                               (sin ese camino -tele a 119,88 Hz o < 100 Hz, el driver no deja-, por VRR como antes)
     //   modo 30, XeSS/FSR 3/VFG x2  refresco fijo "cada 2 refrescos" (dxgi_30_*)     magpie_vrr_30_otras=1: por VRR
     //   modo 30, cualquiera x3 / x4 VRR (con "cada 2 refrescos" la salida no pasaria de 60: 89,9 y 119,88 imagenes/s no caben); sin VRR,
     //                               refresco fijo con la sincronizacion forzada (cada imagen 1 refresco)
@@ -405,7 +406,14 @@ namespace ConsoleEnhancer
     // ni la espera de cada imagen real). De serie 0 / 0 (lo de antes) hasta medirlo con la tele
     partial class Config
     {
-        public bool RitmoVrr30 = false, RitmoVrr30Otras = false, RitmoFijo30Dlss = false, RitmoSigue30Fg = false;
+        // (1.2.3 RITMO2) RitmoFijo30Dlss de serie: medido el 22-11 (tele Panasonic 3840x2160@120 con VRR, fuente con la cadencia de la PS5
+        // -30 fps en 59,94 y una imagen de 50 ms cada 2 s-, 4K, DLSS 5 nivel 2 al 45-50 %, DLSS FG x2, PresentMon + el log de Magpie):
+        //   VRR (1.2.2)  66,6 % de las imagenes vistas a 16,7 +-2 ms, sd 2,76 ms, p99 48,5 ms, 28,6 reales/s de 29,77 (4 % perdidas)
+        //   fijo         95,8 %, sd 1,55, p99 33,3, 29,7 reales/s (0,2 % perdidas); la latencia igual: 72,8 ms la real (n=10) frente a 72,3
+        //                (56,1 / 56,3 la inventada): con VRR la captura de Windows llega mas tarde (mpv -> WGC 15,4 frente a 12,2 ms) y Magpie
+        //                espera mas (WGC -> presentar 47,8 frente a 41,5); con el fijo se espera al hueco de la tele (10,7 frente a 2,3)
+        //   XeSS FG x2   fijo 98,5 % y 29,75 reales/s; por VRR 67,6 % y 28,3 reales/s (por eso XeSS ya iba fijo)
+        public bool RitmoVrr30 = false, RitmoVrr30Otras = false, RitmoFijo30Dlss = true, RitmoSigue30Fg = false;
         public double RitmoMargenFg = 0;
         // ---- Las capturas de la app jugando a 4K (las que miran si se ha vuelto al menu de la consola, TrayApp.GrabTick): cada una es un
         // screenshot-raw de mpv que para su hilo mientras pasa la imagen de 4K a RGB y la copia (medido el 22-11 sin grafica, mpv 0.42:
@@ -467,7 +475,8 @@ namespace ConsoleEnhancer
                 string t = FgTypeNow;
                 if (t == "smooth") return false;
                 if (FgMultNow >= 3) return true;
-                return t == "dlss" ? !RitmoFijo30Dlss : RitmoVrr30Otras;
+                // (1.2.3: DLSS FG x2 fijo solo si ese camino esta -VsyncHalfFgNow-; si no, por VRR: sin VRR iria por DirectComposition)
+                return t == "dlss" ? !(RitmoFijo30Dlss && VsyncHalfFgNow) : RitmoVrr30Otras;
             }
         }
         // El modo 30 sin generacion por VRR (magpie_vrr_30=1)
