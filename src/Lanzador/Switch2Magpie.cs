@@ -8778,6 +8778,17 @@ namespace ConsoleEnhancer
 
         public static string EntrySelfTest(out int failures)
         {
+            // 22-11 (1.2.2, ERRORES): los casos son del HOME de la Switch 2 (Ocarina, Arceus...). Con la consola de este PC (games\console.txt,
+            // o la de la copia de seguridad: en el del usuario la PS5) "No Signal" esperaba lo de la PS5 (8 s, sin HOME reconocido) y daba
+            // 10 FALLOS desde la 1.2.09. La prueba con la Switch 2 puesta y, al acabar, la de antes
+            string consolaAntes = Consolas.Elegida;
+            Consolas.Reiniciar("switch2");
+            try { return EntrySelfTestSwitch2(out failures); }
+            finally { Consolas.Reiniciar(consolaAntes); }
+        }
+
+        static string EntrySelfTestSwitch2(out int failures)
+        {
             StringBuilder sb = new StringBuilder();
             int fails = 0;
             Config d = new Config();
