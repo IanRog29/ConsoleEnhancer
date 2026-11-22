@@ -14606,6 +14606,8 @@ namespace ConsoleEnhancer
                 if (arg == "--test-multiplicador" || arg.StartsWith("--test-multiplicador=")) return Config.MultPrueba(arg.Length > 21 ? arg.Substring(21) : null);
                 // 22-11 (1.2.2, REESCALADO): la config de Magpie de reescalado y DLSS 5 por combinacion: --test-reescalado[=<informe>]
                 if (arg == "--test-reescalado" || arg.StartsWith("--test-reescalado=")) return ReescaladoPrueba.Run(arg.Length > 18 ? arg.Substring(18) : null);
+                // 22-11 (1.2.3, MOTOR5): por donde va DLSS 5 (motor con PrismaNr.dll / Magpie) con cada combinacion: --test-motor-dlss5[=<informe>]
+                if (arg == "--test-motor-dlss5" || arg.StartsWith("--test-motor-dlss5=")) return Config.MotorDlss5Prueba(arg.Length > 19 ? arg.Substring(19) : null);
                 if (arg.StartsWith("--ui-preview=")) return PrismaPreview.Run(arg.Substring(13));
                 // 18-11 (MANDOS): --test-mandos=<segundos>;<archivo>: mandos detectados, botones pulsados y el modo PC (sin mandar nada)
                 if (arg.StartsWith("--test-mandos=")) return PadTest.Run(arg.Substring(14), args);
