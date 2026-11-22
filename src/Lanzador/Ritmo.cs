@@ -421,7 +421,8 @@ namespace ConsoleEnhancer
         // la nueva o su repeticion: 2 refrescos el 89 %, 4 el 7 %), 54,9 ms (n=10), la grafica igual (62 frente a 67 %). Una pasada.
         // magpie_fijo_30=0 = DirectComposition como en la 1.2.2. Solo con la pantalla a 120 Hz
         public bool RitmoFijo30 = true;
-        public bool RitmoFijo30SinFgNow { get { int hz = Pantalla.Hz(); return RitmoFijo30 && !RitmoVrr30SinFgNow && CapMode && FgOff && !HomeNative && !Mode120 && !NvProfiles.VsyncBroken && hz >= 118 && hz <= 122; } }
+        // (1.2.3, REVISION3: sin Reflex, como las otras dos sincronizaciones fijas: con Reflex Magpie presenta sin sincronizacion vertical)
+        public bool RitmoFijo30SinFgNow { get { int hz = Pantalla.Hz(); return RitmoFijo30 && !RitmoVrr30SinFgNow && CapMode && FgOff && !HomeNative && !Mode120 && !ReflexNow && !NvProfiles.VsyncBroken && hz >= 118 && hz <= 122; } }
         public double RitmoMargenFg = 0;
         // ---- Las capturas de la app jugando a 4K (las que miran si se ha vuelto al menu de la consola, TrayApp.GrabTick): cada una es un
         // screenshot-raw de mpv que para su hilo mientras pasa la imagen de 4K a RGB y la copia (medido el 22-11 sin grafica, mpv 0.42:
