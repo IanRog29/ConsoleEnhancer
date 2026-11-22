@@ -177,7 +177,8 @@ namespace ConsoleEnhancer
         {
             if (m <= 2 || !MultTipo(tipo)) return "";
             string v = MotorFgViaAhora(tipo, m);
-            return v == "propia" ? "|vpropia" : v.Length > 0 ? "|vmotor" : "";
+            // (con "|vmagpie" tambien Magpie: lo apuntado por la 1.2.4 sin la via -p. ej. la propia x4 como "xess x4"- ya no cuenta para nadie)
+            return v == "propia" ? "|vpropia" : v.Length > 0 ? "|vmotor" : "|vmagpie";
         }
         // (el modelo elegido sin pasar por las pasadas de DLSS 5: lo que no cambia con la escala automatica)
         int DlssModelBaseSinD5 { get { string pk = DlssPick; if (pk.Length > 0) return DlssPickNum(pk); if (CapMode && DlssModel30 > 0) return DlssModel30; if (DlssModel > 0) return DlssModel; return 0; } }

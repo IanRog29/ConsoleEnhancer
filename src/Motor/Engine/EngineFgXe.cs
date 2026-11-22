@@ -385,12 +385,14 @@ namespace ConsoleEnhancer.Motor
         }
         uint ScIndex()
         {
+            FphDrain();   // (1.2.4 ronda 5, XEFGM: el hilo de presentacion de la generacion propia, si va, acaba antes; EngineFgPropiaHilo.cs)
             if (!XeRawNow) return swap.GetCurrentBackBufferIndex();
             if (scIndex == null) scIndex = (ScIndexFn)Slot(xeProxySc, 36, typeof(ScIndexFn));
             return scIndex(xeProxySc);
         }
         int ScPresent(uint sync, uint flags)
         {
+            FphDrain();   // (1.2.4 ronda 5, XEFGM: EngineFgPropiaHilo.cs)
             if (!XeRawNow) return swap.Present(sync, (DXGI_PRESENT)flags);
             if (scPresent == null) scPresent = (ScPresentFn)Slot(xeProxySc, 8, typeof(ScPresentFn));
             return scPresent(xeProxySc, sync, flags);

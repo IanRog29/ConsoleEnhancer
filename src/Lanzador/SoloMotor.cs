@@ -46,7 +46,11 @@ namespace ConsoleEnhancer
             {
                 if (Engine != "propio") return "motor=" + Engine;
                 if (!File.Exists(EnginePath)) return "sin " + EnginePath;
-                if (FgMagpieOnly) return "la generacion " + FgTypeNow + " x" + FgMultNow + " aun no la hace el motor";
+                if (FgMagpieOnly)
+                {
+                    string pq = MotorGenAMagpiePorQue(FgTypeNow, MultOn && !Mode120 ? FgMultNow : 2);   // (1.2.4 ronda 5, XEFGM: XefgMotor.cs)
+                    return pq.Length > 0 ? pq : "la generacion " + FgTypeNow + " x" + FgMultNow + " aun no la hace el motor";
+                }
                 if (!Dlss5Off && Dlss5FitsNow && !EngineDlss5Now)
                 {
                     if (!MotorDlss5Disponible) return "DLSS 5 sin engine\\PrismaNr.dll";
@@ -121,6 +125,16 @@ namespace ConsoleEnhancer
                                             sb.AppendLine((ok ? "      " : "FALLO ") + prisma + " " + (off ? "off" : "on ") + " " + cap + " " + modo + " " + tipo + " x" + mult + " p" + pas +
                                                           " -> " + (en ? "motor" : "magpie") + (ed ? " dlss5_motor" : "") + " (" + t + " x" + m + ") | " + c.PorQueReserva);
                                         }
+                // (1.2.4 ronda 5, XEFGM) la grafica perdida con XeSS FG en el motor (sin DLSS 5): el resto de la sesion XeSS FG por Magpie
+                MotorDlss5Prueba1(1); MotorDlss5Roto = false; MotorGenCaidaOlvida();
+                c.VideoSize = "3840x2160"; c.CapMode = true; c.Mode120 = false; c.FgOff = false; c.Dlss5Off = true; c.HomeNative = false; c.FgPick30 = "xess"; c.MultPick30 = 2;
+                bool xAntes = c.EngineNow;
+                MotorGenCaidaAnota("xess");
+                bool xDespues = c.EngineNow;
+                MotorGenCaidaOlvida();
+                bool xOk = xAntes && !xDespues;
+                n++; if (!xOk) fallos++;
+                sb.AppendLine((xOk ? "      " : "FALLO ") + "XeSS FG x2 sin DLSS 5: " + (xAntes ? "motor" : "magpie") + "; tras perder la grafica con el: " + (xDespues ? "motor" : "magpie") + " | " + c.PorQueReserva);
                 // DLSS 5 del motor roto en la sesion: por Magpie
                 MotorDlss5Prueba1(1); MotorDlss5Roto = true;
                 c.VideoSize = "3840x2160"; c.CapMode = true; c.Mode120 = false; c.Dlss5Off = false; c.Passes30 = 1; c.FgPick30 = "dlss"; c.MultPick30 = 2;

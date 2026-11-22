@@ -473,6 +473,7 @@ namespace ConsoleEnhancer.Motor
         void WaitIdle()
         {
             if (queue == null) return;
+            FphDrain();   // (1.2.4 ronda 5, XEFGM: el hilo de presentacion de la generacion propia acaba lo suyo; EngineFgPropiaHilo.cs)
             fenceValue++;
             queue.Signal(fence, fenceValue);
             WaitFence(fenceValue);
