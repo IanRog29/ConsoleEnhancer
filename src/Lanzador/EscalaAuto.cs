@@ -78,6 +78,7 @@ namespace ConsoleEnhancer
         public int Modelo = 5;              // DLSS SR: 5 E, 10 J, 11 K, 12 L, 13 M
         public bool Ligero;                 // Config.LightNow (60: antiparpadeo estatico, flujo en rendimiento, DLSS FG preset C...)
         public bool FlujoSr = true;         // DLSS SR con flujo optico (dlss_flujo)
+        public bool AfUna;                  // (1.2.2) DLSS 5 con 1 pasada lleva antiparpadeo (modo 30: Config.Af30OnePass; antes no)
         public bool VectoresFg;             // DLSS FG de Magpie con sus vectores (fg_flujo_30 / _60, no a 4K)
         public bool Hdr, HdrAntes;          // RTX HDR (a la salida o a la resolucion de la captura)
         public double Indice = 1.2;         // la grafica frente a la RTX 4060 (1,0)
@@ -160,7 +161,8 @@ namespace ConsoleEnhancer
             double p = pct / 100.0;
             double d = 4.0 * Mp(c.VenW, c.VenH) * (c.VenH >= 2000 ? 1.15 : 1.0);
             if (c.Ligero) d *= 0.9;
-            return pasadas * d * p * p;
+            // (22-11, 1.2.2 REESCALADO: 1 pasada en el modo 30 ahora con antiparpadeo: su pasada, src\Lanzador\Reescalado.cs)
+            return pasadas * d * p * p + (pasadas == 1 && c.AfUna ? Config.CosteAntiParpadeoMs(c.VenW, c.VenH) : 0);
         }
 
         static double Neuronal(CadenaEscala c) { return c.Familia == "rtx20" ? 1.3 : c.Familia == "rtx30" ? 1.1 : 1.0; }
@@ -931,6 +933,7 @@ namespace ConsoleEnhancer
                 c.Esc = ScalerNow;
                 c.Ligero = LightNow;
                 c.FlujoSr = DlssFlowNow > 0;
+                c.AfUna = c.Modo == 30 && Af30OnePass != 0;   // (1.2.2: el antiparpadeo de 1 pasada en el modo 30, src\Lanzador\Reescalado.cs)
                 c.VectoresFg = c.Gen == "dlss" && !Win4k && (CapMode ? FgFlow30 : FgFlow60) > 0;
                 c.Hdr = RtxHdr; c.HdrAntes = RtxHdrBefore;
                 EscalaAuto.GpuPara(c);

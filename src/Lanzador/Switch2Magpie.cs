@@ -1114,7 +1114,11 @@ namespace ConsoleEnhancer
         public string ScalerPick = "";
         public string ScalerNow { get { return ScalerPick.Length > 0 ? ScalerPick : AltScalerOn ? AltScaler : (D5ScalerNow ?? Scaler); } }
         // (15-11: tabla_modelo_<modo> con 4 numeros = sin DLSS 5, y con DLSS 5 en 1, 2 y 3 pasadas)
-        public int Af30OnePass = 0;
+        // dlss5_antiparpadeo_30_1pasada: el antiparpadeo de DLSS 5 con 1 pasada en el modo 30 (-1 = el de siempre, dlss5_antiparpadeo). 16-11
+        // noche: 0 (sin el, para dejar sitio a DLSS 4.5). 22-11 (1.2.2, REESCALADO): 3, como con 2-3 pasadas: con la entrada reducida (4K al
+        // 45-55 %) la correccion de DLSS 5 parpadeaba al mover la camara, y el flujo optico que necesita ya se calculaba igual (Magpie lo
+        // pide con dlss5_flujo aunque el antiparpadeo este a 0): cuesta solo su pasada (src\Lanzador\Reescalado.cs). =0 como antes
+        public int Af30OnePass = 3;
         // 16-11 noche: tabla_modelo_<modo>_1440= / _1080= / _720= (por captura; sin ella, la del modo)
         string CapSuffix { get { return VideoSize.EndsWith("x1080") ? "_1080" : VideoSize.EndsWith("x720") ? "_720" : VideoSize.EndsWith("x1440") ? "_1440" : ""; } }
         // (19-11, GENERACION: con el tipo de generacion delante: tabla_modelo_30_xess_1440=, tabla_modelo_30_xess=, luego como antes)
@@ -1763,7 +1767,8 @@ namespace ConsoleEnhancer
                 if (cfg.D5Num(cfg.D5DetailTable, out rv)) p["residualDetailGain"] = F(Math.Max(0, Math.Min(2, rv)));
                 if (cfg.D5Num(cfg.D5CompressTable, out rv)) p["residualLocalCompression"] = F(Math.Max(0, Math.Min(1, rv)));
                 else if (multi && cfg.Dlss5MultiContain > 0) p["residualLocalCompression"] = F(cfg.Dlss5MultiContain); // (19-11, DLSS5: el halo oscuro de 2-3 pasadas)
-                if (multi && Math.Abs(cfg.Dlss5MultiChroma - 1) > 0.001) p["residualSaturation"] = F(cfg.Dlss5MultiChroma); // (19-11, DLSS5: el color lavado de 2-3 pasadas)
+                // (19-11, DLSS5: el color lavado de 2-3 pasadas; 22-11, 1.2.2 REESCALADO: con la captura 4K su propio valor, Reescalado.cs)
+                if (multi && Math.Abs(cfg.Dlss5MultiChromaNow - 1) > 0.001) p["residualSaturation"] = F(cfg.Dlss5MultiChromaNow);
                 if (cfg.D5Num(cfg.D5DarkTable, out rv)) p["residualDarkProtection"] = F(Math.Max(0, Math.Min(1, rv)));
                 // Las pasadas 2 y 3 con el mismo nivel que la 1 (Magpie las pone a sus valores de serie si no estan). 19-11 (DLSS5): cada una
                 // con su fuerza (dlss5_fuerza_pasadas): con la misma que la 1a el efecto se acumulaba (halo oscuro, rayado, color lavado)
@@ -1824,12 +1829,14 @@ namespace ConsoleEnhancer
                                       Pars("opticalFlowMethod", cfg.DlssFlow, "amdOpticalFlowMode", flowAmd, "nvidiaOpticalFlowQuality", flowNv)));
                         break;
                     default:
-                        fx.Add(Effect("DLSS\\DLSS_SR", true, Pars("renderPreset", cfg.DlssModelNow, "opticalFlowMethod", cfg.DlssFlowNow,
+                        // (22-11, 1.2.2 REESCALADO: DlssFlowSrNow = con L/M, el flujo de DLSS 5 aunque el modo diga ninguno: Reescalado.cs)
+                        fx.Add(Effect("DLSS\\DLSS_SR", true, Pars("renderPreset", cfg.DlssModelNow, "opticalFlowMethod", cfg.DlssFlowSrNow,
                                                                   "amdOpticalFlowMode", flowAmd, "nvidiaOpticalFlowQuality", flowNv)));
                         break;
                 }
                 // 3) Enfoque (CAS; con FSR 3 FG o FSR 1, RCAS: lo unico que FSR 3 FG admite en la cadena)
-                double sh = double.IsNaN(sharpen) ? cfg.SharpenNow : sharpen; // (16-11: o el del modo / pasadas: enfoque_<modo>[_pN]_dlss5)
+                // (22-11, 1.2.2 REESCALADO: con DLSS SR J/K/L/M, x magpie_nitidez_transformer: src\Lanzador\Reescalado.cs)
+                double sh = double.IsNaN(sharpen) ? cfg.SharpenMagpieNow : sharpen; // (16-11: o el del modo / pasadas: enfoque_<modo>[_pN]_dlss5)
                 if (sh > 0.001 && cfg.ScalerNow != "cas" && cfg.ScalerNow != "ninguno") // (CAS con escalado ya enfoca)
                 {
                     if ((!cfg.FgOff && cfg.FgTypeNow == "fsr3") || cfg.ScalerNow == "fsr") fx.Add(Effect("FSR\\FSR_RCAS", false, Pars("sharpness", sh)));
@@ -11949,6 +11956,9 @@ namespace ConsoleEnhancer
             // 16-11: con los modelos transformer, menos (halo oscuro con K a 0,5)
             string p = cfg.EnginePresetNow;
             if (p == "J" || p == "K" || p == "L" || p == "M") s *= cfg.EngineSharpenTransformer;
+            // (22-11, 1.2.2 REESCALADO: "sin reescalado" -catrom- sin enfoque, como en Magpie; antes 0,5 a 1080p si el modelo de DLSS elegido
+            // era E: x enfoque_sin_reescalado, src\Lanzador\Reescalado.cs)
+            if (Ce.EngineUpscaler(cfg) == "catrom") s *= cfg.SharpenNoScale;
             return s;
         }
 
@@ -14586,6 +14596,8 @@ namespace ConsoleEnhancer
                 if (arg == "--test-escala" || arg.StartsWith("--test-escala=")) return EscalaPrueba.Run(arg.Length > 14 ? arg.Substring(14) : null);
                 // 1.2.2 (MULTI): las reglas de x2 / x3 / x4 con otras pantallas, sin abrir nada: --test-multiplicador[=<informe>] (src\Lanzador\Multiplicador.cs)
                 if (arg == "--test-multiplicador" || arg.StartsWith("--test-multiplicador=")) return Config.MultPrueba(arg.Length > 21 ? arg.Substring(21) : null);
+                // 22-11 (1.2.2, REESCALADO): la config de Magpie de reescalado y DLSS 5 por combinacion: --test-reescalado[=<informe>]
+                if (arg == "--test-reescalado" || arg.StartsWith("--test-reescalado=")) return ReescaladoPrueba.Run(arg.Length > 18 ? arg.Substring(18) : null);
                 if (arg.StartsWith("--ui-preview=")) return PrismaPreview.Run(arg.Substring(13));
                 // 18-11 (MANDOS): --test-mandos=<segundos>;<archivo>: mandos detectados, botones pulsados y el modo PC (sin mandar nada)
                 if (arg.StartsWith("--test-mandos=")) return PadTest.Run(arg.Substring(14), args);
