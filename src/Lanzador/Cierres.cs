@@ -99,6 +99,7 @@ namespace ConsoleEnhancer
             engGpuDetail = det;
             gpuStateNow = st;
             if (st != "ok") engGpuTroubleAt = DateTime.Now;
+            if (st == "colgada" || st == "perdida") CrashFrozenGrab(owner);   // (1.2.4 arreglos, RELEVO: la imagen quieta para el telon si se cae, RelevoMotor.cs)
             // (para apagar_pc_confirmar solo lo serio: la grafica perdida, el motor cerrado por parado o una parada de 2 s o mas; las
             // cortas de un cambio de ajustes no)
             int stMs;

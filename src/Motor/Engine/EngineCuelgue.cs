@@ -192,6 +192,14 @@ namespace ConsoleEnhancer.Motor
             testHangDone = true;
             if (s.TestHangMode == "perdida")
             {
+                // (1.2.4 arreglos, RELEVO: con prueba_cuelgue_ms, antes el pintado parado ese tiempo -como el DEVICE_HUNG del usuario: ~2 s
+                // de imagen quieta y luego la grafica perdida-, para medir el negro del relevo tras una caida)
+                if (s.TestHangMs > 0)
+                {
+                    Log.Write("Prueba: el hilo de pintado se para " + s.TestHangMs + " ms y luego la grafica se da por perdida (prueba_cuelgue_modo=perdida)");
+                    testPaused = true;
+                    Thread.Sleep(s.TestHangMs);
+                }
                 Log.Write("Prueba: la grafica se da por perdida (prueba_cuelgue_modo=perdida)");
                 testLost = true;
                 return;

@@ -70,7 +70,13 @@ namespace ConsoleEnhancer
             PrepareCfg();
             if (!fgWanted) return "no";
             if (cfg.EngineNow && cfg.EngineFfxWanted) return "fsr3";   // 21-11 (1.0.9): FSR 3 FG en el motor
-            if (cfg.EngineNow) return cfg.EngineSmoothFor(cfg.CapMode) && !NvProfiles.EngineSmoothBroken ? "smooth" : "dlss";
+            // (1.2.4 arreglos, RELEVO: desde la 1.2.4 el motor tambien hace XeSS FG -y la FG propia con x3 / x4 de XeSS-: antes aqui solo
+            // "smooth" o "dlss", y los avisos decian "Generación: DLSS FG" con XeSS FG puesto, y L3 tomaba DLSS FG por "ya puesto")
+            if (cfg.EngineNow)
+            {
+                if (cfg.EngineSmoothFor(cfg.CapMode) && !NvProfiles.EngineSmoothBroken) return "smooth";
+                return cfg.FgTypeNow == "xess" && Config.MotorFgMulti ? "xess" : "dlss";
+            }
             return cfg.FgTypeNow;
         }
 

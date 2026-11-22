@@ -492,6 +492,17 @@ namespace ConsoleEnhancer.Motor
             {
                 if (source != null) { try { source.Dispose(); } catch (Exception ex) { Log.Error("Cerrando la fuente", ex); } source = null; }
                 IFrameSource src;
+                if (s.IsFileTest)
+                {
+                    // 22-11 (1.2.4 arreglos, RELEVO): test=archivo:<ruta>, un video como si fuera la capturadora (FileSource.cs)
+                    FileSource fsrc = new FileSource(s);
+                    try { fsrc.Frame += OnFrame; fsrc.Start(); }
+                    catch (Exception ex) { fsrc.Frame -= OnFrame; Log.Error("Fuente de prueba (archivo)", ex); try { fsrc.Dispose(); } catch { } return; }
+                    tirCapPrev = 0;
+                    source = fsrc;
+                    Log.Write("Fuente: " + fsrc.Name);
+                    return;
+                }
                 if (s.Test.Length > 0)
                 {
                     TestSource ts = new TestSource(s.Test, s.CapW, s.CapH, s.FpsNum, s.FpsDen, s.Mode == 30 ? 30 : 60);
@@ -1225,7 +1236,7 @@ namespace ConsoleEnhancer.Motor
                 long now = Clock.Now;
                 if (hr < 0) { int drr = 0; try { drr = dev.GetDeviceRemovedReason(); } catch { } Log.Write("Present: " + Hr.Format(hr) + (drr != 0 ? " (GetDeviceRemovedReason " + Hr.Format(drr) + ")" : "")); if (Hr.IsDeviceLost(hr)) { ExitCode = 3; break; } }
                 LatPresented(slot, arrival, submitAt, now, gpuMs);   // 18-11 (LATENCIA)
-                if (slot >= 0) { stats.Presented(arrival, now, gpuMs); lastPresentedArrival = arrival; presentedFrames++; }
+                if (slot >= 0) { stats.Presented(arrival, now, gpuMs); lastPresentedArrival = arrival; presentedFrames++; if (presentedFrames == 1) PaintedFirst(now); }   // (1.2.4 arreglos, RELEVO: switch2-pintada)
                 if (slot >= 0 && wakeAt != 0) WakeFirstImage(arrival, now);
                 if (slot >= 0) TirFrame(arrival, now, gpuMs);   // (16-11 tirones)
                 lastShown = now;
