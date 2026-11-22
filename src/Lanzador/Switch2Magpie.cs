@@ -9404,7 +9404,7 @@ namespace ConsoleEnhancer
                 while (!p.HasExited && !userExit && mpv == p)
                 {
                     Thread.Sleep(100);
-                    if (signalOn && (lsReady || MenuCiegoCaptura || CapturaPreparando)) GrabTick(DateTime.Now); // (1.2.2: CapturaPreparando, src\VueltaJuego.cs)
+                    if (signalOn && (lsReady || MenuCiegoCaptura || CapturaPreparando || CapturaEntrandoMenu)) GrabTick(DateTime.Now); // (1.2.2: CapturaPreparando, src\VueltaJuego.cs; 1.2.3: CapturaEntrandoMenu, src\JuegoEnMarcha.cs)
                     // Fuera del HOME: se decide sin esperar al siguiente WatchLoop (hasta 0,5 s; el negro cuenta por tiempo)
                     if (signalOn && lsReady && InHome && noLabel >= 1) RunHomeTick(DateTime.Now);
                 }
@@ -9442,8 +9442,10 @@ namespace ConsoleEnhancer
             if (!Consolas.Actual.TieneHome)
             {
                 // (1.2.2: mientras Magpie prepara, tambien, para el menu y la comprobacion de la salida: CapturaPreparando)
-                bool preparando = passesBusy && CapturaPreparando;
-                if (grabBusy || relaunchSize != null || (passesBusy && !preparando) || now < switchUntil || !ipcUp) return;
+                // (1.2.3, JUEGO: y pasando al menu sin saber aun el juego en foco, CapturaEntrandoMenu: sin el margen de switchUntil, mpv no recarga)
+                bool entrandoMenu = CapturaEntrandoMenu;
+                bool preparando = passesBusy && (CapturaPreparando || entrandoMenu);
+                if (grabBusy || relaunchSize != null || (passesBusy && !preparando) || (now < switchUntil && !entrandoMenu) || !ipcUp) return;
                 // 19-11 (src\MenuPs5.cs): con la PS5, en su menu y confirmando que se entra o se sale de el, cada 0,4-0,5 s
                 // (19-11, DETECCION: confirmando, a los 0,25 s: src\DetectorMenu.cs decide con 2 capturas seguidas, o con 1 si la hora es la del
                 // PC al minuto; antes 0,4 s jugando y 0,5 s en el menu, y 3 capturas para salir)
@@ -9451,6 +9453,7 @@ namespace ConsoleEnhancer
                 if (Consolas.Actual.MenuPropio && (!homeBusy || preparando))
                 {
                     if (menuMaq.Confirmando) ev = 0.25; // (sin homeSync: dos enteros, una lectura de mas o de menos no importa)
+                    else if ((InHome || entrandoMenu) && FocoMenuPorLeer) ev = 0.25;   // (1.2.3, JUEGO: el primer juego en foco de la visita, como mucho 5 s: src\JuegoEnMarcha.cs)
                     else if (InHome) ev = 0.5;
                     // (1.2.2: comprobando la salida del menu: el negro de arrancar otro juego, 1,2 s. Con Magpie ya escalando a 4K cada
                     // captura para a mpv 44-81 ms (RITMO): 0,8 s; mientras Magpie prepara, mpv no se ve (el puente esta encima): 0,4 s)
@@ -14593,6 +14596,8 @@ namespace ConsoleEnhancer
                 // 20-11 (PS5JUEGO): leer el nombre del juego en el overlay (centro de control / conmutador de la PS5, Guia / fichas de la
                 // Xbox): --test-juegos-consola=<carpeta>[;<informe>] (xbox_* usa la Xbox, el resto la PS5)
                 if (arg.StartsWith("--test-juegos-consola=")) return JuegoConsola.Prueba(arg.Substring(22));
+                // 1.2.3 (JUEGO): el juego en marcha (primer foco de la visita, modo guardado, huella del HUD): --test-juego-en-marcha=<informe>[;<capturas>]
+                if (arg.StartsWith("--test-juego-en-marcha=")) return PruebaJuegoEnMarcha.Run(arg.Substring(23));
                 // 19-11 (DETECCION): el menu de la consola con imagenes y escenas, antes y ahora (src\PruebaDeteccion.cs):
                 // --test-deteccion=<carpeta>[;<informe>] (games\test_deteccion) o --test-deteccion=listar;<carpeta>;<informe.tsv>
                 if (arg.StartsWith("--test-deteccion=")) return PruebaDeteccion.Run(arg.Substring(17));

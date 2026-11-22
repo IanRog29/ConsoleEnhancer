@@ -56,6 +56,9 @@ namespace ConsoleEnhancer
             if (nuevo)
             {
                 p = CurrentProfile(c.PerfilConsola);
+                // 1.2.3 (JUEGO; lo vio MULTI en la 1.2.2): al abrir la app esto va antes de leer games\mode.txt (Worker): el perfil nuevo salia
+                // con el modo 60 de partida y, abajo, pisaba el modo guardado. El modo guardado manda
+                if (ModoGuardado(p)) Log.Write("Consola " + c.Corto + ": perfil \"" + p.Name + "\" nuevo con el modo guardado (" + (p.Mode120 ? "120" : p.Cap ? "30" : "60") + ")");
                 p.NameSure = true;
                 p.Capture = c.CapturaCercana(p.Capture);
                 GameProfiles.Save(p);
