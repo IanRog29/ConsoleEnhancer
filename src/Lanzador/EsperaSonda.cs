@@ -191,6 +191,8 @@ namespace ConsoleEnhancer.SondaDs
                 finally { Marshal.ReleaseComObject(s); }
             }
             catch { q = "error"; }
+            long prueba = CeSonda.PruebaImagenQpc;
+            if (prueba != 0 && q != "error" && Stopwatch.GetTimestamp() >= prueba) q = "imagen";   // (SOLO PRUEBAS)
             lock (sync)
             {
                 if (genLlegadas != Gen) { llegadas.Clear(); genLlegadas = Gen; }
@@ -219,6 +221,7 @@ namespace ConsoleEnhancer
     static class CeSonda
     {
         public const int CodigoConsola = 55, CodigoSinGrafo = 3;
+        public static long PruebaImagenQpc;   // (SOLO PRUEBAS: CE_PRUEBA_SONDA_CONSOLA_S)
         // Lo pone la sonda en cada vez; la espera (Paso, cada segundo) lo mira: 30 s sin el, la sonda colgada -> se cierra y se abre otra
         public const string Latido = "Local\\ConsoleEnhancer_SondaLatido";
         static readonly Guid ClsidDevEnum = new Guid("62BE5D10-60EB-11d0-BD3B-00A0C911CE86"), CatVideo = new Guid("860BB310-5D01-11d0-BD3B-00A0C911CE86"),
@@ -242,6 +245,14 @@ namespace ConsoleEnhancer
                 else if (a.StartsWith("formato=")) formato = a.Substring(8);
                 else if (a.StartsWith("cada_ms=")) { int n; if (int.TryParse(a.Substring(8), out n)) cada = Math.Max(100, Math.Min(60000, n)); }
                 else if (a == "medir=1") medir = true;
+            }
+            // SOLO PRUEBAS: CE_PRUEBA_SONDA_CONSOLA_S=<s>: a los s segundos toma lo que llegue por la consola (para probar todo el despertar
+            // con la capturadora de verdad y la consola apagada)
+            int ps;
+            if (int.TryParse(Environment.GetEnvironmentVariable("CE_PRUEBA_SONDA_CONSOLA_S") ?? "", out ps) && ps > 0)
+            {
+                PruebaImagenQpc = Stopwatch.GetTimestamp() + ps * Stopwatch.Frequency;
+                Log.Write("Sonda de la espera: PRUEBA (CE_PRUEBA_SONDA_CONSOLA_S=" + ps + "): a los " + ps + " s lo que llegue cuenta como la consola");
             }
             int r = CodigoSinGrafo;
             // (DirectShow en un hilo MTA, como el motor: las muestras llegan en el hilo de la capturadora)
