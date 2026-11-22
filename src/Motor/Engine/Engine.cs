@@ -1236,7 +1236,7 @@ namespace ConsoleEnhancer.Motor
                 long now = Clock.Now;
                 if (hr < 0) { int drr = 0; try { drr = dev.GetDeviceRemovedReason(); } catch { } Log.Write("Present: " + Hr.Format(hr) + (drr != 0 ? " (GetDeviceRemovedReason " + Hr.Format(drr) + ")" : "")); if (Hr.IsDeviceLost(hr)) { ExitCode = 3; break; } }
                 LatPresented(slot, arrival, submitAt, now, gpuMs);   // 18-11 (LATENCIA)
-                if (slot >= 0) { stats.Presented(arrival, now, gpuMs); lastPresentedArrival = arrival; presentedFrames++; }
+                if (slot >= 0) { stats.Presented(arrival, now, gpuMs); lastPresentedArrival = arrival; presentedFrames++; if (presentedFrames == 1) PaintedFirst(now); }   // (1.2.4 arreglos, RELEVO: switch2-pintada)
                 if (slot >= 0 && wakeAt != 0) WakeFirstImage(arrival, now);
                 if (slot >= 0) TirFrame(arrival, now, gpuMs);   // (16-11 tirones)
                 lastShown = now;

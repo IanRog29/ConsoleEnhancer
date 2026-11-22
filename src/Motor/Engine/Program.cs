@@ -167,9 +167,15 @@ namespace ConsoleEnhancer.Motor
             }
             if (ClosedOutside && code == 0) code = 77;
             Log.Write("Fin (" + code + ")");
+            // 22-11 (1.2.4 arreglos, RELEVO): con la grafica perdida (3) o parada (5) el proceso tardaba ~3,3 s mas en salir tras "Fin"
+            // (log del usuario 21:31:32.189 -> el lanzador lo ve a las 21:31:35.489: las DLL de NVIDIA / Intel soltando un dispositivo
+            // perdido), y ese tiempo era negro. Ya no hay nada que guardar: fuera al momento
+            if (code == 3 || code == 5) { try { TerminateProcess(GetCurrentProcess(), (uint)code); } catch { } }
             return code;
         }
 
+        [DllImport("kernel32.dll")] static extern IntPtr GetCurrentProcess();
+        [DllImport("kernel32.dll")] static extern bool TerminateProcess(IntPtr h, uint code);
         [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
         // 17-11 (REJAS): quien tiene el primer plano (proceso, clase, titulo), para el log cuando el motor pierde el foco
         [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);

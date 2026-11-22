@@ -1525,6 +1525,7 @@ namespace ConsoleEnhancer
                             { c.EngineInByCap[key.Substring(14)] = val.Trim().ToLowerInvariant(); break; }
                             if (c.ParseD5Opt(key, val)) break; // (escalador_<modo>_dlss5 y demas: ver Config.D5ScalerTable)
                             if (c.ParseCierres(key, val)) break; // (20-11, CIERRES: apagado_confirmar y demas, src\Cierres.cs)
+                            if (c.ParseRelevo(key, val)) break; // (1.2.4 arreglos, RELEVO: relevo_motor_espera, relevo_xess_magpie, src\Lanzador\RelevoMotor.cs)
                             if (c.ParseSonidoDoble(key, val)) break; // (21-11: sonido_doble, src\SonidoDoble.cs)
                             if (c.ParseCapturaSegura(key, val)) break; // (21-11, 1.2.1: captura_segura, src\Lanzador\CapturaSegura.cs)
                             if (MarcoMpv.Parse(key, val)) break; // (22-11, 1.2.1: mpv_sin_marco, src\Lanzador\MarcoMpv.cs)
@@ -11265,6 +11266,9 @@ namespace ConsoleEnhancer
                 if (Config.EngineActive && cfg.EngineNow)
                 {
                     SyncEngine();
+                    // (1.2.4 arreglos, RELEVO: si lo nuevo pide otro motor -otra cadena de generacion, Smooth Motion, refresco-, el relevo ya; el
+                    // aviso lo da el motor nuevo. RelevoMotor.cs)
+                    if (RelevoSiOtraIdentidad(title, subtitle)) return;
                     if (!applying && title != null) Osd(string.IsNullOrEmpty(subtitle) ? title : title + " · " + subtitle);
                     return;
                 }
@@ -11684,10 +11688,13 @@ namespace ConsoleEnhancer
             int smRun = Config.EngineSmoothRunning;
             if (smRun < 0 || NvProfiles.EngineSmoothBroken) return;
             int altSm, altFixed;
-            if (smRun > 0) { altSm = 0; altFixed = (!cfg.CapMode && cfg.EngineFixed60Fg && cfg.CeRefrescoFijoAhora() && !NvProfiles.EngineFixedBroken) ? 1 : 0; }
+            // (1.2.4 arreglos, RELEVO: con otra cadena delante -XeSS FG, FSR 3 FG, PrismaFg-, el de reserva es el de siempre -cadena 0, sin
+            // Smooth Motion: DLSS FG x2, la FG propia x3 / x4, sin generacion, DLSS SR-, lo mas probable despues; antes Smooth Motion)
+            int chRun = Config.EngineFfxOf(mpv);
+            if (smRun > 0 || chRun > 0) { altSm = 0; altFixed = (!cfg.CapMode && cfg.EngineFixed60Fg && cfg.CeRefrescoFijoAhora() && !NvProfiles.EngineFixedBroken) ? 1 : 0; }
             else { altSm = cfg.CapMode ? (Pantalla.Hz() >= 100 ? 2 : 1) : (Pantalla.Hz() >= 100 ? 1 : 0); altFixed = 0; }
-            if (altSm == smRun) return;
-            string key = smRun + ">" + altSm + "|" + altFixed + "|" + cfg.CaptureNow + "|" + (cfg.CapMode ? 30 : 60);
+            if (altSm == smRun && chRun <= 0) return;
+            string key = smRun + ">" + altSm + "|" + altFixed + "|c" + chRun + "|" + cfg.CaptureNow + "|" + (cfg.CapMode ? 30 : 60);
             if (key == reserveKeyDone) return;
             reserveKeyDone = key;
             int sm = altSm, fx = altFixed;
@@ -11892,7 +11899,7 @@ namespace ConsoleEnhancer
             { ffxDiffSince = DateTime.MinValue; return; }
             PrepareCfg();
             int want = cfg.EngineFgChain;   // (1.2.4 MOTORFG: tambien XeSS FG y DLSS FG x3 / x4, MotorFg.cs)
-            if (want == have || cfg.EngineSmoothMode != Config.EngineSmoothRunning) { ffxDiffSince = DateTime.MinValue; return; }
+            if (Config.ChainOk(have, want) || cfg.EngineSmoothMode != Config.EngineSmoothRunning) { ffxDiffSince = DateTime.MinValue; return; }   // (1.2.4 arreglos, RELEVO: ChainOk)
             if (ffxDiffSince == DateTime.MinValue) { ffxDiffSince = now; return; }
             if ((now - ffxDiffSince).TotalSeconds < 0.5) return;
             ffxDiffSince = DateTime.MinValue;
@@ -11921,7 +11928,11 @@ namespace ConsoleEnhancer
         // PS5, src\MenuPs5.cs, con su titulo). Sin titulo, los avisos de la generacion
         void ReabrirMotorSmooth(int want, string title, string subtitle)
         {
-            KillStandby("Smooth Motion cambia");
+            // (1.2.4 arreglos, RELEVO: el motor en espera solo fuera si no vale para lo de ahora; antes siempre -log del usuario 21:29:28,
+            // 21:34:51-, y luego "no hay motor en espera: se arranca uno escondido ... 5068 ms". RelevoMotor.cs)
+            PrepareCfg();
+            string sbNo = StandbyIdentityDiff();
+            if (sbNo != null) KillStandby("no vale para lo de ahora: " + sbNo);
             // 17-11 17:00 (el usuario: "al activar o desactivar el smooth motion la imagen se pone negra"): sin telon, como DLSS 5 apagado: uno
             // nuevo en espera con el Smooth Motion que toca arranca escondido (~3-4 s) mientras el de ahora sigue jugando, se despierta detras y
             // se pone delante en cuanto da imagen; el de antes se cierra debajo
@@ -11930,7 +11941,8 @@ namespace ConsoleEnhancer
             // reves. Ahora dice lo que hay de verdad: el tipo de generacion de ahora, o desactivada solo si esta apagada
             string genNow = GenCurrent();
             bool genOff = genNow == "no" || cfg.FgOff;
-            string stTitle = title ?? (genOff ? "Generación de fotogramas desactivada" : "Generación: " + GenLabel(genNow, true));
+            string stTitle = title ?? (genOff ? "Generación de fotogramas desactivada" : "Generación: " + GenLabel(genNow, true) + GenMultSufijo(genNow) +
+                                       (genNow == "dlss" || genNow == "xess" ? cfg.MotorFgViaNota(genNow, cfg.FgMultNow) : ""));   // (1.2.4 arreglos, RELEVO: con x3 / x4 y la FG propia)
             string stSub = subtitle ?? (genOff ? "Solo las imágenes reales de la consola" : GenDetail(genNow, true) +
                                         (want == 0 && cfg.EngineFixedWanted ? " · ritmo fijo de la tele" : ""));
             if (cfg.Dlss5Seamless && StandbyOn() && EngineKnowsSinTelon() && signalOn && mpv != null)
@@ -11953,7 +11965,7 @@ namespace ConsoleEnhancer
         {
             if (!Config.EngineActive || !ipcUp) return;
             PrepareCfg();
-            string want = EngineLive(cfg);
+            string want = EngineLiveForRunning();   // (1.2.4 arreglos, RELEVO: sin generacion si este motor se abrio con otra identidad, RelevoMotor.cs)
             if (want == engineSent) return;
             engineSent = want;
             lock (cmdQueue) cmdQueue.Add(JsonCmd("engine", "set " + want));
@@ -11969,7 +11981,7 @@ namespace ConsoleEnhancer
         {
             if (!Config.EngineActive || !ipcUp) return null;
             PrepareCfg();
-            string want = EngineLive(cfg);
+            string want = EngineLiveForRunning();   // (1.2.4 arreglos, RELEVO: RelevoMotor.cs)
             if (want == engineSent) return null;
             engineSent = want;
             return want;
@@ -13148,7 +13160,8 @@ namespace ConsoleEnhancer
                             if (relevoQuit == p)
                             {
                                 relevoQuit = null;
-                                w.WriteLine("{\"command\":[\"quit\",\"0\"]}");
+                                // (1.2.4 arreglos, RELEVO: si el que se va es un motor, a la espera en vez de cerrarse; RelevoMotor.cs)
+                                if (!RelevoOldToStandby(p, w)) w.WriteLine("{\"command\":[\"quit\",\"0\"]}");
                                 quitSent = true;
                             }
                         }
@@ -13376,6 +13389,12 @@ namespace ConsoleEnhancer
                         System.Text.RegularExpressions.Match m = System.Text.RegularExpressions.Regex.Match(line, "\"switch2-diag-captura\",\"([^\"]*)\"");
                         if (m.Success && readerMpv == mpv) RitmoDiag.MpvCaptura(m.Groups[1].Value);
                     }
+                    else if (line.Contains("\"client-message\"") && line.Contains("\"args\":[\"switch2-pintada\""))
+                    {
+                        // (1.2.4 arreglos, RELEVO: el motor de ahora ya ha presentado una imagen de verdad; WaitForSignal la espera)
+                        Process rp = readerMpv;
+                        if (rp != null && rp == mpv) enginePaintedPid = rp.Id;
+                    }
                     else if (line.Contains("\"client-message\"") && line.Contains("\"args\":[\"switch2-signal\""))
                     {
                         // (15-11: solo el aviso del mpv / motor de ahora: uno tardio del que se cierra no vale para el nuevo)
@@ -13550,6 +13569,7 @@ namespace ConsoleEnhancer
                 Thread.Sleep(fast ? 40 : waitAsked ? 1000 : 50);
             }
             Log.Write("mpv ya muestra imagen (consola o pantalla No Signal)");
+            PaintWait(p);   // (1.2.4 arreglos, RELEVO: el motor, hasta su primera imagen pintada: el telon no se quita sobre negro)
             if (cfg.PerformanceBoost) Perf.GpuHigh(p, "mpv");
             // 16-11 (revision): waitAsked no se quitaba nunca: tras una espera larga (la app abierta con la consola apagada), cada espera
             // despues miraba cada 1 s (hasta 1 s mas de negro en cada relanzamiento) y no cada 0,2 s (o 0,04 s al despertar el motor)
@@ -14004,7 +14024,7 @@ namespace ConsoleEnhancer
                         KillStandby("refresco: el motor en espera se abrio " + (Config.EngineFixedOf(standbyEngine) > 0 ? "con el refresco fijo" : "con VRR"));
                     // 21-11 (1.0.9): y uno abierto con otra generacion de motor (FSR 3 FG / la de siempre): la cadena no se cambia en marcha
                     if (eng && adopted == null && standbyEngine != null && Config.EngineFfxOf(standbyEngine) >= 0 &&
-                        Config.EngineFfxOf(standbyEngine) != cfg.EngineFgChain)
+                        !Config.ChainOk(Config.EngineFfxOf(standbyEngine), cfg.EngineFgChain))   // (1.2.4 arreglos, RELEVO: ChainOk)
                         KillStandby("generacion: el motor en espera se abrio con otra cadena (" + Config.EngineFfxOf(standbyEngine) + ", ahora " + cfg.EngineFgChain + ": 1 FSR 3 FG, 3 DLSS FG x3 / x4 con PrismaFg.dll, 2x / 3x / 4x XeSS FG x2 / x3 / x4, +1 con DLSS SR)");
                     Process woke = adopted ?? (eng ? StandbyForWake() : null);
                     if (eng && woke == null) KillStandby("se abre otro motor");
@@ -14028,6 +14048,7 @@ namespace ConsoleEnhancer
                     videoSignal = false;
                     signalHeard = false;
                     signalOn = false;
+                    enginePaintedPid = -1;   // (1.2.4 arreglos, RELEVO: switch2-pintada de esta imagen)
                     Stopwatch wakeSw = null;
                     if (woke != null)
                     {
@@ -14041,7 +14062,8 @@ namespace ConsoleEnhancer
                         EngineJob.Hold(woke, false);
                         p = woke;
                         mpv = p;
-                        Config.EngineSmoothRunning = standbySmooth;   // 17-11 16:55
+                        // (1.2.4 arreglos, RELEVO: el del relevo con el suyo -el que se fue ya puede estar en espera con el de antes-)
+                        Config.EngineSmoothRunning = adopted != null && relevoAdoptSmooth >= 0 ? relevoAdoptSmooth : standbySmooth;   // 17-11 16:55
                         wakeSw = Stopwatch.StartNew();
                         if (adopted == null) SendWake(p);
                         else
@@ -14352,11 +14374,16 @@ namespace ConsoleEnhancer
                     Log.Write("El motor propio se ha cerrado solo (codigo " + p.ExitCode + ", vez " + engineCrashes + "; ver data\\logs\\engine.log): " +
                               (engineCrashes >= 3 ? "el resto de la sesion mpv + Magpie" : "se vuelve a abrir"));
                     if (engineCrashes >= 3) cfg.Engine = "magpie";
-                    ShowCurtain();
+                    // (1.2.4 arreglos, RELEVO: la imagen congelada en vez de negro; XeSS FG por Magpie tras caerse con el; sin la espera si hay
+                    // un motor en espera que vale. RelevoMotor.cs)
+                    CrashXessFallback(p, p.ExitCode);
+                    CrashCurtain(p);
                     signalOn = false;
                     waitStart = DateTime.Now;
                     GraceOffForRelaunch("motor cerrado");
-                    Thread.Sleep(1500); // (tras un reinicio de la grafica, un momento para que vuelva)
+                    int crashWait = CrashWaitMs();
+                    if (crashWait > 0) Thread.Sleep(crashWait); // (tras un reinicio de la grafica, un momento para que vuelva)
+                    else Log.Write("Motor en espera listo y valido: se despierta ya (sin la espera de 1,5 s)");
                     goto relaunch;
                 }
                 // Cerrado solo (codigo 0) sin pedirlo y sin apagar la consola: la capturadora corto la señal (medido: al abrir

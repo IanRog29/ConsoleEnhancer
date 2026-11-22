@@ -38,9 +38,12 @@ namespace ConsoleEnhancer
             public Process OldMpv;                  // (al motor) el mpv que se va
             public volatile bool WakeSent, Signal, StandbyOk, Cut, Curtain;
             public bool Bridge;                     // (16-11, velocidad) el puente: el motor en espera juega encima mientras Magpie se (re)abre
+            public bool OldEngine;                  // (1.2.4 arreglos, RELEVO) al motor: el que se va tambien es un motor (otra identidad): pasa a la espera
             public string Why = "";                 // (y para que: el log)
             public volatile int Rate = -1;
             public long WakeMs = -1, SignalMs = -1, RateMs = -1, CutMs = -1;
+            public volatile bool Painted;           // (1.2.4 arreglos, RELEVO) switch2-pintada: el motor ya ha presentado una imagen de verdad
+            public long PaintedMs = -1;
             // 18-11 (PASADAS): el Smooth Motion con el que se abrio ESTE motor (standbySmooth al volver a la espera). Antes SetStandby(ready) tomaba
             // el del ultimo motor que hizo la imagen: el motor del puente (abierto ya en espera, con Smooth Motion) volvia a la espera como "sin
             // Smooth Motion" y al apagar DLSS 5 se le mandaba fg=1 (DLSS FG + Smooth Motion a la vez; luego en espera +600 MB de la generacion)
@@ -111,6 +114,10 @@ namespace ConsoleEnhancer
                             }
                         }
                         else if (line.Contains("\"args\":[\"switch2-standby-ok\"")) StandbyOk = true;
+                        else if (line.Contains("\"args\":[\"switch2-pintada\""))
+                        {
+                            if (!Painted) { PaintedMs = Since.ElapsedMilliseconds; Painted = true; }
+                        }
                     }
                 }
                 catch (Exception) { } // (tuberia cerrada: el motor se ha cerrado, o Close)
@@ -195,6 +202,7 @@ namespace ConsoleEnhancer
             string pill = PillText(title, subtitle);
             Relevo r = new Relevo(true);
             r.OldMpv = old;
+            r.OldEngine = Config.EngineActive;   // (1.2.4 arreglos, RELEVO)
             lock (relevoSync) relevo = r;
             lsReady = false;          // (nada del mando ni del HOME sobre la imagen que se va)
             relaunchEngine = true;    // (RunMpv: al cerrarse mpv, el motor; mientras, ningun otro cambio de motor)
@@ -203,8 +211,8 @@ namespace ConsoleEnhancer
             if (pad && pill != null) Osd(pill); // (en la imagen de ahora: Magpie la escala)
             // (16-11, velocidad: tambien desde el HOME a 4K, sin Magpie: la imagen de mpv tal cual)
             bool withMagpie = MagpieLive.Running;
-            Log.Write(title + ": sin telon (de mpv" + (withMagpie ? " + Magpie" : " (HOME a 4K)") + " al motor propio): " +
-                      (withMagpie ? "Magpie sigue a la vista con DLSS 5" : "la imagen de la consola sigue a la vista") + "; el motor despierta detras y se pone delante en cuanto da imagen");
+            Log.Write(title + ": sin telon (" + (r.OldEngine ? "del motor propio a otro motor propio" : "de mpv" + (withMagpie ? " + Magpie" : " (HOME a 4K)") + " al motor propio") + "): " +
+                      (withMagpie ? "Magpie sigue a la vista con DLSS 5" : r.OldEngine ? "el motor de ahora sigue a la vista" : "la imagen de la consola sigue a la vista") + "; el motor despierta detras y se pone delante en cuanto da imagen");
             Thread t = new Thread(delegate () { RelevoToEngine(r, title, subtitle, pill, pad); });
             t.IsBackground = true;
             t.Name = "Sin telon (al motor)";
@@ -220,9 +228,10 @@ namespace ConsoleEnhancer
                 // el motor en espera se abrio con la cadena de antes -DLSS-G- y no se cambia en marcha: fuera, y uno nuevo con la buena
                 // mientras Magpie sigue a la vista. Lo mismo que mira RunMpv al despertar uno sin relevo)
                 PrepareCfg();
-                Process sbe = standbyEngine;
-                if (sbe != null && Config.EngineFfxOf(sbe) >= 0 && Config.EngineFfxOf(sbe) != cfg.EngineFgChain)
-                    KillStandby("relevo: el motor en espera se abrio con otra cadena de generacion (" + Config.EngineFfxOf(sbe) + ", ahora " + cfg.EngineFgChain + ")");
+                // (1.2.4 arreglos, RELEVO: tambien Smooth Motion y el refresco, no solo la cadena: RelevoMotor.cs)
+                string sbNo = StandbyIdentityDiff();
+                if (sbNo != null) KillStandby("relevo: el motor en espera no vale (" + sbNo + ")");
+                else if (standbyEngine != null) Log.Write("Relevo: el motor en espera (pid " + standbyEngine.Id + ") vale para lo de ahora: se despierta");
                 Process e = StandbyForWake(); // (recien arrancado: hasta que diga que esta listo, como mucho 8 s desde su arranque)
                 if (e == null && !userExit)
                 {
@@ -264,7 +273,10 @@ namespace ConsoleEnhancer
                 Log.Write("Sin telon: motor (pid " + e.Id + ") despertado detras de Magpie a los " + r.WakeMs + " ms del boton: " + set);
                 Stopwatch sw = Stopwatch.StartNew();
                 bool dead = false;
-                while (!userExit && !(r.Signal && r.Rate > 0) && sw.ElapsedMilliseconds < cfg.Dlss5SeamlessWaitMs)
+                // (1.2.4 arreglos, RELEVO: y con su primera imagen PINTADA -switch2-pintada-, no solo con imagenes llegando: si no, el corte
+                // ponia delante un motor que aun no habia presentado nada -DLSS 5 creandose- y se veia negro ~0,5 s. Un motor de antes no lo dice)
+                bool needPaint = EngineKnowsPainted();
+                while (!userExit && !(r.Signal && r.Rate > 0 && (r.Painted || !needPaint)) && sw.ElapsedMilliseconds < cfg.Dlss5SeamlessWaitMs + (r.Signal && needPaint ? 2000 : 0))
                 {
                     try { dead = e.HasExited; } catch { dead = true; }
                     if (dead) break;
@@ -301,7 +313,7 @@ namespace ConsoleEnhancer
                 }
                 QuitOldMpv(r);
                 Log.Write("Sin telon (al motor): imagen del motor a los " + r.SignalMs + " ms del boton (ritmo " + r.Rate + "/s a los " + r.RateMs + " ms; despertado a los " +
-                          r.WakeMs + "); corte a los " + r.CutMs + " ms: motor delante" + (fg ? " y con el foco" : " (el foco aun no: se lo da el motor)") +
+                          r.WakeMs + (needPaint ? "; pintada a los " + r.PaintedMs : "") + "); corte a los " + r.CutMs + " ms: motor delante" + (fg ? " y con el foco" : " (el foco aun no: se lo da el motor)") +
                           ", Magpie fuera y mpv se cierra debajo" + (h == IntPtr.Zero ? " (SIN su ventana a mano: el foco, luego)" : ""));
             }
             catch (Exception ex)
@@ -355,12 +367,14 @@ namespace ConsoleEnhancer
             Process old = r.OldMpv;
             if (old == null) return;
             try { if (old.HasExited) return; } catch { return; }
+            relevoQuitStandby = r.OldEngine;   // (1.2.4 arreglos, RELEVO: un motor que se va pasa a la espera, RelevoMotor.cs)
             relevoQuit = old;
             ThreadPool.QueueUserWorkItem(delegate
             {
                 try
                 {
                     if (old.WaitForExit(3000)) return;
+                    if (old == standbyEngine || old == standbyGot || old == standbyAsked) return;   // (1.2.4 arreglos: paso a la espera, no se cierra)
                     if (relevoQuit == old) relevoQuit = null;
                     Log.Write("Sin telon: el mpv de antes (pid " + old.Id + ") no se ha cerrado en 3 s: se cierra a la fuerza");
                     old.Kill();
@@ -389,6 +403,7 @@ namespace ConsoleEnhancer
                 e = relevoAdopt;
                 ipc = relevoAdoptIpc;
                 noImage = relevoAdoptNoImage;
+                relevoAdoptSmooth = e != null ? r.Smooth : -1;   // (1.2.4 arreglos, RELEVO: su Smooth Motion para RunMpv)
                 relevoAdopt = null;
                 relevoAdoptIpc = null;
                 if (relevo == r) relevo = null;
@@ -722,7 +737,8 @@ namespace ConsoleEnhancer
         {
             Stopwatch sw = Stopwatch.StartNew();
             bool dead = false;
-            while (!userExit && !r.Cut && !(r.Signal && r.Rate > 0) && sw.ElapsedMilliseconds < waitMs)
+            bool needPaint = EngineKnowsPainted();   // (1.2.4 arreglos, RELEVO: con su primera imagen pintada, ver RelevoToEngine)
+            while (!userExit && !r.Cut && !(r.Signal && r.Rate > 0 && (r.Painted || !needPaint)) && sw.ElapsedMilliseconds < waitMs + (r.Signal && needPaint ? 2000 : 0))
             {
                 try { dead = r.Engine.HasExited; } catch { dead = true; }
                 if (dead) break;

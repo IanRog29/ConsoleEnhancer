@@ -134,6 +134,7 @@ namespace ConsoleEnhancer.Motor
                 long p = passedCount, d = p - ratePassed;
                 ratePassed = p;
                 Ev("switch2-rate", (d * 2).ToString(CultureInfo.InvariantCulture), lastPassedNew ? "new" : "copy");
+                if (firstPaintAt != 0 && Clock.SinceMs(firstPaintAt) < 5000) Ev("switch2-pintada", presentedFrames.ToString(CultureInfo.InvariantCulture));   // (1.2.4 arreglos, RELEVO)
             }
             catch (Exception ex) { Log.Error("Avisos", ex); }
         }

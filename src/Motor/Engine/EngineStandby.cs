@@ -225,6 +225,18 @@ namespace ConsoleEnhancer.Motor
                       " a los " + Clock.SinceMs(askedAt).ToString("0", IC) + " ms (recursos de la sesion " + resMs.ToString("0", IC) + " ms): " + s.Describe());
         }
 
+        // 22-11 (1.2.4 arreglos, RELEVO; lo vio DLSS5Q en el log del usuario 21:29:50): el lanzador hacia el corte del relevo (el motor nuevo
+        // delante, el de antes fuera) con switch2-signal + switch2-rate, que cuentan imagenes que LLEGAN de la capturadora, no pintadas: el
+        // motor nuevo aun no habia presentado nada (DLSS 5 creandose: "primera imagen en 1029 ms desde switch2-wake", 0,5 s despues del corte)
+        // y se veia negro. Ahora, con la primera imagen de verdad presentada (en un arranque o al despertar): "switch2-pintada <n>", al
+        // momento y luego cada 0,5 s durante 5 s (EventTick: por si aun no habia nadie conectado)
+        long firstPaintAt;
+        void PaintedFirst(long now)
+        {
+            firstPaintAt = now;
+            Ev("switch2-pintada", "1");
+        }
+
         // Desde Run, con la primera imagen nueva presentada tras despertar
         void WakeFirstImage(long arrival, long now)
         {
@@ -369,6 +381,7 @@ namespace ConsoleEnhancer.Motor
             signalSeen = false; signalAcked = false; signalSent = false; earlyAckLogged = false;
             firstArrival = 0; lastArrivalT = 0; framesIn = 0; capN = 0; lastPassed = -100; passedCount = 0; ratePassed = 0; lastPassedNew = true;
             lastPresentedArrival = 0; presentedFrames = 0; lastCapture = 0; noSignalLogged = false;
+            firstPaintAt = 0;   // (1.2.4 arreglos, RELEVO: switch2-pintada de esta sesion)
             noSignalScreen = false;
             dupSig = null; dupSigLen = 0; cutValid = false;
             resetHistory = true; motionValid = false; mvecDirty = false;
