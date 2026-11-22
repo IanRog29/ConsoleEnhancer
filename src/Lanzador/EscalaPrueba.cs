@@ -176,7 +176,20 @@ namespace ConsoleEnhancer
             Cerca(Cadena(ti, 30, "2560x1440", "2560x1440", "dlss", "dlss", 5, false, 3840, 2160), new[] { 85, 60, 50 }, "30 + DLSS FG, E");
             Cerca(Cadena(ti, 30, "2560x1440", "2560x1440", "", "dlss", 5, false, 3840, 2160), new[] { 100, 80, 65 }, "30 sin FG, E");
             Cerca(Cadena(ti, 60, "2560x1440", "2560x1440", "dlss", "dlss", 5, true, 3840, 2160), new[] { 40, -2, -2 }, "60 + DLSS FG ligero, E");
-            Cerca(Cadena(ti, 30, "2560x1440", "2560x1440", "xess", "dlss", 5, false, 3840, 2160), new[] { 70, 45, 35 }, "30 + XeSS FG, E");
+            // (1.2.3, MULTI2: XeSS FG genera en su propia cola -no alarga el hilo de Magpie-; lo de Prisma -70/45/35- era con el XeSS FG de
+            // entonces. MEDIDO el 22-11 a 4K, abajo)
+            // MEDIDO el 22-11 (tele 4K a 120 con VRR, captura 4K sin escalar, fuente de 30 en 59,94, DLSS 5 nivel 3 de 1 pasada; reales que
+            // recibe Magpie): DLSS FG x2 al 50 % 28,3 (no llega); x3 al 45 % 28,6 y al 40 % 29,5 (min 28,2); x4 al 45 % 27,2; XeSS FG x2 al 50 %
+            // 29,9 (llega, 77 % de grafica)
+            foreach (int[] mm in new[] { new[] { 2, 50 }, new[] { 3, 40 }, new[] { 4, 45 } })
+            {
+                CadenaEscala c4 = Cadena(ti, 30, "3840x2160", "3840x2160", "dlss", "dlss", 5, false, 3840, 2160); c4.Mult = mm[0];
+                int p4 = Pct(c4, 1);
+                Ok(p4 < mm[1], "4060 Ti a 4K, 30 + DLSS FG x" + mm[0] + ": por debajo del " + mm[1] + " % que no llego (medido 22-11): " + p4 + " %");
+            }
+            CadenaEscala cx = Cadena(ti, 30, "3840x2160", "3840x2160", "xess", "dlss", 5, false, 3840, 2160);
+            int px = Pct(cx, 1);
+            Ok(px >= 40 && px <= 55, "4060 Ti a 4K, 30 + XeSS FG x2: entre 40 y 55 % (medido 22-11: al 50 % llega, 29,9 reales): " + px + " %");
             // (M: 16-11, 70 % con la grafica al 80 %. 1.2.3: el uso ya es el del hilo de Magpie -92 %-: sin cambiarlo para esta)
             Cerca(Cadena(ti, 30, "2560x1440", "2560x1440", "dlss", "dlss", 13, false, 3840, 2160), new[] { 70, -2, -2 }, "30 + DLSS FG, M (16-11: M 70 % = 80 % de grafica)");
             int ti120 = Pct(Cadena(ti, 120, "2560x1440", "2560x1440", "", "dlss", 5, false, 3840, 2160), 1);
