@@ -743,7 +743,7 @@ namespace ConsoleEnhancer
             {
                 if (Integrado.MagpieDlssgOk) return false;
                 if (Ce.DlssgSoloMagpie) return true;
-                if (Dlss5Off || !Integrado.Dlss5Available || (EngineDlss5 && Engine == "propio")) return false;
+                if (Dlss5Off || !Integrado.Dlss5Available || MotorDlss5Pedido) return false;   // (22-11, 1.2.3 MOTOR5: si DLSS 5 lo hace de verdad el motor, src\Lanzador\MotorDlss5.cs)
                 // (1.2.04) el usuario, 21-11: "pantallazo negro unos segundos cada vez que cambio de juego o al menu". Con DLSS 5 que NO
                 // CABE (captura 4K: nada que escalar) DLSS FG la hace el motor propio y no hace falta dlssg_sm86; antes se cambiaba por XeSS
                 // FG (solo Magpie) y cada vuelta del menu (motor propio) al juego reabria mpv + Magpie con ~2 s de negro. Dlss5FitsNow pasa
@@ -1009,7 +1009,9 @@ namespace ConsoleEnhancer
             }
         }
         // (20-11 03:40: ya con 2-3 pasadas y el antiparpadeo; antes solo 1 pasada)
-        public bool EngineDlss5Now { get { return EngineDlss5 && Engine == "propio" && !Dlss5Off && Dlss5FitsNow; } }
+        // (22-11, 1.2.3 MOTOR5: y solo lo que el motor hace -con PrismaNr.dll, hasta motor_dlss5_pasadas, sin x3 / x4 ni XeSS FG-; lo demas por
+        // Magpie como siempre. Antes con motor_dlss5=1 y x4 o 2 pasadas Magpie iba sin su escala automatica y los textos decian "motor propio")
+        public bool EngineDlss5Now { get { return EngineDlss5 && Engine == "propio" && !Dlss5Off && Dlss5FitsNow && MotorDlss5Pedido; } }
         // El % de entrada de DLSS 5 que se aplica de verdad (para los textos): el del motor si DLSS 5 va en el, si no el de Magpie
         public int Dlss5PctShownNow { get { return EngineDlss5Now ? EngineDlss5PctNow : Dlss5PctNow; } }
         // 16-11 noche: motor_modelo_<modo>_1080= / _1440= / _720= (por captura; sin ella, la del modo)
@@ -1406,7 +1408,8 @@ namespace ConsoleEnhancer
                         case "rtx_hdr_saturacion": c.RtxHdrSaturation = Math.Max(0, Math.Min(200, ParseInt(val))); break;
                         case "reflex": c.Reflex = ParseBool(val); break;
                         case "motor": c.Engine = val.Trim().ToLowerInvariant(); break;
-                        case "motor_dlss5": c.EngineDlss5 = ParseBool(val); break;
+                        case "motor_dlss5": c.EngineDlss5 = MotorDlss5Valor(val); c.EngineDlss5Ini = val.Trim(); break;   // (1.2.3 MOTOR5: auto = con PrismaNr.dll)
+                        case "motor_dlss5_pasadas": c.EngineDlss5MaxPasses = Math.Max(1, Math.Min(3, ParseInt(val))); break;   // (1.2.3 MOTOR5)
                         case "motor_dlss5_entrada": c.EngineDlss5PctAll = Math.Max(0, Math.Min(100, ParseInt(val))); break;
                         case "motor_dlss5_entrada_30": ParsePctList(val, c.EngineDlss5Pct30); break;
                         case "motor_dlss5_entrada_30_4k": ParsePctList(val, c.EngineDlss5Pct30_4k); break;
@@ -13165,6 +13168,7 @@ namespace ConsoleEnhancer
                     else if (line.Contains("\"request_id\":79")) CierresCaptura(line); // (20-11, CIERRES: switch2-captura-ms del motor)
                     else if (line.Contains("\"client-message\"") && CierresEvent(line)) { } // (20-11, CIERRES: switch2-gpu del motor)
                     else if (line.Contains("\"client-message\"") && FpsEvent(line)) { } // (21-11: switch2-fps del motor, src\Lanzador\FpsBajo.cs)
+                    else if (line.Contains("\"client-message\"") && MotorDlss5Evento(line)) { } // (22-11, 1.2.3 MOTOR5: switch2-dlss5 roto del motor, MotorDlss5.cs)
                     else if (line.Contains("\"client-message\"") && AjPruebaEvento(line)) { } // (22-11, 1.2.2: pruebas del menu de ajustes, AjustesGuia.cs)
                     else if (line.Contains("\"client-message\"") && line.Contains("\"args\":[\"switch2-pad\""))
                     {
@@ -14602,6 +14606,8 @@ namespace ConsoleEnhancer
                 if (arg == "--test-multiplicador" || arg.StartsWith("--test-multiplicador=")) return Config.MultPrueba(arg.Length > 21 ? arg.Substring(21) : null);
                 // 22-11 (1.2.2, REESCALADO): la config de Magpie de reescalado y DLSS 5 por combinacion: --test-reescalado[=<informe>]
                 if (arg == "--test-reescalado" || arg.StartsWith("--test-reescalado=")) return ReescaladoPrueba.Run(arg.Length > 18 ? arg.Substring(18) : null);
+                // 22-11 (1.2.3, MOTOR5): por donde va DLSS 5 (motor con PrismaNr.dll / Magpie) con cada combinacion: --test-motor-dlss5[=<informe>]
+                if (arg == "--test-motor-dlss5" || arg.StartsWith("--test-motor-dlss5=")) return Config.MotorDlss5Prueba(arg.Length > 19 ? arg.Substring(19) : null);
                 if (arg.StartsWith("--ui-preview=")) return PrismaPreview.Run(arg.Substring(13));
                 // 18-11 (MANDOS): --test-mandos=<segundos>;<archivo>: mandos detectados, botones pulsados y el modo PC (sin mandar nada)
                 if (arg.StartsWith("--test-mandos=")) return PadTest.Run(arg.Substring(14), args);

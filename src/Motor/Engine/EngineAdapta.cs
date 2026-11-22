@@ -28,6 +28,7 @@ namespace ConsoleEnhancer.Motor
     {
         public bool Adapta = false;
         public string AdaptaClave = "", AdaptaFichero = "scales_engine.txt", AdaptaTecho = "";
+        public int AdaptaNrSubeS = 45, AdaptaNrPaso = 15;   // 22-11 (1.2.3, MOTOR5): adapta_dlss5_sube_s / adapta_dlss5_paso (ver AdaptaSubir)
         public string SrDlls = "";
 
         // Claves de ConsoleEnhancer que el Apply de siempre no conoce (false = desconocida, como antes)
@@ -39,6 +40,8 @@ namespace ConsoleEnhancer.Motor
                 case "adapta_clave": AdaptaClave = val.Trim(); return true;
                 case "adapta_fichero": AdaptaFichero = val.Trim(); return true;
                 case "adapta_techo": AdaptaTecho = val.Trim().ToUpperInvariant(); return true;
+                case "adapta_dlss5_sube_s": { int n; if (int.TryParse(val.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out n)) AdaptaNrSubeS = Math.Max(20, Math.Min(600, n)); return true; }   // (1.2.3 MOTOR5)
+                case "adapta_dlss5_paso": { int n; if (int.TryParse(val.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out n)) AdaptaNrPaso = Math.Max(5, Math.Min(50, n)); return true; }
                 case "dlls_sr": SrDlls = val.Trim(); return true;
                 case "fg_tipo": FgTipo = val.Trim().ToLowerInvariant(); return true;   // 21-11 (EngineFgFfx.cs): fsr3 = FSR 3 FG de FidelityFX   // 21-11 (EngineSr.cs): la carpeta de libxess.dll / amd_fidelityfx_*.dll (la de Magpie)
                 case "uso_grafica": case "gpu_indice": return ApplyMargen(key, val);   // (1.2.2, UNIVERSAL: EngineMargen.cs)
@@ -130,7 +133,7 @@ namespace ConsoleEnhancer.Motor
                     if (AdGuardianDelante(p95, tope)) { }   // (muy por encima del tope: frena el guardian de DLSS 5, que baja mas de golpe; ver AdaptaFreno)
                     else if (AdaptaBajar(p95, tope)) overSecs = 0;   // (lo ha hecho esto: AutoPresetTick no baja ademas el modelo en este segundo)
                 }
-                else if (adBien >= 20)
+                else if (adBien >= (AdNrActivo && s.NrPct < 100 ? Math.Max(20, s.AdaptaNrSubeS) : 20))   // (22-11, 1.2.3 MOTOR5: ver AdaptaSubir)
                 {
                     adBien = 0;
                     AdaptaSubir(p95, tope);
@@ -199,9 +202,19 @@ namespace ConsoleEnhancer.Motor
             AdaptaFila f;
             adTabla.TryGetValue(adClave, out f);
             // 1) el % de DLSS 5 (hasta 100 o el techo aprendido)
+            // 22-11 (1.2.3, MOTOR5): cada cambio del % rehace la DLSSNR a otro tamaño y eso PARA la imagen ~0,2 s (medido: 226 ms del
+            // "sobra grafica" al "creado", la peor imagen 220 ms; RTX 4060 Ti, 4K). Antes +5 cada 20 s: 65 -> 70 -> 75... un paron cada paso.
+            // Ahora de una vez hasta lo que cabe segun la cuenta prudente (como mucho +adapta_dlss5_paso, de serie 15) y tras
+            // adapta_dlss5_sube_s (45) seguidos sobrando: casi siempre un solo paron, y la proxima vez ya se empieza ahi (lo aprendido)
             if (AdNrActivo && s.NrPct < 100)
             {
                 int sig = Math.Min(100, s.NrPct + 5);
+                for (int t = s.NrPct + 10; t <= Math.Min(100, s.NrPct + Math.Max(5, s.AdaptaNrPaso)); t += 5)
+                {
+                    if (f != null && f.NoPct > 0 && t >= f.NoPct) break;
+                    if (p95 * (t * t) / (double)(s.NrPct * s.NrPct) > tope * 0.85) break;
+                    sig = t;
+                }
                 double prev = p95 * (sig * sig) / (double)(s.NrPct * s.NrPct);   // (prudente: como si todo el tiempo fuera de DLSS 5)
                 if ((f == null || f.NoPct == 0 || sig < f.NoPct) && prev <= tope * 0.85)
                 {

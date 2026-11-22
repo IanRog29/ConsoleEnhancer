@@ -464,6 +464,8 @@ void main(uint3 id : SV_DispatchThreadID) {
         {
             nrBroken = true;
             Log.Write("DLSS 5 (DLSSNR) no disponible: " + why + " (se sigue sin DLSS 5)");
+            // 22-11 (1.2.3, MOTOR5): al lanzador, que lo pasa a Magpie (src\Lanzador\MotorDlss5.cs); uno de antes no lo escucha
+            try { Ev("switch2-dlss5", "roto", why.Replace("\"", "'").Replace("\\", "/")); } catch { }
         }
 
         void DisposeDlss5()

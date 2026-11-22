@@ -557,7 +557,8 @@ namespace ConsoleEnhancer
             esc.Carrusel = ev.Count > 3;
             esc.Visible = ev.Count > 1;
 
-            ajFilas.AddRange(new[] { cap, mo, fg, tipo, mult, fgno, d5, d5no, niv, pas, esc });
+            FilaAjuste d5m = AjFilaMotorDlss5();   // (22-11, 1.2.3 MOTOR5: DLSS 5 por el motor o por Magpie, solo con PrismaNr.dll; MotorDlss5.cs)
+            ajFilas.AddRange(new[] { cap, mo, fg, tipo, mult, fgno, d5, d5no, niv, pas, d5m, esc });
             ajFilas.RemoveAll(delegate(FilaAjuste f) { return !f.Visible; });
             AjustesDepende(true);
         }
@@ -613,12 +614,12 @@ namespace ConsoleEnhancer
             // (1.2.2, MULTI) el multiplicador del modo y el tipo elegidos (Multiplicador.cs)
             AjMultDepende(inicio, modoSel, tipo != null && tipo.Activa ? tipo.Val : "", fg == null || fg.Val == "1");
             bool d5si = d5 == null || d5.Val == "1";
-            foreach (string id in new[] { "nivel", "pasadas" })
+            foreach (string id in new[] { "nivel", "pasadas", "d5motor" })
             {
                 FilaAjuste f = AjFila(id);
                 if (f == null) continue;
                 f.Activa = d5si;
-                f.Nota = d5si ? "" : Tx.T("Con DLSS 5 encendido", "With DLSS 5 on");
+                f.Nota = d5si ? (id == "d5motor" ? AjNotaMotorDlss5() : "") : Tx.T("Con DLSS 5 encendido", "With DLSS 5 on");
             }
             FilaAjuste esc = AjFila("esc");
             if (esc != null)
@@ -761,6 +762,7 @@ namespace ConsoleEnhancer
                     if (n != dlss5Passes) { dlss5Passes = n; SaveText(Paths.Dlss5PassesFile, v); }
                 }
                 if ((v = AjVal(e, "d5")) != null && (v == "1") != dlss5Shown) SetDlss5State(v == "1");
+                AjMotorDlss5Poner(e);   // (22-11, 1.2.3 MOTOR5: DLSS 5 por el motor / por Magpie; el RestartLs de abajo cambia de camino)
                 if ((v = AjVal(e, "esc")) != null)
                 {
                     if (v.StartsWith("pick:")) SetScalerChoice(true, v.Substring(5));   // (1.2.01: FSR 1 / sin reescalado)
