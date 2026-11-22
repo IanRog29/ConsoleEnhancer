@@ -49,6 +49,9 @@ namespace ConsoleEnhancer
                 if (FgMagpieOnly)
                 {
                     string pq = MotorGenAMagpiePorQue(FgTypeNow, MultOn && !Mode120 ? FgMultNow : 2);   // (1.2.4 ronda 5, XEFGM: XefgMotor.cs)
+                    int mq = MultOn && !Mode120 ? FgMultNow : 2;
+                    if (pq.Length == 0 && FgTypeNow == "xess" && mq >= 3 && !MotorFgSabe("xess", mq) && !MotorXefgPropia && MotorFgPropiaSabe(mq))
+                        pq = "XeSS FG x" + mq + ": por Magpie como en la 1.2.3 (la generacion propia emborrona la interfaz; motor_xefg_propia=1 = por el motor)";   // (1.2.4 ronda 5, INTEGRA5: MotorFg.cs)
                     return pq.Length > 0 ? pq : "la generacion " + FgTypeNow + " x" + FgMultNow + " aun no la hace el motor";
                 }
                 if (!Dlss5Off && Dlss5FitsNow && !EngineDlss5Now)

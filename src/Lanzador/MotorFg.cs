@@ -51,7 +51,30 @@ namespace ConsoleEnhancer
             mult = Math.Max(2, Math.Min(4, mult));
             if (mult <= 2 || (tipo != "dlss" && tipo != "xess")) return "";
             if (MotorFgSabe(tipo, mult)) return tipo == "dlss" && MotorFgFamilia() != "rtx50" ? "privada" : "oficial";
+            // (1.2.4 ronda 5, INTEGRA5; regla del usuario: "lo que no iguale a la 1.2.3, como en la 1.2.3") XeSS FG x3 / x4 fuera de Intel por
+            // Magpie, como la 1.2.3, si esta: la generacion propia emborrona la interfaz (FGCAL, imagen real a 4K x3 / x4: texto 3,6-4,1
+            // niveles frente a 0,3-0,5 de DLSS-G). La propia queda de ultimo recurso (sin Magpie). motor_xefg_propia=1 = la propia como la 1.2.4
+            if (tipo == "xess" && !MotorXefgPropia && MagpieXessMulti()) return "";
             return MotorFgPropiaSabe(mult) ? "propia" : "";
+        }
+        // ini motor_xefg_propia=0|1 (de serie 0: XeSS FG x3 / x4 fuera de Intel por Magpie si esta; 1 = por la generacion propia del motor)
+        public static volatile bool MotorXefgPropia = false;
+        // Magpie con XeSS FG (Magpie.exe y libxess_fg.dll en magpie\; mirado como mucho cada 5 s)
+        static DateTime mxAt; static bool mxOk;
+        static readonly object mxSync = new object();
+        static bool MagpieXessMulti()
+        {
+            try
+            {
+                lock (mxSync)
+                {
+                    if ((DateTime.Now - mxAt).TotalSeconds < 5) return mxOk;
+                    mxAt = DateTime.Now;
+                    mxOk = File.Exists(Path.Combine(Paths.MagpieDir, "Magpie.exe")) && File.Exists(Path.Combine(Paths.MagpieDir, "libxess_fg.dll"));
+                    return mxOk;
+                }
+            }
+            catch { return false; }
         }
         // ¿La haria el motor de verdad con lo de ahora? (DLSS 5 sin engine\PrismaNr.dll manda la imagen a Magpie: ahi no). Sin propiedades que
         // vuelvan a la cuenta del multiplicador (se usa dentro de MultBloqueado / la prevision)
