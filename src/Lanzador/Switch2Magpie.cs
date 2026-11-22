@@ -11834,6 +11834,9 @@ namespace ConsoleEnhancer
             // 16-11: con los modelos transformer, menos (halo oscuro con K a 0,5)
             string p = cfg.EnginePresetNow;
             if (p == "J" || p == "K" || p == "L" || p == "M") s *= cfg.EngineSharpenTransformer;
+            // (22-11, 1.2.2 REESCALADO: "sin reescalado" -catrom- sin enfoque, como en Magpie; antes 0,5 a 1080p si el modelo de DLSS elegido
+            // era E: x enfoque_sin_reescalado, src\Lanzador\Reescalado.cs)
+            if (Ce.EngineUpscaler(cfg) == "catrom") s *= cfg.SharpenNoScale;
             return s;
         }
 

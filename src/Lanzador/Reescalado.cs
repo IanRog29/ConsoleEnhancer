@@ -22,6 +22,7 @@
 //  2) Enfoque CAS de Magpie tras DLSS SR con los modelos transformer (J/K/L/M): x magpie_nitidez_transformer (de serie 0,6; 1 = como
 //     antes). El motor ya lo hacia (motor_nitidez_transformer): con K y CAS 0,5 sale un halo oscuro alrededor de las letras; a 0,3 limpio.
 //     Magpie seguia dando 0,5 a 1080p (0,25 con 2-3 pasadas) a K/L/M.
+//  3) "Sin reescalado" en el motor (Catmull-Rom) sin enfoque CAS, como en Magpie (x enfoque_sin_reescalado, de serie 0; 1 = como antes).
 // C# 5
 using System;
 using System.Globalization;
@@ -56,11 +57,17 @@ namespace ConsoleEnhancer
             return 0.18 * Math.Max(0, venW) * (double)Math.Max(0, venH) / 1e6;
         }
 
+        // (3) enfoque_sin_reescalado: el enfoque CAS del motor con "sin reescalado" (Catmull-Rom, del menu de ajustes), por esto (0-1). Magpie
+        // nunca enfocaba ahi (estirado simple con bicubico); el motor ponia 0,5 a 1080p (log del usuario, 21-11 03:08: "catrom 1920x1080 ->
+        // 3840x2160, enfoque CAS 0.50"), halos en los bordes que el estirado no tiene. 1 = como antes
+        public double SharpenNoScale = 0;
+
         bool CeParseReescalado(string key, string val)
         {
             switch (key)
             {
                 case "magpie_nitidez_transformer": MagpieSharpenTransformer = Math.Max(0, Math.Min(1, ParseNum(val))); return true;
+                case "enfoque_sin_reescalado": SharpenNoScale = Math.Max(0, Math.Min(1, ParseNum(val))); return true;
             }
             return false;
         }
