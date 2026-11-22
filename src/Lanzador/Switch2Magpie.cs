@@ -9385,7 +9385,8 @@ namespace ConsoleEnhancer
         {
             lastGrab = DateTime.Now;
             grabBusy = true;
-            lock (cmdQueue) cmdQueue.Add(JsonCmd("script-message", "switch2-grab", GrabPath, light ? "light" : "full"));
+            // (22-11, 1.2.2 RITMO: jugando con Magpie a 4K / 1440p, por fichero: mpv no se para a pasarla a RGB; src\Lanzador\Ritmo.cs)
+            lock (cmdQueue) cmdQueue.Add(JsonCmd("script-message", "switch2-grab", GrabPath, (light ? "light" : "full") + (UsaCapturaPng() ? "-png" : "")));
         }
 
         // La imagen que ha volcado el script Lua: ¿es el HOME? ¿que juego esta seleccionado?
@@ -13189,6 +13190,11 @@ namespace ConsoleEnhancer
                         System.Text.RegularExpressions.Match m = System.Text.RegularExpressions.Regex.Match(line, "\"switch2-diag-hueco\",\"([^\"]*)\"");
                         if (m.Success && readerMpv == mpv) RitmoDiag.MpvHueco(m.Groups[1].Value);
                     }
+                    else if (line.Contains("\"client-message\"") && line.Contains("\"args\":[\"switch2-grabbed-png\""))
+                    {
+                        // 22-11 (1.2.2, RITMO): la captura por fichero (PNG): se lee y se prepara aqui, fuera de mpv (src\Lanzador\Ritmo.cs)
+                        CapturaPngLista(line);
+                    }
                     else if (line.Contains("\"client-message\"") && line.Contains("\"args\":[\"switch2-diag-captura\""))
                     {
                         // 22-11 (1.2.2, RITMO): lo que paro a mpv una captura de la app (screenshot-raw), para ver si los tirones vienen de ahi
@@ -14323,6 +14329,9 @@ namespace ConsoleEnhancer
             // Lo que mira el script sale de la imagen ya en memoria, sin leerla de la GPU. Medido con la
             // capturadora: leerla de la GPU para mpv 41-88 ms (51 fps, p95 41 ms); asi, 11 ms (59,5 fps, p95 19)
             a.Add("--screenshot-sw=yes");
+            // 22-11 (1.2.2, RITMO): la captura por fichero (captura_png=1, src\Lanzador\Ritmo.cs): PNG sin comprimir ni filtrar, 8 bits (el
+            // mas barato de escribir y de leer, e identico a screenshot-raw)
+            if (cfg.GrabPng) { a.Add("--screenshot-format=png"); a.Add("--screenshot-png-compression=0"); a.Add("--screenshot-png-filter=0"); a.Add("--screenshot-high-bit-depth=no"); }
             // Quita una imagen identica a la anterior si la anterior paso: un juego a 30 fps llega con cada una 2
             // veces y la generacion inventaria imagenes entre dos iguales (se ve como 40 fps). Vale para cualquier
             // juego, se queda siempre con la primera copia (menos retraso que una de cada dos, que puede caer en la
