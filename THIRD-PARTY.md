@@ -83,7 +83,7 @@ Para desarrollar, `scripts\descargar_dependencias.ps1` baja lo mismo (y Streamli
 | `parches\magpie-dlssfg-vsync-pacing.patch` | Cambio de `src/Magpie.Core/Renderer.cpp` de Magpie Experimental (commit `716cc62`) | GPL-3.0, como Magpie |
 
 Nada más se ha copiado de Magpie, mpv u otros proyectos: el resto se escribió para ConsoleEnhancer (o para la app de la que sale, del
-mismo autor). Las ideas tomadas de otros programas (Magpie, Veyra, PresentMon...) se citan en comentarios, sin su código.
+mismo autor). De otros programas solo se han tomado ideas, nunca su código.
 
 ### Texto de la licencia MIT de AMD FidelityFX (FSR 1, CAS)
 

@@ -792,7 +792,7 @@ namespace ConsoleEnhancer
         // generacion; G-SYNC con VSync = sin cortes arriba del todo). ini magpie_vrr_dxgi=0 = DirectComposition como antes (sin VRR de verdad)
         public bool VrrDxgi = true;
         public bool DlssFgVsyncPacing = true;   // 20-11 (MAGPIE PROPIO): ini magpie_dlssfg_ritmo_vsync (MagpieLive.DlssFgVsyncPacing)
-        public bool DlssFgLite = false;         // 20-11 (VEYRA): ini magpie_dlssfg_lite (MagpieLive.DlssFgLite)
+        public bool DlssFgLite = false;         // 20-11: ini magpie_dlssfg_lite (MagpieLive.DlssFgLite)
         public bool VrrDxgiNow { get { return VrrDxgi && ((MagpieVrr60Fg && !CapMode && !FgOff && FgTypeNow == "dlss") || Vrr30FgNow) && !NvProfiles.VsyncBroken; } }
         // RTX HDR (Nvidia VFX TrueHDR de Magpie): convierte la imagen SDR de la consola a HDR. Necesita el HDR de Windows encendido en la tele.
         // ini rtx_hdr=0/1, rtx_hdr_nits (400-2000), rtx_hdr_gris (10-100), rtx_hdr_contraste / rtx_hdr_saturacion (0-200, 100 = igual)
@@ -2295,7 +2295,7 @@ namespace ConsoleEnhancer
         // sale al ritmo de la sincronizacion de la tele y no al reloj de Magpie (modo 30: ~70 -> ~16 tirones/min, ~10 ms menos). El Magpie
         // oficial ignora la variable. ini magpie_dlssfg_ritmo_vsync=0 = no pasarla
         public static bool DlssFgVsyncPacing = true;
-        // 20-11 (VEYRA, idea 2): MAGPIE_DLSSFG_LITE=1 = "Lite Candidate Blending" de DLSS FG 310.9.x (DLSSFrameGenerator.cpp del Magpie
+        // 20-11: MAGPIE_DLSSFG_LITE=1 = "Lite Candidate Blending" de DLSS FG 310.9.x (DLSSFrameGenerator.cpp del Magpie
         // compilado): mezcla mas ligera del fotograma generado. ini magpie_dlssfg_lite=1
         public static bool DlssFgLite = false;
         // La ventana de escalado de Magpie (existe mientras escala)

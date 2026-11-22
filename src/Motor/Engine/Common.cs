@@ -83,7 +83,7 @@ namespace ConsoleEnhancer.Motor
         // DLSS SR. dlss5=1; dlss5_nivel=intensidad,tono,estructura,piel; dlss5_estilo, dlss5_modelo (preset), dlss5_mascara, dlss5_interfaz,
         // dlss5_dir (carpeta de nvngx_dlssnr.dll)
         public bool Nr = false;
-        public bool DlssLinear = false;             // dlss_lineal: DLSS SR en luz lineal FP16 (HDR + auto exposicion), como Veyra (EngineLinear.cs)
+        public bool DlssLinear = false;             // dlss_lineal: DLSS SR en luz lineal FP16 (HDR + auto exposicion) (EngineLinear.cs)
         public float NrIntensity = 1.2f, NrTone = 1.2f, NrStructure = 1.0f, NrSkin = 0.6f;
         public int NrPasses = 1;                    // dlss5_pasadas: 1-3 (cada una otra DLSSNR sobre la salida de la anterior)
         public float[] NrPassStrength = { 1f, 0.6f, 0.5f };   // dlss5_fuerza_pasadas: el nivel de cada pasada x esto (con 2-3)

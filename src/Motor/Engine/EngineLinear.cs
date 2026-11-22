@@ -3,8 +3,7 @@ using ConsoleEnhancer.Motor.Native;
 
 namespace ConsoleEnhancer.Motor
 {
-    // 20-11-2026 (DLSS SR en luz lineal, como Veyra: src/ngx/DlssSrBackend.cpp, "Linear RGBA16F requires IsHDR even for SDR media (NGX
-    // guide 3.1)"): dlss_lineal=1 = la captura (sRGB) pasa a luz lineal en FP16 antes de DLSS SR, que se configura con colorBuffersHDR y
+    // 20-11-2026 (DLSS SR en luz lineal; guia de NGX 3.1: "Linear RGBA16F requires IsHDR even for SDR media"): dlss_lineal=1 = la captura (sRGB) pasa a luz lineal en FP16 antes de DLSS SR, que se configura con colorBuffersHDR y
     // auto exposicion, y su salida vuelve a sRGB (8 bits) para lo de despues (CAS, aviso, generacion). Sin el (0): como antes, sRGB de 8
     // bits con colorBuffersHDR=false. Las tablas TLinIn / TLinOut van detras de las de DLSS 5 (Engine.cs: TablesCount)
     unsafe partial class Engine

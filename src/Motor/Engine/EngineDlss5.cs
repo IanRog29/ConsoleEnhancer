@@ -7,8 +7,8 @@ using ConsoleEnhancer.Motor.Native;
 namespace ConsoleEnhancer.Motor
 {
     // 20-11-2026 (DLSS 5 EN EL MOTOR): DLSSNR ("DLSS 5") sobre la captura, despues de los vectores de movimiento (paso 1b) y antes de
-    // DLSS SR. native\PrismaNr\PrismaNr.dll (C++) carga la nvngx_dlssnr.dll comunitaria de Magpie y la llama directamente (como Magpie y
-    // Veyra); el resultado vuelve a inColor, asi DLSS SR, CAS y la generacion siguen igual. Ajustes: dlss5=1, dlss5_nivel, dlss5_estilo,
+    // DLSS SR. native\PrismaNr\PrismaNr.dll (C++) carga la nvngx_dlssnr.dll comunitaria de Magpie y la llama directamente (como Magpie);
+    // el resultado vuelve a inColor, asi DLSS SR, CAS y la generacion siguen igual. Ajustes: dlss5=1, dlss5_nivel, dlss5_estilo,
     // dlss5_modelo, dlss5_mascara, dlss5_interfaz, dlss5_fuerza, dlss5_entrada, dlss5_pasadas, dlss5_fuerza_pasadas, dlss5_antiparpadeo,
     // dlss5_antiparpadeo_ms, dlss5_dir. Si algo falla, el motor sigue sin DLSS 5 (y lo dice en el log).
     static class PrismaNr

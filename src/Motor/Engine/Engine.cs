@@ -798,7 +798,7 @@ namespace ConsoleEnhancer.Motor
                 double ratio = (double)outW / inW;
                 o.mode = ratio < 1.25 ? SlDLSSMode.eDLAA : ratio < 1.6 ? SlDLSSMode.eMaxQuality : ratio < 1.85 ? SlDLSSMode.eBalanced : ratio < 2.5 ? SlDLSSMode.eMaxPerformance : SlDLSSMode.eUltraPerformance;
                 o.outputWidth = (uint)outW; o.outputHeight = (uint)outH;
-                o.colorBuffersHDR = s.DlssLinear ? SlBoolean.eTrue : SlBoolean.eFalse;   // (20-11: luz lineal FP16 = HDR + auto exposicion, como Veyra)
+                o.colorBuffersHDR = s.DlssLinear ? SlBoolean.eTrue : SlBoolean.eFalse;   // (20-11: luz lineal FP16 = HDR + auto exposicion)
                 o.useAutoExposure = s.DlssLinear ? SlBoolean.eTrue : SlBoolean.eFalse;
                 o.preExposure = 1f;
                 o.SetAllPresets(PresetOf(s.Preset));
