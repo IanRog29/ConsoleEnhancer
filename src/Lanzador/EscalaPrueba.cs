@@ -77,6 +77,8 @@ namespace ConsoleEnhancer
             string tmp = Path.Combine(Path.GetTempPath(), "ce_test_escala_" + DateTime.Now.ToString("HHmmssfff", CultureInfo.InvariantCulture) + ".txt");
             EscalaAuto.Reiniciar(tmp);
             double usoAntes = EscalaAuto.Uso;
+            // (22-11, 1.2.2: sin el modelo de DLSS elegido en el menu de ajustes de este PC: la prueba pide el suyo; ver PruebasAisladas.cs)
+            string modeloAntes = Config.DlssPickSoloPrueba("");
             try
             {
                 sb.AppendLine("ConsoleEnhancer " + DateTime.Now.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture) + " - prueba de la escala de DLSS 5 automatica (src\\Lanzador\\EscalaAuto.cs)");
@@ -99,6 +101,7 @@ namespace ConsoleEnhancer
             catch (Exception ex) { fallos++; sb.AppendLine("EXCEPCION: " + ex); }
             finally
             {
+                Config.DlssPickSoloPrueba(modeloAntes);
                 EscalaAuto.Uso = usoAntes;
                 EscalaAuto.Reiniciar(null);
                 try { if (File.Exists(tmp)) File.Delete(tmp); } catch { }
