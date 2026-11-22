@@ -70,13 +70,27 @@ namespace ConsoleEnhancer
             string live = EngineLive(cfg);
             string d = EngineIdentityDiff(mpv);
             if (d == null) { idDiffLogged = null; return live; }
-            string sin = LiveSinGeneracion(live);
+            // (relevo_generacion_antes=1, de serie: la generacion que ya llevaba -lo ultimo que se le mando-, sin tocarla hasta el corte: apagarla
+            // en marcha era un tiron de 250-300 ms con XeSS FG -prueba del 22-11 23:14- y 30 imagenes/s hasta el corte. Nunca otra distinta)
+            string sin = cfg.RelevoGenAntes && engineSent.Length > 0 ? LiveGeneracionDe(live, engineSent) : LiveSinGeneracion(live);
             if (sin != live && d != idDiffLogged)
             {
                 idDiffLogged = d;
-                Log.Write("Motor de ahora con otra identidad (" + d + "): en marcha sin generacion hasta que se ponga delante el que la lleva (nunca la equivocada)");
+                Log.Write("Motor de ahora con otra identidad (" + d + "): en marcha " + (cfg.RelevoGenAntes && engineSent.Length > 0 ? "sigue con la generacion que llevaba" : "sin generacion") +
+                          " hasta que se ponga delante el que lleva la nueva (nunca otra distinta)");
             }
             return sin;
+        }
+
+        // 'live' con la generacion (fg=, fg_mult=, fg_propia=) de 'antes'
+        static string LiveGeneracionDe(string live, string antes)
+        {
+            Func<string, string, string> tok = delegate (string txt, string k) { Match m = Regex.Match(txt, "(?:^| )" + k + "=([0-9]+)"); return m.Success ? m.Groups[1].Value : null; };
+            string fg = tok(antes, "fg") ?? "0", mult = tok(antes, "fg_mult"), prop = tok(antes, "fg_propia") ?? "0";
+            string s = Regex.Replace(live, "(^| )fg=[0-9]+( |$)", "$1fg=" + fg + "$2");
+            s = Regex.Replace(s, " fg_mult=[0-9]+", "");
+            s = Regex.Replace(s, " fg_propia=[0-9]+", (mult != null ? " fg_mult=" + mult : "") + " fg_propia=" + prop);
+            return s;
         }
 
         static string LiveSinGeneracion(string live)
@@ -103,7 +117,10 @@ namespace ConsoleEnhancer
         // ---- 2. El motor que se va pasa a la espera (relevo de motor a motor) ----
 
         volatile bool relevoQuitStandby;    // QuitOldMpv: el que se va es un motor: switch2-standby en vez de quit (MpvLinkLoop)
-        volatile Process relevoSentStandby; // el ultimo motor que se va al que se le pidio la espera (QuitOldMpv no lo cierra a los 3 s)
+        // Los motores que se iban y pasaron a la espera (pid): el guardian de 3 s de QuitOldMpv no los cierra (con dos relevos seguidos en menos
+        // de 3 s, el de antes ya era la imagen otra vez: prueba del 22-11 23:11:55, se cerro a la fuerza y 5 s de telon)
+        readonly System.Collections.Generic.HashSet<int> relevoEspera = new System.Collections.Generic.HashSet<int>();
+        bool RelevoFueAEspera(Process p) { try { lock (relevoEspera) return p != null && relevoEspera.Contains(p.Id); } catch { return false; } }
         volatile int relevoAdoptSmooth = -1; // TakeRelevoEngine: el Smooth Motion del motor del relevo (SetStandby del que se va pisa standbySmooth)
 
         // MpvLinkLoop, con relevoQuit == p: true = se le ha pedido la espera (si no, quit como siempre)
@@ -117,7 +134,7 @@ namespace ConsoleEnhancer
             standbyAskedSw = Stopwatch.StartNew();
             standbyAsked = p;
             switchUntil = DateTime.Now.AddSeconds(3);
-            relevoSentStandby = p;
+            lock (relevoEspera) relevoEspera.Add(p.Id);
             w.WriteLine("{\"command\":[\"script-message\",\"switch2-standby\"]}");
             Log.Write("Relevo: el motor que se va (pid " + p.Id + ", cadena " + Config.EngineFfxOf(p) + ", Smooth Motion " + Config.EngineSmoothRunning +
                       ") pasa a la espera en vez de cerrarse: volver a lo de antes sera despertarlo");
@@ -232,6 +249,9 @@ namespace ConsoleEnhancer
     {
         // ini relevo_motor_espera=1|0 (de serie 1): el motor que se va en un relevo de motor a motor pasa a la espera (0 = se cierra, como la 1.2.4)
         public bool RelevoKeepOld = true;
+        // ini relevo_generacion_antes=1|0 (de serie 1): mientras llega el motor con la generacion nueva, el de delante sigue con la que llevaba
+        // (0 = sin generacion hasta el corte)
+        public bool RelevoGenAntes = true;
 
         // Un motor abierto con la cadena 'have' vale para 'want': la misma, o XeSS FG con DLSS SR (Streamline solo para DLSS SR: 21, 31, 41)
         // para XeSS FG sin el (20, 30, 40): el escalador se cambia en marcha (FSR 1 / sin reescalado); al reves no (hace falta Streamline).
@@ -246,6 +266,7 @@ namespace ConsoleEnhancer
             switch (key)
             {
                 case "relevo_motor_espera": RelevoKeepOld = ParseBool(val); return true;
+                case "relevo_generacion_antes": RelevoGenAntes = ParseBool(val); return true;
             }
             return false;
         }
