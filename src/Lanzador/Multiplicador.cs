@@ -487,7 +487,7 @@ namespace ConsoleEnhancer
         // x3 / x4 puesto ahora (con la generacion encendida y fuera del 120)
         public bool MultAlto { get { return MultOn && !FgOff && !Mode120 && FgMultNow > 2; } }
         // DLSS FG x3 / x4: el motor propio solo hace x2 -> mpv + Magpie (en FgMagpieOnly)
-        public bool MultPorMagpie { get { return MultOn && !FgOff && !HomeNative && !Mode120 && FgTypeNow == "dlss" && FgMultNow > 2; } }
+        public bool MultPorMagpie { get { return MultOn && !FgOff && !HomeNative && !Mode120 && FgTypeNow == "dlss" && FgMultNow > 2 && !MotorFgSabe("dlss", FgMultNow); } }   // (1.2.4: salvo donde el motor hace x3 / x4 -RTX 50-)
         // " x3" para los textos (DLSS FG / XeSS FG; nada con las demas)
         public string MultEtiqueta { get { return MultOn && !FgOff && MultTipo(FgTypeNow) ? " x" + FgMultNow : ""; } }
     }
