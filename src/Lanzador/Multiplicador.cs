@@ -23,8 +23,13 @@
 // - Si la salida no llega (base x multiplicador, Magpie), lo primero que se baja es el multiplicador 4 -> 3 -> 2 (MultVigila, antes que la
 //   escala de DLSS 5 y la escalera de FpsBajo.cs).
 // - Al arrancar Magpie se mira lo que de verdad ha puesto (multiplier=Nx / effective=Nx de su log): si no es lo pedido, aviso.
+// - MEDIDO el 22-11 (tele a 120 Hz con VRR, fuente sintetica, modo 30, 1440p, PresentMon sobre Magpie.exe): DLSS FG x2 59,8 / x3 89,6 /
+//   x4 120,0 imagenes/s (x4 todas a 1 refresco; x3 alternando 1 y 2: el VRR no llega a la salida de Magpie); XeSS FG x2 57,9 / x3 89,7 /
+//   x4 63 (la mitad de reales: ver XessX4); XeSS FG a 1080p, 59 (ya arranca: xess_fg_1080).
 // ini: generacion_multiplicador=0 = como antes (solo el x2 elegible; generacion_60 / modo30_generacion tal cual para todas).
 //      xess_fg_1080=0|1: XeSS FG con la ventana de 1080p (ventana_1080). Ver XessNo1080.
+//      xess_fg_x4=auto|1|0: XeSS FG x4 (auto: no donde su ritmo de base 60 pide mas que la pantalla). Ver XessX4.
+//      prueba_multiplicador_hz=N: solo pruebas (las reglas como si la pantalla fuera a N Hz)
 using System;
 using System.Collections.Generic;
 using System.Globalization;
