@@ -192,6 +192,8 @@ namespace ConsoleEnhancer
             Encima();
         }
         public void Repintar() { Mostrar(alpha); }
+        // (1.2.2, pruebas: lo pintado a un PNG, sin depender de una captura de pantalla; Multiplicador.cs MultPruebaPad "multpng")
+        public void GuardarPng(string path) { if (surface == null) return; GdiFlush(); surface.Save(path, ImageFormat.Png); }
         public void Encima() { if (Handle != IntPtr.Zero) SetWindowPos(Handle, new IntPtr(-1), 0, 0, 0, 0, 0x1 | 0x2 | 0x10); }
 
         protected override void WndProc(ref Message m)
@@ -592,6 +594,7 @@ namespace ConsoleEnhancer
                 List<string> opts = a120 ? new List<string>() : GenOptionsFor(cap30, capSel);
                 string ahora = AjTipoDe(cap30);
                 string sel = inicio ? ahora : tipo.Val;
+                string pedido = sel;   // (1.2.2: si no esta con esta captura / modo, lo que va en su lugar no es un cambio, AjTipoForzado)
                 if (!opts.Contains(sel)) sel = opts.Contains(ahora) ? ahora : opts.Count > 0 ? opts[0] : "";
                 List<string> txt = new List<string>();
                 foreach (string o in opts) txt.Add(GenLabel(o, false));
@@ -602,6 +605,7 @@ namespace ConsoleEnhancer
                 tipo.Activa = !a120 && fgSi && opts.Count > 0;
                 tipo.Nota = a120 ? Tx.T("No a 120 fps", "Not at 120 fps") : opts.Count == 0 ? Tx.T("Ninguna en este PC", "None on this PC") :
                             !fgSi ? Tx.T("Con la generación encendida", "With frame generation on") : "";
+                AjTipoForzado(tipo, pedido, cap30, capSel);   // (1.2.2: el log del usuario, 22-11 04:01: captura 1080p en el menu = XeSS FG cambiado por DLSS FG y guardado)
             }
             // (1.2.2, MULTI) el multiplicador del modo y el tipo elegidos (Multiplicador.cs)
             AjMultDepende(inicio, modoSel, tipo != null && tipo.Activa ? tipo.Val : "", fg == null || fg.Val == "1");

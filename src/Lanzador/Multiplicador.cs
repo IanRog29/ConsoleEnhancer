@@ -75,8 +75,10 @@ namespace ConsoleEnhancer
         // Hz de la pantalla (mirados cada 2 s: FgMultNow se pregunta mucho)
         static int multHz = -1;
         static DateTime multHzAt = DateTime.MinValue;
+        static int multHzPrueba;   // (solo --test-multiplicador: otra pantalla)
         public static int MultHz()
         {
+            if (multHzPrueba > 0) return multHzPrueba;
             DateTime now = DateTime.UtcNow;
             if (multHz < 0 || (now - multHzAt).TotalSeconds > 2) { multHz = Pantalla.Hz(); multHzAt = now; }
             return multHz;
@@ -134,6 +136,80 @@ namespace ConsoleEnhancer
             int m = MultPedido(cap30);
             while (m > 2 && MultBloqueado(cap30, m, tipo)) m--;
             return m;
+        }
+
+        // --test-multiplicador[=<informe>]: las reglas de bloqueo con otras pantallas (60-240 Hz, con y sin VRR) y lo que va con cada pedido.
+        // Devuelve los fallos frente a lo esperado (0 = bien). Sin abrir nada
+        public static int MultPrueba(string informe)
+        {
+            System.Text.StringBuilder sb = new System.Text.StringBuilder("# MULTI: reglas del multiplicador (" + DateTime.Now.ToString("yyyy-MM-dd HH:mm") + ")\r\n");
+            int fallos = 0;
+            bool vrrAntes = CeImagen.VrrAhora;
+            // esperado: "hz vrr modo" -> los que caben de x2 x3 x4 (DLSS FG con el componente o XeSS FG)
+            Dictionary<string, string> esp = new Dictionary<string, string>
+            {
+                { "120 1 30", "234" }, { "120 1 60", "2" }, { "120 0 30", "24" }, { "120 0 60", "2" }, { "119 1 30", "234" }, { "119 0 30", "24" },
+                { "144 1 30", "234" }, { "144 1 60", "2" }, { "144 0 30", "2" }, { "165 1 60", "2" }, { "180 1 60", "23" }, { "180 0 30", "23" },
+                { "240 1 60", "234" }, { "240 0 60", "24" }, { "240 0 30", "24" }, { "60 1 30", "2" }, { "60 1 60", "2" }, { "100 1 30", "23" },
+            };
+            try
+            {
+                Config c = new Config();
+                foreach (int hz in new[] { 60, 100, 119, 120, 144, 165, 180, 240 })
+                    foreach (bool vrr in new[] { true, false })
+                        foreach (bool cap30 in new[] { true, false })
+                        {
+                            multHzPrueba = hz; CeImagen.VrrAhora = vrr;
+                            string caben = "";
+                            List<string> fila = new List<string>();
+                            for (int m = 2; m <= 4; m++)
+                            {
+                                string es, en;
+                                bool b = c.MultBloqueado(cap30, m, "xess", out es, out en);
+                                if (!b) caben += m;
+                                fila.Add("x" + m + (b ? " NO (" + es + ")" : " si"));
+                            }
+                            string k = hz + " " + (vrr ? 1 : 0) + " " + (cap30 ? 30 : 60), e;
+                            bool mal = esp.TryGetValue(k, out e) && e != caben;
+                            if (mal) fallos++;
+                            // lo que va si se pide x4 / x3 (MultAhora)
+                            c.MultPick30 = c.MultPick60 = 4; int va4 = c.MultAhora(cap30, "xess");
+                            c.MultPick30 = c.MultPick60 = 3; int va3 = c.MultAhora(cap30, "xess");
+                            c.MultPick30 = c.MultPick60 = 0;
+                            sb.AppendLine((mal ? "FALLO " : "      ") + hz + " Hz, VRR " + (vrr ? "si" : "no") + ", modo " + (cap30 ? 30 : 60) + ": " + string.Join(" | ", fila.ToArray()) +
+                                          "  -> pedido x4 va x" + va4 + ", x3 va x" + va3 + (e != null ? "  (esperado " + e + ")" : ""));
+                        }
+                // con las demas generaciones, siempre x2; DLSS FG sin el componente, x3 / x4 no
+                multHzPrueba = 120; CeImagen.VrrAhora = true;
+                c.MultPick30 = 4;
+                foreach (string t in new[] { "smooth", "fsr3", "vfg" })
+                {
+                    int va = c.MultAhora(true, t);
+                    if (va != 2) fallos++;
+                    sb.AppendLine((va != 2 ? "FALLO " : "      ") + "modo 30, " + t + " con x4 pedido: va x" + va + " (esperado x2)");
+                }
+                sb.AppendLine("      DLSS FG x4 en el modo 30 a 120 Hz con VRR: " + (c.MultBloqueado(true, 4, "dlss") ? "NO (" + c.MultMotivo(true, 4, "dlss") + ")" : "si") +
+                              " (runtimes\\dlssg_sm86 en magpie\\: " + (Integrado.MagpieDlssgOk ? "si" : "no") + ")");
+                c.MultOn = false; c.CapFgMult = 4;
+                int viejo = c.MultAhora(true, "vfg");
+                if (viejo != 4) fallos++;
+                sb.AppendLine((viejo != 4 ? "FALLO " : "      ") + "generacion_multiplicador=0 (como antes): VFG con modo30_generacion=4 va x" + viejo + " (esperado x4)");
+                // la columna del perfil
+                GameProfile p = new GameProfile();
+                p.ParsePick("dlss,xess,0,4");
+                bool okp = p.Pick60 == "dlss" && p.Pick30 == "xess" && p.Mult60 == 0 && p.Mult30 == 4 && p.PickText == "dlss,xess,0,4";
+                GameProfile q = new GameProfile();
+                q.ParsePick("smooth,");
+                okp = okp && q.Mult60 == 0 && q.Mult30 == 0 && q.PickText == "smooth,";
+                if (!okp) fallos++;
+                sb.AppendLine((okp ? "      " : "FALLO ") + "perfil: \"dlss,xess,0,4\" -> " + p.Pick60 + "/" + p.Pick30 + " x" + p.Mult60 + "/x" + p.Mult30 + " -> \"" + p.PickText + "\"; \"smooth,\" -> \"" + q.PickText + "\"");
+            }
+            catch (Exception ex) { fallos++; sb.AppendLine("EXCEPCION: " + ex); }
+            finally { multHzPrueba = 0; CeImagen.VrrAhora = vrrAntes; }
+            sb.AppendLine(fallos == 0 ? "OK" : fallos + " fallos");
+            string f = string.IsNullOrEmpty(informe) ? Path.Combine(Paths.Datos, @"games\test_multiplicador.txt") : informe;
+            try { Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(f))); File.WriteAllText(f, sb.ToString(), new System.Text.UTF8Encoding(false)); } catch { }
+            return fallos;
         }
 
         // x3 / x4 puesto ahora (con la generacion encendida y fuera del 120)
@@ -240,6 +316,44 @@ namespace ConsoleEnhancer
                 RestartLs(cfg.FgName + " x" + m, (cfg.CapMode ? "30" : "60") + " → " + Math.Round(b * m).ToString(CultureInfo.InvariantCulture) + " fps", false, true);
             }
             finally { Interlocked.Exchange(ref fgBusy, 0); }
+        }
+
+        // (pruebas sin mando, por la tuberia como switch2-pad: "mult2" / "mult3" / "mult4" = ese multiplicador ya; "multsig" = Ctrl+X)
+        void MultPruebaPad(string line)
+        {
+            // (y el menu de ajustes sin mando: "multmenu" lo abre, "multmenu_der" / _izq / _arriba / _abajo / _ok / _atras, "multpng" lo guarda en
+            // logs\menu_ajustes_<hora>.png)
+            Match mm = Regex.Match(line ?? "", "\"multmenu(?:_(der|izq|arriba|abajo|ok|atras))?\"|\"multpng\"");
+            if (mm.Success)
+            {
+                string o = mm.Value.Trim('"'), d = mm.Groups[1].Value;
+                OnUi(delegate
+                {
+                    try
+                    {
+                        if (o == "multpng")
+                        {
+                            if (ajVentana == null) { Log.Write("Prueba: multpng sin el menu abierto"); return; }
+                            string png = Path.Combine(Paths.Datos, @"logs\menu_ajustes_" + DateTime.Now.ToString("HHmmss") + ".png");
+                            ajVentana.GuardarPng(png);
+                            Log.Write("Prueba: menu de ajustes guardado en " + png);
+                        }
+                        else if (d.Length == 0) { if (!ajustesAbierto) AjustesAbrir("prueba"); }
+                        else AjustesOrden(d == "der" ? AjOrden.Der : d == "izq" ? AjOrden.Izq : d == "arriba" ? AjOrden.Arriba : d == "abajo" ? AjOrden.Abajo : d == "ok" ? AjOrden.Ok : AjOrden.Atras);
+                    }
+                    catch (Exception ex) { Log.Error("Prueba del menu de ajustes", ex); }
+                });
+                return;
+            }
+            Match m = Regex.Match(line ?? "", "\"mult(sig|[234])\"");
+            if (!m.Success) return;
+            string v = m.Groups[1].Value;
+            Log.Write("Prueba: multiplicador " + v + " (switch2-pad)");
+            ThreadPool.QueueUserWorkItem(delegate
+            {
+                try { if (v == "sig") MultSiguiente(); else MultElegir(int.Parse(v, CultureInfo.InvariantCulture), 0); }
+                catch (Exception ex) { Log.Error("Prueba del multiplicador", ex); }
+            });
         }
 
         // Ctrl+X: el siguiente multiplicador que quepa (x2 -> x3 -> x4 -> x2); si no cabe ninguno mas, el motivo
@@ -453,11 +567,60 @@ namespace ConsoleEnhancer
             catch (Exception ex) { Log.Error("Multiplicador (vigilancia)", ex); return false; }
         }
 
+        // ---------------- el tipo elegido que no puede ir (la app pone otro: que se diga, nunca en silencio) ----------------
+        // Por que t no va con esta captura ahora (null = si va)
+        string GenNoVaPorque(string t, string capSel)
+        {
+            if (t == "xess" && !File.Exists(Path.Combine(Paths.MagpieDir, "libxess_fg.dll"))) return Tx.T("falta libxess_fg.dll en magpie\\", "libxess_fg.dll is missing in magpie\\");
+            if (t == "xess" && Config.XessNo1080(capSel)) return Tx.T("no va con la captura de 1080p", "doesn't run with the 1080p capture");
+            if (t == "smooth" && Pantalla.Is119) return Tx.T("no con la tele a 119,88 Hz", "not with the TV at 119.88 Hz");
+            if (t == "smooth" && NvProfiles.SmoothBroken) return Tx.T("el driver no deja ponerlo", "the driver doesn't allow it");
+            if (t == "dlss" && cfg.DlssFgPorMagpieSinRuntime) return Tx.T("falta un componente (dlssg_sm86, preparándose)", "a component is missing (dlssg_sm86, getting ready)");
+            return null;
+        }
+
+        // Lo elegido en ese modo que no va con esa captura: "XeSS FG: no va con la captura de 1080p" (null = va lo elegido)
+        string GenSustituto(bool cap30, string capSel)
+        {
+            string want = cap30 ? cfg.FgPick30 : cfg.FgPick60;
+            if (string.IsNullOrEmpty(want)) return null;
+            string porque = GenNoVaPorque(want, capSel);
+            return porque == null ? null : GenLabel(want, false) + ": " + porque;
+        }
+
+        // (AjustesDepende) la fila del tipo: si lo de antes no esta con la captura / modo elegidos, lo que se pone en su lugar no cuenta como
+        // cambio (lo elegido se guarda y vuelve con otra captura) y debajo se dice por que. Antes se aplicaba y se guardaba en el perfil
+        // (log del usuario, 22-11 04:01:27: "aplicar Captura 1080p, Tipo de generacion DLSS FG" sin tocar el tipo: adios XeSS FG)
+        void AjTipoForzado(FilaAjuste tipo, string pedido, bool cap30, string capSel)
+        {
+            tipo.Ayuda = null;
+            if (tipo.Vals.Count == 0 || !tipo.Activa) return;
+            bool forzado = !string.IsNullOrEmpty(pedido) && pedido != "\u0000" && !tipo.Vals.Contains(pedido);
+            if (forzado)
+            {
+                tipo.Orig = tipo.Sel;
+                string porque = GenNoVaPorque(pedido, capSel) ?? Tx.T("no está con esto", "not available with this");
+                tipo.Ayuda = GenLabel(pedido, false) + ": " + porque + " · " + Tx.T("va ", "using ") + GenLabel(tipo.Val, false) + Tx.T(" (lo elegido se guarda)", " (your choice is kept)");
+                return;
+            }
+            string s = GenSustituto(cap30, capSel);
+            if (s != null) tipo.Ayuda = s + " · " + Tx.T("va ", "using ") + GenLabel(tipo.Val, false);
+        }
+
         // ---------------- al arrancar Magpie: lo que ha puesto de verdad (FinishLsStart, con su log desde el arranque) ----------------
         void MultComprobarArranque(string log)
         {
             try
             {
+                // (el tipo: si lo elegido no puede ir, aviso; Config.FgTypeNow pone otro)
+                string sus = fgWanted && !cfg.FgOff && !cfg.Mode120 && !cfg.HomeNative ? GenSustituto(cfg.CapMode, cfg.VideoSize) : null;
+                if (sus != null)
+                {
+                    string va = GenLabel(GenCurrent(), false);
+                    Log.Write("Generacion: lo elegido no puede ir (" + sus + "): va " + va);
+                    string aviso = sus + " · " + Tx.T("va ", "using ") + va;
+                    OnUi(delegate { OsdWarn(aviso, "6000"); });
+                }
                 if (cfg.FgOff || cfg.Mode120 || cfg.HomeNative || !Config.MultTipo(cfg.FgTypeNow)) return;
                 int pedido = cfg.FgMultNow;
                 int puesto = 0;

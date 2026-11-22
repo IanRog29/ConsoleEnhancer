@@ -13021,6 +13021,7 @@ namespace ConsoleEnhancer
                         else if (line.Contains("\"p4\"")) ToggleDlss5(); // (como el boton A)
                         else if (line.Contains("\"fg\"")) ToggleFrameGeneration();
                         else if (line.Contains("\"tramado\"")) ToggleStrongDither(); // (como L3 mantenido)
+                        else if (line.Contains("\"mult")) MultPruebaPad(line); // (1.2.2: "mult2/3/4" ese multiplicador, "multsig" = Ctrl+X; Multiplicador.cs)
                         // 19-11 (GENERACION): "gen" = una pulsacion de L3 (el selector); "gen_<tipo>" = ese tipo ya (no, smooth, dlss, xess, fsr3, vfg)
                         else if (line.Contains("\"gen\"")) GenSelectorPress();
                         else if (line.Contains("\"gen_"))
@@ -14388,6 +14389,8 @@ namespace ConsoleEnhancer
                 if (arg.StartsWith("--test-deteccion=")) return PruebaDeteccion.Run(arg.Substring(17));
                 // 21-11 (1.2.1): la escala de DLSS 5 automatica (modelo, decisiones, la config de Magpie) sin consola: --test-escala[=<informe>]
                 if (arg == "--test-escala" || arg.StartsWith("--test-escala=")) return EscalaPrueba.Run(arg.Length > 14 ? arg.Substring(14) : null);
+                // 1.2.2 (MULTI): las reglas de x2 / x3 / x4 con otras pantallas, sin abrir nada: --test-multiplicador[=<informe>] (src\Lanzador\Multiplicador.cs)
+                if (arg == "--test-multiplicador" || arg.StartsWith("--test-multiplicador=")) return Config.MultPrueba(arg.Length > 21 ? arg.Substring(21) : null);
                 if (arg.StartsWith("--ui-preview=")) return PrismaPreview.Run(arg.Substring(13));
                 // 18-11 (MANDOS): --test-mandos=<segundos>;<archivo>: mandos detectados, botones pulsados y el modo PC (sin mandar nada)
                 if (arg.StartsWith("--test-mandos=")) return PadTest.Run(arg.Substring(14), args);
