@@ -154,8 +154,9 @@ namespace ConsoleEnhancer
                     return true;
                 }
             }
-            // DLSS FG x3 / x4 va por Magpie, que necesita runtimes\dlssg_sm86 (tambien en RTX 40)
-            if (tipo == "dlss" && !Integrado.MagpieDlssgOk)
+            // DLSS FG x3 / x4 va por Magpie, que necesita runtimes\dlssg_sm86 (tambien en RTX 40). (1.2.4, integracion: salvo donde el motor
+            // los hace por la via oficial -RTX 50, MotorFg.cs-: ahi no hace falta, y la app ya no lo baja)
+            if (tipo == "dlss" && !Integrado.MagpieDlssgOk && !(Engine == "propio" && MotorFgSabe("dlss", m)))
             {
                 MultPideSm86 = true;
                 if (Componentes.Sm86Bajando) { es = "preparando un componente…"; en = "getting a component ready…"; }
@@ -587,7 +588,7 @@ namespace ConsoleEnhancer
                 PrepareCfg();
                 bool engine = cfg.EngineNow;
                 Log.Write("Multiplicador: " + cfg.FgName + " x" + m + " en el modo " + (cfg.CapMode ? "30" : "60") + " (antes x" + antes + ")" +
-                          (engine != engineAntes ? (engine ? ": al motor propio (x2)" : ": a mpv + Magpie (el motor propio solo hace x2)") : ReopenNote) + " · " + cfg.ProfileText);
+                          (engine != engineAntes ? (engine ? ": al motor propio (x" + m + ")" : ": a mpv + Magpie (el motor propio no hace " + cfg.FgName + " x" + m + " en esta grafica)") : ReopenNote) + " · " + cfg.ProfileText);
                 SaveCurProfile();
                 double b = Config.MultBase(cfg.CapMode);
                 RestartLs(cfg.FgName + " x" + m, (cfg.CapMode ? "30" : "60") + " → " + Math.Round(b * m).ToString(CultureInfo.InvariantCulture) + " fps", false, true);
