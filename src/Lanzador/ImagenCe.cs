@@ -261,6 +261,9 @@ namespace ConsoleEnhancer
                 if (vrr.Count > 0) r.Add("G-SYNC en ventana quitado de " + NvDrsCe.Quitar(vrr.ToArray(), NvDrsCe.VrrIds) + " perfil(es)");
                 if (hdrOff) { bool ok = HdrWindows.Poner(false); r.Add("HDR de Windows apagado" + (ok ? "" : " (NO SE PUDO: " + HdrWindows.Ultimo + ")")); }
                 try { File.Delete(Marca); } catch { }
+                Integrado.QuitarDeLaCopia(Path.GetFileName(Marca));   // (22-11, 1.2.2: si no, una version nueva la hereda de la copia, Integrado.cs)
+                // (22-11, 1.2.2: con solo el refresco fijo del motor, la linea salia vacia: "devuelto ...: ")
+                if (r.Count == 0) r.Add(fijo ? "el refresco fijo del motor (abajo)" : "nada (la marca estaba vacia)");
                 Log.Write("Imagen: devuelto " + cuando + ": " + string.Join(", ", r.ToArray()));
             }
         }
@@ -283,7 +286,7 @@ namespace ConsoleEnhancer
                     l.RemoveAll(delegate(string x) { return x.StartsWith("fijo_exe="); });
                     if (puesto) l.Add("fijo_exe=ConsoleEnhancerEngine.exe");
                     if (l.Count > 0) EscribirMarca(l);
-                    else if (File.Exists(Marca)) File.Delete(Marca);
+                    else if (File.Exists(Marca)) { File.Delete(Marca); Integrado.QuitarDeLaCopia(Path.GetFileName(Marca)); }
                 }
                 catch (Exception ex) { Log.Error("Imagen: marca del refresco fijo", ex); }
             }
