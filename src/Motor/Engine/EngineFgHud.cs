@@ -19,6 +19,7 @@ namespace ConsoleEnhancer.Motor
     {
         public int FgUiGrow = 3;   // fgui_crecer: puntos de la entrada que crece la mascara por lo quieto (0-6)
         public bool FgUiShow;      // fgui_ver=1 (solo pruebas): en pantalla la imagen sin interfaz que recibe DLSS-G
+        public bool FgUiSticky = true;   // fgui_pegada=1 (1.2.4 ronda 5, FGCAL): la mascara no se apaga cuando la camara se para (QShaders.UiMask)
     }
 
     unsafe partial class Engine
@@ -109,7 +110,7 @@ RWTexture2D<unorm float4> Hud : register(u1);
 
 int2 In(int2 o) { return clamp(int2((float2(o) + 0.5) * K), int2(0, 0), int2(IW - 1, IH - 1)); }
 bool Raw(int2 q) { return Ui.Load(int3(clamp(q, int2(0, 0), int2(IW - 1, IH - 1)), 0)) > 0.5; }
-bool StillAt(int2 q) { return Still.Load(int3(clamp(q, int2(0, 0), int2(IW - 1, IH - 1)), 0)) >= NStill; }
+bool StillAt(int2 q) { return (Still.Load(int3(clamp(q, int2(0, 0), int2(IW - 1, IH - 1)), 0)) & 0xFFFFu) >= NStill; }
 // interfaz: marcada, o quieta con algo marcado a <= Grow puntos (de la entrada)
 bool Masked(int2 q)
 {

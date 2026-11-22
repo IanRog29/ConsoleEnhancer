@@ -234,10 +234,16 @@ namespace ConsoleEnhancer.Motor
         public int FgGuardRad = 6; public double FgGuardDif = 6, FgGuardRel = 0.25;   // fg_borde_radio (bloques de 8), fg_borde_dif (px), fg_borde_rel
         public int FgFillRad = 48;                  // fg_relleno_radio (bloques de 8 px)
         // fgui=1: la generacion no deforma lo quieto con borde (UIAlpha); 2 UIColorAndAlpha; 3 NoWarpMask
-        // (1.2.4 DLSSFG: 4 = la imagen sin la interfaz quieta como HUDLess, EngineFgHud.cs; 5 = y UIColorAndAlpha; 0 = como antes. De serie
-        // (sin fgui=): 4 en el modo 30 y 0 en el 60 -medido: en el 60 el fondo empeora mas de lo que gana la interfaz-)
+        // (1.2.4 DLSSFG: 4 = la imagen sin la interfaz quieta como HUDLess, EngineFgHud.cs; 5 = y UIColorAndAlpha; 0 = como antes.)
+        // 1.2.4 ronda 5 (FGCAL; el usuario: "el x2 tambien tiene sus fallitos"): DE SERIE 0 en todos los modos (como la 1.2.3). Medido con
+        // imagen real (test=real*, RealPrueba.cs: capturas de la PS5 con un personaje que sigue a la camara, su interfaz real, avance de
+        // camara, DLSS 5) en la tele, DLSS-G x2 a 4K en el modo 30: con fgui=4 el texto mejora poco (0,42 -> 0,29 niveles) pero el error de
+        // toda la imagen sube en todas las escenas (+5 a +55 %: el fondo 0,12 -> 0,44) y salen INVENTADAS MALAS sueltas (error 3-4,6 frente
+        // a <= 1,3 sin ella, ~1 cada 2-3 s: la busqueda por bloques que fgui enciende -con fgui=0 fg_solo_camara=0 tambien salen-). En la
+        // escena del minimapa de DLSSFG gana en la interfaz (1,65 -> 0,74) y pierde en todo lo demas (todo 2,58 -> 3,09). fgui=4 en
+        // motor_extra la vuelve a poner (con fgui_pegada=1 de serie: algo mejor, no quita las inventadas malas).
         int fgUiVal = -1;
-        public int FgUi { get { return fgUiVal >= 0 ? fgUiVal : Mode == 30 ? 4 : 0; } set { fgUiVal = value; } }
+        public int FgUi { get { return fgUiVal >= 0 ? fgUiVal : 0; } set { fgUiVal = value; } }
         public bool FgMenus = false;                // fg_menus=1: DLSS-G with eEnableFullscreenMenuDetection (no generated frames over a fullscreen menu)
         public bool FgUiRecomp = true;              // fgui_recomp=1: recomposicion de la interfaz de DLSS-G (1.2.4: de serie 1, con fgui=4)
         public int FgUiFrames = 4;                  // fgui_quieto: imagenes quieto
