@@ -19,7 +19,16 @@ namespace ConsoleEnhancer.Deteccion
             "pantalla-1080p60", "monitor-1440p240", "tele-119", "hags-apagada",
             // 20-11 (HDR / RTX HDR / VRR, HdrVrr.cs)
             "tele-hdr-gsync", "monitor-hdr400", "amd-hdr-freesync", "rtx2060-driver-viejo-hdr",
+            // 22-11 (1.2.2, UNIVERSAL): mas graficas, pantallas, CPU y capturadoras del catalogo ("cap:<clave>", CatalogoCapturas.cs)
+            "rtx4060", "rtx5070", "amd-rx6600", "intel-arc-a750", "amd-780m", "cpu-4hilos",
+            "tele-4k60", "monitor-1080p144", "monitor-1440p144-vrr", "monitor-1080p60",
+            "gc573-real", "uvc-ms2130", "uvc-ms2130-usb2", "cap:elgato-4kx", "cap:elgato-hd60s+", "cap:elgato-camlink4k", "cap:avermedia-gc553", "cap:avermedia-gc311", "cap:j5create-jva04",
         };
+
+        // (1.2.2) La matriz (DeteccionTest --simula=matriz): graficas x pantallas x capturadoras, con hardware inventado entero (sin detectar
+        // nada: rapido) y la revision automatica de cada plan (Revisar)
+        public static readonly string[] MatrizGpus = { "gtx1660", "rtx2060", "rtx3060", "rtx4060", "rtx4060ti", "rtx5070", "amd-rx6600", "amd-rx7800xt", "amd-rx9070xt", "intel-arc-a750", "intel-arc-b580", "intel-iris-xe", "amd-780m" };
+        public static readonly string[] MatrizPantallas = { "tele-4k120-vrr", "tele-4k60", "monitor-1440p144-vrr", "monitor-1440p240", "monitor-1080p144", "monitor-1080p60" };
 
         public static OpcionesDeteccion Opciones(string caso, OpcionesDeteccion baseOp)
         {
@@ -67,7 +76,195 @@ namespace ConsoleEnhancer.Deteccion
                     Gpu(h, op, 0x10DE, 0x1F08, "NVIDIA GeForce RTX 2060", 6, 0x160, 53141, 2);
                     Hdr(Pantalla(h, "Tele 4K HDR (simulada)", 3840, 2160, 60, 60, true, false, 0), 600, 0);
                     break;
+                // 22-11 (1.2.2, UNIVERSAL)
+                case "rtx4060": Gpu(h, op, 0x10DE, 0x2882, "NVIDIA GeForce RTX 4060", 8, 0x190, 61692, 2); break;
+                case "rtx4060ti": Gpu(h, op, 0x10DE, 0x2803, "NVIDIA GeForce RTX 4060 Ti", 8, 0x190, 61088, 2); break;
+                case "rtx5070": Gpu(h, op, 0x10DE, 0x2F04, "NVIDIA GeForce RTX 5070", 12, 0x1B0, 61692, 2); break;
+                case "amd-rx6600": Gpu(h, op, 0x1002, 0x73FF, "AMD Radeon RX 6600", 8, 0, 0, 2); break;
+                case "intel-arc-a750": Gpu(h, op, 0x8086, 0x56A1, "Intel(R) Arc(TM) A750 Graphics", 8, 0, 0, 2); break;
+                case "amd-780m": Gpu(h, op, 0x1002, 0x15BF, "AMD Radeon 780M Graphics", 0.5, 0, 0, 2); break;
+                case "cpu-4hilos": h.Sistema.Hilos = 4; h.Sistema.Nucleos = 4; break;
+                case "tele-4k60": Pantalla(h, "Tele 4K 60 Hz (simulada)", 3840, 2160, 60, 60, false, false, 0); break;
+                case "tele-4k120-vrr": Pantalla(h, "Tele 4K 120 Hz VRR (simulada)", 3840, 2160, 120, 120, true, true, 40); break;
+                case "monitor-1080p144": Pantalla(h, "Monitor 1080p 144 Hz (simulado)", 1920, 1080, 144, 144, false, false, 0); break;
+                case "monitor-1440p144-vrr": Pantalla(h, "Monitor 1440p 144 Hz VRR (simulado)", 2560, 1440, 144, 144, true, true, 48); break;
+                case "monitor-1080p60": Pantalla(h, "Monitor 1080p 60 Hz (simulado)", 1920, 1080, 60, 60, false, false, 0); break;
+                // MS2130 / MS2131 (USB 3.0, "USB3 Video"): YUY2 hasta 1080p60, MJPEG hasta 4K30 (lo que suelen listar)
+                case "uvc-ms2130":
+                    Captura(h, "USB3 Video", 0x345F, 0x2130, "USB", new[] { F(3840, 2160, 30, "MJPG"), F(2560, 1440, 30, "MJPG"), F(1920, 1080, 60, "MJPG"), F(1280, 720, 60, "MJPG"),
+                        F(1920, 1080, 60, "YUY2"), F(1280, 720, 60, "YUY2"), F(1920, 1080, 60, "NV12") }, "Digital Audio Interface (USB3 Video)", true);
+                    break;
+                // la GC573 del usuario tal cual la lista abierta (data\hardware.txt del 21-11): rangos, 1440p a 120 fijos y 59,94-144...
+                case "gc573-real":
+                    {
+                        List<FormatoCaptura> l = new List<FormatoCaptura>();
+                        foreach (string sub in new[] { "NV12", "P010", "RGB24", "YUY2" })
+                        {
+                            l.Add(R(3840, 2160, 24, 60, sub)); l.Add(R(3440, 1440, 50, 100, sub));
+                            l.Add(sub == "RGB24" ? R(2560, 1440, 144, 144, sub) : R(2560, 1440, 59.94, 144, sub));
+                            l.Add(sub == "RGB24" ? R(2560, 1440, 59.94, 120, sub) : R(2560, 1440, 120, 120, sub));
+                            l.Add(R(2560, 1080, 60, 144, sub)); l.Add(R(1920, 1080, 24, 240, sub)); l.Add(R(1920, 1080, 144, 144, sub)); l.Add(R(1920, 1080, 120, 120, sub));
+                            l.Add(R(1280, 720, 50, 60, sub));
+                        }
+                        CapturadoraInfo c = new CapturadoraInfo();
+                        c.Simulada = true; c.Nombre = "AVerMedia HD Capture GC573 1"; c.Vid = 0x1461; c.Pid = 0x0054; c.Bus = "PCI"; c.EnMediaFoundation = true;
+                        c.DevicePath = @"\\?\pci#ven_1461&dev_0054&subsys_57301461&rev_00#simulada#{65e8773d-8f56-11d0-a3b9-00a0c9223196}\{simulada}";
+                        c.Instancia = @"PCI\VEN_1461&DEV_0054&SUBSYS_57301461&REV_00\SIMULADA"; c.Cadena = new List<string> { c.Instancia };
+                        c.Formatos = l; c.PinesAudio = 2;
+                        DetectorCapturadoras.Clasificar(c);
+                        DetectorCapturadoras.EmparejarAudio(c, h.Audios);
+                        h.Capturadoras.Clear(); h.Capturadoras.Add(c);
+                        break;
+                    }
+                // la misma en un puerto USB 2.0 (o un hub lento): solo MJPEG (la lista encoge)
+                case "uvc-ms2130-usb2":
+                    Captura(h, "USB3 Video", 0x345F, 0x2130, "USB", new[] { F(1920, 1080, 30, "MJPG"), F(1280, 720, 60, "MJPG"), F(640, 480, 30, "YUY2") }, "Digital Audio Interface (USB3 Video)", true);
+                    break;
+                default:
+                    if (caso.StartsWith("cap:")) CapturaCatalogo(h, caso.Substring(4));
+                    break;
             }
+        }
+
+        // Una capturadora del catalogo "abierta": sus formatos previstos como si se hubieran leido (con 60,000 fijos, como muchas UVC)
+        static void CapturaCatalogo(Hardware h, string clave)
+        {
+            ModeloCaptura m = DetectorCapturadoras.Catalogo.Find(delegate(ModeloCaptura x) { return x.Clave == clave; });
+            if (m == null) return;
+            // (como las UVC: cada formato con velocidades fijas -la mayor, 60 y 30-, no un rango)
+            List<FormatoCaptura> fl = new List<FormatoCaptura>();
+            foreach (FormatoCaptura f in m.Previstos())
+                foreach (double v in new[] { f.FpsMax, 60, 30 })
+                {
+                    if (v > f.FpsMax + 0.01 || fl.Exists(delegate(FormatoCaptura x) { return x.Alto == f.Alto && x.Subtipo == f.Subtipo && Math.Abs(x.FpsMax - v) < 0.01; })) continue;
+                    FormatoCaptura d = new FormatoCaptura();
+                    d.Ancho = f.Ancho; d.Alto = f.Alto; d.Subtipo = f.Subtipo; d.Comprimido = f.Comprimido; d.FpsMax = v; d.FpsMin = v;
+                    fl.Add(d);
+                }
+            string nombre = m.Patrones.Length > 0 ? m.Patrones[0] : m.Modelo;
+            Captura(h, nombre, m.Vid != 0 ? m.Vid : 0x1234, m.Pid != 0 ? m.Pid : 0x0001, m.Bus.StartsWith("PCI") ? "PCI" : "USB", fl.ToArray(), "Digital Audio Interface (" + nombre + ")", false);
+        }
+
+        // ---------------------------------------------------------------- (1.2.2) el catalogo: nombres de DirectShow y VID:PID reales -> modelo
+        // (DeteccionTest --catalogo). { nombre, VID, PID, bus, la clave o el modelo esperado }
+        static readonly object[][] NombresReales =
+        {
+            new object[] { "AVerMedia HD Capture GC573 1", 0x1461, 0x0054, "PCI", "avermedia-gc573" },
+            new object[] { "AVerMedia HD Capture GC570D 1", 0x1461, 0x0054, "PCI", "avermedia-gc570d" },
+            new object[] { "Live Gamer Ultra 2.1-Video", 0x07CA, 0xD553, "USB", "avermedia-gc553g2" },
+            new object[] { "Live Gamer Ultra 2.1-Video", 0x07CA, 0x2553, "USB", "avermedia-gc553g2" },
+            new object[] { "Live Gamer Ultra-Video", 0x07CA, 0x0553, "USB", "avermedia-gc553" },
+            new object[] { "Live Gamer 4K 2.1-Video", 0x07CA, 0x0575, "USB", "avermedia-gc575" },
+            new object[] { "Live Gamer MINI", 0x07CA, 0x1311, "USB", "avermedia-gc311" },
+            new object[] { "Game Capture HD60 X", 0x0FD9, 0x0082, "USB", "elgato-hd60x" },
+            new object[] { "Game Capture HD60 S+", 0x0FD9, 0x9999, "USB", "elgato-hd60s+" },
+            new object[] { "Game Capture HD60 S", 0x0FD9, 0x9998, "USB", "elgato-hd60s" },
+            new object[] { "Game Capture 4K X", 0x0FD9, 0x9997, "USB", "elgato-4kx" },
+            new object[] { "Game Capture 4K60 Pro MK.2", 0x0FD9, 0, "PCI", "elgato-4k60promk2" },
+            new object[] { "Cam Link 4K", 0x0FD9, 0x0066, "USB", "elgato-camlink4k" },
+            new object[] { "USB Video", 0x534D, 0x2109, "USB", "ms2109" },
+            new object[] { "USB3 Video", 0x345F, 0x2130, "USB", "ms2130" },
+            new object[] { "USB3.0 Video", 0x345F, 0x2131, "USB", "ms2131" },
+            new object[] { "Live Gamer BOLT", 0x1461, 0x0054, "PCI", "avermedia-gc555" },
+            new object[] { "AVerMedia Live Gamer HD 2", 0x07CA, 0x1570, "USB", "avermedia-gc570" },
+            new object[] { "Live Streamer CAP 4K", 0x07CA, 0x1113, "USB", "avermedia-bu113" },
+            new object[] { "CAM LINK 4K", 0x32ED, 0x3701, "USB", "ezcap331" },
+            new object[] { "Elgato 4K Pro", 0x12AB, 0x0710, "PCI", "elgato-4kpro" },
+            new object[] { "Game Capture 4K60 Pro Mk.2", 0x12AB, 0x0710, "PCI", "elgato-4k60promk2" },
+            new object[] { "Elgato 4K X", 0x0FD9, 0x009B, "USB", "elgato-4kx" },
+            new object[] { "Elgato 4K S", 0x0FD9, 0x00AF, "USB", "elgato-4ks" },
+            new object[] { "Elgato Game Capture Neo", 0x0FD9, 0x008C, "USB", "elgato-neo" },
+            new object[] { "Game Capture HD60 S+", 0x0FD9, 0x006A, "USB", "elgato-hd60s+" },
+            new object[] { "Razer Ripsaw HD HDMI", 0x1532, 0x0D01, "USB", "razer-ripsawhd" },
+            new object[] { "ShadowCast", 0x298F, 0x1996, "USB", "genki-shadowcast" },
+            new object[] { "ShadowCast 2", 0x0100, 0x1996, "USB", "genki-shadowcast2" },
+            new object[] { "JVA14-Capture", 0x0711, 0x0A14, "USB", "j5create-jva14" },
+            new object[] { "XR1 Pro Capture Box Video", 0x3842, 0x310B, "USB", "evga-xr1pro" },
+            new object[] { "NZXT Signal 4K30 Video", 0x1E71, 0x2700, "USB", "nzxt-signal4k" },
+            new object[] { "00: Pro Capture HDMI 4K+", 0x1CD7, 0x0012, "PCI", "magewell-pro" },
+        };
+
+        public static List<string> ProbarCatalogo()
+        {
+            List<string> r = new List<string>();
+            foreach (object[] e in NombresReales)
+            {
+                CapturadoraInfo c = new CapturadoraInfo();
+                c.Nombre = (string)e[0]; c.Vid = (int)e[1]; c.Pid = (int)e[2]; c.Bus = (string)e[3];
+                DetectorCapturadoras.Clasificar(c);
+                string got = c.Modelo == null ? "(ninguno)" : c.Modelo.Clave.Length > 0 ? c.Modelo.Clave : c.Modelo.Modelo;
+                bool ok = got == (string)e[4];
+                r.Add((ok ? "ok  " : "MAL ") + c.Nombre + " " + c.Vid.ToString("X4") + ":" + c.Pid.ToString("X4") + " -> " + got + (ok ? "" : " (esperado " + e[4] + ")") + " [" + Hardware.Tipo(c.Tipo) + "]");
+            }
+            return r;
+        }
+
+        // ---------------------------------------------------------------- la matriz (1.2.2)
+        public static Hardware Sintetico(OpcionesDeteccion op, string gpu, string pantalla, string captura, string extra)
+        {
+            Hardware h = new Hardware();
+            h.Sistema.Windows = "Windows 11 (simulado)"; h.Sistema.Build = 26200; h.Sistema.Windows11 = true; h.Sistema.Hilos = 12; h.Sistema.Nucleos = 6;
+            h.Simulacion = gpu + " + " + pantalla + " + " + captura + (extra.Length > 0 ? " + " + extra : "");
+            Aplicar(h, pantalla, op);
+            foreach (PantallaInfo p in h.Pantallas) p.GpuLuid = 0x1234;
+            Aplicar(h, gpu, op);
+            Aplicar(h, captura, op);
+            if (extra.Length > 0) Aplicar(h, extra, op);
+            h.Simulacion = gpu + " + " + pantalla + " + " + captura + (extra.Length > 0 ? " + " + extra : "");
+            return h;
+        }
+
+        // Lo que estaria mal en un plan (vacio = bien): lo que se pidio al agente UNIVERSAL (fluido en cualquier PC, con margen)
+        public static List<string> Revisar(Hardware h, PlanImagen p)
+        {
+            List<string> r = new List<string>();
+            CapturadoraInfo c = p.Captura;
+            GpuInfo g = p.Gpu;
+            string f = (p.CapFormato ?? "").ToUpperInvariant();
+            if (c != null && p.Motor == "propio" && f.Length > 0 && f != "AUTO" && !CapturadoraInfo.MotorLoAbre(f)) r.Add("motor propio con captura " + f + " (no la abre)");
+            List<FormatoCaptura> fl = c != null ? c.FormatosParaElegir() : null;
+            if (fl != null && fl.Count > 0)
+            {
+                FormatoCaptura elegido = fl.Find(delegate(FormatoCaptura x) { return x.Ancho == p.CapW && x.Alto == p.CapH && x.Subtipo.ToUpperInvariant() == f; });
+                if (elegido == null) r.Add("captura " + p.CapW + "x" + p.CapH + " " + f + " que la capturadora no lista");
+                else
+                {
+                    double fps = c.FpsDe(elegido);
+                    bool hay60 = fl.Exists(delegate(FormatoCaptura x) { return !x.Comprimido && x.Alto >= 720 && c.FpsDe(x) >= 59; });
+                    if (fps < 59 && hay60) r.Add("captura a " + Tx.N(fps, "0.#") + " fps habiendo 60 sin comprimir");
+                    int tc = Planificador.TopeComprimido(h);
+                    if (elegido.Comprimido && elegido.Alto > tc && fl.Exists(delegate(FormatoCaptura x) { return x.Alto <= tc && x.Alto >= 480; }))
+                        r.Add("MJPEG a " + elegido.Alto + "p con " + h.Sistema.Hilos + " hilos");
+                    if (!elegido.Previsto && p.CapFps == "60000/1001" && elegido.FpsMin > 59.95 && Math.Abs(elegido.FpsMax - 60) < 0.05) r.Add("pide 59,94 a una capturadora que solo lista 60 (mpv no abre)");
+                    if (elegido.Comprimido && fl.Exists(delegate(FormatoCaptura x) { return !x.Comprimido && x.Alto >= 720 && c.FpsDe(x) >= Math.Min(59, fps); })) r.Add("comprimida habiendo sin comprimir");
+                }
+                if (p.HomeNativo && !fl.Exists(delegate(FormatoCaptura x) { return !x.Comprimido && x.Alto >= 2160 && c.FpsDe(x) >= 59; })) r.Add("HOME a 4K nativo sin 4K60 sin comprimir");
+            }
+            if (p.CapH > p.OutH && p.OutH > 0) r.Add("captura (" + p.CapH + "p) mayor que la pantalla (" + p.OutH + "p)");
+            if (p.CapW > 0 && p.CapH > 0 && Math.Abs(p.CapW * 9L - p.CapH * 16L) > p.CapH * 16L / 50) r.Add("captura " + p.CapW + "x" + p.CapH + " que no es 16:9");
+            if (p.CapFps != "60000/1001" && p.CapFps != "60" && p.CapFps != "30" && p.CapFps != "30000/1001" && p.CapFps != "50") r.Add("pide " + p.CapFps + " fps para el modo 60");
+            // lo de serie, como mucho al 85 %; lo que solo se ofrece (generacion apagada de serie, en el selector), como mucho al 100 %
+            double limite = Planificador.UsoMotor;
+            foreach (KeyValuePair<string, ModoPlan> kv in p.Modos)
+            {
+                double periodo = (kv.Key.StartsWith("60") ? 1000.0 : 2000.0) / 59.94;
+                bool fg = kv.Key.EndsWith("_fg");
+                string gen = kv.Key.StartsWith("60") ? p.Gen60 : p.Gen30;
+                if (fg && gen == "ninguna") continue;
+                bool deSerie = !fg || p.GenDeSerie;
+                double tope = deSerie ? limite : 1.0;
+                if (kv.Value.CosteMs > tope * periodo)
+                    r.Add("modo " + kv.Key + (deSerie ? "" : " (ofrecido)") + " al " + Math.Round(100 * kv.Value.CosteMs / periodo) + " % (" + (kv.Value.Modelo.Length > 0 ? kv.Value.Modelo : p.Escalador) + ")" +
+                          (!fg && p.Avisos.Exists(delegate(string a) { return a.StartsWith(Tx.T("Esta gráfica no llega", "This GPU can't")); }) ? " [avisado: la grafica no da para esta salida]" : ""));
+            }
+            if (p.Captura != null && p.Captura.Formatos != null)
+            {
+                string fr;
+                string c120 = p.Capturas120(out fr);
+                if (c120.Length > 0 && p.Tope120Alto < 1440 && c120.Contains("2560x1440")) r.Add("120 a 1440p sin caber");
+            }
+            if (g != null && !g.Integrada && p.VramTotalMb > 256 && p.VramPrevistaMb > p.VramTotalMb * limite) r.Add("VRAM " + Math.Round(p.VramPrevistaMb) + " de " + Math.Round(p.VramTotalMb) + " MB");
+            return r;
         }
 
         static void Gpu(Hardware h, OpcionesDeteccion op, int ven, int dev, string nombre, double vramGb, int nvArq, int drvNv, int hags)
@@ -89,14 +286,24 @@ namespace ConsoleEnhancer.Deteccion
             h.Gpus.Add(g);
         }
 
+        static FormatoCaptura R(int w, int hh, double fpsMin, double fpsMax, string sub)
+        {
+            FormatoCaptura f = F(w, hh, fpsMax, sub); f.FpsMin = fpsMin;
+            return f;
+        }
+
         static FormatoCaptura F(int w, int hh, double fps, string sub)
         {
             FormatoCaptura f = new FormatoCaptura(); f.Ancho = w; f.Alto = hh; f.FpsMax = fps; f.FpsMin = 5; f.Subtipo = sub; f.Comprimido = sub == "MJPG";
             return f;
         }
 
-        static void Captura(Hardware h, string nombre, int vid, int pid, string bus, FormatoCaptura[] fmts, string audio)
+        static void Captura(Hardware h, string nombre, int vid, int pid, string bus, FormatoCaptura[] fmts, string audio) { Captura(h, nombre, vid, pid, bus, fmts, audio, false); }
+
+        // fijos: los fps de cada formato sin rango (60,000 exactos, como muchas UVC: ffmpeg no abre 59,94 ahi)
+        static void Captura(Hardware h, string nombre, int vid, int pid, string bus, FormatoCaptura[] fmts, string audio, bool fijos)
         {
+            if (fijos) foreach (FormatoCaptura f in fmts) f.FpsMin = f.FpsMax;
             CapturadoraInfo c = new CapturadoraInfo();
             c.Simulada = true;
             c.Nombre = nombre; c.Vid = vid; c.Pid = pid; c.Bus = bus; c.EnMediaFoundation = true;

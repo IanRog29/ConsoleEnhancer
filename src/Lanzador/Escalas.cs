@@ -32,6 +32,9 @@ namespace ConsoleEnhancer
     {
         public bool CeEscalas = true;            // escalas_adaptables
         public string CeModeloMax = "auto";      // escalas_modelo_max
+        // (1.2.2, UNIVERSAL) motor_uso_grafica: % del tiempo de una imagen que el motor deja usar a la grafica jugando (el tope de su p95,
+        // menos la generacion de NVIDIA: src\Motor\Engine\EngineMargen.cs). 85 de serie; 93 ~ como antes de la 1.2.2
+        public double CeUsoGrafica = 85;
 
         bool CeParseEscalas(string key, string val)
         {
@@ -39,6 +42,13 @@ namespace ConsoleEnhancer
             {
                 case "escalas_adaptables": { string v = val.Trim().ToLowerInvariant(); CeEscalas = !(v == "0" || v == "no" || v == "false" || v == "off"); return true; }
                 case "escalas_modelo_max": CeModeloMax = val.Trim().ToUpperInvariant(); return true;
+                case "motor_uso_grafica":
+                    {
+                        double d;
+                        if (double.TryParse(val.Trim().TrimEnd('%', ' ').Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out d) && d > 0)
+                            CeUsoGrafica = Math.Max(50, Math.Min(98, d <= 1 ? d * 100 : d));
+                        return true;
+                    }
             }
             return CeParseEscalaAuto(key, val);   // 21-11 (1.2.1): dlss5_escala_auto, dlss5_escala_uso, escala_gpu_* (src\Lanzador\EscalaAuto.cs)
         }
@@ -151,6 +161,17 @@ namespace ConsoleEnhancer
             ModoPlan m60;
             if (p.Modos.TryGetValue("60_fg", out m60) && m60.Modelo.Length > 0) sb.AppendLine("motor_modelo_60_dlssg=" + m60.Modelo);
             sb.AppendLine("escalas_modelo_max=" + (transformer ? "L" : "E"));
+            // 22-11 (1.2.2, UNIVERSAL): con una grafica bastante mas lenta que la de referencia (RTX 3060, 20, 3050, 4050...), el modo "ligero"
+            // de Magpie (antiparpadeo estatico, flujo optico en rendimiento, DLSS FG preset C) tambien en el modo 30: en la Ti solo hacia falta
+            // en el 60 (Config.LightTable); EscalaAuto ya cuenta lo que ahorra. Mas fps de margen antes que un poco de nitidez
+            if (r < 0.7)
+            {
+                sb.AppendLine("# Grafica lenta para la referencia: modo ligero de Magpie tambien en el modo 30 (tabla_ligero_*; 0 = como en la Ti)");
+                sb.AppendLine("tabla_ligero_30_fg=1");
+                sb.AppendLine("tabla_ligero_30=1");
+                sb.AppendLine("tabla_ligero_30_fg_4k=1");
+                sb.AppendLine("tabla_ligero_30_4k=1");
+            }
             return sb.ToString();
         }
 
@@ -164,6 +185,15 @@ namespace ConsoleEnhancer
         // ------------------------------------------------------------------ al motor
         public static void ArgsMotor(Config cfg, List<string> a)
         {
+            // (1.2.2, UNIVERSAL) el margen de grafica del motor y la grafica (para lo que se lleva la generacion de NVIDIA): EngineMargen.cs
+            a.Add("uso_grafica=" + (cfg.CeUsoGrafica / 100.0).ToString("0.00", CultureInfo.InvariantCulture));
+            try
+            {
+                CadenaEscala gc = new CadenaEscala();
+                EscalaAuto.GpuPara(gc);
+                if (gc.Indice > 0.05) a.Add("gpu_indice=" + gc.Indice.ToString("0.00", CultureInfo.InvariantCulture));
+            }
+            catch { }
             if (!cfg.CeEscalas) return;
             a.Add("adapta=1");
             string g = GpuClave;

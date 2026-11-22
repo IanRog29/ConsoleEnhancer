@@ -794,6 +794,13 @@ namespace ConsoleEnhancer.Motor.Capture
         DsType Choose(List<DsType> types, long want)
         {
             LastSizeSwap = null;
+            // 22-11 (1.2.2, UNIVERSAL): primero un formato de la preferencia que admita ESA velocidad en ese tamaño; antes el primero de la
+            // preferencia aunque fuera a otra (con format=auto: RGB24 a 4K a 30 antes que NV12 a 4K a 60, o un YUY2 a 5 fps)
+            foreach (CaptureFormat f in opt.Preference)
+            {
+                DsType t = ChooseAt(types, f, opt.Width, opt.Height, want);
+                if (t != null && want >= t.MinInterval - 2 && want <= t.MaxInterval + 2) return t;
+            }
             foreach (CaptureFormat f in opt.Preference)
             {
                 DsType t = ChooseAt(types, f, opt.Width, opt.Height, want);

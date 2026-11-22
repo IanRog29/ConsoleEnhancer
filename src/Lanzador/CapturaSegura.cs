@@ -119,6 +119,10 @@ namespace ConsoleEnhancer
             if (bueno != null) add(bueno);
             add(new CapFmt("1920x1080", fps, cfg.PixelFormat));
             add(new CapFmt("1920x1080", fps, ""));
+            // 22-11 (1.2.2, UNIVERSAL): capturadoras que solo listan 60,000 exactos (muchas UVC de USB): ffmpeg (dshow) no abre 59,94 fuera
+            // de su rango; y al reves (la de siempre ya es 60)
+            string otra = fps == "60000/1001" ? "60" : fps == "60" ? "60000/1001" : null;
+            if (otra != null) { add(new CapFmt(pedido.Size, otra, pedido.Pix)); add(new CapFmt("1920x1080", otra, "")); }
             return l;
         }
 

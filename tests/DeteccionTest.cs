@@ -68,6 +68,18 @@ static class DeteccionTest
             W("############ " + Tx.T("ESTE PC", "THIS PC") + " ############");
             Caso(null, op, pref, ini, true);
         }
+        if (Array.IndexOf(args, "--catalogo") >= 0)
+        {
+            // (1.2.2, UNIVERSAL) nombres y VID:PID reales -> el modelo del catalogo
+            foreach (string l in Simulador.ProbarCatalogo()) { W(l); if (l.StartsWith("MAL")) fallos++; }
+            return fallos == 0 ? 0 : 1;
+        }
+        if (simula == "matriz" || simula.StartsWith("matriz:"))
+        {
+            Matriz(op, pref, simula.Length > 7 ? simula.Substring(7) : "");
+            if (fichero.Length > 0) { try { File.WriteAllText(fichero, salida.ToString(), new UTF8Encoding(false)); } catch (Exception ex) { Console.WriteLine("salida: " + ex.Message); } }
+            return fallos == 0 ? 0 : 1;
+        }
         List<string> casos = new List<string>();
         if (simula == "todo") casos.AddRange(Simulador.Casos);
         else if (simula.Length > 0 && simula != "aqui") casos.AddRange(simula.Split(','));
@@ -115,6 +127,49 @@ static class DeteccionTest
             if (ini) W(plan.ComoIni());
         }
         catch (Exception ex) { fallos++; W("EXCEPCION en el plan: " + ex); }
+    }
+
+    // ---- (1.2.2, UNIVERSAL) la matriz: graficas x pantallas x capturadoras (todas las del catalogo con clave + las UVC simuladas), hardware
+    // inventado entero y la revision de cada plan (Simulador.Revisar). Una linea por combinacion; "MAL:" = algo que arreglar.
+    // --simula=matriz  o  --simula=matriz:<extra>  (p. ej. matriz:cpu-4hilos)
+    static void Matriz(OpcionesDeteccion op, PreferenciasPlan pref, string extra)
+    {
+        List<string> caps = new List<string>();
+        foreach (ModeloCaptura m in DetectorCapturadoras.Catalogo) if (m.Clave.Length > 0 && m.Modos.Length > 0) caps.Add("cap:" + m.Clave);
+        caps.Add("uvc-ms2109"); caps.Add("uvc-ms2130"); caps.Add("uvc-ms2130-usb2"); caps.Add("gc573-real");
+        int n = 0, mal = 0;
+        Dictionary<string, int> porMotivo = new Dictionary<string, int>();
+        foreach (string gpu in Simulador.MatrizGpus)
+            foreach (string pan in Simulador.MatrizPantallas)
+                foreach (string cap in caps)
+                {
+                    n++;
+                    try
+                    {
+                        Hardware hw = Simulador.Sintetico(op, gpu, pan, cap, extra);
+                        PlanImagen p = Planificador.Elegir(hw, pref);
+                        List<string> r = Simulador.Revisar(hw, p);
+                        string fr; string c120 = p.Captura != null && p.Captura.Formatos != null ? p.Capturas120(out fr) : "";
+                        string modos = "";
+                        foreach (KeyValuePair<string, ModoPlan> kv in p.Modos)
+                            modos += " " + kv.Key + "=" + (kv.Value.Modelo.Length > 0 ? kv.Value.Modelo : p.Escalador) + "@" + Math.Round(100 * kv.Value.CosteMs / ((kv.Key.StartsWith("60") ? 1000.0 : 2000.0) / 59.94)) + "%";
+                        // (LIM = solo lo que la grafica no da y el plan ya avisa: integradas a 4K)
+                        bool lim = r.Count > 0 && r.TrueForAll(delegate(string x) { return x.Contains("[avisado"); });
+                        if (lim) { r.Clear(); }
+                        W((r.Count > 0 ? "MAL " : lim ? "LIM " : "ok  ") + gpu + " | " + pan + " | " + cap + " -> " + p.Motor + " " + p.CapW + "x" + p.CapH + " " + p.CapFormato + " " + p.CapFps +
+                          " | " + p.Escalador + " | gen " + p.Gen60 + "/" + p.Gen30 + (p.GenDeSerie ? " (serie)" : "") + " | 120: " + (c120.Length > 0 ? c120 : "-") + " |" + modos +
+                          (r.Count > 0 ? " || " + string.Join("; ", r.ToArray()) : ""));
+                        if (r.Count > 0)
+                        {
+                            mal++;
+                            foreach (string x in r) { string k = x.Split('(')[0].Trim(); int v; porMotivo.TryGetValue(k, out v); porMotivo[k] = v + 1; }
+                        }
+                    }
+                    catch (Exception ex) { fallos++; W("EXCEPCION " + gpu + " | " + pan + " | " + cap + ": " + ex); }
+                }
+        W("");
+        W("Matriz: " + n + " combinaciones, " + mal + " con algo mal");
+        foreach (KeyValuePair<string, int> kv in porMotivo) W("  " + kv.Value + " x " + kv.Key);
     }
 
     // ---- turno de la capturadora (REGLAS.md del coordinador): el fichero gpu.lock; se espera hasta 3 min si lo tiene otro

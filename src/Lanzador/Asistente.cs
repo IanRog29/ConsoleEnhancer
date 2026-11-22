@@ -423,7 +423,9 @@ namespace ConsoleEnhancer
             if (captura != null) pref.Capturadora = captura.DevicePath.Length > 0 ? captura.DevicePath : captura.Nombre;
             if (!soloVer) CeImagen.Preferencias(pref, pantalla);   // (20-11: G-SYNC visto / modo global, ImagenCe.cs)
             PlanImagen p = Planificador.Elegir(hw, pref);
-            if (formato != null) { p.CapW = formato.Ancho; p.CapH = formato.Alto; p.CapFormato = formato.Subtipo; p.CapFps = formato.FpsMax >= 59.9 && (formato.FpsMin <= 0 || formato.FpsMin <= 60.01) ? "60000/1001" : formato.FpsMax.ToString("0.###", CultureInfo.InvariantCulture); p.CapOrigen = Tx.T("elegido en el asistente", "chosen in the wizard"); }
+            // (1.2.2, UNIVERSAL: Planificador.FormatoElegido: 59,94 solo si su rango lo admite -con 60,000 fijos ffmpeg no la abria- y mpv + Magpie
+            // si el motor no abre ese formato)
+            if (formato != null) { Planificador.FormatoElegido(p, formato); p.CapOrigen = Tx.T("elegido en el asistente", "chosen in the wizard"); }
             if (sinAudio) p.Audio = null; else if (audio != null) p.Audio = audio;
             return p;
         }
