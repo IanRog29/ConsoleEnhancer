@@ -76,7 +76,9 @@ InitExtFn g_init = nullptr; CreateFn g_create = nullptr; EvalFn g_eval = nullptr
 ID3D12Device* g_device = nullptr;
 bool g_inited = false;
 struct Inst { Params p; NVSDK_NGX_Handle* h = nullptr; unsigned w = 0, hh = 0; };   // 20-11: una por pasada (2-3 pasadas)
-constexpr int kMaxInst = 3;
+// 22-11 (1.2.4 DLSS5Q): dos juegos de 3 (0-2 y 3-5): el motor crea las nuevas (otro tamaño u otras pasadas) en otro hilo mientras sigue
+// evaluando las de antes, y luego cambia de juego (sin parar la imagen 0,4-1,3 s). Cada instancia solo la toca un hilo a la vez
+constexpr int kMaxInst = 6;
 Inst g_inst[kMaxInst];
 char g_err[512] = "";
 
@@ -194,7 +196,7 @@ __declspec(dllexport) void __stdcall PNR_ReleaseN(int idx) {
 	if (in->h) { DWORD s; SehRelease(in->h, &s); in->h = nullptr; }
 }
 
-// Crea la instancia idx (0-2: una por pasada) de DLSSNR a w x h (entrada = salida). preset: DLSSNR.Hint.Render.Preset (dlss5_modelo de
+// Crea la instancia idx (0-5: una por pasada, en el juego 0-2 o 3-5) de DLSSNR a w x h (entrada = salida). preset: DLSSNR.Hint.Render.Preset (dlss5_modelo de
 // Prisma). La lista se ejecuta despues por quien llama (y hay que dejar una imagen antes del primer Evaluate). 1 = bien
 __declspec(dllexport) int __stdcall PNR_CreateN(int idx, ID3D12GraphicsCommandList* cl, unsigned w, unsigned h, int preset) {
 	if (!g_inited) { Err("PNR_Create sin PNR_Init"); return 0; }
