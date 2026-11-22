@@ -7,7 +7,7 @@
 //  - Como se usa el PC (como una consola / como un PC normal), abrir con Windows, escritorio negro, que hace el PC al apagar la consola.
 //  - DLSS 5 (tu propio archivo): estado, anadir / cambiar, quitar, abrir la carpeta extras\.
 //  - Componentes (mpv, Magpie): comprobar / volver a bajar; abrir los registros y la carpeta de datos.
-//  - Desinstalar (lo mismo que la bandeja: TrayApp.PrepararBorrado).
+//  - Desinstalar (lo mismo que la bandeja: CeBorrado, src\Lanzador\Desinstalar.cs; 1.2.3: el borrado al cerrarse el panel, en Run).
 // Lo que se guarda va al ini; si la app esta abierta, lo lee al volver a abrirse: el panel ofrece reiniciarla (--salir + abrirla).
 using System;
 using System.Collections.Generic;
@@ -29,6 +29,7 @@ namespace ConsoleEnhancer
             try { Idioma.Poner((Ce.IniLeer("idioma") ?? "").Trim().ToLowerInvariant()); } catch { }
             Log.Write("Panel de ajustes abierto (" + Paths.AppDir + ")");
             using (PanelAjustes f = new PanelAjustes()) Application.Run(f);
+            CeBorrado.AlSalir(); // (1.2.3: si se pidio "Desinstalar", el borrado ahora, con el panel ya cerrado; src\Lanzador\Desinstalar.cs)
             return 0;
         }
 
@@ -360,14 +361,16 @@ namespace ConsoleEnhancer
             string det;
             CeInicio.Poner(false, out det);
             Log.Write("Desinstalar: inicio con Windows quitado (" + det + ")");
-            try { Ce.IniPoner("escritorio_negro", "0"); Ce.IniPoner("apagar_pc", "0"); } catch { }
+            // (1.2.3: iniciar_con_windows=0 tambien, en los ajustes que se guardan: una copia nueva que los herede no se pone sola en el inicio)
+            try { Ce.IniPoner("escritorio_negro", "0"); Ce.IniPoner("apagar_pc", "0"); Ce.IniPoner("iniciar_con_windows", "0"); } catch { }
             try { Escritorio.Cambiar(false); } catch (Exception ex) { Log.Error("Desinstalar: escritorio", ex); }
             CeEspera.PlanDeAntes("desinstalar");
-            bool ok = TrayApp.PrepararBorrado(app, datos, borrarDatos == DialogResult.Yes, Process.GetCurrentProcess().Id, true);   // (1.2.2: con "Sí", tambien la copia de seguridad)
+            // (1.2.2: con "Sí", tambien la copia de seguridad. 1.2.3: el borrado lo hace este proceso al cerrarse el panel, Run, y dice como ha ido)
+            bool ok = CeBorrado.Preparar(app, datos, borrarDatos == DialogResult.Yes, true);
             UseWaitCursor = false;
-            MessageBox.Show(this, ok ? Tx.T("ConsoleEnhancer se ha desinstalado. Gracias por probarlo.", "ConsoleEnhancer has been uninstalled. Thanks for trying it.")
-                                     : Tx.T("No se pudieron borrar los archivos. Borra la carpeta a mano:\n", "Could not delete the files. Delete the folder yourself:\n") + app,
-                            PrismaUi.AppName, MessageBoxButtons.OK, ok ? MessageBoxIcon.Information : MessageBoxIcon.Warning);
+            if (!ok)
+                MessageBox.Show(this, Tx.T("No se pudieron borrar los archivos. Borra la carpeta a mano:\n", "Could not delete the files. Delete the folder yourself:\n") + app,
+                                PrismaUi.AppName, MessageBoxButtons.OK, MessageBoxIcon.Warning);
             Close();
         }
 

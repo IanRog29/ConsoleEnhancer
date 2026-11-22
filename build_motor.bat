@@ -9,10 +9,12 @@ cd /d "%~dp0"
 if "%STREAMLINE_DIR%"=="" (set "SL=%~dp0terceros\streamline\bin\x64") else (set "SL=%STREAMLINE_DIR%\bin\x64")
 if not exist "%CSC%" (echo *** No esta %CSC% ^(.NET Framework 4.8^) *** & exit /b 1)
 if not exist bin\engine mkdir bin\engine
+rem (1.2.3) src\Version.cs: la version y el editor en las propiedades del exe; resources\engine.manifest: su manifiesto (asInvoker,
+rem Windows 10/11, PerMonitorV2 como SetProcessDpiAwarenessContext al empezar Main)
 "%CSC%" /nologo /unsafe /platform:x64 /optimize+ /codepage:65001 /target:winexe /out:bin\engine\ConsoleEnhancerEngine.exe ^
-  /win32icon:resources\prisma.ico /resource:resources\prisma.ico,Prisma.ico ^
+  /win32icon:resources\prisma.ico /win32manifest:resources\engine.manifest /resource:resources\prisma.ico,Prisma.ico ^
   /r:System.dll /r:System.Core.dll /r:System.Drawing.dll /r:System.Windows.Forms.dll ^
-  /recurse:src\Motor\*.cs
+  /recurse:src\Motor\*.cs src\Version.cs
 if errorlevel 1 (echo *** ERROR de compilacion *** & exit /b 1)
 for %%f in (sl.interposer.dll sl.common.dll sl.dlss.dll sl.dlss_g.dll sl.reflex.dll sl.pcl.dll nvngx_dlss.dll nvngx_dlssg.dll) do (
   if not exist "bin\engine\%%f" (

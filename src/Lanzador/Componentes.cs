@@ -383,7 +383,7 @@ namespace ConsoleEnhancer
             catch (Exception ex) { Log.Error("dlssg_sm86: forward.ini / native.ini", ex); }
         }
 
-        static bool Sm86Vale(string d)
+        public static bool Sm86Vale(string d)   // (1.2.3 MOTOR5: tambien ExtrasGuardados.cs)
         {
             return Directory.Exists(d) && File.Exists(Path.Combine(d, "version.dll")) &&
                    File.Exists(Path.Combine(d, @"dlssg_sm86\runtime\nvngx_dlssg.dll")) && File.Exists(Path.Combine(d, @"dlssg_sm86\backend\sm86_backend.dll")) &&
@@ -519,7 +519,7 @@ namespace ConsoleEnhancer
         }
 
         // Solo lo que hace falta (sin logs\ ni los .ini que escribe Magpie)
-        static int CopiarSm86(string de, string a)
+        public static int CopiarSm86(string de, string a)   // (1.2.3 MOTOR5: tambien ExtrasGuardados.cs)
         {
             a = a.TrimEnd('\\');
             string tmp = a + ".parcial";

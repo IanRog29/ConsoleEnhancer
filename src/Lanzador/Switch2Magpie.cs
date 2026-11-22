@@ -743,7 +743,7 @@ namespace ConsoleEnhancer
             {
                 if (Integrado.MagpieDlssgOk) return false;
                 if (Ce.DlssgSoloMagpie) return true;
-                if (Dlss5Off || !Integrado.Dlss5Available || (EngineDlss5 && Engine == "propio")) return false;
+                if (Dlss5Off || !Integrado.Dlss5Available || MotorDlss5Pedido) return false;   // (22-11, 1.2.3 MOTOR5: si DLSS 5 lo hace de verdad el motor, src\Lanzador\MotorDlss5.cs)
                 // (1.2.04) el usuario, 21-11: "pantallazo negro unos segundos cada vez que cambio de juego o al menu". Con DLSS 5 que NO
                 // CABE (captura 4K: nada que escalar) DLSS FG la hace el motor propio y no hace falta dlssg_sm86; antes se cambiaba por XeSS
                 // FG (solo Magpie) y cada vuelta del menu (motor propio) al juego reabria mpv + Magpie con ~2 s de negro. Dlss5FitsNow pasa
@@ -1009,7 +1009,9 @@ namespace ConsoleEnhancer
             }
         }
         // (20-11 03:40: ya con 2-3 pasadas y el antiparpadeo; antes solo 1 pasada)
-        public bool EngineDlss5Now { get { return EngineDlss5 && Engine == "propio" && !Dlss5Off && Dlss5FitsNow; } }
+        // (22-11, 1.2.3 MOTOR5: y solo lo que el motor hace -con PrismaNr.dll, hasta motor_dlss5_pasadas, sin x3 / x4 ni XeSS FG-; lo demas por
+        // Magpie como siempre. Antes con motor_dlss5=1 y x4 o 2 pasadas Magpie iba sin su escala automatica y los textos decian "motor propio")
+        public bool EngineDlss5Now { get { return EngineDlss5 && Engine == "propio" && !Dlss5Off && Dlss5FitsNow && MotorDlss5Pedido; } }
         // El % de entrada de DLSS 5 que se aplica de verdad (para los textos): el del motor si DLSS 5 va en el, si no el de Magpie
         public int Dlss5PctShownNow { get { return EngineDlss5Now ? EngineDlss5PctNow : Dlss5PctNow; } }
         // 16-11 noche: motor_modelo_<modo>_1080= / _1440= / _720= (por captura; sin ella, la del modo)
@@ -1406,7 +1408,8 @@ namespace ConsoleEnhancer
                         case "rtx_hdr_saturacion": c.RtxHdrSaturation = Math.Max(0, Math.Min(200, ParseInt(val))); break;
                         case "reflex": c.Reflex = ParseBool(val); break;
                         case "motor": c.Engine = val.Trim().ToLowerInvariant(); break;
-                        case "motor_dlss5": c.EngineDlss5 = ParseBool(val); break;
+                        case "motor_dlss5": c.EngineDlss5 = MotorDlss5Valor(val); c.EngineDlss5Ini = val.Trim(); break;   // (1.2.3 MOTOR5: auto = con PrismaNr.dll)
+                        case "motor_dlss5_pasadas": c.EngineDlss5MaxPasses = Math.Max(1, Math.Min(3, ParseInt(val))); break;   // (1.2.3 MOTOR5)
                         case "motor_dlss5_entrada": c.EngineDlss5PctAll = Math.Max(0, Math.Min(100, ParseInt(val))); break;
                         case "motor_dlss5_entrada_30": ParsePctList(val, c.EngineDlss5Pct30); break;
                         case "motor_dlss5_entrada_30_4k": ParsePctList(val, c.EngineDlss5Pct30_4k); break;
@@ -9406,7 +9409,7 @@ namespace ConsoleEnhancer
                 while (!p.HasExited && !userExit && mpv == p)
                 {
                     Thread.Sleep(100);
-                    if (signalOn && (lsReady || MenuCiegoCaptura || CapturaPreparando)) GrabTick(DateTime.Now); // (1.2.2: CapturaPreparando, src\VueltaJuego.cs)
+                    if (signalOn && (lsReady || MenuCiegoCaptura || CapturaPreparando || CapturaEntrandoMenu)) GrabTick(DateTime.Now); // (1.2.2: CapturaPreparando, src\VueltaJuego.cs; 1.2.3: CapturaEntrandoMenu, src\JuegoEnMarcha.cs)
                     // Fuera del HOME: se decide sin esperar al siguiente WatchLoop (hasta 0,5 s; el negro cuenta por tiempo)
                     if (signalOn && lsReady && InHome && noLabel >= 1) RunHomeTick(DateTime.Now);
                 }
@@ -9444,8 +9447,11 @@ namespace ConsoleEnhancer
             if (!Consolas.Actual.TieneHome)
             {
                 // (1.2.2: mientras Magpie prepara, tambien, para el menu y la comprobacion de la salida: CapturaPreparando)
-                bool preparando = passesBusy && CapturaPreparando;
-                if (grabBusy || relaunchSize != null || (passesBusy && !preparando) || now < switchUntil || !ipcUp) return;
+                // (1.2.3, JUEGO: y pasando al menu sin saber aun el juego en foco, CapturaEntrandoMenu: sin el margen de switchUntil, mpv no recarga)
+                bool entrandoMenu = CapturaEntrandoMenu;
+                bool focoMenu = entrandoMenu || (InHome && !homeBusy && !homeSwitching && FocoMenuPorLeer);   // (y ya en el menu: sin el margen)
+                bool preparando = passesBusy && (CapturaPreparando || entrandoMenu);
+                if (grabBusy || relaunchSize != null || (passesBusy && !preparando) || (now < switchUntil && !focoMenu) || !ipcUp) return;
                 // 19-11 (src\MenuPs5.cs): con la PS5, en su menu y confirmando que se entra o se sale de el, cada 0,4-0,5 s
                 // (19-11, DETECCION: confirmando, a los 0,25 s: src\DetectorMenu.cs decide con 2 capturas seguidas, o con 1 si la hora es la del
                 // PC al minuto; antes 0,4 s jugando y 0,5 s en el menu, y 3 capturas para salir)
@@ -9453,6 +9459,7 @@ namespace ConsoleEnhancer
                 if (Consolas.Actual.MenuPropio && (!homeBusy || preparando))
                 {
                     if (menuMaq.Confirmando) ev = 0.25; // (sin homeSync: dos enteros, una lectura de mas o de menos no importa)
+                    else if ((InHome || entrandoMenu) && FocoMenuPorLeer) ev = 0.25;   // (1.2.3, JUEGO: el primer juego en foco de la visita, como mucho 5 s: src\JuegoEnMarcha.cs)
                     else if (InHome) ev = 0.5;
                     // (1.2.2: comprobando la salida del menu: el negro de arrancar otro juego, 1,2 s. Con Magpie ya escalando a 4K cada
                     // captura para a mpv 44-81 ms (RITMO): 0,8 s; mientras Magpie prepara, mpv no se ve (el puente esta encima): 0,4 s)
@@ -13170,6 +13177,7 @@ namespace ConsoleEnhancer
                     else if (line.Contains("\"request_id\":79")) CierresCaptura(line); // (20-11, CIERRES: switch2-captura-ms del motor)
                     else if (line.Contains("\"client-message\"") && CierresEvent(line)) { } // (20-11, CIERRES: switch2-gpu del motor)
                     else if (line.Contains("\"client-message\"") && FpsEvent(line)) { } // (21-11: switch2-fps del motor, src\Lanzador\FpsBajo.cs)
+                    else if (line.Contains("\"client-message\"") && MotorDlss5Evento(line)) { } // (22-11, 1.2.3 MOTOR5: switch2-dlss5 roto del motor, MotorDlss5.cs)
                     else if (line.Contains("\"client-message\"") && AjPruebaEvento(line)) { } // (22-11, 1.2.2: pruebas del menu de ajustes, AjustesGuia.cs)
                     else if (line.Contains("\"client-message\"") && line.Contains("\"args\":[\"switch2-pad\""))
                     {
@@ -14610,6 +14618,8 @@ namespace ConsoleEnhancer
                 // 20-11 (PS5JUEGO): leer el nombre del juego en el overlay (centro de control / conmutador de la PS5, Guia / fichas de la
                 // Xbox): --test-juegos-consola=<carpeta>[;<informe>] (xbox_* usa la Xbox, el resto la PS5)
                 if (arg.StartsWith("--test-juegos-consola=")) return JuegoConsola.Prueba(arg.Substring(22));
+                // 1.2.3 (JUEGO): el juego en marcha (primer foco de la visita, modo guardado, huella del HUD): --test-juego-en-marcha=<informe>[;<capturas>]
+                if (arg.StartsWith("--test-juego-en-marcha=")) return PruebaJuegoEnMarcha.Run(arg.Substring(23));
                 // 19-11 (DETECCION): el menu de la consola con imagenes y escenas, antes y ahora (src\PruebaDeteccion.cs):
                 // --test-deteccion=<carpeta>[;<informe>] (games\test_deteccion) o --test-deteccion=listar;<carpeta>;<informe.tsv>
                 if (arg.StartsWith("--test-deteccion=")) return PruebaDeteccion.Run(arg.Substring(17));
@@ -14619,6 +14629,10 @@ namespace ConsoleEnhancer
                 if (arg == "--test-multiplicador" || arg.StartsWith("--test-multiplicador=")) return Config.MultPrueba(arg.Length > 21 ? arg.Substring(21) : null);
                 // 22-11 (1.2.2, REESCALADO): la config de Magpie de reescalado y DLSS 5 por combinacion: --test-reescalado[=<informe>]
                 if (arg == "--test-reescalado" || arg.StartsWith("--test-reescalado=")) return ReescaladoPrueba.Run(arg.Length > 18 ? arg.Substring(18) : null);
+                // 22-11 (1.2.3, MOTOR5): por donde va DLSS 5 (motor con PrismaNr.dll / Magpie) con cada combinacion: --test-motor-dlss5[=<informe>]
+                if (arg == "--test-motor-dlss5" || arg.StartsWith("--test-motor-dlss5=")) return Config.MotorDlss5Prueba(arg.Length > 19 ? arg.Substring(19) : null);
+                // 22-11 (1.2.3, MOTOR5): PrismaNr.dll junto a la DLL elegida en "Añadir DLSS 5": --test-extras-guardados[=<informe>]
+                if (arg == "--test-extras-guardados" || arg.StartsWith("--test-extras-guardados=")) return ExtrasGuardados.Prueba(arg.Length > 24 ? arg.Substring(24) : null);
                 if (arg.StartsWith("--ui-preview=")) return PrismaPreview.Run(arg.Substring(13));
                 // 18-11 (MANDOS): --test-mandos=<segundos>;<archivo>: mandos detectados, botones pulsados y el modo PC (sin mandar nada)
                 if (arg.StartsWith("--test-mandos=")) return PadTest.Run(arg.Substring(14), args);
@@ -14843,8 +14857,8 @@ namespace ConsoleEnhancer
                 }
                 catch { }
                 Log.Write("===== Inicio ConsoleEnhancer =====");
-                CeInicio.Sincronizar(cfg); // (ConsoleEnhancer: iniciar_con_windows, src\InicioWindows.cs)
                 try { CeDefender.AlAbrir(); } catch (Exception ex) { Log.Error("Microsoft Defender", ex); } // (1.2.08: si Defender cerro la app, explicarlo; src\Lanzador\DefenderAviso.cs)
+                CeInicio.Sincronizar(cfg); // (ConsoleEnhancer: iniciar_con_windows, src\InicioWindows.cs; 1.2.3: despues del aviso de Defender, por si pregunta)
                 CeSuspension.AlAbrir(cfg); // (1.0.14: que los mandos y teclados nuevos despierten el PC, src\Suspension.cs)
                 CeImagen.AlAbrir(cfg); // (ConsoleEnhancer: escalas aprendidas, VRR, HDR / RTX HDR / Auto HDR; src\ImagenCe.cs)
                 if (!string.Equals(Paths.IniFile, Paths.Datos + @"\consoleenhancer.ini", StringComparison.OrdinalIgnoreCase)) Log.Write("Ini de prueba: " + Paths.IniFile);
@@ -14876,6 +14890,7 @@ namespace ConsoleEnhancer
                 // 19-11: consola apagada -> PC apagado (con el inicio rapido de Windows si esta activo: /hybrid arranca antes)
                 // (ConsoleEnhancer: antes, el aviso con la cuenta atras que se puede cancelar: src\InicioWindows.cs)
                 if (apagaPc) ApagarPc();
+                CeBorrado.AlSalir(); // (1.2.3: "Desinstalar" de la bandeja: la app borra sus archivos ahora, ya cerrado todo; src\Lanzador\Desinstalar.cs)
             }
             return 0;
         }

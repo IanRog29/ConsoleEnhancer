@@ -91,6 +91,23 @@ jobs:
           call .\build.bat || exit /b 1
           call .\build_motor.bat || exit /b 1
 
+      # (1.2.3) Firma de codigo de los exe, OPCIONAL: solo con los secretos del repositorio CE_FIRMA_PFX (el .pfx en base64) y
+      # CE_FIRMA_CLAVE (su contrasena), en Settings > Secrets and variables > Actions. Sin ellos, todo como siempre: los exe sin firmar.
+      # Firma scripts\firmar.ps1 con signtool (SHA-256 y sello de tiempo); las DLL de NVIDIA ya vienen firmadas
+      - name: Firma de codigo (solo si hay certificado)
+        shell: pwsh
+        env:
+          CE_FIRMA_PFX: ${{ secrets.CE_FIRMA_PFX }}
+          CE_FIRMA_CLAVE: ${{ secrets.CE_FIRMA_CLAVE }}
+        run: |
+          if (-not $env:CE_FIRMA_PFX) { 'Sin certificado (secreto CE_FIRMA_PFX): los exe van sin firmar'; exit 0 }
+          $pfx = Join-Path $env:RUNNER_TEMP 'ce_firma.pfx'
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:CE_FIRMA_PFX))
+          try {
+            powershell -NoProfile -ExecutionPolicy Bypass -File scripts\firmar.ps1 -Pfx $pfx
+            if ($LASTEXITCODE -ne 0) { exit 1 }
+          } finally { Remove-Item -LiteralPath $pfx -Force -ErrorAction SilentlyContinue }
+
       - name: Montar el zip (scripts\empaquetar.ps1)
         shell: pwsh
         run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts\empaquetar.ps1 -Zip -Version "${{ github.ref_name }}" -Web "${{ github.server_url }}/${{ github.repository }}"
@@ -111,7 +128,7 @@ jobs:
           $notas.Add('')
           $notas.Add('**Download / Descarga:** `ConsoleEnhancer-' + $tag + '.zip` (below / abajo). Unzip and open `ConsoleEnhancer.exe`: on first start it downloads mpv and Magpie from their official pages, then the wizard runs. / Descomprime y abre `ConsoleEnhancer.exe`: la primera vez baja mpv y Magpie de sus paginas oficiales y luego sale el asistente.')
           $notas.Add('')
-          $notas.Add('SHA-256: `' + ((Get-Content "dist/ConsoleEnhancer-$tag.zip.sha256" -Raw).Split(' ')[0]) + '`')
+          $notas.Add('SHA-256: `' + ((Get-Content "dist/ConsoleEnhancer-$tag.zip.sha256" -Raw).Split(' ')[0]) + '` (each file inside / cada fichero de dentro: `ConsoleEnhancer-' + $tag + '.files.sha256`)')
           $notas.Add('')
           $notas.Add('License GPL-3.0 (+ LICENSE-EXCEPTION.txt). Includes unmodified NVIDIA Streamline / DLSS / Reflex (licenses\). Does not include "DLSS 5" or anything unofficial. / Licencia GPL-3.0 (+ LICENSE-EXCEPTION.txt). Incluye NVIDIA Streamline / DLSS / Reflex sin cambios (licenses\). No incluye "DLSS 5" ni nada no oficial.')
           Set-Content -LiteralPath notas.md -Value $notas -Encoding UTF8
@@ -125,12 +142,15 @@ jobs:
           $extra = @()
           if ($tag -match '-(alpha|beta|rc|pre)') { $extra += '--prerelease' }
           # (la etiqueta movida a otro commit: la Release ya existe -> se le cambian el zip y las notas)
+          # (1.2.3) ademas del zip y su .sha256, el SHA-256 de cada fichero de dentro (.files.sha256: para comprobar una copia o
+          # mandarle a Microsoft / a un antivirus un falso positivo con los ficheros exactos)
+          $ficheros = @("dist/ConsoleEnhancer-$tag.zip", "dist/ConsoleEnhancer-$tag.zip.sha256", "dist/ConsoleEnhancer-$tag.files.sha256")
           gh release view $tag *> $null
           if ($LASTEXITCODE -eq 0) {
-            gh release upload $tag "dist/ConsoleEnhancer-$tag.zip" "dist/ConsoleEnhancer-$tag.zip.sha256" --clobber
+            gh release upload $tag @ficheros --clobber
             if ($LASTEXITCODE -ne 0) { exit 1 }
             gh release edit $tag --title "ConsoleEnhancer $tag" --notes-file notas.md
           } else {
-            gh release create $tag "dist/ConsoleEnhancer-$tag.zip" "dist/ConsoleEnhancer-$tag.zip.sha256" --title "ConsoleEnhancer $tag" --notes-file notas.md @extra
+            gh release create $tag @ficheros --title "ConsoleEnhancer $tag" --notes-file notas.md @extra
           }
           exit $LASTEXITCODE

@@ -1,8 +1,7 @@
-﻿// AssemblyInfo.cs - El nombre que ve Windows (Administrador de tareas, propiedades del exe): Prisma.
-// Los nombres de fichero, exe, carpeta, mutex, tuberias y procesos siguen siendo los de siempre (Switch2Magpie...): de ellos
-// dependen los accesos directos, Playnite, los scripts y los bancos
+﻿// AssemblyInfo.cs - El nombre que ve Windows (Administrador de tareas, propiedades del exe): ConsoleEnhancer. La version, el editor y el
+// copyright (comunes a los tres exe): src\Version.cs; el manifiesto: resources\app.manifest (build.bat)
 using System.Reflection;
 
 [assembly: AssemblyTitle("ConsoleEnhancer")]
 [assembly: AssemblyProduct("ConsoleEnhancer")]
-[assembly: AssemblyDescription("ConsoleEnhancer: la consola por la capturadora, mejorada en el PC (cualquier consola, capturadora y grafica)")]
+[assembly: AssemblyDescription("ConsoleEnhancer: your console through a capture card, enhanced on your PC (any console, capture card and GPU)")]

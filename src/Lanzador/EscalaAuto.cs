@@ -83,6 +83,9 @@ namespace ConsoleEnhancer
         public bool Hdr, HdrAntes;          // RTX HDR (a la salida o a la resolucion de la captura)
         public double Indice = 1.2;         // la grafica frente a la RTX 4060 (1,0)
         public string Familia = "rtx40";    // rtx20 | rtx30 | rtx40 | rtx50 | otra
+        public bool Intel;                  // (1.2.3, MULTI2) grafica Intel: XeSS FG x3 / x4 por su camino nativo (EscalaAuto.XessCompat)
+        public double FlujoD5 = 1;          // (1.2.3) el flujo optico de DLSS 5: 1 = NVIDIA calidad 2, 0,8 = calidad 1 (ligero), 0 = sin flujo
+        public bool Vrr = true;             // (1.2.3) Magpie presenta por VRR (Config.MagpieVrrNow); false = refresco fijo (DXGI cada 2 refrescos)
         public double VramGb = 8;
         public string Juego = "";           // el perfil del juego ("" = sin saber)
 
@@ -103,7 +106,14 @@ namespace ConsoleEnhancer
     static class EscalaAuto
     {
         public const double IndiceRef = 1.2;      // RTX 4060 Ti (Gpu.cs), la grafica de las medidas
-        public static double Uso = 0.75;          // dlss5_escala_uso: parte del tiempo de una imagen real que puede usar la grafica
+        // dlss5_escala_hilo: parte del tiempo de una imagen real que puede llevarse el hilo de la imagen de Magpie (Prevision). (1.2.3, MULTI2:
+        // 95; antes 75 con un modelo que solo miraba la grafica y no lo fijo de DLSS 5 ni el hilo en serie: elegia 45-50 % a 4K con DLSS FG
+        // x2 y se quedaba en 28 reales. Con el modelo del hilo, lo medido llega hasta 31,8 ms previstos -XeSS FG x2 al 50 % a 4K, DLSS FG x2
+        // al 45 % con refresco fijo de RITMO2- y no llega desde 33,8: el 95 % -31,7 ms- deja ~1,7 ms de margen)
+        public static double Uso = 0.95;
+        // dlss5_escala_grafica (1.2.3, MULTI2): lo que puede ocupar la grafica (Carga x k) del tiempo de una real. 88: antes, con el 75 % del
+        // modelo de solo la grafica, era ~el 75 %; medido llegando con 77-82 % (XeSS FG x2 a 4K al 50 %, DLSS FG x4 a 1440p)
+        public static double UsoGrafica = 0.88;
         public static volatile string Juego;      // el juego de ahora (TrayApp.PrepareCfg)
 
         static double Mp(int w, int h) { return Math.Max(0, w) * (double)Math.Max(0, h) / 1e6; }
@@ -139,7 +149,17 @@ namespace ConsoleEnhancer
             }
         }
 
-        public static double CosteGeneracion(CadenaEscala c)
+        // (1.2.3, MULTI2) DOS cuentas de la generacion (MEDIDO el 22-11, ver Prevision): lo que ocupa la grafica (Carga: lo que ve su %, para
+        // aprender k) y lo que alarga el hilo de la imagen de Magpie (lo que decide si se llega a las reales del modo). ms con salida 4K en la
+        // RTX 4060 Ti (indice 1,2): DLSS FG ocupa ~5 por inventada (x4 sin DLSS 5 a 4K: nvidia-smi 69 %, 23 ms por real) pero en el hilo
+        // la primera ~5 y cada una de mas ~1,5 (DLSS-G reutiliza el flujo del par); XeSS FG ocupa ~8 por inventada pero las genera en su
+        // propia cola (x2 con DLSS 5 al 50 % a 4K llega: 29,9): en el hilo ~1. ini: escala_coste_dlss_fg / _mas, escala_coste_xess_fg / _hilo
+        public static double CosteDlssFg = 5.0, CosteDlssFgMas = 1.5, CosteXessFg = 8.0, CosteXessFgHilo = 1.0, CreditoFijoDlss = 2.0;
+
+        // lo que ocupa la grafica (el % de grafica lo ve: NuevoK)
+        public static double CosteGeneracion(CadenaEscala c) { return CosteGeneracion(c, false); }
+        // hilo = true: lo que alarga el hilo de la imagen (Prevision: llegar a las reales)
+        public static double CosteGeneracion(CadenaEscala c, bool hilo)
         {
             if (c.Gen.Length == 0 || c.Modo >= 100) return 0;
             double f = Mp4k(c.OutW, c.OutH), g = Math.Max(1, c.Mult - 1), v;
@@ -147,9 +167,15 @@ namespace ConsoleEnhancer
             {
                 case "smooth": v = 2.5 * f; break;                       // (x2 siempre; ~la mitad que DLSS FG)
                 case "fsr3": v = 7.0 * f; break;                         // (x2 fijo)
-                case "xess": v = 8.0 * g * f + (c.VectoresFg ? 0.4 * Mp(c.VenW, c.VenH) : 0); break;
+                case "xess": v = (hilo ? CosteXessFgHilo : CosteXessFg) * g * f + (c.VectoresFg ? 0.4 * Mp(c.VenW, c.VenH) : 0); break;
                 case "vfg": v = 10.0 * g * f; break;
-                default: v = 5.0 * g * f + (c.VectoresFg ? 0.55 * Mp(c.VenW, c.VenH) : 0); break;   // DLSS FG (+ los vectores NVOF de Magpie, calidad 3)
+                default:   // DLSS FG (+ los vectores NVOF de Magpie fuera de 4K)
+                    v = (hilo ? CosteDlssFg + CosteDlssFgMas * (g - 1) : CosteDlssFg * g) * f + (c.VectoresFg ? 0.55 * Mp(c.VenW, c.VenH) : 0);
+                    // (x2 con refresco fijo -DXGI cada 2 refrescos, sin la cola por VRR de Magpie-: el hilo espera menos a la cola de
+                    // presentacion. RITMO2, 22-11, 4K al 45 %: por VRR 28,6 reales, fijo 29,68 de 29,73; por VRR Magpie anota
+                    // "excludedRingWait" ~6 ms con x2 y ~0 con x4. escala_credito_fijo_dlss)
+                    if (hilo && g == 1 && !c.Vrr) v = Math.Max(0, v - CreditoFijoDlss * f);
+                    break;
             }
             if (c.Ligero) v *= 0.85;
             return v;
@@ -165,25 +191,76 @@ namespace ConsoleEnhancer
             return pasadas * d * p * p + (pasadas == 1 && c.AfUna ? Config.CosteAntiParpadeoMs(c.VenW, c.VenH) : 0);
         }
 
+        // (1.2.3, MULTI2) Lo fijo de DLSS 5 en el hilo de la imagen que el % de grafica NO ve: el flujo optico de NVIDIA a la resolucion de la
+        // ventana (el acelerador de flujo, en serie: DLSSNR lo espera) y lo que DLSSNR hace a esa resolucion antes y despues del modelo
+        // (bajar el color, subir el residuo). ms por megapixel de la ventana (escala_coste_dlss5_fijo); lo que ya cuentan los vectores de
+        // DLSS FG / el flujo de DLSS SR (el mismo estimador) se descuenta
+        // (a 4K, ajustado a lo medido: ~11,6 ms = el flujo de calidad 2 ~9,7 y lo de DLSSNR ~2. El flujo no crece con los pixeles: CALIDAD 1.2.2
+        // midio 3,0 / 5,2-6,4 / 9,2-10,2 ms a 1080p / 1440p / 4K -> 2,2 x MP^0,7 (3,7 / 5,5 / 9,7); con 1,15 x MP la 1440p quedaba corta:
+        // DLSS FG x2 a 1440p con M al 80 % daba 29,6 reales con 30,9 ms previstos)
+        public static double CosteDlss5FlujoMp = 2.2, CosteDlss5FijoMp = 0.25;
+        public static double CosteDlss5Fijo(CadenaEscala c, int pct, int pasadas)
+        {
+            if (pasadas <= 0 || pct <= 0) return 0;
+            double mp = Mp(c.VenW, c.VenH);
+            double flujo = CosteDlss5FlujoMp * c.FlujoD5 * Math.Pow(Math.Max(0.01, mp), 0.7);
+            if (c.FlujoD5 > 0)   // (el mismo estimador que ya cuentan los vectores de DLSS FG / el flujo de DLSS SR)
+                flujo -= (c.VectoresFg && c.Gen == "dlss" ? 0.55 * mp : c.VectoresFg && c.Gen == "xess" ? 0.4 * mp : 0) + (c.FlujoSr && c.Escala && !c.Ligero ? 0.27 * mp : 0);
+            return Math.Max(0, flujo) + CosteDlss5FijoMp * mp;
+        }
+
         static double Neuronal(CadenaEscala c) { return c.Familia == "rtx20" ? 1.3 : c.Familia == "rtx30" ? 1.1 : 1.0; }
         static double PorGrafica(CadenaEscala c) { return IndiceRef / Math.Max(0.05, c.Indice); }
 
-        // ms de grafica por imagen real con este % y pasadas (k: lo medido en esta grafica; extra: lo aprendido de esta cadena)
+        // ms del hilo de la imagen de Magpie por imagen real con este % y pasadas (k: lo medido en esta grafica; extra: lo aprendido de esta
+        // cadena). (1.2.3, MULTI2) MEDIDO el 22-11 (tele 4K a 120 con VRR, fuente de 30 en 59,94, captura 4K sin escalar, DLSS 5 nivel 3 de 1
+        // pasada, PresentMon + log de Magpie): con DLSS 5 lo que no deja llegar a las 29,97 reales NO es la grafica llena (nvidia-smi 50-75 %)
+        // sino el hilo de Magpie, que va en serie (captura -> flujo -> DLSSNR -> DLSS FG, esperando cada inventada -> publicar). DLSS FG x2 al
+        // 50 %: 28,3 reales; x3 al 45 %: 28,6; x3 al 40 %: 29,5 (min 28,2); x4 al 45 %: 27,2; x4 sin DLSS 5: 29,96 / 119,9. Antes el modelo
+        // contaba 5 ms por inventada de DLSS FG en el hilo (x4 = 15: DLSS 5 "no cabe" o al 25 %) y nada de lo fijo de DLSS 5 (~11 ms a 4K)
         public static double Prevision(CadenaEscala c, int pct, int pasadas, double k, double extra)
         {
             double s = PorGrafica(c), nn = Neuronal(c);
-            double fijo = CosteBase(c) * s + (CosteEscalado(c) * (c.Esc == "dlss" ? nn : 1) + CosteGeneracion(c) * nn) * s;
-            return (fijo + CosteDlss5(c, pct, pasadas) * s * nn) * k + extra;
+            double fijo = CosteBase(c) * s + (CosteEscalado(c) * (c.Esc == "dlss" ? nn : 1) + CosteGeneracion(c, true) * nn) * s;
+            return (fijo + CosteDlss5(c, pct, pasadas) * s * nn) * k + CosteDlss5Fijo(c, pct, pasadas) * s + extra;
         }
 
-        public static double Presupuesto(CadenaEscala c) { return 1000.0 / Math.Max(1, c.Objetivo) * Uso; }
+        // (1.2.3, MULTI2) Lo que ocupa la grafica (lo que ve su %, NVAPI): para aprender k (NuevoK). Sin lo fijo de DLSS 5 (el acelerador de
+        // flujo no cuenta en el %) y con la generacion entera
+        public static double Carga(CadenaEscala c, int pct, int pasadas)
+        {
+            double s = PorGrafica(c), nn = Neuronal(c);
+            double fijo = CosteBase(c) * s + (CosteEscalado(c) * (c.Esc == "dlss" ? nn : 1) + CosteGeneracion(c, false) * nn) * s;
+            return fijo + CosteDlss5(c, pct, pasadas) * s * nn;
+        }
+
+        // (1.2.3, MULTI2) XeSS FG x3 / x4 en una grafica que no es Intel: Magpie 0.6.12 pone su ritmo de compatibilidad (XESSFG.md: "3x/4x
+        // en graficas no Intel"; src\Magpie.Core\XeSSFGPacing.h), que reparte las inventadas esperando DENTRO de la presentacion: cada una
+        // a T/m de la anterior (T = el periodo de las reales que estima Magpie). El hilo de la imagen solo tiene T/m para todo lo demas (la
+        // cadena entera y la propia XeSS FG); si no le basta, el periodo se estira (lo estimado ya lleva la espera) y las reales bajan a
+        // 1 / (m x W), W = lo de fuera de esas esperas. Log del usuario (22-11 10:28, 4K sin DLSS 5, x4): "PresentMs=28.4 extraWaitMs=24.2
+        // sourceMs=37.6" -> 26,4 reales/s y la salida a 105 con huecos de 2 refrescos (P95 18 ms). Asi que el presupuesto es T/m
+        public static double UsoXess = 0.95;      // xess_fg_multi_uso: parte de T/m que puede usar la cadena con XeSS FG x3 / x4 (compatibilidad)
+        public static bool XessCompat(CadenaEscala c) { return c.Gen == "xess" && c.Mult >= 3 && !c.Intel && c.Modo < 100; }
+
+        public static double Presupuesto(CadenaEscala c)
+        {
+            double t = 1000.0 / Math.Max(1, c.Objetivo);
+            if (XessCompat(c)) return t / c.Mult * UsoXess;
+            return t * Uso;
+        }
 
         // El minimo de calidad: ~324 lineas de entrada (25 % de 1440p son 360; a la ventana de 1080p, 30 %)
         public static int Suelo(CadenaEscala c)
         {
             int s = (int)Math.Ceiling(32400.0 / Math.Max(1, c.VenH) / 5.0) * 5;
+            // (1.2.3, MULTI2) con x3 / x4, como poco generacion_dlss5_minimo (35 %): con 3 de cada 4 imagenes inventadas lo de DLSS 5 a muy poca
+            // entrada (al 25 % de 4K, 960x540; log del usuario, 22-11 10:28-10:30, "fallos visuales" con DLSS FG x4 llegando a 30 / 120) se ve
+            // en todas; si no cabe ni asi, DLSS 5 fuera (el menu lo dice: "x4: DLSS 5 no cabe (se quita)")
+            if (c.Mult >= 3 && c.Gen.Length > 0 && c.Modo < 100 && SueloMulti > 0) s = Math.Max(s, SueloMulti);
             return Math.Max(25, Math.Min(100, s));
         }
+        public static int SueloMulti = 35;        // generacion_dlss5_minimo (0 = el suelo de siempre)
 
         // El mayor % que cabe con estas pasadas (de 5 en 5); -1 = ni el minimo. Al minimo "a prueba" si le falta poco (<= 15 %): si luego
         // no llega, la vigilancia lo quita
@@ -191,11 +268,16 @@ namespace ConsoleEnhancer
         {
             if (pasadas >= 2 && c.VramGb > 0 && c.VramGb < 7.5) return -1;   // (con menos de 8 GB, una pasada: Plan.Dlss5PasadasMax)
             double b = Presupuesto(c);
+            // (1.2.3, MULTI2) y la grafica sin llenarse: lo que ocupa (Carga, con el k aprendido) hasta dlss5_escala_grafica (88 %) del tiempo de una
+            // real. Con XeSS FG, que genera en su propia cola, es lo que limita (4K x2 al 50 %: 77 % de grafica y llega)
+            double bg = 1000.0 / Math.Max(1, c.Objetivo) * UsoGrafica;
             int suelo = Suelo(c);
             for (int pct = 100; pct >= suelo; pct -= 5)
-                if (Prevision(c, pct, pasadas, k, extra) <= b) return pct;
+                if (Prevision(c, pct, pasadas, k, extra) <= b && Carga(c, pct, pasadas) * k <= bg) return pct;
             // (a 4K no: 60 + FG a 4K no cabia ni al 25 %, medido; asi sigue el motor propio sin reabrir Magpie al volver del menu, 1.2.04)
-            if (c.VenH < 2000 && Prevision(c, suelo, pasadas, k, extra) <= b * 1.15) return suelo;
+            // (1.2.3, MULTI2: el modelo ya es el del hilo -con el uso del 92 %-: "a prueba" solo si no pasa del 97 % del tiempo de una real)
+            if (c.VenH < 2000 && Prevision(c, suelo, pasadas, k, extra) <= Math.Min(b * 1.15, 1000.0 / Math.Max(1, c.Objetivo) * (XessCompat(c) ? UsoXess / c.Mult : 0.97)) &&
+                Carga(c, suelo, pasadas) * k <= bg * 1.08) return suelo;
             return -1;
         }
 
@@ -293,7 +375,8 @@ namespace ConsoleEnhancer
         }
 
         // ms de DLSS 5 (con este k) y el extra que deja "pct" como el mayor que cabe en el modelo (lo aprendido = lo decidido)
-        static double MsDlss5(CadenaEscala c, int pct, int pasadas, double k) { return Prevision(c, pct, pasadas, k, 0) - Prevision(c, 0, 0, k, 0); }
+        // (1.2.3: sin lo fijo de DLSS 5 -flujo y DLSSNR a la resolucion de la ventana-, que no baja con el %: lo que cambia con el %)
+        static double MsDlss5(CadenaEscala c, int pct, int pasadas, double k) { return Prevision(c, pct, pasadas, k, 0) - Prevision(c, 0, 0, k, 0) - CosteDlss5Fijo(c, pct, pasadas) * PorGrafica(c); }
         public static double ExtraPara(CadenaEscala c, int pct, int pasadas, double k)
         {
             double b = Presupuesto(c);
@@ -309,7 +392,8 @@ namespace ConsoleEnhancer
             double b = Presupuesto(c);
             double r = RealEfectiva(m, d.PorSalida, t);
             double queda = Math.Max(0, t / Math.Max(1, r) - 1) + 0.03, pedido = queda;
-            bool llena = m.Uso < 0 || m.Uso >= 85;
+            // (1.2.3, MULTI2: con XeSS FG x3 / x4 de compatibilidad lo que falta es tiempo de T/m, no grafica: como llena)
+            bool llena = m.Uso < 0 || m.Uso >= 85 || XessCompat(c);
             double k = o.K;
             CadenaEscala x = c.Copia();
             double t0 = Math.Max(0.1, Prevision(c, o.Pct, o.Pasadas, k, 0));
@@ -390,7 +474,9 @@ namespace ConsoleEnhancer
         {
             double k = o.K;
             int p;
-            if (m.Uso >= 0)
+            // (1.2.3, MULTI2: con XeSS FG x3 / x4 de compatibilidad la grafica espera mucho -las esperas del ritmo- y su % no dice lo que
+            // queda de T/m: +5 y ya)
+            if (m.Uso >= 0 && !XessCompat(c))
             {
                 double u = m.Uso / 100.0;
                 double f = Math.Max(0.25, MsDlss5(c, o.Pct, o.Pasadas, k) / Math.Max(0.1, Prevision(c, o.Pct, o.Pasadas, k, 0)));
@@ -401,6 +487,10 @@ namespace ConsoleEnhancer
             else p = o.Pct + 5;
             if (o.NoPct > 0) p = Math.Min(p, o.NoPct - 5);
             p = Math.Min(100, p);
+            // (1.2.3, MULTI2) con DLSS 5 el % de grafica se queda en el 50-75 % aunque el hilo de Magpie ya no llegue (medido): no se propone un % con
+            // el que el hilo, con lo aprendido de esta cadena, pasaria del 97 % del tiempo de una real
+            double tope = 1000.0 / Math.Max(1, c.Objetivo) * (XessCompat(c) ? UsoXess / c.Mult : 0.97);
+            while (p > o.Pct && Prevision(c, p, o.Pasadas, k, o.Extra) > tope) p -= 5;
             if (p < o.Pct + 5) { d.Tipo = "nada"; d.Motivo = "de sobra, pero no cabe mas" + (o.NoPct > 0 ? " (al " + o.NoPct + " % ya no llego)" : ""); return; }
             d.Tipo = "subir";
             d.Pct = p;
@@ -416,7 +506,8 @@ namespace ConsoleEnhancer
         {
             if (m.Uso < 30 || m.Uso > 98 || m.Real < 0.6 * m.Objetivo) return k;
             double tObs = m.Uso / 100.0 * 1000.0 / Math.Max(1, m.Real);
-            double t1 = Prevision(c, pct, pasadas, 1.0, 0);
+            // (1.2.3, MULTI2: contra lo que ocupa la grafica -Carga-, no contra el hilo: el % de grafica no ve el flujo ni las esperas)
+            double t1 = Carga(c, pct, pasadas);
             if (t1 <= 0.5) return k;
             double obs = Math.Max(0.5, Math.Min(2.5, tObs / t1));
             return Math.Max(0.5, Math.Min(2.5, 0.85 * k + 0.15 * obs));
@@ -514,13 +605,15 @@ namespace ConsoleEnhancer
                         continue;
                     }
                     Fila r = new Fila();
+                    bool v2 = false;
                     for (int i = 1; i < c.Length; i++)
                     {
                         int eq = c[i].IndexOf('=');
                         if (eq <= 0) continue;
                         string k = c[i].Substring(0, eq), v = c[i].Substring(eq + 1);
                         double dv; int iv;
-                        if (k == "extra" && double.TryParse(v, NumberStyles.Float, CultureInfo.InvariantCulture, out dv)) r.Extra = dv;
+                        if (k == "v") v2 = v == "2";
+                        else if (k == "extra" && double.TryParse(v, NumberStyles.Float, CultureInfo.InvariantCulture, out dv)) r.Extra = dv;
                         else if (k == "pend" && double.TryParse(v, NumberStyles.Float, CultureInfo.InvariantCulture, out dv)) r.Pend = dv;
                         else if (k == "k" && double.TryParse(v, NumberStyles.Float, CultureInfo.InvariantCulture, out dv)) r.K = dv;
                         else if (k == "pend_k" && double.TryParse(v, NumberStyles.Float, CultureInfo.InvariantCulture, out dv)) r.PendK = dv;
@@ -529,6 +622,9 @@ namespace ConsoleEnhancer
                         else if (k == "elegido") r.Elegido = v;
                         else if (k == "fecha") r.Fecha = v;
                     }
+                    // (1.2.3, MULTI2) el "extra" y el k de una cadena aprendidos con el modelo de antes (sin lo fijo de DLSS 5 en el hilo, 5 ms por
+                    // inventada de DLSS FG) no valen con el de ahora: fuera (se aprende otra vez). Lo que no llego (no_pct) si vale: fue medido
+                    if (c[0].StartsWith("x|") && !v2) continue;
                     filas[c[0]] = r;
                 }
             }
@@ -555,6 +651,7 @@ namespace ConsoleEnhancer
                         sb.Append(kv.Key);
                         if (kv.Key.StartsWith("x|"))
                         {
+                            sb.Append("\tv=2");   // (1.2.3: modelo del hilo de Magpie; las de antes se ignoran)
                             sb.Append("\textra=").Append(f.Extra.ToString("0.##", CultureInfo.InvariantCulture));
                             if (!double.IsNaN(f.K)) sb.Append("\tk=").Append(f.K.ToString("0.###", CultureInfo.InvariantCulture));
                             if (!double.IsNaN(f.Pend)) sb.Append("\tpend=").Append(f.Pend.ToString("0.##", CultureInfo.InvariantCulture));
@@ -884,8 +981,28 @@ namespace ConsoleEnhancer
             switch (key)
             {
                 case "dlss5_escala_auto": Dlss5AutoOn = !(v == "0" || v == "no" || v == "false" || v == "off"); return true;
-                case "dlss5_escala_uso":
-                    if (double.TryParse(v.TrimEnd('%', ' '), NumberStyles.Float, CultureInfo.InvariantCulture, out d) && d > 0) EscalaAuto.Uso = Math.Max(0.4, Math.Min(0.95, d > 1 ? d / 100.0 : d));
+                // (1.2.3, MULTI2) dlss5_escala_hilo: % del tiempo de una real para el hilo de la imagen de Magpie (95 de serie). La clave de la
+                // 1.2.1-1.2.2, dlss5_escala_uso (75: un modelo de solo la grafica), ya no vale con el modelo del hilo: con 75 DLSS 5 no cabria a
+                // 4K con DLSS FG. Se lee pero no se usa (el ini del usuario la trae de base.ini)
+                case "dlss5_escala_hilo":
+                    if (double.TryParse(v.TrimEnd('%', ' '), NumberStyles.Float, CultureInfo.InvariantCulture, out d) && d > 0) EscalaAuto.Uso = Math.Max(0.5, Math.Min(0.99, d > 1 ? d / 100.0 : d));
+                    return true;
+                case "dlss5_escala_uso": return true;
+                case "dlss5_escala_grafica":
+                    if (double.TryParse(v.TrimEnd('%', ' '), NumberStyles.Float, CultureInfo.InvariantCulture, out d) && d > 0) EscalaAuto.UsoGrafica = Math.Max(0.4, Math.Min(1.0, d > 1 ? d / 100.0 : d));
+                    return true;
+                case "escala_coste_dlss5_flujo": if (double.TryParse(v.Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out d) && d >= 0) EscalaAuto.CosteDlss5FlujoMp = Math.Min(10, d); return true;
+                // (1.2.3, MULTI2) el coste de cada imagen inventada (ms con salida 4K en la RTX 4060 Ti) del modelo
+                case "escala_coste_dlss_fg": if (double.TryParse(v.Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out d) && d >= 0) EscalaAuto.CosteDlssFg = Math.Min(30, d); return true;
+                case "escala_coste_xess_fg": if (double.TryParse(v.Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out d) && d >= 0) EscalaAuto.CosteXessFg = Math.Min(30, d); return true;
+                case "escala_coste_dlss_fg_mas": if (double.TryParse(v.Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out d) && d >= 0) EscalaAuto.CosteDlssFgMas = Math.Min(30, d); return true;
+                case "escala_coste_xess_fg_hilo": if (double.TryParse(v.Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out d) && d >= 0) EscalaAuto.CosteXessFgHilo = Math.Min(30, d); return true;
+                case "escala_coste_dlss5_fijo": if (double.TryParse(v.Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out d) && d >= 0) EscalaAuto.CosteDlss5FijoMp = Math.Min(10, d); return true;
+                case "escala_credito_fijo_dlss": if (double.TryParse(v.Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out d) && d >= 0) EscalaAuto.CreditoFijoDlss = Math.Min(10, d); return true;
+                case "generacion_dlss5_minimo": { int iv; if (int.TryParse(v.TrimEnd('%', ' '), out iv)) EscalaAuto.SueloMulti = Math.Max(0, Math.Min(100, iv)); } return true;   // (1.2.3)
+                // (1.2.3, MULTI2) XeSS FG x3 / x4 de compatibilidad (no Intel): parte de T/m para la cadena (95 de serie)
+                case "xess_fg_multi_uso":
+                    if (double.TryParse(v.TrimEnd('%', ' '), NumberStyles.Float, CultureInfo.InvariantCulture, out d) && d > 0) EscalaAuto.UsoXess = Math.Max(0.5, Math.Min(1.5, d > 2 ? d / 100.0 : d));
                     return true;
                 case "escala_gpu_indice": if (double.TryParse(v.Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out d) && d > 0) EscalaAuto.IndiceIni = d; return true;
                 case "escala_gpu_vram": if (double.TryParse(v.Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out d) && d > 0) EscalaAuto.VramIni = d; return true;
@@ -898,7 +1015,8 @@ namespace ConsoleEnhancer
         [ThreadStatic] static int autoDentro;
 
         // (no con DLSS 5 en el motor propio, motor_dlss5=1: su coste es otro y lo ajusta el motor, EngineAdapta.cs)
-        public bool Dlss5AutoAhora { get { return Dlss5AutoOn && Dlss5InputPct == 0 && !(EngineDlss5 && Engine == "propio"); } }
+        // (22-11, 1.2.3 MOTOR5: solo si DLSS 5 lo hace de verdad el motor; con x3 / x4, 2-3 pasadas o XeSS FG va por Magpie y con esto)
+        public bool Dlss5AutoAhora { get { return Dlss5AutoOn && Dlss5InputPct == 0 && !MotorDlss5Pedido; } }
 
         // El modelo de DLSS SR de Magpie con DLSS 5 y estas pasadas (lo de DlssModelNow sin pasar por Dlss5PassesNow), con el tope de la vigilancia
         int ModeloPara(int pasadas, string clave)
@@ -936,6 +1054,10 @@ namespace ConsoleEnhancer
                 c.AfUna = c.Modo == 30 && Af30OnePass != 0;   // (1.2.2: el antiparpadeo de 1 pasada en el modo 30, src\Lanzador\Reescalado.cs)
                 c.VectoresFg = c.Gen == "dlss" && !Win4k && (CapMode ? FgFlow30 : FgFlow60) > 0;
                 c.Hdr = RtxHdr; c.HdrAntes = RtxHdrBefore;
+                c.Intel = GpuVendor == "intel";
+                int f5 = Dlss5FlowNow;   // (1.2.3: el flujo de DLSS 5 -0 ninguno, 1 AMD, 2 NVIDIA- y su calidad: lo fijo de DLSS 5 en el hilo)
+                c.FlujoD5 = f5 <= 0 ? 0 : f5 == 2 && FlowQualityNvNow <= 1 ? 0.8 : 1.0;
+                c.Vrr = MagpieVrrNow;    // (1.2.3: DLSS FG x2 con refresco fijo espera menos a la cola de presentacion)
                 EscalaAuto.GpuPara(c);
                 c.Juego = EscalaAuto.Juego ?? "";
                 c.Modelo = ModeloPara(pasadas, c.Clave);

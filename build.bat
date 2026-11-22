@@ -9,15 +9,18 @@ set CSC=%FW%\csc.exe
 cd /d "%~dp0"
 if not exist "%CSC%" (echo *** No esta %CSC% ^(.NET Framework 4.8^) *** & exit /b 1)
 if not exist bin mkdir bin
+rem (1.2.3) src\Version.cs: la version y el editor en las propiedades de los exe; resources\app.manifest: su manifiesto (asInvoker,
+rem Windows 10/11, DPI del sistema como SetProcessDPIAware). La version se cambia al publicar en src\Version.cs
 "%CSC%" /nologo /target:winexe /codepage:65001 /optimize+ /out:bin\ConsoleEnhancer.exe ^
-  /win32icon:resources\prisma.ico /resource:resources\prisma.ico,Prisma.ico ^
+  /win32icon:resources\prisma.ico /win32manifest:resources\app.manifest /resource:resources\prisma.ico,Prisma.ico ^
   /r:System.dll /r:System.Core.dll /r:System.Drawing.dll /r:System.Windows.Forms.dll /r:System.Xml.dll /r:System.Management.dll ^
   /r:"%FW%\System.Web.Extensions.dll" /r:"%FW%\System.IO.Compression.dll" /r:"%FW%\System.IO.Compression.FileSystem.dll" ^
   /r:"%FW%\WPF\UIAutomationClient.dll" /r:"%FW%\WPF\UIAutomationTypes.dll" /r:"%FW%\WPF\WindowsBase.dll" ^
-  src\Lanzador\*.cs src\Deteccion\*.cs
+  src\Lanzador\*.cs src\Deteccion\*.cs src\Version.cs
 if errorlevel 1 (echo *** ERROR de compilacion *** & exit /b 1)
 rem (1.2.0) "ConsoleEnhancer Settings.exe": abre el panel de ajustes (ConsoleEnhancer.exe --ajustes, src\Lanzador\Panel.cs)
-"%CSC%" /nologo /target:winexe /optimize+ /out:"bin\ConsoleEnhancer Settings.exe" /win32icon:resources\prisma.ico /r:System.dll /r:System.Windows.Forms.dll src\Ajustes\Ajustes.cs
+"%CSC%" /nologo /target:winexe /codepage:65001 /optimize+ /out:"bin\ConsoleEnhancer Settings.exe" /win32icon:resources\prisma.ico ^
+  /win32manifest:resources\app.manifest /r:System.dll /r:System.Windows.Forms.dll src\Ajustes\Ajustes.cs src\Version.cs
 if errorlevel 1 (echo *** ERROR de compilacion de Ajustes *** & exit /b 1)
 rem ---- lo que la app busca junto al exe ----
 if not exist bin\resources mkdir bin\resources

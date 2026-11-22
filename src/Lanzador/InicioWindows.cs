@@ -3,9 +3,11 @@
 //
 //  - iniciar_con_windows=1: (1.2.08) acceso directo ConsoleEnhancer.lnk en la carpeta Inicio del usuario -> ConsoleEnhancer.exe --inicio
 //    (antes la tarea programada "ConsoleEnhancer - inicio": Microsoft Defender la tomo por persistencia de malware y cerro la app; se
-//    quita sola). Si no se puede crear el acceso directo, la clave Run de HKCU. La app la pone o la quita al arrancar segun el ini, solo si la clave esta en el ini; con 0 solo quita la suya (si
-//    la tarea es de otra copia de la app no se toca). Tambien el menu de la bandeja, el ultimo paso del asistente y la linea de
-//    comandos: --iniciar-con-windows=1|0 (pone o quita y sale; codigo 0 = hecho)
+//    quita sola). Si no se puede crear el acceso directo, la clave Run de HKCU. Lo ponen el menu de la bandeja, el ultimo paso del
+//    asistente, el panel de ajustes y la linea de comandos: --iniciar-con-windows=1|0 (pone o quita y sale; codigo 0 = hecho).
+//    1.2.3 (DEFENDER): al arrancar, la app ya NO se pone sola en el inicio (Sincronizar): con iniciar_con_windows=1 y el inicio de otra
+//    copia (o ninguno) PREGUNTA, y solo al abrirla a mano; con 0 quita el suyo (el de otra copia no se toca). La tarea vieja se mira y se
+//    quita con la API del Programador de tareas (COM, dentro del proceso), ya no con schtasks.exe
 //  - --inicio: telon negro al instante (encima de todo, sin cursor), abre la app (otro proceso con los mismos argumentos, p. ej.
 //    --datos=) con prioridad por encima de lo normal mientras arranca, y quita el negro al ver su pantalla de carga, cualquier ventana
 //    suya (el asistente, un aviso), si se cierra o a los 30 s. Log: logs\inicio.log. Si la app ya esta abierta no hace nada
@@ -99,6 +101,8 @@ namespace ConsoleEnhancer
             if (arg == "--ajustes") return PanelAjustes.Run();
             if (arg.StartsWith("--ajustes-preview=")) return PanelAjustes.Preview(arg.Substring(18));   // (1.2.0: "ConsoleEnhancer Settings.exe", src\Lanzador\Panel.cs)
             if (arg == "--inicio") return Lanzar(args);
+            // (1.2.3) prueba sin tocar nada: lo que preguntaria Sincronizar con iniciar_con_windows=1 en esta copia, solo al log
+            if (arg == "--prueba-inicio-pregunta") { Preguntar(null, true); return 0; }
             if (arg.StartsWith("--iniciar-con-windows="))
             {
                 bool on = arg.Substring(22).Trim() == "1";
@@ -211,13 +215,9 @@ namespace ConsoleEnhancer
         {
             exe = LeerLnk();
             if (exe != null) return "acceso";
-            string xml;
-            if (Schtasks("/Query /TN \"" + TaskName + "\" /XML", out xml) == 0)
-            {
-                Match m = Regex.Match(xml, @"<Command>\s*""?([^""<]+?)""?\s*</Command>");
-                if (m.Success) exe = m.Groups[1].Value.Trim();
-                return "tarea";
-            }
+            string err;
+            string t = TareaVieja(false, out err);
+            if (t != null) { exe = t; return "tarea"; }
             try
             {
                 using (Microsoft.Win32.RegistryKey k = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(RunKey))
@@ -284,11 +284,50 @@ namespace ConsoleEnhancer
         // La tarea programada de antes de la 1.2.08, si esta (solo la nuestra por su nombre)
         static bool QuitarTarea(List<string> hecho)
         {
-            string xml, salida;
-            if (Schtasks("/Query /TN \"" + TaskName + "\" /XML", out xml) != 0) return true;
-            if (Schtasks("/Delete /TN \"" + TaskName + "\" /F", out salida) == 0) { hecho.Add("tarea programada vieja quitada"); return true; }
-            hecho.Add("no se pudo quitar la tarea programada: " + Una(salida));
+            string err;
+            if (TareaVieja(true, out err) == null) return true;   // (no esta, o no se puede mirar: como antes con schtasks /Query)
+            if (err == null) { hecho.Add("tarea programada vieja quitada"); return true; }
+            hecho.Add("no se pudo quitar la tarea programada: " + err);
             return false;
+        }
+
+        // (1.2.3, DEFENDER) La tarea "ConsoleEnhancer - inicio" (solo la crearon las versiones hasta la 1.2.07) por la API del Programador
+        // de tareas: el objeto COM "Schedule.Service" dentro de este proceso. Hasta la 1.2.2 era schtasks.exe /Query cada vez que se abria
+        // el menu de la bandeja o la app sin el acceso directo: un programa nuevo lanzando schtasks.exe es de lo que mas miran los antivirus.
+        // Devuelve el exe al que apunta ("" si no se lee) o null si no esta; borrar = ademas la quita (err = el fallo, o null)
+        static string TareaVieja(bool borrar, out string err)
+        {
+            err = null;
+            object svc = null, carpeta = null, tarea = null;
+            try
+            {
+                Type tipo = Type.GetTypeFromProgID("Schedule.Service");
+                if (tipo == null) return null;
+                svc = Activator.CreateInstance(tipo);
+                Com(svc, "Connect", System.Reflection.BindingFlags.InvokeMethod);
+                carpeta = Com(svc, "GetFolder", System.Reflection.BindingFlags.InvokeMethod, "\\");
+                try { tarea = Com(carpeta, "GetTask", System.Reflection.BindingFlags.InvokeMethod, TaskName); }
+                catch { return null; }   // (no esta)
+                string exe = "";
+                try
+                {
+                    string xml = Com(tarea, "Xml", System.Reflection.BindingFlags.GetProperty) as string ?? "";
+                    Match m = Regex.Match(xml, @"<Command>\s*""?([^""<]+?)""?\s*</Command>");
+                    if (m.Success) exe = m.Groups[1].Value.Trim();
+                }
+                catch { }
+                if (borrar)
+                    try { Com(carpeta, "DeleteTask", System.Reflection.BindingFlags.InvokeMethod, TaskName, 0); }
+                    catch (Exception ex) { err = (ex.InnerException ?? ex).Message; }
+                return exe;
+            }
+            catch (Exception ex) { err = (ex.InnerException ?? ex).Message; return null; }
+            finally
+            {
+                if (tarea != null) Marshal.ReleaseComObject(tarea);
+                if (carpeta != null) Marshal.ReleaseComObject(carpeta);
+                if (svc != null) Marshal.ReleaseComObject(svc);
+            }
         }
 
         static bool QuitarRun()
@@ -316,40 +355,29 @@ namespace ConsoleEnhancer
             return a;
         }
 
-        static int Schtasks(string args, out string salida)
-        {
-            salida = "";
-            try
-            {
-                ProcessStartInfo psi = new ProcessStartInfo(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "schtasks.exe"), args);
-                psi.UseShellExecute = false;
-                psi.CreateNoWindow = true;
-                psi.RedirectStandardOutput = true;
-                psi.RedirectStandardError = true;
-                using (Process p = Process.Start(psi))
-                {
-                    // (los dos a la vez: con mucha salida, leer uno detras de otro puede atascarse)
-                    System.Threading.Tasks.Task<string> err = p.StandardError.ReadToEndAsync();
-                    string o = p.StandardOutput.ReadToEnd();
-                    if (!p.WaitForExit(20000)) { try { p.Kill(); } catch { } salida = "schtasks no termina"; return -1; }
-                    salida = o + err.Result;
-                    return p.ExitCode;
-                }
-            }
-            catch (Exception ex) { salida = ex.Message; return -1; }
-        }
-
-        static string Una(string s)
-        {
-            s = (s ?? "").Replace("\r", " ").Replace("\n", " ").Trim();
-            return s.Length > 160 ? s.Substring(0, 160) : s;
-        }
-
-        // Al arrancar la app: la tarea como diga el ini (solo si la clave esta). En segundo plano: schtasks tarda unos 100-300 ms
+        // Al arrancar la app (Main, antes de abrir la imagen): el inicio con Windows segun el ini (solo si la clave esta).
+        // 1.2.3 (DEFENDER): la app ya NO se pone sola en el inicio. Hasta la 1.2.2, una copia nueva (cada version portable va en su carpeta)
+        // que heredaba iniciar_con_windows=1 de la anterior cambiaba el acceso directo a si misma nada mas abrirse: un exe recien bajado y sin
+        // firmar que se pone en el inicio de Windows es justo lo que vigila Microsoft Defender (21-11 18:49, la 1.2.09 a los 23 s de abrirse:
+        // Trojan:Win32/Bearfoos.A!ml, exe y acceso directo en cuarentena; 18:31, la tarea de la 1.2.07: Behavior:Win32/Persistence.A!ml).
+        // Ahora, si lo que arranca con Windows no es esta copia, se PREGUNTA (Preguntar) y solo al abrirla a mano (sin argumentos: no al
+        // volver de la espera, ni desde el telon, ni en las pruebas); si no, solo se apunta en el log. Con iniciar_con_windows=0 quita el
+        // suyo sin preguntar, como antes (quitar no le preocupa a nadie)
         public static void Sincronizar(Config cfg)
         {
             int want = cfg.StartWithWindows;
+            ThreadPool.QueueUserWorkItem(delegate { CeBorrado.LimpiarRestos(); });   // (lo que dejo en %TEMP% una desinstalacion)
             if (want < 0) return;
+            if (want == 1 && AMano())
+            {
+                // (rapido: lo normal es que el acceso directo sea de esta copia y no haya nada que preguntar)
+                string lnk = LeerLnk();
+                if (lnk == null || !EsEsteExe(lnk))
+                {
+                    try { Preguntar(cfg, false); } catch (Exception ex) { Log.Error("Iniciar con Windows: la pregunta", ex); }
+                    return;
+                }
+            }
             ThreadPool.QueueUserWorkItem(delegate
             {
                 try
@@ -358,13 +386,10 @@ namespace ConsoleEnhancer
                     string modo = Estado(out exe);
                     bool mio = modo != null && EsEsteExe(exe);
                     string det;
-                    if (want == 1 && (!mio || modo == "tarea"))
-                    {
-                        if (modo == "tarea" && mio) Log.Write("Iniciar con Windows: la tarea programada de antes de la 1.2.08 pasa a acceso directo en la carpeta Inicio (con la tarea, Microsoft Defender puede cerrar la app)");
-                        else if (modo != null) Log.Write("Iniciar con Windows: apuntaba a " + exe + "; ahora a esta copia");
-                        Poner(true, out det);
-                        Log.Write("Iniciar con Windows (iniciar_con_windows=1): " + det);
-                    }
+                    if (want == 1 && mio && modo != "tarea") Log.Write("Iniciar con Windows: " + Describir(modo) + " -> " + exe);
+                    else if (want == 1)
+                        Log.Write("Iniciar con Windows (iniciar_con_windows=1): " + (modo == null ? "no hay nada" : Describir(modo) + " -> " + exe) +
+                                  "; esta copia no se pone sola: se pregunta al abrirla a mano (o bandeja > Iniciar con Windows)");
                     else if (want == 0 && mio)
                     {
                         Poner(false, out det);
@@ -372,10 +397,58 @@ namespace ConsoleEnhancer
                     }
                     else if (want == 0 && modo != null)
                         Log.Write("Iniciar con Windows: hay " + Describir(modo) + " de otra copia (" + exe + "); no se toca");
-                    else if (want == 1) Log.Write("Iniciar con Windows: " + Describir(modo) + " -> " + exe);
                 }
                 catch (Exception ex) { Log.Error("Iniciar con Windows", ex); }
             });
+        }
+
+        // Abierta a mano (doble clic, el menu Inicio, el panel de ajustes): sin argumentos
+        static bool AMano() { return Environment.GetCommandLineArgs().Length <= 1 && Environment.UserInteractive; }
+
+        // (1.2.3) iniciar_con_windows=1 y lo que arranca con Windows no es esta copia (es otra carpeta, o no hay nada: p. ej. lo quito Microsoft
+        // Defender o se borro la copia de antes). Si = esta copia (acceso directo en la carpeta Inicio). No = iniciar_con_windows=0; lo de otra
+        // copia no se toca, salvo nuestro ConsoleEnhancer.lnk si apunta a un exe que ya no existe. simulado (--prueba-inicio-pregunta): solo
+        // el log, sin preguntar ni cambiar nada
+        static void Preguntar(Config cfg, bool simulado)
+        {
+            string exe, det;
+            string modo = Estado(out exe);
+            bool mio = modo != null && EsEsteExe(exe);
+            if (mio && modo != "tarea") { Log.Write("Iniciar con Windows: " + Describir(modo) + " -> " + exe); return; }
+            bool otra = modo != null && !mio && !string.IsNullOrEmpty(exe) && File.Exists(exe);
+            Log.Write("Iniciar con Windows (iniciar_con_windows=1): " + (modo == null ? "no hay nada" : Describir(modo) + " -> " + exe) + "; se pregunta si esta copia (" + Exe + ")");
+            string amenaza, aviso = "";
+            DateTime t = CeDefender.UltimaDeteccion(out amenaza);
+            if (t != DateTime.MinValue && (DateTime.Now - t).TotalDays < 30)
+                aviso = string.Format(Deteccion.Tx.T("\n\nOjo: Microsoft Defender cerró o puso en cuarentena ConsoleEnhancer el {0}. Si vuelve a pasar al ponerlo en el inicio, di que no, o añade antes la carpeta de la app a sus exclusiones (bandeja > Microsoft Defender).",
+                                                     "\n\nNote: Microsoft Defender closed or quarantined ConsoleEnhancer on {0}. If it happens again when it is added to the startup, answer No, or first add the app folder to its exclusions (tray > Microsoft Defender)."),
+                                      t.ToString("dd-MM HH:mm"));
+            string txt = (otra
+                ? string.Format(Deteccion.Tx.T("Iniciar con Windows\n\nAhora se abre al iniciar Windows otra copia de ConsoleEnhancer:\n   {0}\n\n¿Abrir esta en su lugar?\n   {1}",
+                                               "Start with Windows\n\nAnother copy of ConsoleEnhancer opens when Windows starts:\n   {0}\n\nOpen this one instead?\n   {1}"), exe, Exe)
+                : string.Format(Deteccion.Tx.T("Iniciar con Windows\n\nEn tus ajustes está «Iniciar con Windows», pero ahora no se abre ninguna copia de ConsoleEnhancer al iniciar Windows (la de antes ya no está o se quitó).\n\n¿Abrir esta copia al iniciar Windows?\n   {0}",
+                                               "Start with Windows\n\n\"Start with Windows\" is on in your settings, but no copy of ConsoleEnhancer opens when Windows starts right now (the previous one is gone or was removed).\n\nOpen this copy when Windows starts?\n   {0}"), Exe)) +
+                Deteccion.Tx.T("\n\nSí = esta copia se abrirá al iniciar Windows (un acceso directo en la carpeta Inicio, como los programas normales).\nNo = no se abre con Windows. Se puede cambiar cuando quieras: bandeja > «Iniciar con Windows».",
+                               "\n\nYes = this copy opens when Windows starts (a shortcut in the Startup folder, like normal programs).\nNo = it does not open with Windows. You can change it any time: tray > \"Start with Windows\".") + aviso;
+            if (simulado) { Log.Write("PRUEBA (no se pregunta ni se cambia nada): la pregunta seria:\r\n" + txt); return; }
+            try { Application.EnableVisualStyles(); } catch { }   // (aun no hay ventanas: Main lo vuelve a llamar despues, sin efecto)
+            if (MessageBox.Show(txt, "ConsoleEnhancer", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+            {
+                bool ok = Poner(true, out det);
+                Log.Write("Iniciar con Windows: el usuario dice que si (esta copia): " + det);
+                if (!ok) MessageBox.Show(Idioma.T("No se pudo cambiar el inicio con Windows:") + "\n" + det, "ConsoleEnhancer", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+            Ce.IniPoner("iniciar_con_windows", "0");
+            cfg.StartWithWindows = 0;
+            List<string> hecho = new List<string>();
+            if (modo == "acceso" && !mio && (string.IsNullOrEmpty(exe) || !File.Exists(exe)))
+            {
+                try { File.Delete(Lnk); hecho.Add("quitado el acceso directo a " + exe + " (ya no existe)"); }
+                catch (Exception ex) { hecho.Add("no se pudo quitar el acceso directo a " + exe + ": " + ex.Message); }
+            }
+            if (mio && modo == "tarea") QuitarTarea(hecho);
+            Log.Write("Iniciar con Windows: el usuario dice que no (iniciar_con_windows=0)" + (hecho.Count > 0 ? "; " + string.Join(", ", hecho.ToArray()) : ""));
         }
 
         // ------------------------------------------------------------------ --inicio: el telon y la app

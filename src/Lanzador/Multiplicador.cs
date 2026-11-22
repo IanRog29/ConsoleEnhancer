@@ -57,6 +57,7 @@ namespace ConsoleEnhancer
                 case "generacion_multiplicador": MultOn = val.Trim() != "0"; return true;
                 case "xess_fg_1080": XessFg1080 = val.Trim() != "0"; return true;
                 case "xess_fg_x4": XessX4 = val.Trim().ToLowerInvariant(); return true;
+                case "xess_fg_multi_cabe": XessMultiCabe = val.Trim() != "0"; return true;   // (1.2.3, MULTI2: ver MultXessCabe)
                 // (solo pruebas: la pantalla como si fuera a N Hz para las reglas del multiplicador; p. ej. el menu con la tele apagada)
                 case "prueba_multiplicador_hz": { int h; if (int.TryParse(val.Trim(), out h)) multHzPrueba = Math.Max(0, h); } return true;
             }
@@ -138,6 +139,18 @@ namespace ConsoleEnhancer
                 es = "desactivado (xess_fg_x4=0)"; en = "turned off (xess_fg_x4=0)";
                 return true;
             }
+            // (1.2.3, MULTI2) XeSS FG x3 / x4 fuera de Intel (el ritmo de compatibilidad de Magpie): la cadena, sin DLSS 5, tiene que caber en
+            // T/m; si no, las reales bajan (EscalaAuto.XessCompat). Con DLSS 5, la escala automatica le da lo que quede o lo quita
+            if (tipo == "xess" && XessMultiCabe && !multGpuDentro)
+            {
+                double w, b, r;
+                if (!MultXessCabe(cap30, m, out w, out b, out r))
+                {
+                    string f = Math.Round(r).ToString(CultureInfo.InvariantCulture), o = Math.Round(MultBase(cap30)).ToString(CultureInfo.InvariantCulture);
+                    es = "la gráfica no da (" + f + " de " + o + " reales)"; en = "GPU can't keep up (" + f + " of " + o + " real fps)";
+                    return true;
+                }
+            }
             // DLSS FG x3 / x4 va por Magpie, que necesita runtimes\dlssg_sm86 (tambien en RTX 40)
             if (tipo == "dlss" && !Integrado.MagpieDlssgOk)
             {
@@ -146,9 +159,51 @@ namespace ConsoleEnhancer
                 else { es = "falta el componente dlssg_sm86"; en = "needs the dlssg_sm86 component"; }
                 return true;
             }
+            // (1.2.3, MULTI2: con DLSS 5, x3 / x4 no se bloquean por el: la escala automatica le pone como poco generacion_dlss5_minimo -35 %- y,
+            // si no cabe, lo quita y el menu lo dice -"x4: DLSS 5 no cabe (se quita)"-; EscalaAuto.Suelo)
             return false;
         }
         public bool MultBloqueado(bool cap30, int m, string tipo) { string es, en; return MultBloqueado(cap30, m, tipo, out es, out en); }
+
+        // ---- (1.2.3, MULTI2) XeSS FG x3 / x4 de compatibilidad: ¿cabe la cadena (sin DLSS 5) en T/m? (EscalaAuto.XessCompat, Presupuesto)
+        // xess_fg_multi_cabe=0 = no mirarlo (como la 1.2.2: se ofrece y, si no llega, MultVigila baja el multiplicador jugando)
+        public static volatile bool XessMultiCabe = true;
+        [ThreadStatic] static bool multGpuDentro;   // (CadenaEscalaPara pregunta por FgMultNow: dentro de esta cuenta, sin esta regla)
+        static readonly object multXeSync = new object();
+        static string multXeKey = "";
+        static bool multXeOk = true;
+        static double multXeW, multXeB, multXeR;
+        static DateTime multXeCalc = DateTime.MinValue;
+
+        public bool MultXessCabe(bool cap30, int m, out double w, out double b, out double reales)
+        {
+            string key = (cap30 ? 30 : 60) + "|" + m + "|" + VideoSize + "|" + GpuVendor;
+            lock (multXeSync)
+            {
+                if (key == multXeKey && (DateTime.UtcNow - multXeCalc).TotalSeconds < 2) { w = multXeW; b = multXeB; reales = multXeR; return multXeOk; }
+            }
+            w = b = 0; reales = MultBase(cap30);
+            bool ok = true;
+            multGpuDentro = true;
+            try
+            {
+                CadenaEscala c = CadenaEscalaPara(1);
+                c.Gen = "xess"; c.Mult = m; c.VectoresFg = false;   // (su flujo no alarga el hilo: medido, x3 a 4K llega)
+                c.Modo = cap30 ? 30 : 60; c.Objetivo = MultBase(cap30);
+                if (EscalaAuto.XessCompat(c))
+                {
+                    double k = EscalaAuto.KDe(c.Juego, c.Clave);
+                    w = EscalaAuto.Prevision(c, 0, 0, k, 0);
+                    b = EscalaAuto.Presupuesto(c);
+                    reales = Math.Min(c.Objetivo, 1000.0 / Math.Max(1, m * w));   // (el periodo se estira a ~m x W: x4 a 4K, W ~9 ms -> 27,4 medidas)
+                    ok = w <= b;
+                }
+            }
+            catch (Exception ex) { Log.Error("Multiplicador: XeSS FG x" + m + " (cuenta de la grafica)", ex); ok = true; }
+            finally { multGpuDentro = false; }
+            lock (multXeSync) { multXeKey = key; multXeOk = ok; multXeW = w; multXeB = b; multXeR = reales; multXeCalc = DateTime.UtcNow; }
+            return ok;
+        }
         public string MultMotivo(bool cap30, int m, string tipo) { string es, en; return MultBloqueado(cap30, m, tipo, out es, out en) ? Tx.T(es, en) : ""; }
 
         // Lo que va de verdad en un modo con un tipo (Config.FgMultNow): lo pedido o, si no cabe, el mayor que cabe
@@ -169,7 +224,9 @@ namespace ConsoleEnhancer
             int fallos = 0;
             bool vrrAntes = CeImagen.VrrAhora;
             string x4Antes = XessX4;
+            bool cabeAntes = XessMultiCabe;
             XessX4 = "1";   // (la tabla, sin el arreglo de XeSS FG x4: ese va aparte, abajo)
+            XessMultiCabe = false;   // (1.2.3: y sin la cuenta de la grafica de XeSS FG x3 / x4, que va aparte: MultPruebaGrafica)
             // esperado: "hz vrr modo" -> los que caben de x2 x3 x4 (DLSS FG con el componente o XeSS FG)
             Dictionary<string, string> esp = new Dictionary<string, string>
             {
@@ -250,12 +307,75 @@ namespace ConsoleEnhancer
                 sb.AppendLine((okp ? "      " : "FALLO ") + "perfil: \"dlss,xess,0,4\" -> " + p.Pick60 + "/" + p.Pick30 + " x" + p.Mult60 + "/x" + p.Mult30 + " -> \"" + p.PickText + "\"; \"smooth,\" -> \"" + q.PickText + "\"");
             }
             catch (Exception ex) { fallos++; sb.AppendLine("EXCEPCION: " + ex); }
-            finally { multHzPrueba = 0; CeImagen.VrrAhora = vrrAntes; XessX4 = x4Antes; }
+            finally { multHzPrueba = 0; CeImagen.VrrAhora = vrrAntes; XessX4 = x4Antes; XessMultiCabe = cabeAntes; }
+            try { fallos += MultPruebaGrafica(sb); } catch (Exception ex) { fallos++; sb.AppendLine("EXCEPCION (grafica): " + ex); }
             sb.AppendLine(fallos == 0 ? "OK" : fallos + " fallos");
             string f = string.IsNullOrEmpty(informe) ? Path.Combine(Paths.Datos, @"games\test_multiplicador.txt") : informe;
             try { Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(f))); File.WriteAllText(f, sb.ToString(), new System.Text.UTF8Encoding(false)); } catch { }
             return fallos;
         }
+
+        // ---- (1.2.3, MULTI2) --test-multiplicador, la parte de la grafica: cadenas a mano (RTX 4060 Ti = indice 1,2, rtx40; tele 4K), sin
+        // Config ni lo aprendido: el presupuesto de XeSS FG x3 / x4 de compatibilidad (T/m), el % de DLSS 5 con cada multiplicador y lo medido
+        static CadenaEscala MultCadenaPrueba(string ven, string gen, int mult, string esc, int modelo, bool intel)
+        {
+            CadenaEscala c = new CadenaEscala();
+            string[] v = ven.Split('x');
+            c.Modo = 30; c.Objetivo = 29.97;
+            c.CapW = c.VenW = int.Parse(v[0]); c.CapH = c.VenH = int.Parse(v[1]);
+            c.OutW = 3840; c.OutH = 2160;
+            c.Gen = gen; c.Mult = mult;
+            c.Esc = esc; c.Escala = esc.Length > 0 && !(c.VenW >= c.OutW && c.VenH >= c.OutH); c.Modelo = modelo;
+            c.FlujoSr = true; c.AfUna = true;
+            c.VectoresFg = gen == "dlss" && c.VenH < 2000;
+            c.Indice = 1.2; c.Familia = "rtx40"; c.VramGb = 8; c.Intel = intel;
+            return c;
+        }
+
+        static int MultPruebaGrafica(System.Text.StringBuilder sb)
+        {
+            int fallos = 0;
+            sb.AppendLine("== (1.2.3) la grafica con x3 / x4 (RTX 4060 Ti, modo 30, tele 4K; k 1, sin lo aprendido; uso " + Math.Round(EscalaAuto.Uso * 100) +
+                          " %, XeSS FG x3 / x4 de compatibilidad " + Math.Round(EscalaAuto.UsoXess * 100) + " % de T/m) ==");
+            foreach (string ven in new[] { "3840x2160", "2560x1440" })
+                foreach (string gen in new[] { "dlss", "xess" })
+                {
+                    string fila = "  " + ven + " " + gen + ":";
+                    int antes = 101;
+                    bool baja = true;
+                    for (int m = 2; m <= 4; m++)
+                    {
+                        CadenaEscala c = MultCadenaPrueba(ven, gen, m, ven == "3840x2160" ? "" : "dlss", 13, false);
+                        double w = EscalaAuto.Prevision(c, 0, 0, 1.0, 0), b = EscalaAuto.Presupuesto(c);
+                        int p = EscalaAuto.Mejor(c, 1, 1.0, 0);
+                        fila += "  x" + m + ": sin DLSS 5 " + w.ToString("0.0", CultureInfo.InvariantCulture) + " de " + b.ToString("0.0", CultureInfo.InvariantCulture) +
+                                " ms" + (w <= b ? "" : " (NO CABE)") + ", DLSS 5 " + (p < 0 ? "no cabe" : p + " %");
+                        if (Math.Max(0, p) > antes) baja = false;
+                        antes = Math.Max(0, p);
+                    }
+                    if (!baja) fallos++;
+                    sb.AppendLine((baja ? "      " : "FALLO ") + fila + (baja ? "" : "  (mas multiplicador tiene que dejar igual o menos DLSS 5)"));
+                }
+            // XeSS FG x3 / x4 de compatibilidad: T/m (Intel, su camino nativo: el de siempre)
+            CadenaEscala x4 = MultCadenaPrueba("3840x2160", "xess", 4, "", 5, false), x4i = MultCadenaPrueba("3840x2160", "xess", 4, "", 5, true),
+                         x2 = MultCadenaPrueba("3840x2160", "xess", 2, "", 5, false);
+            bool okb = Math.Abs(EscalaAuto.Presupuesto(x4) - 1000 / 29.97 / 4 * EscalaAuto.UsoXess) < 0.01 && Math.Abs(EscalaAuto.Presupuesto(x4i) - 1000 / 29.97 * EscalaAuto.Uso) < 0.01 &&
+                       Math.Abs(EscalaAuto.Presupuesto(x2) - 1000 / 29.97 * EscalaAuto.Uso) < 0.01;
+            if (!okb) fallos++;
+            sb.AppendLine((okb ? "      " : "FALLO ") + "presupuesto: XeSS FG x4 (NVIDIA) " + EscalaAuto.Presupuesto(x4).ToString("0.0", CultureInfo.InvariantCulture) + " ms = T/4; en Intel " +
+                          EscalaAuto.Presupuesto(x4i).ToString("0.0", CultureInfo.InvariantCulture) + " ms; x2 " + EscalaAuto.Presupuesto(x2).ToString("0.0", CultureInfo.InvariantCulture) + " ms");
+            // MEDIDO: XeSS FG x4 a 4K sin DLSS 5 (log del usuario, 22-11 10:28): 26,4 de 29,97 reales -> no cabe
+            bool okx4 = EscalaAuto.Prevision(x4, 0, 0, 1.0, 0) > EscalaAuto.Presupuesto(x4);
+            if (!okx4) fallos++;
+            sb.AppendLine((okx4 ? "      " : "FALLO ") + "XeSS FG x4 a 4K sin DLSS 5 no cabe (medido: 26,4 de 29,97 reales; " + EscalaAuto.Prevision(x4, 0, 0, 1.0, 0).ToString("0.0", CultureInfo.InvariantCulture) + " ms)");
+            // MEDIDO: XeSS FG x3 a 4K sin DLSS 5 (22-11 11:34, tele a 120): 29,9 reales / 89,7 -> cabe
+            CadenaEscala x3 = MultCadenaPrueba("3840x2160", "xess", 3, "", 5, false);
+            bool okx3 = EscalaAuto.Prevision(x3, 0, 0, 1.0, 0) <= EscalaAuto.Presupuesto(x3);
+            if (!okx3) fallos++;
+            sb.AppendLine((okx3 ? "      " : "FALLO ") + "XeSS FG x3 a 4K sin DLSS 5 cabe (medido: 29,9 reales; " + EscalaAuto.Prevision(x3, 0, 0, 1.0, 0).ToString("0.0", CultureInfo.InvariantCulture) + " de " + EscalaAuto.Presupuesto(x3).ToString("0.0", CultureInfo.InvariantCulture) + " ms)");
+            return fallos;
+        }
+
 
         // ¿Cabe DLSS 5 (1 pasada, al minimo) en la cadena de ahora con este tipo y multiplicador? (escala automatica de DLSS 5; sin ella, si).
         // MEDIDO el 22-11: 1440p, DLSS L, DLSS FG x4 sin DLSS 5 = 81 % de grafica; con DLSS 5 encendido la app lo quita ("NO CABE")
@@ -685,7 +805,10 @@ namespace ConsoleEnhancer
                     salida = (st.NewSum + st.GenSum) / st.CapTime; real = st.NewSum / st.CapTime;
                 }
                 double objetivo = Math.Min(modo * m, hz >= 60 ? hz - 0.2 : modo * m);
-                bool mal = salida < objetivo * 0.9 || real < modo * 0.9;
+                // (1.2.3, MULTI2) XeSS FG x3 / x4 de compatibilidad (no Intel): con las reales un 5 % por debajo ya va a saltos (el ritmo reparte
+                // las inventadas sobre un periodo que se estira: x4 a 4K, 27,4 reales = huecos de 2 refrescos); antes, un 10 %
+                double umbral = xess && cfg.GpuVendor != "intel" ? 0.95 : 0.9;
+                bool mal = salida < objetivo * umbral || real < modo * umbral;
                 multMal = mal ? multMal + 1 : 0;
                 if (multMal < 2) return false;
                 multMal = 0;
