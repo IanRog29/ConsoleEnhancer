@@ -53,6 +53,7 @@ namespace ConsoleEnhancer.Motor
                 case "fg_quieto": FgQuiet = Bv(val); return true;
                 case "fgui_crecer": FgUiGrow = Iv(val); return true;
                 case "fgui_ver": FgUiShow = Bv(val); return true;   // 1.2.4 (DLSSFG, EngineFgHud.cs)
+                case "fgui_pegada": FgUiSticky = Bv(val); return true;   // 1.2.4 ronda 5 (FGCAL, EngineFgHud.cs)
                 case "fg_quieto_prof": FgQuietDepth = Bv(val); return true;
                 case "fg_quieto_textura": FgQuietTex = Math.Max(0, Dv(val)); return true;
                 case "fg_quieto_quieto": FgQuietStill = Math.Max(0, Dv(val)); return true;

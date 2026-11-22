@@ -468,7 +468,7 @@ namespace ConsoleEnhancer.Motor
                 Barrier(stillCount, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.UNORDERED_ACCESS);
                 for (int i = 0; i < 16; i++) c[i] = 0;
                 c[0] = (uint)inW; c[1] = (uint)inH; c[2] = (uint)bx[0]; c[3] = (uint)by[0];
-                c[4] = (uint)Math.Max(1, s.FgUiFrames);
+                c[4] = (uint)Math.Max(1, s.FgUiFrames); c[5] = s.FgUiSticky ? 1u : 0u;   // (1.2.4 ronda 5, FGCAL: fgui_pegada)
                 c[8] = F(2.5f / 255f); c[9] = F((float)s.FgUiEdge); c[10] = F((float)s.FgUiMov);
                 BindCompute(psoUiMask, TQUi + cur, c, 12);
                 list.Dispatch(Groups(inW, 16), Groups(inH, 8), 1);
@@ -890,9 +890,10 @@ void main(uint3 id : SV_DispatchThreadID, uint3 gt : SV_GroupThreadID, uint gi :
     if (id.x >= W || id.y >= H) return;
     int2 p = int2(id.xy);
     float d = max(max(Dq(p), max(Dq(p + int2(1, 0)), Dq(p - int2(1, 0)))), max(Dq(p + int2(0, 1)), Dq(p - int2(0, 1))));
-    uint n = Still[p];
+    uint raw = Still[p];
+    uint n = raw & 0xFFFFu;
+    bool was = (raw & 0x10000u) != 0;
     n = d < Tdiff ? min(n + 1, 250u) : 0u;
-    Still[p] = n;
     float lo = 1, hi = 0;
     [unroll] for (int j = -2; j <= 2; j++)
         [unroll] for (int i = -2; i <= 2; i++)
@@ -902,7 +903,11 @@ void main(uint3 id : SV_DispatchThreadID, uint3 gt : SV_GroupThreadID, uint gi :
             lo = min(lo, l); hi = max(hi, l);
         }
     bool moving = gTex >= 8 && (float)gMov >= Fmov * (float)gTex;
-    Ui[p] = (moving && n >= NStill && hi - lo > Tedge) ? 1.0 : 0.0;
+    // (1.2.4 ronda 5, FGCAL: fgui_pegada) lo que ya era interfaz sigue siendolo mientras no cambie aunque la camara se pare (si no, la
+    // mascara se encendia y apagaba en cada frenada y DLSS-G recibia dos imagenes sin interfaz que no casan: una inventada mala)
+    bool ui = (moving || (P0 != 0 && was)) && n >= NStill && hi - lo > Tedge;
+    Still[p] = n | (ui ? 0x10000u : 0u);
+    Ui[p] = ui ? 1.0 : 0.0;
 }";
 
         // mvmask_modo=1: vectores para DLSS SR = los de verdad, salvo lo marcado (mascara > 0,5): fuera de la imagen (Off)
