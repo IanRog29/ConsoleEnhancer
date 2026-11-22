@@ -357,6 +357,12 @@ namespace ConsoleEnhancer
                 }
                 Dictionary<string, string> elegidas = new Dictionary<string, string>();
                 foreach (string k in ClavesElegidas) { string v = IniLeer(k); if (v != null) elegidas[k] = v; }
+                // (22-11, 1.2.3 REVISION3) motor_dlss5=0 era el valor de serie del base.ini hasta la 1.2.2 y nada lo elegia ("Añadir DLSS 5"
+                // solo escribia el 1; "Quitar DLSS 5", el 0 al quitarla): en un ini de antes de la 1.2.3 ese 0 no es una eleccion, y se quedaba
+                // encima del auto nuevo (con engine\PrismaNr.dll DLSS 5 seguia por Magpie tras actualizar; simulado con el ini del usuario: la
+                // ultima linea salia motor_dlss5=0). Desde la 1.2.3 el 0 si se elige (menu de ajustes, bandeja, "Añadir DLSS 5" -> No): se conserva
+                string md5;
+                if (elegidas.TryGetValue("motor_dlss5", out md5) && md5.Trim() == "0" && IniAnteriorA(t, 1, 2, 3)) elegidas.Remove("motor_dlss5");
                 StringBuilder gen = new StringBuilder();
                 try
                 {
@@ -412,6 +418,21 @@ namespace ConsoleEnhancer
 
         // (22-11, 1.2.2) lo elegido en la bandeja / el panel / el asistente que puede estar en una linea del base.ini viejo (ActualizarIni)
         static readonly string[] ClavesElegidas = { "apagar_pc_modo", "apagar_pc_aviso_s", "motor_dlss5", "escritorio_negro" };
+
+        // (1.2.3 REVISION3) ¿La marca "# ce_ini_version=" del ini (su ultima puesta al dia) es de antes de la a.b.c? Sin marca: si (de antes
+        // de la 1.0.7). Las 1.2.01-1.2.09 van entre la 1.2.0 y la 1.2.1 (el "0x" cuenta como 0)
+        static bool IniAnteriorA(string texto, int a, int b, int c)
+        {
+            System.Text.RegularExpressions.MatchCollection ms = System.Text.RegularExpressions.Regex.Matches(texto ?? "", @"(?m)^# ce_ini_version=(\d+)\.(\d+)(?:\.(\d+))?");
+            if (ms.Count == 0) return true;
+            System.Text.RegularExpressions.Match m = ms[ms.Count - 1];
+            int x = int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture), y = int.Parse(m.Groups[2].Value, CultureInfo.InvariantCulture);
+            string zs = m.Groups[3].Success ? m.Groups[3].Value : "0";
+            int z = zs.Length > 1 && zs[0] == '0' ? 0 : int.Parse(zs, CultureInfo.InvariantCulture);
+            if (x != a) return x < a;
+            if (y != b) return y < b;
+            return z < c;
+        }
 
         // El valor que vale de cada clave en un texto de ini (la ultima linea)
         static Dictionary<string, string> UltimosValores(string texto)
