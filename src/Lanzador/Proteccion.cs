@@ -195,10 +195,13 @@ namespace ConsoleEnhancer
         {
             if (!ProteOn || m <= 2 || !MultTipo(tipo)) return;
             string k = ProteClave(ProteCadena(cap30, m, tipo));
-            lock (protePruebaSync) protePrueba.Add(k);
+            lock (protePruebaSync) { protePrueba.Add(k); pruebaUltima = (cap30 ? 30 : 60) + "|" + m + "|" + tipo; pruebaAt = DateTime.UtcNow; }
             ProteMemoria.Version++;
         }
-        public static void ProtePruebaFuera(string clave) { lock (protePruebaSync) protePrueba.Remove(clave); }
+        // (lo elegido con otra captura en el mismo menu: la captura cambia despues; 90 s vale para la cadena que salga)
+        static string pruebaUltima = "";
+        static DateTime pruebaAt = DateTime.MinValue;
+        public static void ProtePruebaFuera(string clave) { lock (protePruebaSync) { protePrueba.Remove(clave); pruebaUltima = ""; } }
         static bool EnPrueba(string clave) { lock (protePruebaSync) return protePrueba.Contains(clave); }
 
         static string R0(double v) { return Math.Round(v).ToString(CultureInfo.InvariantCulture); }
@@ -213,6 +216,8 @@ namespace ConsoleEnhancer
                 CadenaEscala c = ProteCadena(cap30, m, tipo);
                 string k = ProteClave(c);
                 ProteMemoria.Entrada e = ProteMemoria.Mira(k);
+                lock (protePruebaSync)
+                    if (pruebaUltima == (cap30 ? 30 : 60) + "|" + m + "|" + tipo && (DateTime.UtcNow - pruebaAt).TotalSeconds < 90) protePrueba.Add(k);
                 if (EnPrueba(k) || (e != null && e.Res == "si")) return null;
                 string o = R0(c.Objetivo);
                 if (e != null && e.Res == "no")
