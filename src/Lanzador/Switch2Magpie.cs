@@ -5678,7 +5678,7 @@ namespace ConsoleEnhancer
         }
     }
 
-    static class GameProfiles
+    static partial class GameProfiles   // (1.2.2: parte en src\VueltaJuego.cs: nombres con basura del OCR)
     {
         // (15-11: la carpeta se cambia solo en la prueba --test-perfiles, sobre una copia)
         static string Dir = Path.Combine(Paths.Datos, "games");
@@ -9300,7 +9300,7 @@ namespace ConsoleEnhancer
                 while (!p.HasExited && !userExit && mpv == p)
                 {
                     Thread.Sleep(100);
-                    if (signalOn && (lsReady || MenuCiegoCaptura)) GrabTick(DateTime.Now);
+                    if (signalOn && (lsReady || MenuCiegoCaptura || CapturaPreparando)) GrabTick(DateTime.Now); // (1.2.2: CapturaPreparando, src\VueltaJuego.cs)
                     // Fuera del HOME: se decide sin esperar al siguiente WatchLoop (hasta 0,5 s; el negro cuenta por tiempo)
                     if (signalOn && lsReady && InHome && noLabel >= 1) RunHomeTick(DateTime.Now);
                 }
@@ -9337,15 +9337,19 @@ namespace ConsoleEnhancer
             // "No Signal", el aviso de HDCP y, con consola=auto, la deteccion: ObservaConsola)
             if (!Consolas.Actual.TieneHome)
             {
-                if (grabBusy || relaunchSize != null || passesBusy || now < switchUntil || !ipcUp) return;
+                // (1.2.2: mientras Magpie prepara, tambien, para el menu y la comprobacion de la salida: CapturaPreparando)
+                bool preparando = passesBusy && CapturaPreparando;
+                if (grabBusy || relaunchSize != null || (passesBusy && !preparando) || now < switchUntil || !ipcUp) return;
                 // 19-11 (src\MenuPs5.cs): con la PS5, en su menu y confirmando que se entra o se sale de el, cada 0,4-0,5 s
                 // (19-11, DETECCION: confirmando, a los 0,25 s: src\DetectorMenu.cs decide con 2 capturas seguidas, o con 1 si la hora es la del
                 // PC al minuto; antes 0,4 s jugando y 0,5 s en el menu, y 3 capturas para salir)
                 double ev = cfg.GameGrabEvery;
-                if (Consolas.Actual.MenuPropio && !homeBusy)
+                if (Consolas.Actual.MenuPropio && (!homeBusy || preparando))
                 {
                     if (menuMaq.Confirmando) ev = 0.25; // (sin homeSync: dos enteros, una lectura de mas o de menos no importa)
                     else if (InHome) ev = 0.5;
+                    else if (VueltaPendiente) ev = preparando ? 0.4 : 0.6;   // (1.2.2: comprobando la salida del menu: el negro de arrancar otro juego, 1,2 s)
+                    else if (preparando) ev = Math.Max(ev, 1.0);
                     else if (cfg.CaptureNow == "3840x2160") ev = Math.Max(ev, 1.5);
                 }
                 if ((now - lastGrab).TotalSeconds >= ev - 1e-6) RequestGrab(true);
@@ -9496,7 +9500,8 @@ namespace ConsoleEnhancer
                     noSignal = HomeLabel.IsNoSignal(small);
                     if (noSignal) lab = null;
                     // 1.2.05: captura del relevo de motor (MenuCiegoCaptura): solo para el menu de la consola; lo demas, como antes: nada
-                    if (!lsReady && relevo != null)
+                    // (1.2.2: y mientras Magpie prepara, CapturaPreparando, src\VueltaJuego.cs)
+                    if (!lsReady && (relevo != null || (passesBusy && Consolas.Actual.MenuPropio)))
                     {
                         if (Consolas.Actual.MenuPropio) MenuPs5Captura(full, small, noSignal);
                         return;

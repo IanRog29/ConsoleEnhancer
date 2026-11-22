@@ -330,7 +330,9 @@ namespace ConsoleEnhancer
         public static bool Relacionado(string a, string b)
         {
             if (string.IsNullOrEmpty(a) || string.IsNullOrEmpty(b)) return false;
-            return GameNames.Key(SinTag(a)) == GameNames.Key(SinTag(b)) || Parcial(a, b) || Parcial(b, a) || Parecido(a, b);
+            // (1.2.2: y con basura pegada a la ultima palabra, "BloodborneJbf" de "Bloodborne", que Parecido no junta por largo)
+            return GameNames.Key(SinTag(a)) == GameNames.Key(SinTag(b)) || Parcial(a, b) || Parcial(b, a) || Parecido(a, b) ||
+                   NombresConsola.BasuraPegada(a, b) || NombresConsola.BasuraPegada(b, a) || NombresConsola.BaseComun(a, b) != null;
         }
 
         // Un nombre limpio (letras, cifras y los signos de un titulo; no basura del OCR como "PLR\"OOM")
@@ -349,7 +351,15 @@ namespace ConsoleEnhancer
         // De las lecturas de un mismo foco, el mejor nombre: limpio; que no sea una lectura a medias de otro limpio; el que mas lecturas
         // explica (las suyas y las que son a medias de el); el de un perfil que ya existe (conocido, puede ser null); el de palabras del
         // diccionario de Windows; y a igualdad, el ultimo. apoyo = las lecturas que explica
+        // 22-11 (1.2.2): el consenso de NombresConsola (src\VueltaJuego.cs): la basura pegada a la ultima palabra ("Bloodbornevy",
+        // "BloodborneJY", "Rocket Leagueñ": la ™ / ® leida como letras) ya no gana al nombre limpio por ser "mas entero"
         public static string MejorNombre(List<string> nombres, Func<string, bool> conocido, out int apoyo)
+        {
+            return NombresConsola.Consenso(nombres, conocido, out apoyo);
+        }
+
+        // (hasta la 1.2.1, para comparar en la prueba)
+        public static string MejorNombreAntes(List<string> nombres, Func<string, bool> conocido, out int apoyo)
         {
             apoyo = 0;
             if (nombres == null || nombres.Count == 0) return null;
@@ -385,7 +395,7 @@ namespace ConsoleEnhancer
 
         // ¿Todas sus palabras (de 3 letras o mas, sin cifras ni numeros romanos) en el diccionario de Windows? (desempate: en el PC del usuario
         // solo hay el de español; false si no hay ninguno)
-        static bool EnDiccionario(string n)
+        internal static bool EnDiccionario(string n)
         {
             int vistas = 0;
             foreach (string w in Regex.Split(SinTag(n ?? ""), @"[^\p{L}]+"))
@@ -481,6 +491,21 @@ namespace ConsoleEnhancer
             string v = SinTag(viejo ?? "");
             if (v.Length == 0 || GameNames.Key(v) == GameNames.Key(nuevo)) return false;
             if (Provisional(v)) return true;
+            // 1.2.2: el viejo es el nuevo con basura pegada ("PS5: Bloodborney" y se lee "Bloodborne"; "Rocket LeagueF"): una basura rara
+            // (mayuscula tras minuscula, tilde suelta, simbolo) con el nuevo leido 2 veces; la ™ leida como letras ("y", "vy", "TY") con el
+            // nuevo leido 3 veces y el viejo ninguna en esta visita (un "Destiny" no pasa a "Destin" por dos lecturas cortadas); nunca si el
+            // diccionario dice que la palabra larga existe y la corta no
+            {
+                string suf;
+                if (NombresConsola.BasuraPegada(v, nuevo, out suf))
+                {
+                    if (NombresConsola.GanaLargo(v, nuevo, 0, apoyoNuevo, 0)) return false;
+                    if (NombresConsola.SufijoRaro(suf, nuevo)) return apoyoNuevo >= 2;
+                    return NombresConsola.BasuraProbable(suf, nuevo) && apoyoNuevo >= 3 && !viejoLeido;
+                }
+                // (y al reves: el nuevo es el viejo con basura probable pegada, "Bloodborne" -> "Bloodborney": nunca, salvo el diccionario)
+                if (NombresConsola.BasuraPegada(nuevo, v, out suf) && NombresConsola.BasuraProbable(suf, v)) return NombresConsola.GanaLargoConocido(nuevo, v);
+            }
             if (Parcial(v, nuevo)) return true;
             // (con erratas: el mismo largo mas o menos; Parecido tambien junta el cortado por delante, "Theft Auto VI", que no vale)
             if (Parcial(nuevo, v) || GameNames.Key(nuevo).Length < GameNames.Key(v).Length - 1) return false;
@@ -599,7 +624,7 @@ namespace ConsoleEnhancer
         {
             s = Limpia(s);
             s = Regex.Replace(s, @"^(?:\S*[_\]\[]\S*\s+)+", "");
-            s = Regex.Replace(s, @"(?<=\p{Ll})['’]?(?:TM|TY|Tt|T)(?:\W.*)?$", "");
+            s = Regex.Replace(s, @"(?<=\p{Ll})['’]?(?:TM|TY|JY|Tt|T)(?:\W.*)?$", "");   // (1.2.2: "JY", 22-11 03:59:43)
             s = Regex.Replace(s, @"[\[\]|•]", "");
             s = Regex.Replace(s, @"[^\p{L}\p{N}]+$", "");
             // (1.2.04) el ® de "Rocket League®" leido como "n": "Rocket Leaguen" (src\Lanzador\Ortografia.cs)
@@ -637,12 +662,13 @@ namespace ConsoleEnhancer
                 foreach (Ocr.Linea l in lineas)
                     if (sb.Length < 400) sb.Append(sb.Length > 0 ? " | " : "").Append((l.Texto ?? "").Replace("\r", " ").Replace("\n", " "));
                 crudo = sb.ToString();
-                bool boton = false;
+                // (1.2.2: la Bienvenida / elegir usuario, tambien con erratas del OCR: 22-11 04:07:29 "Te demos la bienvenida ..." dio el
+                // nombre del usuario de la consola como juego)
+                if (EsBienvenida(crudo)) return null;
                 foreach (Ocr.Linea l in lineas)
                 {
                     string n = DetectorMenu.Normal(Limpia(l.Texto));
                     if (n == "bienvenida" || n == "welcome" || n.StartsWith("te damos la bienvenida") || n.StartsWith("welcome back")) return null;
-                    if ((n.StartsWith("jugar") || n.StartsWith("play")) && n.Length <= 9 && !n.StartsWith("playstation")) boton = true;
                 }
                 string nombre = EligeNombre(JuntaLogo(lineas), c);
                 // 21-11 (cuarta vuelta): la pantalla entera NUNCA vale a la primera (en mitad de una animacion del menu salio "ajeasdoy Lu"
@@ -907,6 +933,21 @@ namespace ConsoleEnhancer
             return false;
         }
 
+        // 1.2.2: la Bienvenida / elegir usuario de la PS5 al encenderla o despertarla ("Te damos la bienvenida de nuevo a PlayStation |
+        // ¿Quien esta usando este mando?", leido "Te demos ..." el 22-11 04:07:29) y su Xbox: no es un juego ni el menu de verdad
+        // (frases enteras: el inicio de la PS5 tiene una seccion "Bienvenida" / "Welcome" con anuncios, que no es esto)
+        static readonly string[] FrasesBienvenida = {
+            "te damos la bienvenida", "te demos la bienvenida", "de nuevo a playstation", "welcome back", "back to playstation",
+            "quien esta usando", "quien va a usar", "who's using", "whos using", "who is using", "elige un usuario", "selecciona un usuario",
+            "choose a user", "select a user", "pulsa el boton ps", "press the ps button" };
+        public static bool EsBienvenida(string texto)
+        {
+            if (string.IsNullOrEmpty(texto)) return false;
+            string n = DetectorMenu.Normal(texto);
+            foreach (string f in FrasesBienvenida) if (n.Contains(f)) return true;
+            return false;
+        }
+
         // ¿Esa linea del OCR puede ser el nombre de un juego? Se descarta lo que seguro no lo es
         static bool EsNombreJuego(string s, ConsolaPerfil c)
         {
@@ -1140,6 +1181,8 @@ namespace ConsoleEnhancer
             sale = rj.AlSalir(t0.AddSeconds(31), out ult);
             sb.Append("  al salir sin leer nada: \"").Append(sale).Append("\" (el de antes) ").Append(sale == "Grand Theft Auto VI" ? "OK" : "FALLO").Append("\r\n");
             PruebaNombres(sb);
+            // (1.2.2: nombres de consenso, migracion y vuelta o arranque al salir del menu; capturas en el cuarto argumento)
+            PruebaPerfiles.Run(sb, p.Length > 3 ? p[3] : null);
             // (1.2.1: devuelve los fallos, como las demas pruebas)
             int fallos = Regex.Matches(sb.ToString(), "FALLO").Count;
             sb.Insert(0, "Fallos: " + fallos + "\r\n");
@@ -1554,6 +1597,7 @@ namespace ConsoleEnhancer
         public static string Busca(double[] f, out double dist) { return almacen.Busca(f, Misma, out dist); }
         public static void Guarda(string perfil, double[] f) { almacen.Guarda(perfil, f, Misma); }
         public static void Renombra(string viejo, string nuevo) { almacen.Renombra(viejo, nuevo); }
+        public static List<string> Nombres() { return almacen.Nombres(); }   // (1.2.2)
     }
 
     // 21-11 (quinta vuelta): el icono del juego en foco del inicio de la PS5 (JuegoConsola.IconoFoco) de cada perfil (games\console_icons.txt)
@@ -1565,6 +1609,7 @@ namespace ConsoleEnhancer
         public static void Guarda(string perfil, double[] f) { almacen.Guarda(perfil, f, JuegoConsola.MismoIcono); }
         public static void Renombra(string viejo, string nuevo) { almacen.Renombra(viejo, nuevo); }
         public static bool Tiene(string perfil) { return almacen.Tiene(perfil); }
+        public static List<string> Nombres() { return almacen.Nombres(); }   // (1.2.2)
     }
 
     // Firmas (portadas, iconos) por perfil en un fichero de games\: perfil|v1,v2,... (hasta 4 por perfil)
@@ -1663,6 +1708,14 @@ namespace ConsoleEnhancer
         public bool Tiene(string perfil)
         {
             lock (sync) { Carga(); foreach (KeyValuePair<string, double[]> kv in lista) if (kv.Key == perfil) return true; return false; }
+        }
+
+        // (1.2.2) los perfiles con alguna firma (sin repetir)
+        public List<string> Nombres()
+        {
+            List<string> r = new List<string>();
+            lock (sync) { Carga(); foreach (KeyValuePair<string, double[]> kv in lista) if (!r.Contains(kv.Key)) r.Add(kv.Key); }
+            return r;
         }
 
         public void Renombra(string viejo, string nuevo)
