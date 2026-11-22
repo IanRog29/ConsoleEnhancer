@@ -12077,7 +12077,7 @@ namespace ConsoleEnhancer
                         {
                             if (MagpieLive.IsScaling() || MagpieLive.ScalingPhase() == MagpieLive.Phase.Starting)
                             {
-                                Log.Write("Magpie ha empezado a escalar al pasar mpv delante: sin pulsar su atajo (lo pararia)");
+                                Log.Write("Magpie " + (MagpieLive.IsScaling() ? "ya esta escalando" : "ha empezado a escalar") + " con mpv delante: sin pulsar su atajo (lo pararia)");
                                 return;
                             }
                             Thread.Sleep(50);
