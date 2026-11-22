@@ -320,7 +320,10 @@ namespace ConsoleEnhancer.Motor
             // modo 30 + DLSS-G (3 pasadas de cada, grafica compartida): grafica por imagen real 9,1 -> 7,1 ms, la seccion de vectores 5,5 ->
             // 2,0 ms; los vectores de la generacion, los mismos. Tambien es retraso (la grafica va entre la llegada y la pantalla).
             // fg_solo_camara=0 = como antes
-            bool onlyCam = on && FgOnlyCamNow && !srTemporal && !(s.MvNativeNr && s.Nr && s.Mode == 30);
+            // (1.2.4 ronda 5, INTEGRA5: dlss5_vec_camara=1) con DLSS 5 y DLSS-G a entrada = salida, DLSS 5 con los vectores de la generacion (el de la
+            // camara y lo quieto a 0) en vez de la busqueda por bloques: con ella encendida salian inventadas malas sueltas de DLSS-G (FGCAL)
+            bool d5Cam = s.D5CamVec && s.Nr && fgApplied && FgOnlyCamNow && !srTemporal;
+            bool onlyCam = on && FgOnlyCamNow && !srTemporal && (!(s.MvNativeNr && s.Nr && s.Mode == 30) || d5Cam);
             bool quality = on && QualityMotion && !onlyCam;
             if (quality) EnsureQualityPsos();
             bool info = quality;    // el nivel fino escribe blockInfo (para las mascaras y la interfaz)
@@ -391,6 +394,11 @@ namespace ConsoleEnhancer.Motor
                 RecordFgVec(true, cur);
                 fgVecDone = false;
                 RecordFgDepth(cur);   // (con fg_quieto_prof la hace RecordFgVec; si no, la de los bordes de siempre)
+                if (d5Cam && mvecFg != null && mvec != null)
+                {
+                    CopyTex(mvec, mvecFg);   // (INTEGRA5) los de la generacion tambien para DLSS 5 y su antiparpadeo (0,1 ms a 4K)
+                    if (!d5CamSaid) { d5CamSaid = true; Log.Write("DLSS 5: con los vectores de la generacion (la camara y lo quieto a 0), sin la busqueda por bloques (dlss5_vec_camara=0 para tenerla)"); }
+                }
                 QStampEnd(true);
                 return;
             }

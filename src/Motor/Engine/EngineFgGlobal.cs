@@ -41,6 +41,9 @@ namespace ConsoleEnhancer.Motor
         public bool MvXessFfx = true;
         // 22-11 (1.2.1) fg_solo_camara=1: sin la busqueda por bloques cuando solo la generacion usa los vectores (EngineMotion.cs RecordMotion)
         public bool FgCamOnly = true;
+        // 1.2.4 ronda 5 (INTEGRA5) dlss5_vec_camara=1: con DLSS 5 + DLSS-G a entrada = salida, DLSS 5 con los vectores de la generacion y sin
+        // la busqueda por bloques (EngineMotion.cs RecordMotion)
+        public bool D5CamVec = false;
 
         bool ApplyFgGlobal(string key, string val)
         {
@@ -60,6 +63,7 @@ namespace ConsoleEnhancer.Motor
                 case "fg_quieto_rel": FgQuietRel = Math.Max(0.05, Math.Min(1, Dv(val))); return true;
                 case "mvsr_xess_ffx": MvXessFfx = Bv(val); return true;
                 case "fg_solo_camara": FgCamOnly = Bv(val); return true;
+                case "dlss5_vec_camara": D5CamVec = Bv(val); return true;   // (1.2.4 ronda 5, INTEGRA5: EngineMotion.cs RecordMotion)
             }
             return false;
         }
@@ -76,7 +80,7 @@ namespace ConsoleEnhancer.Motor
         ID3D12PipelineState psoGlobA, psoGlobB, psoGlobC, psoGlobD, psoGlobOut;
         ID3D12Resource gSadA, gSadC, gPick;
         int gRx, gRy;
-        bool gSaid, camOnlySaid;
+        bool gSaid, camOnlySaid, d5CamSaid;
 
         bool FgGlobalNow { get { return s.FgGlobal && s.FgVec == 3 && Levels >= 4; } }
         // 22-11 (1.2.1): FSR 3 FG (EngineFgFfx.cs, sin Streamline) recibe los mismos vectores que recibiria DLSS-G (antes, los de mvec, a 0)
