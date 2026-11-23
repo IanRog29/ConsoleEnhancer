@@ -722,7 +722,7 @@ namespace ConsoleEnhancer
         public string FgTypeNow { get { return FgTypeFor(CapMode, VideoSize); } }
         public bool SmoothNow { get { return !FgOff && FgTypeNow == "smooth"; } }
         // (1.2.4 ronda 6, QUITAFG: sin multiplicadores -x3 / x4 fuera-: cada real, una inventada. Se queda el nombre para las cuentas de fps)
-        public int FgMultNow { get { return 2; } }
+        public int FgMultNow { get { return !FgOff && FgTypeNow == "fsr3" ? FsrMultNow : 2; } }   // (1.2.4 ronda 6, FGMULTI: FSR 3 FG x3 / x4, MultiFsr.cs)
 
         // ---- Lo demas de Magpie ----
         public bool MagpieVrr = false;              // VRR experimental de Magpie (magpie_vrr)
