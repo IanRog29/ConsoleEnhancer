@@ -252,6 +252,9 @@ namespace ConsoleEnhancer
         // ini relevo_generacion_antes=1|0 (de serie 1): mientras llega el motor con la generacion nueva, el de delante sigue con la que llevaba
         // (0 = sin generacion hasta el corte)
         public bool RelevoGenAntes = true;
+        // ini relevo_pintadas=N (de serie 4; 1.2.4 ronda 5, INTEGRA5): el corte del relevo con N imagenes presentadas por el motor nuevo (1 = con
+        // la primera, como la primera 1.2.4). SinTelon.cs
+        public static volatile int RelevoPintadas = 4;
 
         // Un motor abierto con la cadena 'have' vale para 'want': la misma, o XeSS FG con DLSS SR (Streamline solo para DLSS SR: 21, 31, 41)
         // para XeSS FG sin el (20, 30, 40): el escalador se cambia en marcha (FSR 1 / sin reescalado); al reves no (hace falta Streamline).
@@ -267,6 +270,7 @@ namespace ConsoleEnhancer
             {
                 case "relevo_motor_espera": RelevoKeepOld = ParseBool(val); return true;
                 case "relevo_generacion_antes": RelevoGenAntes = ParseBool(val); return true;
+                case "relevo_pintadas": { int n; if (int.TryParse((val ?? "").Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out n)) RelevoPintadas = Math.Max(1, Math.Min(30, n)); return true; }
             }
             return false;
         }

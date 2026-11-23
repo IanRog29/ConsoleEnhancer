@@ -236,6 +236,12 @@ namespace ConsoleEnhancer.Motor
             firstPaintAt = now;
             Ev("switch2-pintada", "1");
         }
+        // (1.2.4 ronda 5, INTEGRA5) y con la 4a: el lanzador corta con N presentadas (relevo_pintadas, de serie 4), por el paron de ~1,2 s
+        // que venia tras la primera al despertar con DLSS 5
+        void PaintedSteady(int n)
+        {
+            if (firstPaintAt != 0) Ev("switch2-pintada", n.ToString(CultureInfo.InvariantCulture));
+        }
 
         // Desde Run, con la primera imagen nueva presentada tras despertar
         void WakeFirstImage(long arrival, long now)

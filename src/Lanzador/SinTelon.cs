@@ -44,6 +44,10 @@ namespace ConsoleEnhancer
             public long WakeMs = -1, SignalMs = -1, RateMs = -1, CutMs = -1;
             public volatile bool Painted;           // (1.2.4 arreglos, RELEVO) switch2-pintada: el motor ya ha presentado una imagen de verdad
             public long PaintedMs = -1;
+            // (1.2.4 ronda 5, INTEGRA5) el corte con relevo_pintadas imagenes presentadas (de serie 4), no con la primera: al despertar con
+            // DLSS 5, tras la 1a imagen el motor se paraba ~1,2 s (sus primeras evaluaciones; medido en la app entera, Magpie -> motor con
+            // DLSS FG + DLSS 5 a 4K) y ese paron se veia; asi lo de antes sigue a la vista mientras tanto
+            public long SteadyMs = -1;
             // 18-11 (PASADAS): el Smooth Motion con el que se abrio ESTE motor (standbySmooth al volver a la espera). Antes SetStandby(ready) tomaba
             // el del ultimo motor que hizo la imagen: el motor del puente (abierto ya en espera, con Smooth Motion) volvia a la espera como "sin
             // Smooth Motion" y al apagar DLSS 5 se le mandaba fg=1 (DLSS FG + Smooth Motion a la vez; luego en espera +600 MB de la generacion)
@@ -116,7 +120,11 @@ namespace ConsoleEnhancer
                         else if (line.Contains("\"args\":[\"switch2-standby-ok\"")) StandbyOk = true;
                         else if (line.Contains("\"args\":[\"switch2-pintada\""))
                         {
-                            if (!Painted) { PaintedMs = Since.ElapsedMilliseconds; Painted = true; }
+                            Match mp = Regex.Match(line, "\"switch2-pintada\",\"([0-9]+)\"");
+                            int pn;
+                            if (!mp.Success || !int.TryParse(mp.Groups[1].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out pn)) pn = int.MaxValue;
+                            if (PaintedMs < 0) PaintedMs = Since.ElapsedMilliseconds;
+                            if (!Painted && pn >= Math.Max(1, Config.RelevoPintadas)) { SteadyMs = Since.ElapsedMilliseconds; Painted = true; }
                         }
                     }
                 }
@@ -313,7 +321,7 @@ namespace ConsoleEnhancer
                 }
                 QuitOldMpv(r);
                 Log.Write("Sin telon (al motor): imagen del motor a los " + r.SignalMs + " ms del boton (ritmo " + r.Rate + "/s a los " + r.RateMs + " ms; despertado a los " +
-                          r.WakeMs + (needPaint ? "; pintada a los " + r.PaintedMs : "") + "); corte a los " + r.CutMs + " ms: motor delante" + (fg ? " y con el foco" : " (el foco aun no: se lo da el motor)") +
+                          r.WakeMs + (needPaint ? "; pintada a los " + r.PaintedMs + (r.SteadyMs >= 0 ? ", " + Config.RelevoPintadas + " a los " + r.SteadyMs : "") : "") + "); corte a los " + r.CutMs + " ms: motor delante" + (fg ? " y con el foco" : " (el foco aun no: se lo da el motor)") +
                           ", Magpie fuera y mpv se cierra debajo" + (h == IntPtr.Zero ? " (SIN su ventana a mano: el foco, luego)" : ""));
             }
             catch (Exception ex)
