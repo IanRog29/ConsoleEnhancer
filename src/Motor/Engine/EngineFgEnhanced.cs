@@ -100,7 +100,7 @@ namespace ConsoleEnhancer.Motor
                 case "efg_precompilar": EfgPrecompile = B(val); return true;   // (EFGFIX)
                 case "efg_salto_fino": EfgSaltoFino = B(val); return true;   // (EFGFIX)
             }
-            return false;
+            return ApplyEfgRitmo(key, val);   // (1.3.1, EFGCAL: efg_ritmo, efg_ritmo_x2, efg_colchon_ms; EngineFgEnhancedRitmo.cs)
         }
     }
 
@@ -377,6 +377,7 @@ namespace ConsoleEnhancer.Motor
             }
             efgW = w;
             efgJobArrival = slotArrival[slot];
+            efgJobContent = EfgContentOf(slot);   // (1.3.1, EFGCAL: la hora del contenido, EngineFgEnhancedRitmo.cs)
             efgJobReset = frameReset;
             efgHold = true;
             return true;
@@ -392,7 +393,7 @@ namespace ConsoleEnhancer.Motor
             efgShow = false;
             j.Show = show;
             if (show) Interlocked.Increment(ref efgShowPend);
-            j.W = show ? efgShowW : efgW; j.Arrival = efgJobArrival; j.Fence = fenceValue; j.Reset = efgJobReset; j.Seq = show ? efgSeq : ++efgSeq;
+            j.W = show ? efgShowW : efgW; j.Arrival = efgJobArrival; j.Content = show ? 0 : efgJobContent; j.Fence = fenceValue; j.Reset = efgJobReset; j.Seq = show ? efgSeq : ++efgSeq;
             j.Sync = sync; j.Flags = flags; j.K = Math.Max(2, Math.Min(4, s.Efg));
             j.Phase = EfgPhaseFor(j.K);
             j.RealMs = 1000.0 / Math.Max(1.0, (s.FpsNum > 0 ? s.FpsNum / (double)Math.Max(1, s.FpsDen) : 59.94) * (s.Mode == 30 ? 0.5 : 1));

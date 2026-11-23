@@ -71,14 +71,21 @@ namespace ConsoleEnhancer.Motor
         // quieta igual; con Smooth Motion igual que antes
         bool dup30LateCopy;            // la ultima que paso era la copia de una nueva que llego con 1 (paso 1 refresco tarde)
         long dup30Recovery = -1000;    // capN de la ultima vuelta a tiempo
+        long dup30LastSince; bool dup30LastNew;   // (EFGCAL) la ultima que paso: con cuantas capturas y si era nueva
         bool Pass30(bool isNew, long since)
         {
             bool first = lastPassed < 0;
             if (dup30Recovery > capN) dup30Recovery = -1000;   // (capN vuelve a 0 al despertar de la espera)
             bool back = isNew && dup30LateCopy && since == 1 && capN - dup30Recovery > 40 && (s.SmoothMode == 0 || s.SmoothMode == 3 || s.Dedupe30 >= 3);   // (1.2.4 ronda 6, SMX4: con x4 -sm=3, XeSS FG debajo- como con XeSS FG)
-            bool pass = first || (since >= 2 && (isNew || dup30PrevNew)) || since >= 3 || (isNew && dup30Forced && s.Dedupe30 >= 3) || back;
+            // (1.3.1, ronda 8, EFGCAL) con Enhanced FG, tras una imagen de 3 refrescos (o mas) la nueva que llega a 1 pasa en cuanto llega (el
+            // par 3,1 de una bajada del juego): antes pasaba su copia, 16,7 ms tarde (la real de baja latencia salia esos ms tarde y el ritmo
+            // por el contenido no la podia poner en su sitio). Solo tras una de 3 (un juego a 45 o a 60 en el modo 30 no pasa de 30).
+            // repetidas_30_efg=0 = lo de antes
+            bool efgCatch = isNew && since == 1 && dup30LastNew && dup30LastSince >= 3 && s.Efg >= 2 && s.Pass30Efg && s.SmoothMode == 0;
+            bool pass = first || (since >= 2 && (isNew || dup30PrevNew)) || since >= 3 || (isNew && dup30Forced && s.Dedupe30 >= 3) || back || efgCatch;
             if (pass)
             {
+                dup30LastSince = since; dup30LastNew = isNew;
                 dup30Forced = !isNew && !dup30PrevNew && !first;
                 dup30LateCopy = !isNew && dup30PrevNew;
                 if (back) dup30Recovery = capN;

@@ -17,7 +17,7 @@ namespace ConsoleEnhancer.Motor
     // a que la grafica la acabe y se presenta a su hora. Si llega otra real antes de acabar (la grafica no da), las inventadas que quedan se saltan.
     unsafe partial class Engine
     {
-        class EfgJob { public int W, K; public long Arrival, Seq, ReadyAt; public ulong Fence; public bool Reset, Show; public uint Sync, Flags; public double Phase, RealMs; public ManualResetEvent Ready; }
+        class EfgJob { public int W, K; public long Arrival, Content, Seq, ReadyAt; public ulong Fence; public bool Reset, Show; public uint Sync, Flags; public double Phase, RealMs; public ManualResetEvent Ready; }
 
         Thread efgThread;
         readonly Queue<EfgJob> efgJobs = new Queue<EfgJob>();
@@ -424,6 +424,19 @@ namespace ConsoleEnhancer.Motor
                 EfgEsperaLarga("la hora de la primera iba a " + ahead.ToString("0", IC) + " ms: se trae", ahead);
                 B = EfgAt(Clock.Now, need0 + s.EfgMarginMs);
             }
+            // (1.3.1, ronda 8, EFGCAL) el ritmo por la hora del contenido y el hueco de verdad (EngineFgEnhancedRitmo.cs; efg_ritmo=0 = lo de abajo)
+            if (s.EfgRitmo > 0 && !stale && s.EfgPhase < 0)
+            {
+                bool done = nReal == k - 1 && nReal > 0 ? EfgDoJobRitmoCalidad(j, c, flow, hasPrev, k, step, readyMs, vs, sy, fl)
+                          : nReal == 0 ? EfgDoJobRitmoLatencia(j, c, flow, hasPrev, k, step, readyMs, vs, sy, fl, B) : false;
+                if (done)
+                {
+                    efgPrevSeq = j.Seq;
+                    EfgTick(j, k, nReal, vs);
+                    return;
+                }
+            }
+            else efgPrevContent = j.Content != 0 ? j.Content : j.Arrival;
             // 3. por delante: con la real detras (calidad), el flujo y la primera inventada ya (la de cada siguiente, tras presentar la anterior)
             bool flowSent = false, genReady = false;
             if (nReal > 0)
@@ -466,7 +479,7 @@ namespace ConsoleEnhancer.Motor
                     int hr = swap.Present(sy, (DXGI_PRESENT)fl);
                     efgLastPresent = Clock.Now;
                     if (hr < 0) { Log.Write("Enhanced FG: Present: " + Hr.Format(hr)); if (Hr.IsDeviceLost(hr)) { efgHr = hr; return; } }
-                    if (real) efgReals++; else if (dup) efgDups++; else efgGens++;
+                    if (real) { efgReals++; efgPrevRealAt = call; } else if (dup) efgDups++; else efgGens++;
                     EfgCsvRow(j, i, real ? 'r' : dup ? 'd' : 'g', t, call, readyMs);
                     genReady = false;
                 }
@@ -488,7 +501,7 @@ namespace ConsoleEnhancer.Motor
             if (s.EfgCsv.Length == 0) return;
             efgCsvBuf.Append(kind).Append(';').Append(j.Seq.ToString(IC)).Append(';').Append(i.ToString(IC)).Append(';').Append(t.ToString("0.000", IC)).Append(';')
                      .Append(j.Arrival.ToString(IC)).Append(';').Append(call.ToString(IC)).Append(';').Append(readyMs.ToString("0.00", IC)).Append(';')
-                     .Append(efgLcur.ToString("0.00", IC)).Append("\r\n");
+                     .Append(efgLcur.ToString("0.00", IC)).Append(';').Append(j.Content.ToString(IC)).Append("\r\n");
             if (efgCsvAt == 0) efgCsvAt = Clock.Now;
             if (Clock.SinceMs(efgCsvAt) > 250 || efgCsvBuf.Length > 64 * 1024)
             {
@@ -505,7 +518,7 @@ namespace ConsoleEnhancer.Motor
             efgLastLog = Clock.Now;
             Log.Write("Enhanced FG x" + k + " (" + EfgModeName() + ", la real en la " + (nReal + 1) + "a de " + k + (vs ? ", con sincronizacion" : ", sin sincronizacion") + "): reales " + efgReals +
                       ", inventadas " + efgGens + ", repetidas " + efgDups + ", saltadas " + efgSkipped + ", tarde " + efgLate + "; L " + efgLcur.ToString("0.0", IC) +
-                      " ms (lista p90 " + EfgReadyP90().ToString("0.0", IC) + "), grafica: flujo " + efgFlowGpu.ToString("0.00", IC) + " ms, inventada " + efgGenGpu.ToString("0.00", IC) + " ms, copia " + efgCopyMs.ToString("0.00", IC) + " ms");
+                      " ms (lista p90 " + EfgReadyP90().ToString("0.0", IC) + "), grafica: flujo " + efgFlowGpu.ToString("0.00", IC) + " ms, inventada " + efgGenGpu.ToString("0.00", IC) + " ms, copia " + efgCopyMs.ToString("0.00", IC) + " ms" + EfgRitmoTxt());
         }
     }
 }

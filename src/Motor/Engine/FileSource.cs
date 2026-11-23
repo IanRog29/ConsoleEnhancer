@@ -45,6 +45,11 @@ namespace ConsoleEnhancer.Motor
         public int FileFilter = 0;           // test_archivo_filtro=area | bilineal (0 = area al reducir, bilineal al agrandar)
         public bool FileHw = true;           // test_archivo_hw=0: el video sin la grafica
         public string FileLog = "";          // test_archivo_registro=<csv>
+        // 23-11 (1.3.1, ronda 8, EFGCAL) test_archivo_cadencia=2,2,3,1 (refrescos de la senal que dura cada imagen del juego, en bucle): un juego
+        // a 30 con el ritmo irregular de una consola de verdad (imagenes de 1 y 3 refrescos), para medir la fluidez de la generacion. Va con
+        // paso 1 (se fuerza): la imagen del juego que empieza en la senal n es la n del fichero (el contenido va con el reloj). "u:2,2,3,1":
+        // el contenido avanza igual en cada imagen (2 del fichero) aunque dure 1 o 3 refrescos (un juego con mal ritmo de cuadro)
+        public string FileCadence = "";
 
         bool ApplyArchivo(string key, string val)
         {
@@ -63,6 +68,7 @@ namespace ConsoleEnhancer.Motor
                 case "test_archivo_filtro": { string v = val.Trim().ToLowerInvariant(); FileFilter = v == "area" ? FileConv.FiltroArea : v == "bilineal" ? FileConv.FiltroBilineal : FileConv.FiltroAuto; return true; }
                 case "test_archivo_hw": FileHw = B(val); return true;
                 case "test_archivo_registro": FileLog = val.Trim().Trim('"'); return true;
+                case "test_archivo_cadencia": FileCadence = val.Trim().ToLowerInvariant(); return true;   // (EFGCAL)
             }
             return false;
         }
@@ -210,6 +216,8 @@ namespace ConsoleEnhancer.Motor
             // 4 en 59,94) se clava a la señal / m, como una consola (sin un salto de cadencia cada ~30 s). Antes se recortaba el del FICHERO a
             // la señal: un video de 120 con paso 4 iba a camara lenta (15 imagenes del juego en vez de 30)
             P = Math.Max(1, s.FileStep);
+            CadenceInit();
+            if (cad != null) P = cadUniform ? cadUnif : 1;
             double nfps = fileNum / (double)fileDen;   // (el suyo, sin ajustar: para pasar segundos a imagenes igual que las herramientas)
             {
                 double gr = fileNum / (double)fileDen / P, sr = sigNum / (double)sigDen;
@@ -226,6 +234,7 @@ namespace ConsoleEnhancer.Motor
             long end = s.FileTo > 0 ? Math.Min(frames, (long)Math.Round(s.FileTo * nfps)) : frames;
             if (end <= F0) end = Math.Min(frames, F0 + 1);
             K = Math.Max(1, (end - F0 + P - 1) / P);
+            if (cad != null && !cadUniform) K = Math.Max(cad.Length, (end - F0) / cadSum * cad.Length);   // (EFGCAL: periodos enteros)
             stillF = s.FileStill >= 0 ? Math.Min(frames - 1, (long)Math.Round(s.FileStill * nfps)) : -1;
             fileFpsNative = nfps;
             if (!video) readBuf = new byte[frameBytes];
@@ -326,8 +335,36 @@ namespace ConsoleEnhancer.Motor
         long SignalAt(long qpc) { return (long)Math.Floor((qpc - t0Qpc) / (double)System.Diagnostics.Stopwatch.Frequency * SigFps); }
         long QpcOf(long n) { return t0Qpc + (long)Math.Round(n / SigFps * System.Diagnostics.Stopwatch.Frequency); }
 
+        // (EFGCAL) test_archivo_cadencia
+        int[] cad, cadStart; int cadSum, cadUnif; bool cadUniform;
+        void CadenceInit()
+        {
+            string v = s.FileCadence;
+            if (v.Length == 0) return;
+            cadUniform = v.StartsWith("u:");
+            if (cadUniform) v = v.Substring(2);
+            string[] parts = v.Split(new char[] { ',', ' ', ';' }, StringSplitOptions.RemoveEmptyEntries);
+            int[] c = new int[parts.Length];
+            for (int i = 0; i < parts.Length; i++) { int x; c[i] = int.TryParse(parts[i], NumberStyles.Integer, CultureInfo.InvariantCulture, out x) ? Math.Max(1, Math.Min(8, x)) : 2; }
+            if (c.Length == 0) return;
+            cad = c; cadStart = new int[c.Length]; cadSum = 0;
+            for (int i = 0; i < c.Length; i++) { cadStart[i] = cadSum; cadSum += c[i]; }
+            cadUnif = Math.Max(1, (int)Math.Round(cadSum / (double)c.Length));
+            Log.Write("Fuente de prueba (archivo): cadencia del juego " + string.Join(",", Array.ConvertAll(c, delegate (int x) { return x.ToString(CultureInfo.InvariantCulture); })) +
+                      " refrescos (" + (cadUniform ? "el contenido avanza " + cadUnif + " imagenes del fichero en cada una" : "el contenido va con el reloj") + ")");
+        }
+
         long GameOf(long n)
         {
+            if (cad != null && stillF < 0)
+            {
+                long cg = n - nBase;
+                if (cg < 0) cg = 0;
+                long cq = cg / cadSum; int cr = (int)(cg % cadSum);
+                int cj = 0;
+                while (cj + 1 < cad.Length && cadStart[cj + 1] <= cr) cj++;
+                return (cq * cad.Length + cj) % K;
+            }
             if (stillF >= 0) return 0;
             long g = n - nBase;
             if (g < 0) g = 0;
@@ -339,7 +376,25 @@ namespace ConsoleEnhancer.Motor
             return q < K ? q : period - q;
         }
 
-        long FileOf(long k) { return stillF >= 0 ? stillF : F0 + k * P; }
+        long FileOf(long k)
+        {
+            if (stillF >= 0) return stillF;
+            if (cad != null && !cadUniform) return F0 + (k / cad.Length) * cadSum + cadStart[(int)(k % cad.Length)];   // (EFGCAL)
+            return F0 + k * P;
+        }
+
+        // (EFGCAL) la imagen del juego de la imagen i del fichero (-1 = no es del juego)
+        long KOfFile(long i)
+        {
+            if (stillF >= 0) return i == stillF ? 0 : -1;
+            if (i < F0) return -1;
+            if (cad != null && !cadUniform)
+            {
+                int r = (int)((i - F0) % cadSum), idx = Array.IndexOf(cadStart, r);
+                return idx < 0 ? -1 : ((i - F0) / cadSum) * cad.Length + idx;
+            }
+            return (i - F0) % P == 0 ? (i - F0) / P : -1;
+        }
         int Slot(long k) { return (int)(k % Ring); }
 
         public void Start()
@@ -417,6 +472,7 @@ namespace ConsoleEnhancer.Motor
                     long end = Math.Min(frames, s.FileTo > 0 ? (long)Math.Round(s.FileTo * fileFpsNative) : frames);
                     if (F0 >= end) F0 = 0;
                     K = Math.Max(1, (end - F0 + P - 1) / P);
+                    if (cad != null && !cadUniform) K = Math.Max(cad.Length, (end - F0) / cadSum * cad.Length);   // (EFGCAL)
                     if (stillF >= frames) stillF = frames - 1;
                     Log.Write("Fuente de prueba (archivo): el video acaba en la imagen " + (frames - 1) + "; " + K + " imagenes del juego");
                     return;   // (la siguiente vuelta del bucle vuelve a calcular lo que falta)
@@ -431,7 +487,7 @@ namespace ConsoleEnhancer.Motor
                     lock (ringLock) ringFrame[sw] = want;
                     return;
                 }
-                long k = stillF >= 0 ? (i == stillF ? 0 : -1) : ((i - F0) % P == 0 && i >= F0 ? (i - F0) / P : -1);
+                long k = KOfFile(i);
                 if (k >= 0 && k < K && (k == want || IsSoon(k)))
                 {
                     int sl = Slot(k);
