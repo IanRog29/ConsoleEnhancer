@@ -80,7 +80,7 @@ namespace ConsoleEnhancer
                 { string d5 = SmoothX4FaltaD5(MotorD5Simple, VideoSize); if (d5.Length > 0) return d5; }
                 // (1.2.4 ronda 6, integracion: sin Magpie ni el multiplicador viejo, lo mismo que pide el tipo XeSS FG -DLL, el motor, la captura y
                 // que no se haya caido en esta sesion, XessCaido-)
-                if (!GenPuedeIr("xess", VideoSize)) return XessCaido ? Tx.T("XeSS FG se ha caído en el motor en esta sesión", "XeSS FG failed in the engine this session")
+                if (!XessMotorPuede(VideoSize)) return XessCaido ? Tx.T("XeSS FG se ha caído en el motor en esta sesión", "XeSS FG failed in the engine this session")
                                                                    : Tx.T("XeSS FG no está o no va en el motor", "XeSS FG is missing or does not run in the engine");
                 return "";
             }
@@ -96,7 +96,7 @@ namespace ConsoleEnhancer
             if (Pantalla.Hz() < 119) return Tx.T("La pantalla no va a 120 Hz", "The screen is not at 120 Hz");
             if (EngineVrr <= 0) return Tx.T("Sin VRR (G-SYNC) en la pantalla", "No VRR (G-SYNC) on the screen");
             { string f = SmoothX4FaltaD5(d5, cap); if (f.Length > 0) return f.Substring(0, 1).ToUpperInvariant() + f.Substring(1); }
-            if (!GenPuedeIr("xess", string.IsNullOrEmpty(cap) ? VideoSize : cap)) return XessCaido ? Tx.T("XeSS FG se ha caído en el motor en esta sesión", "XeSS FG failed in the engine this session")
+            if (!XessMotorPuede(string.IsNullOrEmpty(cap) ? VideoSize : cap)) return XessCaido ? Tx.T("XeSS FG se ha caído en el motor en esta sesión", "XeSS FG failed in the engine this session")
                                                                : Tx.T("Necesita XeSS FG en el motor (falta su DLL en xess\\)", "Needs XeSS FG in the engine (its DLL is missing in xess\\)");
             return "";
         }
@@ -124,22 +124,23 @@ namespace ConsoleEnhancer
             MethodInfo live = typeof(TrayApp).GetMethod("EngineLive", BindingFlags.NonPublic | BindingFlags.Static, null, new[] { typeof(Config), typeof(bool) }, null);
             bool hz120 = Pantalla.Hz() >= 119;
             // caso: x4 pedido, nada falta | sin pedirlo | sin VRR | modo 60 | otro tipo en el 30 | a 120 | generacion apagada
-            string[] casos = { "x4", "sin_clave", "sin_vrr", "modo60", "xess30", "modo120", "fg_off" };
+            // (1.3.1, AJUSTES: "otro tipo en el 30" con Enhanced FG; XeSS FG ya no es un tipo elegible -elegido, va Smooth Motion-)
+            string[] casos = { "x4", "sin_clave", "sin_vrr", "modo60", "efg30", "modo120", "fg_off" };
             foreach (string caso in casos)
             {
                 c.SmoothX4 = caso != "sin_clave"; c.EngineVrr = caso == "sin_vrr" ? 0 : 1; c.CapMode = caso != "modo60" && caso != "modo120"; c.Mode120 = caso == "modo120";
                 c.FgOff = caso == "fg_off"; c.HomeNative = false; c.Dlss5Off = true; c.VideoSize = "3840x2160";
-                c.FgPick30 = caso == "xess30" ? "xess" : "smooth"; c.FgPick60 = "smooth";
+                c.FgPick30 = caso == "efg30" ? "efg" : "smooth"; c.FgPick60 = "smooth";
                 bool x4 = c.SmoothX4Now;
                 int sm = c.EngineSmoothMode, chain = c.EngineFgChain;
                 string args = c.MotorFgArgs(chain).Trim(), lv = live != null ? (string)live.Invoke(null, new object[] { c, sm > 0 }) : "?";
                 bool fg1 = lv.StartsWith("fg=1");
-                bool esperaX4 = caso == "x4" && hz120 && GenPuedeIr("xess", c.VideoSize);
+                bool esperaX4 = caso == "x4" && hz120 && XessMotorPuede(c.VideoSize);
                 bool ok = x4 == esperaX4;
                 if (esperaX4) ok = ok && sm == 3 && (chain == 20 || chain == 21) && args.Contains("fg_tipo=xess") && fg1;   // (1.2.4 ronda 6: sin fg_mult, XeSS FG siempre x2)
                 else if (caso == "sin_clave" || caso == "sin_vrr") ok = ok && sm == (hz120 ? 2 : 1) && chain == 0 && !fg1;   // (Smooth Motion x2 como siempre)
                 else if (caso == "modo120" || caso == "fg_off") ok = ok && sm == 0;
-                else if (caso == "xess30") ok = ok && sm == 0;
+                else if (caso == "efg30") ok = ok && sm == 0;
                 if (!ok) fallos++;
                 sb.AppendLine((ok ? "bien  " : "FALLO ") + caso + ": x4=" + x4 + " (" + (c.SmoothX4Falta.Length > 0 ? c.SmoothX4Falta : "nada falta") + ") sm=" + sm + " cadena=" + chain +
                               " motor: '" + args + "' " + (lv.Length > 40 ? lv.Substring(0, 40) : lv));
@@ -148,7 +149,7 @@ namespace ConsoleEnhancer
             // smooth_x4_dlss5=0); DLSS 5 no -> nada (si nada mas falta); y FpsBajo: x4 que no llego con esta captura y DLSS 5 -> bloqueado esta sesion
             {
                 c.SmoothX4 = true; c.EngineVrr = 1; c.CapMode = true; c.Mode120 = false; c.FgOff = false; c.Dlss5Off = true; c.FgPick30 = "smooth";
-                bool base4 = hz120 && GenPuedeIr("xess", "3840x2160");
+                bool base4 = hz120 && XessMotorPuede("3840x2160");
                 string m5 = c.SmoothX4FaltaMenu(true, "3840x2160"), m0 = c.SmoothX4FaltaMenu(false, "3840x2160");
                 bool ok = (SmoothX4Dlss5 || m5.Length > 0) && (!base4 || m0.Length == 0);
                 if (!ok) fallos++;

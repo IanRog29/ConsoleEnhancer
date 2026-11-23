@@ -45,7 +45,8 @@ namespace ConsoleEnhancer
         // 18-11 (INTEGRADO): la carpeta del exe si es una carpeta completa de la app (paquete de scripts\empaquetar.ps1); antes, en la app original, una carpeta fija
         // como siempre (los exe de prueba compilados en otra carpeta). Ver Integrado.FindAppDir. Ya no son const: static readonly
         public static readonly string AppDir = Integrado.FindAppDir();
-        // ConsoleEnhancer: los datos (ini, log, games\) en Integrado.FindDataDir: <app>\datos (portable.txt) o %LOCALAPPDATA%\ConsoleEnhancer
+        // ConsoleEnhancer: los datos (ini, log, games\) en Integrado.FindDataDir: (1.3.1) %LOCALAPPDATA%\ConsoleEnhancer\settings, la misma para
+        // todas las versiones (AjustesPc.cs); <app>\data con un portable.txt del usuario
         public static readonly string Datos = Integrado.FindDataDir(AppDir);
         // (16-11: solo pruebas, --ini=<ruta>: otro ini sin tocar el de verdad, que editan otros)
         public static string IniFile = Datos + @"\consoleenhancer.ini";
@@ -11978,6 +11979,7 @@ namespace ConsoleEnhancer
                 HideCurtain(); // si mpv se relanzo en plena partida para cambiar la captura
                 ShowPendingWarn();
                 CapMostrarAviso(); // 21-11 (1.2.1): "La capturadora no da ... · se usa ..." si hizo falta un repuesto (CapturaSegura.cs)
+                AjustesAviso();    // (1.3.1, AJUSTES: una vez, "Ajustes y perfiles de la 1.3 recuperados..." / "XeSS FG ya no esta: va ..."; AjustesPc.cs)
                 Stopwatch cs = captureSw;
                 if (cs != null)
                 {
@@ -12334,6 +12336,11 @@ namespace ConsoleEnhancer
                 // 23-11 (1.2.4 ronda 7, TEXTOS): los avisos al aplicar (menu de ajustes, botones, bandeja) contra lo que va de verdad, todas las
                 // combinaciones del menu, sin abrir nada: --test-avisos[=<informe>] (src\Lanzador\Avisos.cs; con --datos=<copia>: escribe lo elegido)
                 if (arg == "--test-avisos" || arg.StartsWith("--test-avisos=")) return TrayApp.AvisosPrueba(arg.Length > 14 ? arg.Substring(14) : null);
+                // 23-11 (1.3.1, AJUSTES): la carpeta de los ajustes en el PC, la migracion, versiones mas antiguas, portable.txt y lo que ya no existe,
+                // sobre copias: --test-ajustes[=<informe>][;<carpeta de trabajo>[;<data de una version>[;<%LOCALAPPDATA%\ConsoleEnhancer>]]] (AjustesPrueba.cs)
+                if (arg == "--test-ajustes" || arg.StartsWith("--test-ajustes=")) return AjustesPrueba.Run(arg.Length > 15 ? arg.Substring(15) : null);
+                // (1.3.1, AJUSTES) donde van los ajustes con la logica de verdad (no es una prueba: con CE_PC_DIR=<carpeta> para no tocar los de verdad)
+                if (arg == "--ajustes-donde" || arg.StartsWith("--ajustes-donde=")) return AjustesPrueba.Donde(arg.Length > 16 ? arg.Substring(16) : null);
                 // 22-11 (1.2.3, MOTOR5): PrismaNr.dll junto a la DLL elegida en "Añadir DLSS 5": --test-extras-guardados[=<informe>]
                 if (arg == "--test-extras-guardados" || arg.StartsWith("--test-extras-guardados=")) return ExtrasGuardados.Prueba(arg.Length > 24 ? arg.Substring(24) : null);
                 // 22-11 (1.2.4): la busqueda de los archivos de DLSS 5 en el PC con carpetas falsas: --test-buscar-extras[=<informe>] (BuscaExtras.cs)
@@ -12562,6 +12569,7 @@ namespace ConsoleEnhancer
                 }
                 catch { }
                 Log.Write("===== Inicio ConsoleEnhancer =====");
+                AjustesPc.AlAbrir(cfg); // (1.3.1, AJUSTES: donde estan los ajustes -la carpeta del PC-, lo traido de la version de antes y lo que ya no existe al mas parecido; src\Lanzador\AjustesPc.cs)
                 try { CeDefender.AlAbrir(); } catch (Exception ex) { Log.Error("Microsoft Defender", ex); } // (1.2.08: si Defender cerro la app, explicarlo; src\Lanzador\DefenderAviso.cs)
                 CeInicio.Sincronizar(cfg); // (ConsoleEnhancer: iniciar_con_windows, src\InicioWindows.cs; 1.2.3: despues del aviso de Defender, por si pregunta)
                 CeSuspension.AlAbrir(cfg); // (1.0.14: que los mandos y teclados nuevos despierten el PC, src\Suspension.cs)

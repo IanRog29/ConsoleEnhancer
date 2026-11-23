@@ -12,7 +12,7 @@ English · [Español](#español)
 **Your console on the TV, better than ever, without touching a keyboard.** ConsoleEnhancer turns the living-room PC into the "box"
 between your console and your TV: plug the console into a capture card, the PC into the TV, and that's it. Turn the console on and the
 app opens by itself; the picture is **upscaled to 4K** (DLSS, FSR, XeSS), with **frame generation** when your GPU supports it
-(Smooth Motion up to ×4, XeSS FG and the app's own Enhanced FG, experimental), **HDR** and **VRR**, and **as little latency as
+(Smooth Motion up to ×4 and the app's own Enhanced FG, experimental), **HDR** and **VRR**, and **as little latency as
 possible**, all in the app's own image engine (no other player or upscaler window in between). Everything is driven
 **with the controller** from the couch, no mouse or keyboard; when you turn the console off, the app closes by itself and, if you want,
 the PC goes into a **low-power mode, like a console in rest mode**: it doesn't shut down or sleep, it stays on using as little as
@@ -66,7 +66,7 @@ is in front**. They go by position, so the same spot does the same thing on ever
 | **Settings menu** on screen (open / close) | Xbox button | PS | HOME | `Ctrl`+`O` |
 | **30 → 60 → 120 fps** mode | Menu ≡ | Options | + | `Ctrl`+`M` |
 | **Frame generation** on / off | View ⧉ | Create (PS5) / Share (PS4) · touchpad | − · Capture | `Ctrl`+`F` |
-| Frame generation **type** (Smooth Motion, XeSS FG, Enhanced FG) | L3 | L3 | L3 | `Ctrl`+`G` |
+| Frame generation **type** (Smooth Motion, Enhanced FG) | L3 | L3 | L3 | `Ctrl`+`G` |
 | Dither filter (new / old) | hold L3 1 s | hold L3 1 s | hold L3 1 s | |
 | **Capture** at 720p / 1080p / 1440p / 4K | D-pad ← ↑ → ↓ | D-pad ← ↑ → ↓ | D-pad ← ↑ → ↓ | `Ctrl`+`1` … `Ctrl`+`4` |
 | Main / alternative **upscaler** (the alternative is FSR 1) | R3 | R3 | R3 | `Ctrl`+`R` |
@@ -134,17 +134,20 @@ with help a lot too.
 
 - **First-run wizard** (and again from the tray), 9 steps: language, what was detected, the capture card with *Test picture*, the sound
   with *Test sound*, the console, the display, the **picture** (HDR and VRR), the **controller** (button table for yours) and the plan.
-- **Chain chosen by GPU** (`src\Deteccion\Plan.cs`): RTX 40 / 50, DLSS SR + Reflex + **Smooth Motion** ×2 (XeSS FG ×2 with the TV
-  at 119.88 Hz or a driver without Smooth Motion; XeSS FG and Enhanced FG in the selector); RTX 20/30, DLSS SR + Reflex
-  (XeSS FG optional); without DLSS, **XeSS** on GTX and Intel Arc and **FSR 4** on AMD RX 6000 / 7000 / 9000 (official on
+- **Chain chosen by GPU** (`src\Deteccion\Plan.cs`): RTX 40 / 50, DLSS SR + Reflex + **Smooth Motion** ×2 (Enhanced FG with the TV
+  at 119.88 Hz or a driver without Smooth Motion; Enhanced FG in the selector); RTX 20/30, DLSS SR + Reflex
+  (Enhanced FG optional); without DLSS, **XeSS** on GTX and Intel Arc and **FSR 4** on AMD RX 6000 / 7000 / 9000 (official on
   RX 9000; on RX 6000 / 7000 through the FSR 4.1.1 unlock, experimental; otherwise FSR 3.1), plus whatever frame generation each one
   has (driver AFMF, XeSS FG). Enhanced FG is never picked by default: it is experimental. **FSR 3 FG is no longer offered** (1.3):
   measured against real gameplay video it was the worst of all, with generated frames that barely move; `generacion_fsr3=1` in the ini
-  brings it back as "FSR 3 FG (experimental)".
+  brings it back as "FSR 3 FG (experimental)". **XeSS FG is not offered either, for now** (1.3.1): not in the settings menu, L3, the
+  lists or as an automatic fallback; game profiles and choices that had it switch to the closest one on this PC (Smooth Motion on
+  RTX 40 / 50, same ×2) and the app says so once. Smooth Motion ×4 still uses the engine's XeSS FG ×2 underneath (it is not an option of
+  its own). `generacion_xess=1` in the ini brings it back.
 - **Everything in the built-in image engine** (D3D12, `src\Motor`; there is nothing to choose): DirectShow capture; upscaling with
   DLSS, XeSS, FSR 3.1 / FSR 4 (with Intel's and AMD's official DLLs, downloaded on first start) or FSR 1 (EASU + RCAS); "DLSS 5" with
   your own file (1 to 3 passes, with any frame generation type); frame generation with **Smooth Motion** (NVIDIA driver, RTX 40 / 50),
-  **XeSS FG** and **Enhanced FG** (experimental; FSR 3 FG only with `generacion_fsr3=1`); Reflex / XeLL; and, optionally, NVIDIA RTX
+  and **Enhanced FG** (experimental; XeSS FG only with `generacion_xess=1`, FSR 3 FG only with `generacion_fsr3=1`); Reflex / XeLL; and, optionally, NVIDIA RTX
   Dynamic Vibrance (`motor_extra=vibrancia=1`). Colour from YUY2 / NV12 capture cards is properly reconstructed, without blocky red
   edges (`croma=2` in `motor_extra`; `croma=0` = as before). Since 1.3 the app no longer uses or downloads Magpie or mpv, and NVIDIA
   DLSS Frame Generation is gone.
@@ -241,8 +244,8 @@ with help a lot too.
   (`motor_60fg_refresco_fijo=auto`; at 144 Hz or more, at 119.88 Hz, without VRR or without NVIDIA nothing is changed; never in the
   120 fps mode, which always keeps VRR).
 - **Frame generation selector**: L3 while playing (or Ctrl+G on the keyboard over the picture, the settings menu or the tray) cycles
-  through the types your GPU has (Smooth Motion, XeSS FG, and Enhanced FG last; FSR 3 FG only with `generacion_fsr3=1`) and remembers
-  the choice per game. Only what can keep pace is offered. Smooth Motion and XeSS FG are ×2 (Smooth Motion ×4 as an option, see above);
+  through the types your GPU has (Smooth Motion, and Enhanced FG last; XeSS FG / FSR 3 FG only with `generacion_xess=1` /
+  `generacion_fsr3=1`) and remembers the choice per game. Only what can keep pace is offered. Smooth Motion is ×2 (×4 as an option, see above);
   Enhanced FG (and FSR 3 FG, if brought back) has ×2 / ×3 / ×4 in the settings menu's *Multiplier* row. If the real frames can't be held, the first step down is the multiplier
   (×4 → ×3 → ×2). Since 1.3 there is no DLSS Frame Generation and no old ×3 / ×4 (they didn't work well); game profiles and settings
   that used them switch by themselves to the closest type (on NVIDIA, Smooth Motion) and keep everything else. If a frame generation
@@ -303,12 +306,20 @@ with help a lot too.
 - **Components**: Intel XeSS and AMD FSR are downloaded once from their official pages with their SHA-256 checked (offline, from
   the zips in `downloads\`; if the app folder still has a `magpie\` folder from an older version, the Intel and AMD files are taken
   from there without downloading anything); tray > *Components: check / download again* repairs them.
-- **Updates keep your data**: the first time a new version opens, it copies the settings, per-game profiles and recognised console from
-  the previous version's folder (noted in `data\inherited.txt`), reuses the downloaded components and the compiled shaders (first start
-  ~11 s instead of ~1 min) and applies the new general settings while keeping what the wizard chose (backup in `.antes-*`). From
-  1.3 on, settings that no longer exist (DLSS FG, the old ×3 / ×4, Magpie and mpv) are removed from your ini at that point.
-- **Portable**: with `portable.txt` next to the exe (included in the zip), everything is stored in `data\`; if you delete it, in
-  `%LOCALAPPDATA%\ConsoleEnhancer`.
+- **Your settings live on this PC, not in the app folder** (1.3.1): `%LOCALAPPDATA%\ConsoleEnhancer\settings` holds the ini (what you
+  pick in the menus), the per-game profiles, the recognised console, the language, the learned scales and the logs (`logs\`, with the
+  engine's compiled shaders). It is the same folder for **every** version and is written on every change, so a new version unzipped
+  anywhere (Downloads, Desktop, another drive, with no older version next to it) uses your settings as they are from the first start.
+  The first time (1.3.1), the app brings them over once from the most recently used data folder (an older version's `data\` next to it
+  or the backup in `%LOCALAPPDATA%\ConsoleEnhancer\backup`), noted in `settings\inherited.txt` and said once on screen.
+- **Updates keep your choices**: the new version applies its new general settings while keeping what you and the wizard chose (copy in
+  `.antes-*`); only what no longer exists is switched to the closest thing (XeSS FG and FSR 3 FG -> Smooth Motion on RTX 40 / 50; DLSS FG,
+  the old ×3 / ×4, Magpie and mpv were removed in 1.3), written to the log and said once on screen. An **older** version opened later
+  never rewrites the settings of a newer one: it works on a copy (`settings-older\<version>`).
+- **Start from scratch**: close the app and delete `%LOCALAPPDATA%\ConsoleEnhancer\settings` (or the whole `ConsoleEnhancer` folder
+  there, which also removes the backup and your DLSS 5 file copy); *Uninstall* with "Yes = everything is deleted" does the same.
+- **Portable** (optional): create an empty `portable.txt` next to the exe and everything is stored in `data\` there instead (also if the
+  PC folder can't be written). The `portable.txt` that zips up to 1.3 shipped is ignored.
 - **Interface in English and Spanish**, chosen in the wizard's first step.
 
 ## Power: what the PC does when the console turns off
@@ -447,11 +458,11 @@ also playing it. What it can't see: the capture card's HDMI pass-through output 
 volume down or use another output. `sonido_doble=0` in the ini leaves things as before.
 
 **I don't get DLSS or frame generation.** DLSS only exists on NVIDIA GeForce RTX; Smooth Motion on RTX 40/50; frame generation needs a
-100 Hz or faster display. Other GPUs get XeSS or FSR 4 / 3.1, XeSS FG and Enhanced FG (any GPU with Direct3D 12) and whatever frame
-generation they have. XeSS FG needs the Intel files the app downloads (tray > *Components*). Update the driver.
+100 Hz or faster display. Other GPUs get XeSS or FSR 4 / 3.1 and Enhanced FG (any GPU with Direct3D 12; XeSS FG is off for now, see
+above). XeSS SR needs the Intel files the app downloads (tray > *Components*). Update the driver.
 
 **Which frame generation should I use?** On RTX 40 / 50, Smooth Motion (the default). For ×4 in the 30 fps mode, with a 120 Hz VRR
-screen and without DLSS 5: Smooth Motion ×4. XeSS FG ×2 is the alternative. Enhanced FG is the app's own one, experimental: its *low latency* mode shows the real frame as soon as
+screen and without DLSS 5: Smooth Motion ×4. Enhanced FG is the app's own one, experimental: its *low latency* mode shows the real frame as soon as
 it is ready (less delay, more errors at edges and when the motion changes direction).
 
 **It stutters or lags.** Run the wizard again (with the display and the capture card at their proper resolution), close programs that
@@ -469,8 +480,9 @@ Enhanced FG, the rest of the session uses another frame generation type in the e
 
 **My desktop is stuck black.** `ConsoleEnhancer.exe --restaurar-escritorio`.
 
-**Where are the settings and the log?** In `data\` next to the exe (portable) or in `%LOCALAPPDATA%\ConsoleEnhancer`:
-`consoleenhancer.ini` and `logs\consoleenhancer.log` / `engine.log`. If you open an *issue*, attach the log (check first that it doesn't
+**Where are the settings and the log?** In `%LOCALAPPDATA%\ConsoleEnhancer\settings` (the same for every version; `data\` next to
+the exe only with your own `portable.txt`): `consoleenhancer.ini`, `games\` and `logs\consoleenhancer.log` / `engine.log`. Settings
+panel > *Open my settings and profiles* opens it. To start from scratch, close the app and delete that folder. If you open an *issue*, attach the log (check first that it doesn't
 contain anything of yours you don't want to show, such as folder names).
 
 **What about "DLSS 5"?** It is a community-modified NVIDIA DLL: **it is not included, not downloaded and not recommended**. The app
@@ -603,7 +615,7 @@ Read [`CONTRIBUTING.md`](CONTRIBUTING.md) before sending changes (C# 5, no binar
 **Tu consola en la tele, mejor que nunca, sin tocar el teclado.** ConsoleEnhancer convierte el PC del salón en la "caja" que va entre
 tu consola y tu tele: conectas la consola a una capturadora, el PC a la tele, y listo. Enciendes la consola y la app se abre sola; la
 imagen llega **reescalada a 4K** (DLSS, FSR, XeSS), con **generación de fotogramas** si tu gráfica puede (Smooth Motion hasta ×4,
-XeSS FG y la Enhanced FG propia de la app, experimental), **HDR** y **VRR**, y con el **menor retraso posible**, todo en el motor de
+y la Enhanced FG propia de la app, experimental), **HDR** y **VRR**, y con el **menor retraso posible**, todo en el motor de
 imagen propio de la app (sin otro reproductor ni otra ventana de escalado por medio). Todo se maneja **con el mando** desde el
 sofá, sin ratón ni teclado; y al apagar la consola, la app se cierra sola y, si quieres, el PC pasa a un **modo de bajo consumo, como
 una consola en reposo**: no se apaga ni se suspende, sigue encendido gastando lo mínimo, y al volver a encender la consola vuelve la
@@ -658,7 +670,7 @@ delante**. Van por posición: el mismo sitio hace lo mismo en cualquier mando.
 | **Menú de ajustes** en pantalla (abrir / cerrar) | botón Xbox | PS | HOME | `Ctrl`+`O` |
 | Modo **30 → 60 → 120 fps** | Menú ≡ | Options | + | `Ctrl`+`M` |
 | **Generación de fotogramas** sí / no | Vista ⧉ | Crear (PS5) / Share (PS4) · panel táctil | − · Captura | `Ctrl`+`F` |
-| **Tipo** de generación (Smooth Motion, XeSS FG, Enhanced FG) | L3 | L3 | L3 | `Ctrl`+`G` |
+| **Tipo** de generación (Smooth Motion, Enhanced FG) | L3 | L3 | L3 | `Ctrl`+`G` |
 | Filtro de tramado (nuevo / viejo) | mantener L3 1 s | mantener L3 1 s | mantener L3 1 s | |
 | **Captura** a 720p / 1080p / 1440p / 4K | cruceta ← ↑ → ↓ | cruceta ← ↑ → ↓ | cruceta ← ↑ → ↓ | `Ctrl`+`1` … `Ctrl`+`4` |
 | **Escalador** principal / alternativo (el alternativo es FSR 1) | R3 | R3 | R3 | `Ctrl`+`R` |
@@ -726,17 +738,20 @@ y contar en qué PC y con qué consola lo usas.
 
 - **Asistente del primer arranque** (y otra vez desde la bandeja), 9 pasos: idioma, lo detectado, la capturadora con *Probar imagen*,
   el sonido con *Probar sonido*, la consola, la pantalla, la **imagen** (HDR y VRR), el **mando** (tabla de botones del tuyo) y el plan.
-- **Cadena según la gráfica** (`src\Deteccion\Plan.cs`): RTX 40 / 50, DLSS SR + Reflex + **Smooth Motion** ×2 (XeSS FG ×2 con la tele
-  a 119,88 Hz o un driver sin Smooth Motion; XeSS FG y Enhanced FG en el selector); RTX 20/30, DLSS SR + Reflex (XeSS FG
+- **Cadena según la gráfica** (`src\Deteccion\Plan.cs`): RTX 40 / 50, DLSS SR + Reflex + **Smooth Motion** ×2 (Enhanced FG con la tele
+  a 119,88 Hz o un driver sin Smooth Motion; Enhanced FG en el selector); RTX 20/30, DLSS SR + Reflex (Enhanced FG
   opcional); sin DLSS, **XeSS** en GTX e Intel Arc y **FSR 4** en AMD RX 6000 / 7000 / 9000 (oficial en las RX 9000; en RX
   6000 / 7000 con el desbloqueo de FSR 4.1.1, experimental; si no, FSR 3.1), y la generación que tenga cada una (AFMF del driver, FSR 3
   FG, XeSS FG). Enhanced FG nunca se pone de serie: es experimental. **FSR 3 FG ya no se ofrece** (1.3): medida
   con vídeo real de juego era la peor de todas, con inventadas que casi no se mueven; `generacion_fsr3=1` en el ini la vuelve a poner
-  como «FSR 3 FG (experimental)».
+  como «FSR 3 FG (experimental)». **XeSS FG tampoco se ofrece, de momento** (1.3.1): ni en el menú de ajustes, ni en L3, ni en las
+  listas, ni como salida automática; los perfiles de juegos y lo elegido con ella pasan a lo más parecido de este PC (Smooth Motion en
+  RTX 40 / 50, el mismo ×2) y la app lo dice una vez. Smooth Motion ×4 sigue usando por dentro XeSS FG ×2 del motor (no es una opción
+  aparte). `generacion_xess=1` en el ini la vuelve a poner.
 - **Todo en el motor de imagen propio** (D3D12, `src\Motor`; no hay nada que elegir): captura DirectShow; escalado con DLSS, XeSS,
   FSR 3.1 / FSR 4 (con las DLL oficiales de Intel y AMD, que se bajan la primera vez) o FSR 1 (EASU + RCAS); "DLSS 5" con tu propio
   archivo (1 a 3 pasadas, con cualquier tipo de generación); generación de fotogramas con **Smooth Motion** (driver de NVIDIA, RTX 40 /
-  50), **XeSS FG** y **Enhanced FG** (experimental; FSR 3 FG solo con `generacion_fsr3=1`); Reflex / XeLL; y, si quieres,
+  50) y **Enhanced FG** (experimental; XeSS FG solo con `generacion_xess=1`, FSR 3 FG solo con `generacion_fsr3=1`); Reflex / XeLL; y, si quieres,
   la Vibrancia RTX de NVIDIA (`motor_extra=vibrancia=1`). El color de las capturadoras YUY2 / NV12 se reconstruye bien, sin bordes rojos
   en escalones (`croma=2` en `motor_extra`; `croma=0` = como antes). Desde la 1.3 la app ya no usa ni baja Magpie ni mpv, y DLSS
   Frame Generation de NVIDIA ya no está.
@@ -834,8 +849,8 @@ y contar en qué PC y con qué consola lo usas.
   perdían ~2 imágenes de la consola por segundo; así salen todas y con menos retraso (`motor_60fg_refresco_fijo=auto`; con 144 Hz o
   más, a 119,88 Hz, sin VRR o sin NVIDIA no se toca nada; nunca en el modo 120, que siempre sigue con VRR).
 - **Selector de generación de fotogramas**: L3 jugando (o Ctrl+G con el teclado sobre la imagen, el menú de ajustes o la bandeja)
-  recorre los tipos que tiene tu gráfica (Smooth Motion, XeSS FG y, la última, Enhanced FG; FSR 3 FG solo con `generacion_fsr3=1`) y lo
-  recuerda por juego. Solo se ofrece lo que llega a ritmo. Smooth Motion y XeSS FG van ×2 (Smooth Motion ×4 como opción, ver arriba);
+  recorre los tipos que tiene tu gráfica (Smooth Motion y, la última, Enhanced FG; XeSS FG / FSR 3 FG solo con `generacion_xess=1` /
+  `generacion_fsr3=1`) y lo recuerda por juego. Solo se ofrece lo que llega a ritmo. Smooth Motion va ×2 (×4 como opción, ver arriba);
   Enhanced FG (y FSR 3 FG, si se vuelve a poner) tiene ×2 / ×3 / ×4 en la fila *Multiplicador* del menú de ajustes. Si no se llega a las reales, lo primero que baja es el multiplicador
   (×4 → ×3 → ×2). Desde la 1.3 no hay DLSS Frame Generation ni los ×3 / ×4 de antes (no iban bien); los perfiles y ajustes que los
   usaban pasan solos al tipo más parecido (en NVIDIA, Smooth Motion) y conservan todo lo demás. Si un tipo de generación pierde la
@@ -895,13 +910,21 @@ y contar en qué PC y con qué consola lo usas.
 - **Componentes**: Intel XeSS y AMD FSR se bajan una vez de sus páginas oficiales comprobando su SHA-256 (sin internet, con los
   zip en `downloads\`; si en la carpeta de la app queda un `magpie\` de una versión anterior, de ahí salen los archivos de Intel y AMD
   sin bajar nada); bandeja > *Componentes: comprobar / volver a descargar* los repara.
-- **Al actualizar no pierdes nada**: la primera vez que se abre una versión nueva, copia los ajustes, los perfiles de cada juego y la
-  consola reconocida de la carpeta de la versión anterior (se apunta en `data\inherited.txt`), reutiliza los componentes ya bajados y
-  los shaders ya compilados (primer arranque de ~1 min a ~11 s) y pone los ajustes generales nuevos sin tocar lo que eligió el asistente
-  (copia en `.antes-*`). Desde la 1.3, en ese momento se quitan del ini los ajustes que ya no existen (DLSS FG, los ×3 / ×4 de antes,
-  Magpie y mpv).
-- **Portable**: con `portable.txt` junto al exe (viene en el zip), todo se guarda en `data\`; si lo borras, en
-  `%LOCALAPPDATA%\ConsoleEnhancer`.
+- **Tus ajustes viven en este PC, no en la carpeta de la app** (1.3.1): `%LOCALAPPDATA%\ConsoleEnhancer\settings` guarda el ini (lo que
+  eliges en los menús), los perfiles de cada juego, la consola reconocida, el idioma, las escalas aprendidas y los registros (`logs\`, con
+  los shaders ya compilados del motor). Es la misma carpeta para **todas** las versiones y se escribe en cada cambio: una versión nueva
+  descomprimida donde sea (Descargas, Escritorio, otra unidad, sin ninguna anterior al lado) usa tus ajustes tal cual desde el primer
+  arranque. La primera vez (1.3.1) la app los trae una vez de la carpeta de datos usada más recientemente (el `data\` de una versión
+  anterior de al lado o la copia de `%LOCALAPPDATA%\ConsoleEnhancer\backup`); se apunta en `settings\inherited.txt` y se dice una vez
+  en pantalla.
+- **Al actualizar no pierdes lo elegido**: la versión nueva pone sus ajustes generales nuevos sin tocar lo que elegiste tú o el asistente
+  (copia en `.antes-*`); solo lo que ya no existe pasa a lo más parecido (XeSS FG y FSR 3 FG -> Smooth Motion en RTX 40 / 50; DLSS FG,
+  los ×3 / ×4 de antes, Magpie y mpv se quitaron en la 1.3), se apunta en el registro y se dice una vez en pantalla. Una versión **más
+  antigua** abierta después nunca reescribe los ajustes de una más nueva: trabaja en una copia (`settings-older\<versión>`).
+- **Empezar de cero**: cierra la app y borra `%LOCALAPPDATA%\ConsoleEnhancer\settings` (o la carpeta `ConsoleEnhancer` entera de ahí,
+  que quita también la copia de seguridad y la copia de tu archivo de DLSS 5); *Desinstalar* con «Sí = se borra todo» hace lo mismo.
+- **Portable** (opcional): crea un `portable.txt` vacío junto al exe y todo se guarda en su `data\` (también si la carpeta del PC no se
+  puede escribir). El `portable.txt` que traían los zip hasta la 1.3 no cuenta.
 - **Interfaz en español e inglés**, a elegir en el primer paso del asistente.
 
 ## Energía: qué hace el PC al apagar la consola
@@ -1042,11 +1065,11 @@ también suenan. Lo que no puede ver: la salida HDMI de paso de la capturadora c
 su volumen o usa otra salida. `sonido_doble=0` en el ini lo deja como antes.
 
 **No me sale DLSS o la generación de fotogramas.** DLSS solo existe en NVIDIA GeForce RTX; Smooth Motion en RTX 40/50; la generación
-necesita una pantalla de 100 Hz o más. Con otras gráficas va XeSS o FSR 4 / 3.1, XeSS FG y Enhanced FG (cualquier gráfica con
-Direct3D 12) y la generación que tenga tu gráfica. XeSS FG necesita los archivos de Intel que baja la app (bandeja > *Componentes*). Actualiza el driver.
+necesita una pantalla de 100 Hz o más. Con otras gráficas va XeSS o FSR 4 / 3.1 y Enhanced FG (cualquier gráfica con Direct3D 12;
+XeSS FG está quitada de momento, ver arriba). XeSS SR necesita los archivos de Intel que baja la app (bandeja > *Componentes*). Actualiza el driver.
 
 **¿Qué generación uso?** En RTX 40 / 50, Smooth Motion (la de serie). Para ×4 en el modo 30, con una pantalla de 120 Hz con VRR y sin
-DLSS 5: Smooth Motion ×4. La alternativa es XeSS FG ×2. Enhanced FG es la propia de la app, experimental: su modo *baja latencia* enseña la real en cuanto está
+DLSS 5: Smooth Motion ×4. Enhanced FG es la propia de la app, experimental: su modo *baja latencia* enseña la real en cuanto está
 (menos retraso, más fallos en los bordes y cuando el movimiento cambia de sentido).
 
 **Va a tirones o con retraso.** Abre el asistente otra vez (con la pantalla y la capturadora a su resolución buena), cierra programas que
@@ -1065,8 +1088,9 @@ mientras se recupera y, si pasa con XeSS FG o Enhanced FG, el resto de la sesió
 
 **Se me ha quedado el escritorio en negro.** `ConsoleEnhancer.exe --restaurar-escritorio`.
 
-**¿Dónde están los ajustes y el log?** En `data\` junto al exe (portable) o en `%LOCALAPPDATA%\ConsoleEnhancer`:
-`consoleenhancer.ini` y `logs\consoleenhancer.log` / `engine.log`. Si abres un *issue*, adjunta el log (revisa antes que no lleve nada
+**¿Dónde están los ajustes y el log?** En `%LOCALAPPDATA%\ConsoleEnhancer\settings` (la misma para todas las versiones; `data\` junto
+al exe solo con un `portable.txt` tuyo): `consoleenhancer.ini`, `games\` y `logs\consoleenhancer.log` / `engine.log`. Panel de ajustes >
+*Abrir mis ajustes y perfiles* la abre. Para empezar de cero, cierra la app y borra esa carpeta. Si abres un *issue*, adjunta el log (revisa antes que no lleve nada
 tuyo que no quieras enseñar, como nombres de carpetas).
 
 **¿Y "DLSS 5"?** Es una DLL de NVIDIA modificada por la comunidad: **no viene, no se baja y no se recomienda**. La app funciona

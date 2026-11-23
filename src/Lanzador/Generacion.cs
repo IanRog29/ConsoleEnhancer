@@ -15,6 +15,7 @@ namespace ConsoleEnhancer
     // ahora, para abrir la app ya jugando). Sin elegir nada, lo del ini (generacion_tipo_60/30, motor_generacion_60/30) como antes.
     // Tipos (1.2.4 ronda 6, QUITAFG: sin DLSS FG ni NVIDIA VFG ni x3 / x4): Sin generacion | Smooth Motion (driver; RTX 40 / 50) | XeSS FG |
     // FSR 3 FG, siempre x2 (src\Lanzador\TiposGeneracion.cs). Los de cada modo: ini generacion_lista_60 / _30 (los que tiene este PC: el plan).
+    // (1.2.4 ronda 7: FSR 3 FG fuera salvo generacion_fsr3=1; + Enhanced FG x2 / x3 / x4. 1.3.1, AJUSTES: XeSS FG fuera salvo generacion_xess=1)
     // Los ajustes de cada tipo: claves con el tipo (Config.ModeKeyGen: tabla_dlss5_30_xess...)
     partial class TrayApp
     {
@@ -54,6 +55,8 @@ namespace ConsoleEnhancer
             }
             // (1.2.4 ronda 6, ENHANCED) Enhanced FG, la generacion propia del motor: opcion EXTRA, al final y en cualquier grafica (EnhancedFg.cs)
             // (1.2.4 ronda 7, EFGFIX: tambien tras una caida con el -EfgCaido-: sigue en la lista y elegirlo es reintentar; el menu dice por que va otro)
+            // (1.3.1, AJUSTES: XeSS FG quitada de momento -ParseGenList ya no la deja en las listas-; con generacion_xess=1, antes de Enhanced FG)
+            if (cfg.FgAvailable && Config.XessFgOfrecer && !r.Contains("xess") && Config.GenPuedeIr("xess", videoSize)) r.Add("xess");
             if (cfg.FgAvailable && Config.EfgEnMenu() && !r.Contains("efg")) r.Add("efg");
             return r;
         }

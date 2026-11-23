@@ -11,6 +11,11 @@
 //     fsr3   = FSR 3 FG (amd_fidelityfx_framegeneration_dx12.dll de fsr\, la release oficial de AMD): el motor
 //   Y "sin generacion" (el boton de captura, la fila Generacion del menu de ajustes, la bandeja).
 // - De serie (Deteccion\Plan.cs): Smooth Motion en RTX 40 / 50 (lo que el usuario dice que va mejor); XeSS FG en Intel Arc; FSR 3 FG en lo demas.
+// - (1.3.1, AJUSTES; el usuario: "El xefg quitalo de momento") XeSS FG ya no se ofrece como tipo: ni en el menu, ni en L3, ni en las listas
+//   generacion_lista_*, ni de reserva ni como salida automatica (GenParecida, FpsBajo, caidas). Lo guardado con xess (perfiles, L3, el menu)
+//   pasa al mas parecido de este PC (en RTX 40 / 50 Smooth Motion; XeSS FG era siempre x2: el mismo multiplicador) -AjustesPc.PonerAlDia, y
+//   ParsePick por si acaso-; donde el plan lo ponia de serie (Intel Arc, otras), va el mas parecido (Enhanced FG). Smooth Motion x4 SIGUE
+//   usando por dentro XeSS FG x2 del motor (XessMotorPuede, SmoothX4.cs): no es una opcion. generacion_xess=1 lo vuelve a poner.
 // - Lo guardado de antes con dlss (DLSS FG) o vfg (NVIDIA VFG) -ini generacion_tipo*, games\framegen_type.txt, la columna 10 de
 //   games\profiles.txt- pasa al mas parecido de este PC (GenEnVezDeDlss: el primero de la lista del selector que puede ir; en NVIDIA RTX
 //   40 / 50, Smooth Motion). Los multiplicadores guardados (x3 / x4 de la columna 10, games\framegen_mult.txt) se leen y se tiran: va el
@@ -67,6 +72,8 @@ namespace ConsoleEnhancer
         // CeFsrFg) ya no se ofrece: ni en el menu, ni en L3, ni de reserva; un perfil o un ini con fsr3 pasa al mas parecido (y se dice por que).
         // generacion_fsr3=1 lo vuelve a poner (como opcion experimental, al final)
         public static volatile bool FsrFgOfrecer = false;
+        // (1.3.1, AJUSTES) XeSS FG como tipo elegible (menu, L3, de serie, reserva): quitada de momento. generacion_xess=1 la vuelve a poner
+        public static volatile bool XessFgOfrecer = false;
         public static bool XessNo1080(string videoSize) { return !XessFg1080 && WindowFor(videoSize) == "1920x1080"; }
 
         public bool CeParseTipos(string key, string val)
@@ -75,12 +82,16 @@ namespace ConsoleEnhancer
             {
                 case "xess_fg_1080": XessFg1080 = val.Trim() != "0"; return true;
                 case "generacion_fsr3": FsrFgOfrecer = val.Trim() == "1"; return true;   // (1.2.4 ronda 7, FGREAL)
+                case "generacion_xess": XessFgOfrecer = val.Trim() == "1"; return true;   // (1.3.1, AJUSTES: de serie 0)
                 case "efg_multi_dlss5": EfgMultiDlss5 = val.Trim() != "0"; return true;   // (1.2.4 ronda 7, EFGFIX: de serie 1)   // (1.2.4 ronda 7, INTEGRA7: Enhanced FG x3 / x4 tambien con DLSS 5, EnhancedFg.cs)
             }
             return CeParseXefgm(key, val) || CeParseMultiFsr(key, val);   // (1.2.4 ronda 6, FGMULTI: motor_fsr_multi*, MultiFsr.cs)   // (motor_xefg_dlss5: XefgMotor.cs. 1.2.4 ronda 6: proteccion* -Proteccion.cs, la de Magpie- fuera, ClavesRetiradas)
         }
 
         static bool XessDll() { return Paths.HayLib("libxess_fg.dll"); }
+        // (1.3.1, AJUSTES) XeSS FG del motor puede ir aqui (las DLL, el motor, la captura, sin caidas en esta sesion), se ofrezca o no como tipo:
+        // lo que pide Smooth Motion x4 (XeSS FG x2 del motor debajo + Smooth Motion encima)
+        public static bool XessMotorPuede(string videoSize) { return XessDll() && MotorFgSabe("xess") && !XessNo1080(videoSize) && !XessCaido; }
         static bool FsrFgDll() { return Paths.HayLib("amd_fidelityfx_framegeneration_dx12.dll"); }
 
         // ¿Puede ir este tipo aqui, ahora? (las DLL, el driver, la tele, la captura)
@@ -89,7 +100,7 @@ namespace ConsoleEnhancer
             switch (t ?? "")
             {
                 case "smooth": return !Ce.NoNvidia && !NvProfiles.SmoothBroken && !NvProfiles.EngineSmoothBroken && !Pantalla.Is119;
-                case "xess": return XessDll() && MotorFgSabe("xess") && !XessNo1080(videoSize) && !XessCaido;   // (1.2.4 ronda 6: y no si la grafica se perdio con el en esta sesion ni si el motor dijo que no arranca -switch2-fgfallo-)
+                case "xess": return XessFgOfrecer && XessMotorPuede(videoSize);   // (1.2.4 ronda 6: y no si la grafica se perdio con el en esta sesion ni si el motor dijo que no arranca -switch2-fgfallo-. 1.3.1, AJUSTES: y solo con generacion_xess=1)
                 case "fsr3": return FsrFgDll() && FsrFgOfrecer;   // (1.2.4 ronda 7, FGREAL: fuera salvo generacion_fsr3=1)
                 case "efg": return EfgPuede();   // (1.2.4 ronda 6, ENHANCED: cualquier grafica, el motor; EnhancedFg.cs)
             }
@@ -110,15 +121,30 @@ namespace ConsoleEnhancer
         // El primero de la lista del selector del modo (la del plan: en RTX 40 / 50 Smooth Motion primero) que pueda ir, sin "quitado"; si
         // ninguno, el primero de la del otro modo y luego XeSS FG / FSR 3 FG. Si nada puede ir: lo pedido si es un tipo (fallara y se dira) o
         // el primero de la lista
+        // (1.3.1, AJUSTES: Enhanced FG -cualquier grafica- antes que los quitados; y nunca un tipo quitado -XeSS FG sin generacion_xess=1, FSR 3 FG
+        // sin generacion_fsr3=1-: si nada puede ir, lo pedido si no esta quitado, si no Smooth Motion en NVIDIA o Enhanced FG)
         public string GenParecida(bool cap30, string videoSize, string quitado)
         {
             List<string> orden = new List<string>();
             foreach (string g in cap30 ? GenList30 : GenList60) if (TipoGen(g) && !orden.Contains(g)) orden.Add(g);
             foreach (string g in cap30 ? GenList60 : GenList30) if (TipoGen(g) && !orden.Contains(g)) orden.Add(g);
-            foreach (string g in new[] { "xess", "fsr3" }) if (!orden.Contains(g)) orden.Add(g);
+            foreach (string g in new[] { "efg", "xess", "fsr3" }) if (!orden.Contains(g)) orden.Add(g);
             foreach (string g in orden) if (g != quitado && GenPuedeIr(g, videoSize)) return g;
-            if (TipoGen(quitado)) return quitado;
-            return orden.Count > 0 ? orden[0] : "xess";
+            if (TipoGen(quitado) && GenOfrecido(quitado)) return quitado;
+            foreach (string g in orden) if (GenOfrecido(g)) return g;
+            return Ce.NoNvidia ? "efg" : "smooth";
+        }
+        // (1.3.1, AJUSTES) ¿Es un tipo que la app ofrece (aunque ahora no pueda ir)? XeSS FG y FSR 3 FG, quitados salvo con su clave
+        public static bool GenOfrecido(string t)
+        {
+            switch (t ?? "")
+            {
+                case "smooth": return !Ce.NoNvidia;
+                case "xess": return XessFgOfrecer;
+                case "fsr3": return FsrFgOfrecer;
+                case "efg": return true;
+            }
+            return false;
         }
 
         // (al acabar Config.Load) lo que va en lugar de DLSS FG en lo guardado: el de serie del modo 30 en este PC
@@ -132,7 +158,7 @@ namespace ConsoleEnhancer
                 string r = "";
                 foreach (string g in l)
                 {
-                    bool va = g == "smooth" ? !Ce.NoNvidia : g == "xess" ? XessDll() : g == "fsr3" ? FsrFgDll() && FsrFgOfrecer : false;   // (FGREAL: FSR 3 FG solo con generacion_fsr3=1)
+                    bool va = g == "smooth" ? !Ce.NoNvidia : g == "xess" ? XessDll() && XessFgOfrecer : g == "fsr3" ? FsrFgDll() && FsrFgOfrecer : false;   // (FGREAL: FSR 3 FG solo con generacion_fsr3=1; 1.3.1 AJUSTES: XeSS FG solo con generacion_xess=1)
                     if (va) { r = g; break; }
                 }
                 GenEnVezDeDlss = r;
@@ -153,6 +179,7 @@ namespace ConsoleEnhancer
                 if (t == "sin" || t == "no" || t == "ninguna" || t == "0") continue;
                 if (t == "dlss" || t == "vfg") { vieja = true; continue; }
                 t = ParseFg(t);
+                if (t == "xess") continue;   // (1.3.1, AJUSTES: XeSS FG quitada de las listas; con generacion_xess=1 la añade GenOptionsFor, Generacion.cs)
                 if (TipoGen(t) && !l.Contains(t)) l.Add(t);
             }
             if (vieja && !l.Contains("fsr3")) l.Add("fsr3");
@@ -180,7 +207,11 @@ namespace ConsoleEnhancer
                 if (string.IsNullOrEmpty(v) || v.Trim().Length == 0) return "";
                 string l = v.Trim().ToLowerInvariant();
                 if (l == "dlss" || l == "vfg") return GenEnVezDeDlss;
-                return ParseFg(v);
+                string t = ParseFg(v);
+                // (1.3.1, AJUSTES: lo guardado con un tipo quitado -XeSS FG; FSR 3 FG desde la 1.3- pasa al mas parecido, como DLSS FG. Lo normal es
+                // que ya lo haya cambiado AjustesPc.PonerAlDia al abrir la app, diciendolo; esto es por si llega de otra parte)
+                if ((t == "xess" && !XessFgOfrecer) || (t == "fsr3" && !FsrFgOfrecer)) return GenEnVezDeDlss;
+                return t;
             }
             catch { return ""; }
         }
@@ -192,6 +223,7 @@ namespace ConsoleEnhancer
         // Por que t no va con esta captura ahora (null = si va)
         string GenNoVaPorque(string t, string capSel)
         {
+            if (t == "xess" && !Config.XessFgOfrecer) return Tx.T("quitada de momento (generacion_xess=1 la vuelve a poner)", "removed for now (generacion_xess=1 brings it back)");   // (1.3.1, AJUSTES)
             if (t == "xess" && !Paths.HayLib("libxess_fg.dll")) return Tx.T("falta libxess_fg.dll en xess\\", "libxess_fg.dll is missing in xess\\");
             if (t == "xess" && Config.XessNo1080(capSel)) return Tx.T("no va con la captura de 1080p", "doesn't run with the 1080p capture");
             if (t == "xess" && (Config.XessCaido || !Config.MotorFgSabe("xess")))
@@ -266,16 +298,19 @@ namespace ConsoleEnhancer
             {
                 // 1) los valores sueltos
                 Config.GenEnVezDeDlss = "smooth";
-                string[][] picks = { new[] { "dlss", "smooth" }, new[] { "vfg", "smooth" }, new[] { "xess", "xess" }, new[] { "fsr3", "fsr3" }, new[] { "smooth", "smooth" },
-                                     new[] { "", "" }, new[] { "fsr", "fsr3" }, new[] { "basura", "" } };
+                // (1.3.1, AJUSTES: XeSS FG y FSR 3 FG quitados -sin generacion_xess=1 / generacion_fsr3=1-: lo guardado con ellos, al mas parecido)
+                bool xeAntes = Config.XessFgOfrecer, fsAntes = Config.FsrFgOfrecer;
+                Config.XessFgOfrecer = false; Config.FsrFgOfrecer = false;
+                string[][] picks = { new[] { "dlss", "smooth" }, new[] { "vfg", "smooth" }, new[] { "xess", "smooth" }, new[] { "fsr3", "smooth" }, new[] { "smooth", "smooth" },
+                                     new[] { "", "" }, new[] { "fsr", "smooth" }, new[] { "basura", "" }, new[] { "efg", "efg" }, new[] { "xefg", "smooth" } };
                 foreach (string[] p in picks)
                 {
                     string r = Config.ParsePick(p[0]);
                     bool ok = r == p[1]; n++; if (!ok) fallos++;
                     sb.AppendLine((ok ? "      " : "FALLO ") + "ParsePick(\"" + p[0] + "\") = \"" + r + "\" (esperado \"" + p[1] + "\")");
                 }
-                string[][] cols = { new[] { ",dlss", ",smooth" }, new[] { ",smooth,0,2", ",smooth" }, new[] { ",xess,0,4", ",xess" }, new[] { "dlss,xess,3,4", "smooth,xess" },
-                                    new[] { "", "" }, new[] { "smooth,", "smooth," } };
+                string[][] cols = { new[] { ",dlss", ",smooth" }, new[] { ",smooth,0,2", ",smooth" }, new[] { ",xess,0,4", ",smooth" }, new[] { "dlss,xess,3,4", "smooth,smooth" },
+                                    new[] { "", "" }, new[] { "smooth,", "smooth," }, new[] { "efg,xess", "efg,smooth" } };
                 foreach (string[] p in cols)
                 {
                     GameProfile g = new GameProfile();
@@ -283,14 +318,29 @@ namespace ConsoleEnhancer
                     bool ok = g.PickText == p[1]; n++; if (!ok) fallos++;
                     sb.AppendLine((ok ? "      " : "FALLO ") + "columna 10 \"" + p[0] + "\" -> \"" + g.PickText + "\" (esperado \"" + p[1] + "\")");
                 }
-                string[][] listas = { new[] { "dlss,smooth,xess", "smooth,xess,fsr3" }, new[] { "smooth,xess,fsr3", "smooth,xess,fsr3" }, new[] { "dlss", "fsr3" },
-                                      new[] { "no", "" }, new[] { "xess,fsr3", "xess,fsr3" } };
+                string[][] listas = { new[] { "dlss,smooth,xess", "smooth,fsr3" }, new[] { "smooth,xess,fsr3", "smooth,fsr3" }, new[] { "dlss", "fsr3" },
+                                      new[] { "no", "" }, new[] { "xess,fsr3", "fsr3" } };
                 foreach (string[] p in listas)
                 {
                     string r = string.Join(",", Config.ParseGenList(p[0]));
                     bool ok = r == p[1]; n++; if (!ok) fallos++;
                     sb.AppendLine((ok ? "      " : "FALLO ") + "generacion_lista \"" + p[0] + "\" -> \"" + r + "\" (esperado \"" + p[1] + "\")");
                 }
+                // (1.3.1) con generacion_xess=1, XeSS FG vuelve tal cual
+                Config.XessFgOfrecer = true;
+                { string r = Config.ParsePick("xess"); bool ok = r == "xess"; n++; if (!ok) fallos++; sb.AppendLine((ok ? "      " : "FALLO ") + "con generacion_xess=1: ParsePick(\"xess\") = \"" + r + "\" (esperado \"xess\")"); }
+                Config.XessFgOfrecer = false;
+                // (1.3.1) ningun tipo quitado como "lo mas parecido": sin nada que pueda ir, Smooth Motion en NVIDIA / Enhanced FG
+                {
+                    Config cx = new Config();
+                    cx.GenList30 = new[] { "xess", "fsr3" }; cx.GenList60 = new[] { "xess", "fsr3" };
+                    string r = cx.GenParecida(true, "3840x2160", "xess");
+                    bool ok = r != "xess" && r != "fsr3"; n++; if (!ok) fallos++;
+                    sb.AppendLine((ok ? "      " : "FALLO ") + "GenParecida con listas xess,fsr3 y xess quitado: " + r + " (ni xess ni fsr3)");
+                    bool ok2 = !Config.GenPuedeIr("xess", "3840x2160"); n++; if (!ok2) fallos++;
+                    sb.AppendLine((ok2 ? "      " : "FALLO ") + "GenPuedeIr(xess) sin generacion_xess=1: " + !ok2 + " (esperado False); XeSS FG del motor para Smooth Motion x4: " + Config.XessMotorPuede("3840x2160"));
+                }
+                Config.XessFgOfrecer = xeAntes; Config.FsrFgOfrecer = fsAntes;
                 // 2) copias de datos de usuario (solo se leen: el ini y los perfiles se copian a una carpeta temporal)
                 List<string> carpetas = new List<string>();
                 if (!string.IsNullOrEmpty(dir) && Directory.Exists(dir))

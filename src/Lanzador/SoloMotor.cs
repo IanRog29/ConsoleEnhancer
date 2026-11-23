@@ -123,13 +123,22 @@ namespace ConsoleEnhancer
                 // (1.2.4 ronda 5, XEFGM; ronda 6 sin Magpie) la grafica perdida con XeSS FG en el motor: el resto de la sesion otro tipo, en el motor
                 MotorDlss5Prueba1(1); MotorDlss5Roto = false; MotorGenCaidaOlvida();
                 c.VideoSize = "3840x2160"; c.CapMode = true; c.Mode120 = false; c.FgOff = false; c.Dlss5Off = true; c.HomeNative = false; c.FgPick30 = "xess";
+                // (1.3.1, AJUSTES: XeSS FG quitada de momento: sin generacion_xess=1 no va aunque se pida; con ella, como antes)
+                bool xeOfrecer = XessFgOfrecer;
+                XessFgOfrecer = false;
+                string xNo = c.FgTypeNow;
+                bool xnOk = xNo != "xess";
+                n++; if (!xnOk) fallos++;
+                sb.AppendLine((xnOk ? "      " : "FALLO ") + "XeSS FG pedido sin generacion_xess=1: va " + xNo + " (no XeSS FG)");
+                XessFgOfrecer = true;
                 string xAntes = c.FgTypeNow;
                 MotorGenCaidaAnota("xess");
                 string xDespues = c.FgTypeNow; bool xMotor = c.EngineNow;
                 MotorGenCaidaOlvida();
-                bool xOk = xAntes == "xess" && xDespues != "xess" && xMotor;
+                XessFgOfrecer = xeOfrecer;
+                bool xOk = (xAntes == "xess" || !XessMotorPuede(c.VideoSize)) && xDespues != "xess" && xMotor;
                 n++; if (!xOk) fallos++;
-                sb.AppendLine((xOk ? "      " : "FALLO ") + "XeSS FG sin DLSS 5: " + xAntes + "; tras perder la grafica con el: " + xDespues + (xMotor ? " en el motor" : " SIN el motor"));
+                sb.AppendLine((xOk ? "      " : "FALLO ") + "XeSS FG sin DLSS 5 (generacion_xess=1): " + xAntes + "; tras perder la grafica con el: " + xDespues + (xMotor ? " en el motor" : " SIN el motor"));
                 // DLSS 5 del motor roto en la sesion: el motor sin DLSS 5 (antes, por Magpie)
                 MotorDlss5Prueba1(1); MotorDlss5Roto = true;
                 c.VideoSize = "3840x2160"; c.CapMode = true; c.Mode120 = false; c.Dlss5Off = false; c.Passes30 = 1; c.FgPick30 = "smooth";

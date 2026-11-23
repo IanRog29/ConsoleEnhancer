@@ -154,6 +154,9 @@ namespace ConsoleEnhancer
             List<string> borrarRutas = new List<string>();
             if (borrar && copiaTambien) borrarRutas.Add(Integrado.CopiaDir);
             if (borrar && copiaTambien) borrarRutas.Add(ExtrasGuardados.Dir);   // (1.2.3 MOTOR5: lo que pusiste tu guardado fuera de la app)
+            // (1.3.1, AJUSTES) y la carpeta de los ajustes en el PC entera (%LOCALAPPDATA%\ConsoleEnhancer: settings\, las copias de las versiones
+            // mas antiguas -settings-older\-, la copia de seguridad, extras\ y los datos de antes de la 1.0.7): si no, otra version los volveria a traer
+            if (borrar && copiaTambien && AjustesPc.PcBase != null) borrarRutas.Add(AjustesPc.PcBase);
             foreach (string n in new string[] { "ConsoleEnhancer.exe", "ConsoleEnhancer.exe.config", "ConsoleEnhancer Settings.exe", "README.txt", "portable.txt", "languages", "licenses", "engine", "resources", "downloads",
                                                  "magpie", "mpv", "scripts", "extras",
                                                  // (1.2.06) los nombres de antes (en espanol)
@@ -163,8 +166,11 @@ namespace ConsoleEnhancer
             if (borrar) borrarRutas.Add(datos);
             else if (datosDentro)
             {
-                // (portable: los datos se guardan en %LOCALAPPDATA%\ConsoleEnhancer antes de borrar la carpeta: la proxima instalacion los hereda)
+                // (portable: los datos se guardan en %LOCALAPPDATA%\ConsoleEnhancer antes de borrar la carpeta: la proxima instalacion los hereda.
+                // 1.3.1, AJUSTES: en la carpeta de los ajustes del PC, settings\, si aun no tiene; si ya tiene, en la de antes, como hasta la 1.3)
                 string guardar = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ConsoleEnhancer");
+                if (AjustesPc.PcBase != null && !File.Exists(Path.Combine(AjustesPc.Carpeta(AjustesPc.PcBase), "consoleenhancer.ini"))) guardar = AjustesPc.Carpeta(AjustesPc.PcBase);
+                else if (AjustesPc.PcBase != null) guardar = AjustesPc.PcBase;
                 try { CopiarSinLogs(datos, guardar); Log.Write("Desinstalar: ajustes y perfiles guardados en " + guardar); borrarRutas.Add(datos); }
                 catch (Exception ex) { Log.Error("Desinstalar: guardando los datos (se quedan en la carpeta)", ex); }
             }

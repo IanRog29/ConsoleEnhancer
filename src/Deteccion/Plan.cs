@@ -458,14 +458,15 @@ namespace ConsoleEnhancer.Deteccion
                 p.Gen60 = mult >= 2 ? t : "ninguna";
                 p.Gen30 = t;
                 if (t != "smooth" && f.SmoothMotion.Si) p.GenAlternativa = "Smooth Motion x2";
-                if (es119 && f.SmoothMotion.Si) p.Avisos.Add(Tx.T("Tele a 119,88 Hz: con XeSS FG; para Smooth Motion ponla a 120,000 Hz (Pantalla avanzada: «120», no «119»)", "TV at 119.88 Hz: XeSS FG; set 120.000 Hz for Smooth Motion"));
+                // (1.3.1, AJUSTES: XeSS FG ya no se elige -la app pone la mas parecida, Enhanced FG; TiposGeneracion.cs-: el aviso sin nombrarla)
+                if (es119 && f.SmoothMotion.Si) p.Avisos.Add(Tx.T("Tele a 119,88 Hz: Smooth Motion no va; para Smooth Motion ponla a 120,000 Hz (Pantalla avanzada: «120», no «119»)", "TV at 119.88 Hz: no Smooth Motion; set 120.000 Hz for Smooth Motion"));
                 p.GenDeSerie = t != "ninguna";
             }
             else if (g.Familia == FamiliaGpu.NvidiaRtx20 || g.Familia == FamiliaGpu.NvidiaRtx30)
             {
                 p.Gen60 = p.Gen30 = "ninguna";
                 p.Motivos.Add(Tx.T("RTX 20/30: DLSS SR y Reflex; sin Smooth Motion (pide RTX 40)", "RTX 20/30: DLSS SR + Reflex, no Smooth Motion"));
-                if (!pref.PreferirLatencia && (f.XessFg.Si || f.Fsr3Fg.Si)) p.GenAlternativa = Tx.T("XeSS FG / FSR 3 FG x2 (apagadas de serie)", "XeSS FG / FSR 3 FG x2 (off by default)");
+                if (!pref.PreferirLatencia && (f.XessFg.Si || f.Fsr3Fg.Si)) p.GenAlternativa = Tx.T("Enhanced FG (experimental, apagada de serie)", "Enhanced FG (experimental, off by default)");   // (1.3.1: XeSS FG y FSR 3 FG ya no se ofrecen)
             }
             else if (f.Afmf.Si)
             {
@@ -481,7 +482,8 @@ namespace ConsoleEnhancer.Deteccion
                 {
                     p.Gen60 = mult >= 2 ? t : "ninguna"; p.Gen30 = t;
                     p.GenDeSerie = false;
-                    p.Motivos.Add(Tx.T("Generación ", "Frame gen ") + (t == "xessfg" ? "XeSS FG" : "FSR 3 FG") + Tx.T(": apagada de serie (más latencia); el botón de captura la enciende", ": off by default"));
+                    // (1.3.1: XeSS FG y FSR 3 FG ya no se ofrecen; la app pone la mas parecida, Enhanced FG)
+                    p.Motivos.Add(Tx.T("Generación (Enhanced FG, experimental)", "Frame gen (Enhanced FG, experimental)") + Tx.T(": apagada de serie (más latencia); el botón de captura la enciende", ": off by default"));
                 }
             }
             if (mult < 2 && p.Gen60 == "ninguna" && (f.SmoothMotion.Si || f.Afmf.Si || f.Fsr3Fg.Si || f.XessFg.Si))

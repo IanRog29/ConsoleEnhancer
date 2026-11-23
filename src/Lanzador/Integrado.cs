@@ -44,33 +44,37 @@ namespace ConsoleEnhancer
             return AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\');
         }
 
-        // Los datos (ini, log, games\, calibracion): <app>\datos si esta portable.txt y se puede escribir ahi; si no,
-        // %LOCALAPPDATA%\ConsoleEnhancer. Pruebas: --datos=<carpeta> (lo mira Program.Main antes de tocar Paths)
+        // Los datos (ini, log, games\, calibracion). (1.3.1, AJUSTES: src\Lanzador\AjustesPc.cs) la carpeta del PC,
+        // %LOCALAPPDATA%\ConsoleEnhancer\settings, la misma para todas las versiones (una mas antigua que la que la uso: su copia en
+        // settings-older\<version>); <app>\data solo con un portable.txt del usuario o si la del PC no se puede escribir. Hasta la 1.3: <app>\data
+        // con portable.txt (lo traia el zip) y si no %LOCALAPPDATA%\ConsoleEnhancer, que sigue siendo la de las pruebas (--test-*... sin --datos=).
+        // Pruebas: --datos=<carpeta> (lo mira Program.Main antes de tocar Paths); CE_PC_DIR=<carpeta> en vez de %LOCALAPPDATA%\ConsoleEnhancer
         public static string FindDataDir(string appDir)
         {
             string d = null;
+            bool explicita = false;
             try
             {
-                foreach (string a in Environment.GetCommandLineArgs())
-                    if (a.StartsWith("--datos=", StringComparison.OrdinalIgnoreCase)) d = Path.GetFullPath(a.Substring(8));
-                if (d == null && File.Exists(Path.Combine(appDir, "portable.txt")))
+                string[] args = Environment.GetCommandLineArgs();
+                foreach (string a in args)
+                    if (a.StartsWith("--datos=", StringComparison.OrdinalIgnoreCase)) { d = Path.GetFullPath(a.Substring(8)); explicita = true; }
+                if (d == null)
                 {
-                    MoverViejo(appDir, "datos", "data");   // (1.2.06: carpetas en ingles; ver NombresIngles)
-                    string p = Path.Combine(appDir, "data");
-                    Directory.CreateDirectory(p);
-                    string probe = Path.Combine(p, ".escribir");
-                    File.WriteAllText(probe, "");
-                    File.Delete(probe);
-                    d = p;
+                    if (File.Exists(Path.Combine(appDir, "portable.txt"))) MoverViejo(appDir, "datos", "data");   // (1.2.06: carpetas en ingles; ver NombresIngles)
+                    d = AjustesPc.Elegir(appDir, args);
                 }
             }
             catch { d = null; }
-            if (d == null) d = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ConsoleEnhancer");
+            if (explicita) AjustesPc.Modo = "datos";
+            if (d == null) d = AjustesPc.PcBase ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ConsoleEnhancer");
             MoverViejo(appDir, "descargas", "downloads");
             NombresIngles(d);
             try { Directory.CreateDirectory(Path.Combine(d, "games")); Directory.CreateDirectory(Path.Combine(d, "logs")); } catch { }
-            HeredarDatos(d, appDir);
-            CopiaSeguridad(d.TrimEnd('\\'));
+            // (1.3.1) en la carpeta del PC la migracion ya la ha hecho AjustesPc.ElegirPc; con portable.txt del usuario: de la carpeta del PC,
+            // las de al lado o la copia (la usada mas recientemente, tal cual); pruebas y --datos=: como hasta la 1.3 (HeredarDatos)
+            if (AjustesPc.Modo == "portable") { if (!File.Exists(Path.Combine(d, "consoleenhancer.ini"))) AjustesPc.Migrar(d, appDir, AjustesPc.PcBase); }
+            else if (AjustesPc.Modo != "pc" && AjustesPc.Modo != "pc-copia") HeredarDatos(d, appDir);
+            if (AjustesPc.Modo != "pc-copia") CopiaSeguridad(d.TrimEnd('\\'));   // (una version mas antigua, en su copia: no pisa la copia de seguridad)
             return d.TrimEnd('\\');
         }
 
@@ -155,7 +159,7 @@ namespace ConsoleEnhancer
                 // nueva empezaba sin games\console.txt (consola generica: sin nombres de juegos) ni perfiles. La copia de seguridad que
                 // guarda cada version en %LOCALAPPDATA%\ConsoleEnhancer\backup (CopiaSeguridad) va antes que el %LOCALAPPDATA% viejo
                 if (fuentes.Count == 0 && File.Exists(Path.Combine(CopiaDir, "consoleenhancer.ini"))) fuentes.Add(CopiaDir);
-                if (fuentes.Count == 0) fuentes.Add(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ConsoleEnhancer"));
+                if (fuentes.Count == 0) fuentes.Add(AjustesPc.PcBase ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ConsoleEnhancer"));
                 string yo = Path.GetFullPath(d).TrimEnd('\\');
                 Dictionary<string, string> mejor = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
                 foreach (string f in fuentes)
@@ -230,7 +234,8 @@ namespace ConsoleEnhancer
         // (1.2.07) Copia de seguridad de los datos fuera de la carpeta de la app (cada version portable vive en la suya y el usuario borra
         // las viejas): el ini y data\ + data\games\ (sin logs ni cache) en %LOCALAPPDATA%\ConsoleEnhancer\backup, al abrir y cada 2 min
         // (solo lo que ha cambiado). HeredarDatos la usa si no hay otra version al lado; Consolas lee de ahi console.txt si falta
-        public static string CopiaDir { get { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), @"ConsoleEnhancer\backup"); } }
+        // (1.3.1: en AjustesPc.PcBase, que en pruebas puede ser otra carpeta con CE_PC_DIR)
+        public static string CopiaDir { get { string b = AjustesPc.PcBase; return b != null ? Path.Combine(b, "backup") : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), @"ConsoleEnhancer\backup"); } }
         static System.Threading.Timer copiaTimer;
         public static void CopiaSeguridad(string d)
         {
