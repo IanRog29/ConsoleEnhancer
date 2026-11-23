@@ -87,7 +87,7 @@ namespace ConsoleEnhancer.Motor
         IMFDXGIDeviceManager mgr;
         bool mfUp;
         IMFSample cur;
-        long ts0 = long.MinValue;
+        long ts0 = long.MinValue, lastTs;
         int bufH, offX, offY;                        // alto de la superficie (filas por plano) y origen de lo visible
         bool firstLogged;
 
@@ -163,6 +163,46 @@ namespace ConsoleEnhancer.Motor
             Frames = DurationHns > 0 ? (long)Math.Floor(DurationHns / 1e7 * FpsNum / FpsDen + 0.5) : 0;
             // la hora de la imagen 0 (la primera del fichero, antes de cualquier salto): queda leida como la actual (Index 0)
             if (!Read()) throw new System.IO.InvalidDataException("el video no tiene ninguna imagen");
+            // El ritmo de verdad, de las horas de las primeras imagenes (algunos webm no lo dicen y MF pone 60: uno de 120 salia a 60 con
+            // las imagenes contadas dos veces). Si no casa con el del tipo (> 2 %), manda el medido y se vuelve a la 0
+            CheckRate();
+        }
+
+        void CheckRate()
+        {
+            long[] ts = new long[17]; int n = 0;
+            ts[n++] = lastTs;
+            while (n < ts.Length && Read()) ts[n++] = lastTs;
+            if (n >= 4)
+            {
+                // (media de los intervalos, no la mediana: en webm las horas van en ms y a 120/s salen 8 y 9 ms)
+                long[] d = new long[n - 1];
+                for (int i = 1; i < n; i++) d[i - 1] = ts[i] - ts[i - 1];
+                Array.Sort(d);
+                double med = (ts[n - 1] - ts[0]) / (double)(n - 1);
+                if (d[d.Length - 1] > 3 * d[0] + 20000) med = d[d.Length / 2];   // (un hueco: la mediana)
+                if (med > 0)
+                {
+                    double fps = 1e7 / med, cur = FpsNum / (double)FpsDen;
+                    if (Math.Abs(fps - cur) / cur > 0.02)
+                    {
+                        // el ritmo de siempre mas cercano (las horas de un webm van en ms: 119,88 y 120 no se distinguen -> 120)
+                        int[][] std = { new[] { 24000, 1001 }, new[] { 24, 1 }, new[] { 25, 1 }, new[] { 30000, 1001 }, new[] { 30, 1 }, new[] { 50, 1 },
+                            new[] { 60000, 1001 }, new[] { 60, 1 }, new[] { 90, 1 }, new[] { 100, 1 }, new[] { 120, 1 }, new[] { 144, 1 }, new[] { 165, 1 }, new[] { 240, 1 } };
+                        int bi = -1; double be = 1;
+                        for (int i = 0; i < std.Length; i++) { double e = Math.Abs(fps - std[i][0] / (double)std[i][1]) / fps; if (e < be - 1e-4) { be = e; bi = i; } }
+                        if (bi >= 0 && be < 0.015) { FpsNum = std[bi][0]; FpsDen = std[bi][1]; }
+                        else { FpsNum = (int)Math.Round(fps * 1000); FpsDen = 1000; }
+                        L("Video: el tipo dice " + cur.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture) + "/s y las horas de las imagenes " +
+                            fps.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture) + "/s: va a " + (FpsNum / (double)FpsDen).ToString("0.###", System.Globalization.CultureInfo.InvariantCulture));
+                        if (DurationHns > 0) Frames = (long)Math.Floor(DurationHns / 1e7 * FpsNum / FpsDen + 0.5);
+                    }
+                }
+            }
+            Decoded = 0;
+            Seek(0);
+            if (!Read()) throw new System.IO.InvalidDataException("el video no vuelve a la primera imagen");
+            Decoded = 0;
         }
 
         static string FourCCText(uint f)
@@ -238,6 +278,7 @@ namespace ConsoleEnhancer.Motor
                 }
                 cur = (IMFSample)Marshal.GetObjectForIUnknown(ps);
                 Marshal.Release(ps);
+                lastTs = ts;
                 if (ts0 == long.MinValue) ts0 = ts;
                 Index = (long)Math.Floor((ts - ts0) / 1e7 * FpsNum / FpsDen + 0.5);
                 Decoded++;
