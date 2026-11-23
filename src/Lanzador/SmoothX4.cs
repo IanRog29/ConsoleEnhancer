@@ -140,7 +140,7 @@ namespace ConsoleEnhancer
                 if (esperaX4) ok = ok && sm == 3 && (chain == 20 || chain == 21) && args.Contains("fg_tipo=xess") && fg1;   // (1.2.4 ronda 6: sin fg_mult, XeSS FG siempre x2)
                 else if (caso == "sin_clave" || caso == "sin_vrr") ok = ok && sm == (hz120 ? 2 : 1) && chain == 0 && !fg1;   // (Smooth Motion x2 como siempre)
                 else if (caso == "modo120" || caso == "fg_off") ok = ok && sm == 0;
-                else if (caso == "efg30") ok = ok && sm == 0;
+                else if (caso == "efg30") ok = ok && (sm == 0 || !EfgPuede());   // (si Enhanced FG no puede ir aqui -pantalla a menos de 100 Hz-, va Smooth Motion x2: bien)
                 if (!ok) fallos++;
                 sb.AppendLine((ok ? "bien  " : "FALLO ") + caso + ": x4=" + x4 + " (" + (c.SmoothX4Falta.Length > 0 ? c.SmoothX4Falta : "nada falta") + ") sm=" + sm + " cadena=" + chain +
                               " motor: '" + args + "' " + (lv.Length > 40 ? lv.Substring(0, 40) : lv));
