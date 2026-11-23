@@ -410,6 +410,7 @@ namespace ConsoleEnhancer.Motor
         uint ScIndex()
         {
             FmhDrain();   // (23-11, FGMULTI: el hilo de presentacion de FSR FG x2 / x3 / x4, si va, acaba antes; EngineFsrMultiHilo.cs)
+            EfgDrain();   // (1.2.4 ronda 6, ENHANCED: el hilo de Enhanced FG, si va, acaba antes; EngineFgEnhancedHilo.cs)
             if (!XeRawNow) return swap.GetCurrentBackBufferIndex();
             if (scIndex == null) scIndex = (ScIndexFn)Slot(xeProxySc, 36, typeof(ScIndexFn));
             return scIndex(xeProxySc);
@@ -418,6 +419,7 @@ namespace ConsoleEnhancer.Motor
         {
             FmhDrain();   // (23-11, FGMULTI)
             FmScWait();   // (con la cola de presentacion de FSR FG: tras la lista de la imagen)
+            EfgEngineSync();   // (1.2.4 ronda 6, ENHANCED: con la cadena en la cola propia de Enhanced FG, que espere a lo grabado; EngineFgEnhanced.cs)
             if (slProxyPresent != null) return slProxyPresent(slProxySc, sync, flags);   // (1.2.4 ronda 5, INTEGRA5: Streamline ve el Present, EngineSlProxy.cs)
             if (!XeRawNow) return swap.Present(sync, (DXGI_PRESENT)flags);
             if (scPresent == null) scPresent = (ScPresentFn)Slot(xeProxySc, 8, typeof(ScPresentFn));

@@ -198,7 +198,7 @@ namespace ConsoleEnhancer.Motor
             }
             D3D12_COMMAND_QUEUE_DESC qd = new D3D12_COMMAND_QUEUE_DESC();
             qd.Type = D3D12_COMMAND_LIST_TYPE.DIRECT;
-            qd.Priority = FgXe && !s.XeHighPrio ? 0 : 100; // HIGH (1.2.4 MOTORFG: con XeSS FG la normal, como la que espera XeSS FG; xefg_prioridad=1 = alta)
+            qd.Priority = EfgMainQueuePriority(FgXe && !s.XeHighPrio ? 0 : 100); // HIGH (1.2.4 ronda 6, ENHANCED: con la cola propia de Enhanced FG, normal) (1.2.4 MOTORFG: con XeSS FG la normal, como la que espera XeSS FG; xefg_prioridad=1 = alta)
             iid = typeof(ID3D12CommandQueue).GUID;
             Hr.Check(dev.CreateCommandQueue(ref qd, ref iid, out o), "CreateCommandQueue");
             queue = (ID3D12CommandQueue)o;
@@ -236,7 +236,7 @@ namespace ConsoleEnhancer.Motor
             // 21-11 (EngineFgFfx.cs): con fg_tipo=fsr3 la cadena la crea FidelityFX (intercala las imagenes generadas)
             // 22-11 (1.2.4 MOTORFG, EngineFgXe.cs): con fg_tipo=xess la crea XeSS FG
             if (!((FgFfx && FfxFgCreateSwapChain(ref scd, out sc1)) || (FgXe && XeFgCreateSwapChain(ref scd, out sc1))))
-                Hr.Check(factory.CreateSwapChainForHwnd(FmScQueueFor(), hwnd, ref scd, null, null, out sc1), "CreateSwapChainForHwnd");   // (23-11, FGMULTI: con FSR FG x3 / x4, su cola de presentacion, EngineFsrMulti.cs)
+                Hr.Check(factory.CreateSwapChainForHwnd(s.Efg >= 2 ? EfgSwapQueue() : FmScQueueFor(), hwnd, ref scd, null, null, out sc1), "CreateSwapChainForHwnd");   // (23-11, FGMULTI: con FSR FG x3 / x4, su cola de presentacion, EngineFsrMulti.cs; ENHANCED: con efg, la cola propia de Enhanced FG, EngineFgEnhanced.cs)
             factory.MakeWindowAssociation(hwnd, DXGI_MWA.NO_ALT_ENTER | DXGI_MWA.NO_WINDOW_CHANGES);
             swap = (IDXGISwapChain3)sc1;
             LatQueueInit();
@@ -319,6 +319,7 @@ namespace ConsoleEnhancer.Motor
             // 17-11 (rejas): los de calidad ya al arrancar (antes al entrar en el juego: si tardaban, la app creia la consola apagada)
             if (s.MvPx || s.MvMask > 0 || s.MvCapas) EnsureQualityPsos();
             if (s.MvCons > 0 || s.MvCapas || s.MvTruth > 0 || s.MvApert > 0 || s.MvEns > 0 || s.FgVec >= 2) EnsureRejasPsos();   // 17-11 (REJAS): tambien al arrancar
+            if (s.Efg >= 2) EfgPsos();   // (1.2.4 ronda 6, ENHANCED: Enhanced FG, EngineFgEnhanced.cs)
         }
 
         ID3D12Resource MakeBuffer(D3D12_HEAP_TYPE type, long size, D3D12_RESOURCE_STATES state, string name)
@@ -473,6 +474,7 @@ namespace ConsoleEnhancer.Motor
             if (queue == null) return;
             FmhDrain();   // (23-11, FGMULTI: el hilo de presentacion de FSR FG x2 / x3 / x4 acaba lo suyo, EngineFsrMultiHilo.cs)
             FmScIdle();   // (y su cola de presentacion)
+            EfgDrain();   // (1.2.4 ronda 6, ENHANCED: el hilo de presentacion de Enhanced FG acaba lo suyo, EngineFgEnhancedHilo.cs)
             fenceValue++;
             queue.Signal(fence, fenceValue);
             WaitFence(fenceValue);
@@ -1028,8 +1030,8 @@ namespace ConsoleEnhancer.Motor
             FmRecordPrepare(slot);   // 23-11 (1.2.4 ronda 6, FGMULTI, EngineFsrMulti.cs): FSR FG x3 / x4, lo que se prepara de cada real
 
             // 5. A la pantalla (1.2.4 ronda 6, QUITAFG: sin la generacion propia -EngineFgPropia.cs-, siempre aqui; FGMULTI: salvo FSR FG x2 / x3 / x4,
-            // que la enseña su hilo de presentacion, EngineFsrMulti.cs)
-            if (!FmTakeReal(show, slot))
+            // que la enseña su hilo de presentacion, EngineFsrMulti.cs; ENHANCED: y salvo Enhanced FG, que la copia a su ranura y la presenta su hilo)
+            if (!EfgTakeReal(show, slot) && !FmTakeReal(show, slot))
             {
                 uint bi = ScIndex();
                 ID3D12Resource bb = backbuf[bi];
@@ -1176,8 +1178,9 @@ namespace ConsoleEnhancer.Motor
                 VrrPresentArgs(out syncNow, out flagsNow);
                 long submitAt = Clock.Now;
                 XeFgBeforePresent();
-                // (ScPresent = la cadena de XeSS FG, la de Streamline o la de siempre; FmPresent = FSR FG x2 / x3 / x4 del motor, EngineFsrMultiHilo.cs)
-                int hr = s.NoPresent ? 0 : fmHold ? FmPresent(syncNow, flagsNow) : ScPresent(syncNow, flagsNow);   // (17-11 REJAS: presentar=0, pruebas con la tele apagada)
+                // (ScPresent = la cadena de XeSS FG, la de Streamline o la de siempre; FmPresent = FSR FG x2 / x3 / x4 del motor, EngineFsrMultiHilo.cs;
+                // EfgPresent = Enhanced FG, EngineFgEnhanced.cs)
+                int hr = s.NoPresent ? 0 : efgHold ? EfgPresent(syncNow, flagsNow) : fmHold ? FmPresent(syncNow, flagsNow) : ScPresent(syncNow, flagsNow);   // (17-11 REJAS: presentar=0, pruebas con la tele apagada)
                 if (pclOk && token != IntPtr.Zero) Sl.PCLSetMarker(SlPCLMarker.ePresentEnd, token);
                 XeFgAfterPresent();
                 if (!s.NoPresent) LatQueuePresent();   // 21-11 (1.2.1, cola_cuenta=1: EngineLatencia.cs)
@@ -1204,7 +1207,7 @@ namespace ConsoleEnhancer.Motor
             double t = Clock.SinceMs(benchStart) / 1000.0;
             if (!benchRecording && t >= s.BenchWarm) { benchRecording = true; stats.StartRecording(); }
             if (t < s.BenchWarm + s.BenchSecs && !(s.DumpDir.Length > 0 && dumpTaken >= s.DumpN && t >= s.BenchWarm + 1)) return false;   // (17-11 REJAS: con volcado, al acabarlo)
-            string line = stats.Summary(s.BenchLabel, s) + "\tdlss=" + (dlssOk && scalerNow == "dlss") + "\tfg=" + fgApplied + "\treflex=" + reflexApplied + "\tfallos_dlss=" + evalFails + "\t" + FgState() + QualityBench() + PassesBench() + LatBench() + UniversalBench() + FmBench();
+            string line = stats.Summary(s.BenchLabel, s) + "	dlss=" + (dlssOk && scalerNow == "dlss") + "	fg=" + fgApplied + "	reflex=" + reflexApplied + "	fallos_dlss=" + evalFails + "	" + FgState() + QualityBench() + PassesBench() + LatBench() + UniversalBench() + FmBench() + EfgBench();
             Log.Write("BANCO " + line);
             if (s.BenchOut.Length > 0) try { File.AppendAllText(Program.DataPath(s.BenchOut), line + "\r\n"); } catch (Exception ex) { Log.Error("Banco", ex); }   // (18-11: relativo a datos=)
             Program.Quit = true;

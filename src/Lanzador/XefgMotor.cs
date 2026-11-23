@@ -73,6 +73,7 @@ namespace ConsoleEnhancer
             try
             {
                 if (code != 3 && code != 5) return;
+                if (EfgCaida(p, code)) return;   // (1.2.4 ronda 6, ENHANCED: EnhancedFg.cs)
                 if (!Config.ChainXess(Config.EngineFfxOf(p))) return;
                 Config.MotorGenCaidaAnota("xess");
                 Log.Write("Motor: la grafica se ha " + (code == 3 ? "perdido" : "parado") + " con XeSS FG en el motor (codigo " + code.ToString(CultureInfo.InvariantCulture) +

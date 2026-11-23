@@ -195,7 +195,7 @@ namespace ConsoleEnhancer.Motor
         // InitDevice, antes de crear la swapchain: cola_max=N, o -1 (auto) = 1 sin Reflex ni generacion (sin Streamline o sin su Reflex: sin
         // nada que marque el ritmo, DXGI dejaria 3 imagenes en cola); con Reflex la de DXGI como siempre (el ritmo lo lleva Reflex; con la
         // generacion de NVIDIA no se puede pedir: docs\SL_NOTES.md)
-        int QueueMaxNow() { return FgFfx ? 0 : FgXe ? s.XeQueue : s.QueueMax >= 0 ? s.QueueMax : (!reflexOk ? 1 : 0); }   // (1.2.4 ronda 6: sin DLSS-G, solo Reflex cuenta)   // (21-11: con FSR 3 FG el ritmo lo lleva su cadena)
+        int QueueMaxNow() { return FgFfx || s.Efg >= 2 ? 0 : FgXe ? s.XeQueue : s.QueueMax >= 0 ? s.QueueMax : (!reflexOk ? 1 : 0); }   // (1.2.4 ronda 6: sin DLSS-G, solo Reflex cuenta)   // (21-11: con FSR 3 FG el ritmo lo lleva su cadena)
 
         // Cada imagen (Run, tras ConfigureFeatures): el escalador que toca. Al cambiar, sin historia (DLSS y los vectores)
         void UpdateScaler()

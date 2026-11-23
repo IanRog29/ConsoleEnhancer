@@ -392,9 +392,9 @@ namespace ConsoleEnhancer
         // tabla_modelo_30_dlssg=, motor_modelo_60_dlssg_1440=. Se busca primero con el tipo y, si no hay, la de "_fg" (comun a todos), como antes
         public static string GenTag(string fgType)
         {
-            switch (fgType) { case "smooth": return "sm"; case "fsr3": return "fsr3"; case "xess": return "xess"; case "vfg": return "vfg"; default: return "dlssg"; }
+            switch (fgType) { case "smooth": return "sm"; case "fsr3": return "fsr3"; case "xess": return "xess"; case "vfg": return "vfg"; case "efg": return "efg"; default: return "dlssg"; }
         }
-        public static readonly string[] GenTags = { "sm", "dlssg", "fsr3", "xess", "vfg" };
+        public static readonly string[] GenTags = { "sm", "dlssg", "fsr3", "xess", "vfg", "efg" };
         public string ModeKeyGen { get { return FgOff ? "" : (CapMode ? "30_" : "60_") + GenTag(FgTypeNow); } }
         // La de la tabla para el modo de ahora + tail (p. ej. "_1080_p2"): primero la del tipo de generacion, luego la del modo
         public bool ModeGet<T>(Dictionary<string, T> t, string tail, out T v)
@@ -10154,6 +10154,9 @@ namespace ConsoleEnhancer
             // (1.2.4 ronda 6, FGMULTI: con la cadena de FSR 3 FG x3 / x4, fg=0 al motor y fsrfg_multi=N; MultiFsr.cs)
             bool fsrMulCadena = Config.FsrMulChain(chain >= 0 ? chain : cfg.EngineFgChain), fsrMulOn = fg && fsrMulCadena;
             if (fsrMulCadena) fg = false;
+            // (1.2.4 ronda 6, ENHANCED: con la cadena de Enhanced FG, fg=0 al motor y efg=N efg_modo=...; EnhancedFg.cs)
+            bool efgCadena = Config.EfgChain(chain >= 0 ? chain : cfg.EngineFgChain), efgOn = fg && efgCadena;
+            if (efgCadena) fg = false;
             return "fg=" + (fg ? "1" : "0") + " mode=" + (cfg.Mode120 && !cfg.HomeNative ? "120" : cfg.CapMode && !cfg.HomeNative ? "30" : "60") +
                    " preset=" + cfg.EnginePresetNow + " upscaler=" + Ce.EngineUpscaler(cfg) +
                    " sharp=" + EngineSharpen(cfg).ToString("0.00", CultureInfo.InvariantCulture) +
@@ -10163,7 +10166,7 @@ namespace ConsoleEnhancer
                    // Repetidas fuera con generacion (o en el modo 30), como el filtro de mpv: tambien al encenderla o apagarla en marcha
                    " dedupe=" + (DedupeOn(cfg, !cfg.FgOff) ? "1" : "0") +
                    // 16-11 noche: la captura reducida antes de DLSS (motor_entrada_<modo>_<captura>=WxH; 0 = tal cual)
-                   " entrada=" + cfg.EngineInNow + EngineDlss5Args(cfg) + (fsrMulCadena ? cfg.FsrMulLiveArgs(fsrMulOn) : "");
+                   " entrada=" + cfg.EngineInNow + EngineDlss5Args(cfg) + (fsrMulCadena ? cfg.FsrMulLiveArgs(fsrMulOn) : "") + (efgCadena ? cfg.EfgLiveArgs(efgOn) : "");
         }
 
         // 20-11 (DLSS 5 EN EL MOTOR): nivel, estilo, modelo, mascara e interfaz de DLSS 5 para el motor (EngineDlss5.cs); dlss5=0 si no toca

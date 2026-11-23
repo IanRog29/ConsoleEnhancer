@@ -547,7 +547,8 @@ namespace ConsoleEnhancer
             esc.Visible = ev.Count > 1;
 
             // (1.2.3 MOTOR5 tenia aqui la fila "DLSS 5 por: Motor / Magpie"; 1.2.4 SOLOMOTOR: fuera, no se elige: el motor siempre que sepa, SoloMotor.cs)
-            ajFilas.AddRange(new[] { cap, mo, fg, tipo, FsrMulFila(), d5, d5no, niv, pas, esc });   // (1.2.4 ronda 6, FGMULTI: el multiplicador de FSR 3 FG, MultiFsr.cs)
+            FilaAjuste[] efgF = EfgFilas();   // (1.2.4 ronda 6, ENHANCED: multiplicador y baja latencia de Enhanced FG, EnhancedFg.cs)
+            ajFilas.AddRange(new[] { cap, mo, fg, tipo, efgF[0], efgF[1], FsrMulFila(), d5, d5no, niv, pas, esc });   // (FGMULTI: el multiplicador de FSR 3 FG, MultiFsr.cs)
             ajFilas.RemoveAll(delegate(FilaAjuste f) { return !f.Visible; });
             AjustesDepende(true);
         }
@@ -649,6 +650,7 @@ namespace ConsoleEnhancer
                 AjTipoForzado(tipo, pedido, cap30, capSel);   // (1.2.2: el log del usuario, 22-11 04:01: captura 1080p en el menu = XeSS FG cambiado por DLSS FG y guardado)
             }
             FsrMulDepende(modoSel);   // (1.2.4 ronda 6, FGMULTI: la fila del multiplicador de FSR 3 FG, MultiFsr.cs)
+            EfgDepende(modoSel);   // (1.2.4 ronda 6, ENHANCED: las filas de Enhanced FG, EnhancedFg.cs)
             bool d5si = d5 == null || d5.Val == "1";
             foreach (string id in new[] { "nivel", "pasadas" })
             {
@@ -808,6 +810,7 @@ namespace ConsoleEnhancer
                     if (on != fgWanted) { fgWanted = on; SaveText(Paths.FgFile, on ? "1" : "0"); }
                 }
                 FsrMulAplicar(e);   // (1.2.4 ronda 6, FGMULTI: MultiFsr.cs)
+                EfgAplicar(e);   // (1.2.4 ronda 6, ENHANCED: EnhancedFg.cs)
                 if ((v = AjVal(e, "tipo")) != null && v.Length > 0 && v != "\u0000" && modo != 120)
                 {
                     if (modo == 30) SetPicks(cfg.FgPick60, v); else SetPicks(v, cfg.FgPick30);
