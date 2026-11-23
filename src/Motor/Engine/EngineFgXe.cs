@@ -6,8 +6,7 @@ using ConsoleEnhancer.Motor.Native;
 namespace ConsoleEnhancer.Motor
 {
     // EngineFgXe.cs - 22-11-2026 (1.2.4, agente MOTORFG). El usuario: "y no se podria pasar todo al motor para que funcione mejor?".
-    // XeSS FG (Intel XeSS Frame Generation, libxess_fg.dll + XeLL libxell.dll de magpie\) en el motor propio: fg=1 fg_tipo=xess
-    // fg_mult=2|3|4.
+    // XeSS FG (Intel XeSS Frame Generation, libxess_fg.dll + XeLL libxell.dll de magpie\) en el motor propio: fg=1 fg_tipo=xess (x2).
     //
     // Como FSR 3 FG (EngineFgFfx.cs): la cadena de presentacion la crea XeSS FG (xefgSwapChainD3D12InitFromSwapChainDesc: un proxy de
     // IDXGISwapChain que intercala las inventadas y lleva su ritmo) y el motor va sin Streamline (sus ganchos de DXGI chocarian con esa
@@ -17,9 +16,8 @@ namespace ConsoleEnhancer.Motor
     // de fg_vectores=2|3 o mvec, a la resolucion de la entrada, en pixeles), la profundidad (la de fg_profundidad si la hay), sus
     // constantes (sin camara: identidad; reset en los cortes) y el numero de la imagen; XeSS FG los copia (RV_ONLY_NOW).
     //
-    // x3 / x4: en una grafica Intel XeSS FG los da (maxSupportedInterpolations); en las demas el runtime solo admite x2 (1 interpolada)
-    // y el motor no lo cambia (la licencia de Intel no permite modificar la DLL ni su funcionamiento, tampoco en memoria): con
-    // fg_mult=3|4 fuera de Intel se queda en x2 y lo dice (switch2-fgmult no) para que el lanzador decida.
+    // 23-11 (1.2.4 ronda 6, QUITAFG; el usuario: "Quita los xess 3x y 4x que no funcionan bien"): siempre x2 (1 interpolada), tambien en
+    // Intel; fg_mult ya no se lee (EngineFgXe.cs ApplyFgXe: las claves quitadas se aceptan sin hacer nada).
     //
     // Estructuras de las cabeceras publicas de Intel (github.com/intel/xess, inc/xess_fg/xefg_swapchain.h, xefg_swapchain_d3d12.h,
     // inc/xell/xell.h, xell_d3d12.h; MIT), pack 8.
@@ -92,6 +90,35 @@ namespace ConsoleEnhancer.Motor
         public int XeQueue = 0;             // xefg_cola=N: la cadena de XeSS FG con objeto de espera y como mucho N en cola; 0 = sin (de serie: medido 22-11, con 1 el motor se quedaba ~1 s parado en cada imagen)
         public int XeLogLevel = 2;          // xefg_log=0..3 (0 = todo lo de XeSS FG al log)
         public bool SlSoloDlss = true;      // fg_dlss_sr=0|1: con FSR 3 FG / XeSS FG y upscaler=dlss, DLSS SR por Streamline sin sus ganchos de DXGI (0 = sin Streamline, como la 1.2.3)
+
+        // (desde el default de Apply, Common.cs; antes en EngineFgMulti.cs) false = no es de aqui
+        bool ApplyFgXe(string key, string val)
+        {
+            string k = key.Trim().ToLowerInvariant();
+            switch (k)
+            {
+                case "fg_dlss_sr": SlSoloDlss = val.Trim() != "0"; return true;
+                case "sl_proxy_present": SlProxyPresent = val.Trim() != "0"; return true;   // (1.2.4 ronda 5, INTEGRA5: EngineSlProxy.cs)
+                case "xefg_modo": { int n; if (int.TryParse(val.Trim(), out n)) XeTagMode = n; return true; }
+                case "xefg_log": { int n; if (int.TryParse(val.Trim(), out n)) XeLogLevel = n; return true; }
+                case "xefg_cola": { int n; if (int.TryParse(val.Trim(), out n)) XeQueue = Math.Max(0, Math.Min(3, n)); return true; }
+                case "xefg_prioridad": XeHighPrio = val.Trim() == "1"; return true;
+                case "xefg_directo": XeRaw = val.Trim() != "0"; return true;
+                case "xefg_xell": XeLowLatency = val.Trim() == "1"; XeNoXell = val.Trim() == "2"; return true;
+                case "xefg_hudless": XeHudless = val.Trim() == "1"; return true;
+                case "xefg_corte": { double d; if (double.TryParse(val.Trim().Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out d)) XeSceneThr = d; return true; }
+            }
+            // 23-11 (1.2.4 ronda 6, QUITAFG; el usuario: "como el dlss fg va fatal, directamente quitalo" y "Quita los xess 3x y 4x"): DLSS-G
+            // (DLSS FG por Streamline), sus multiplicadores (fg_mult, la pieza PrismaFg.dll), su interfaz quieta (fgui*), fg_menus y la
+            // generacion propia x3 / x4 (fg_propia*) ya no estan en el motor. Sus claves se aceptan sin hacer nada (un ini viejo, motor_extra
+            // o un lanzador de antes no llenan el log de "Ajuste desconocido")
+            return Array.IndexOf(ClavesQuitadas, k) >= 0;
+        }
+        static readonly string[] ClavesQuitadas = {
+            "fg_mult", "fg_multiplicador", "fg_privado", "fg_privado_dir",
+            "fg_propia", "fg_propia_umbral", "fg_propia_vsync", "fg_propia_candidatos", "fg_propia_radio", "fg_propia_espera", "fg_propia_hilo",
+            "fgui", "fgui_recomp", "fgui_quieto", "fgui_mov", "fgui_borde", "fgui_crecer", "fgui_ver", "fgui_pegada", "fg_menus",
+        };
     }
 
     unsafe partial class Engine
@@ -139,6 +166,9 @@ namespace ConsoleEnhancer.Motor
         int XeFgMultNow { get { return xeFgOn && xeFgEnabledNow ? xeFgInterp + 1 : 1; } }
         // FSR 3 FG o XeSS FG (las dos sin Streamline, con los vectores de la generacion del motor)
         bool ExtFgOn { get { return ffxFgOn || (xeFgOn && xeFgEnabledNow); } }
+        // Imagenes en la tele por cada real con la generacion del motor puesta (para el ritmo y VRR; antes en EngineFgMulti.cs, con DLSS-G
+        // y x3 / x4: 1.2.4 ronda 6, QUITAFG, siempre x2)
+        int FgFactor { get { return ffxFgOn ? 2 : xeFgOn ? XeFgMultNow : 1; } }
 
         static void XeLogStatic(IntPtr msg, int level, IntPtr user) { }
 
@@ -197,8 +227,7 @@ namespace ConsoleEnhancer.Motor
                 uint maxI = 1;
                 XefgProperties pr;
                 if (props != null && props(xeFg, out pr) >= 0) maxI = Math.Max(1, pr.maxSupportedInterpolations);
-                int want = Math.Max(1, Math.Min(3, s.FgMult - 1));
-                xeFgInterp = (int)Math.Min((uint)want, maxI);
+                xeFgInterp = 1;   // (1.2.4 ronda 6, QUITAFG: siempre x2)
                 XefgInitParams ip = new XefgInitParams();
                 ip.maxInterpolatedFrames = (uint)xeFgInterp;
                 ip.uiMode = XEFG_UI_MODE_NONE;
@@ -234,13 +263,8 @@ namespace ConsoleEnhancer.Motor
                 xeFgEnabledNow = r >= 0;
                 xeFgOn = true;
                 margenInventadas = xeFgInterp; margenFgTipo = "xess";   // (la reserva de EngineMargen.cs)
-                Log.Write("XeSS FG " + v.major + "." + v.minor + "." + v.patch + " (" + wFg + "): cadena y generacion listas (" + outW + "x" + outH + "), x" + (xeFgInterp + 1) +
-                          " (pedido x" + (want + 1) + ", la grafica admite x" + (maxI + 1) + "), XeLL " + (s.XeLowLatency ? "baja latencia" : "solo marcadores"));
-                if (want > xeFgInterp)
-                {
-                    Log.Write("XeSS FG: x" + (want + 1) + " pedido, esta grafica solo da x" + (xeFgInterp + 1) + " con XeSS FG en el motor (x3 / x4 de XeSS FG fuera de Intel: no en el motor)");
-                    try { Ev("switch2-fgmult", "no", (want + 1).ToString(CultureInfo.InvariantCulture), (xeFgInterp + 1).ToString(CultureInfo.InvariantCulture)); } catch { }
-                }
+                Log.Write("XeSS FG " + v.major + "." + v.minor + "." + v.patch + " (" + wFg + "): cadena y generacion listas (" + outW + "x" + outH + "), x2" +
+                          " (la grafica admite x" + (maxI + 1) + "), XeLL " + (s.XeLowLatency ? "baja latencia" : "solo marcadores"));
                 return true;
             }
             catch (Exception ex) { Log.Error("XeSS FG", ex); XeFgFree(); xeFgFailed = true; return false; }
@@ -385,14 +409,12 @@ namespace ConsoleEnhancer.Motor
         }
         uint ScIndex()
         {
-            FphDrain();   // (1.2.4 ronda 5, XEFGM: el hilo de presentacion de la generacion propia, si va, acaba antes; EngineFgPropiaHilo.cs)
             if (!XeRawNow) return swap.GetCurrentBackBufferIndex();
             if (scIndex == null) scIndex = (ScIndexFn)Slot(xeProxySc, 36, typeof(ScIndexFn));
             return scIndex(xeProxySc);
         }
         int ScPresent(uint sync, uint flags)
         {
-            FphDrain();   // (1.2.4 ronda 5, XEFGM: EngineFgPropiaHilo.cs)
             if (slProxyPresent != null) return slProxyPresent(slProxySc, sync, flags);   // (1.2.4 ronda 5, INTEGRA5: Streamline ve el Present, EngineSlProxy.cs)
             if (!XeRawNow) return swap.Present(sync, (DXGI_PRESENT)flags);
             if (scPresent == null) scPresent = (ScPresentFn)Slot(xeProxySc, 8, typeof(ScPresentFn));
@@ -402,17 +424,18 @@ namespace ConsoleEnhancer.Motor
         void XlMark(uint frame, int marker) { if (xeLl != IntPtr.Zero) xlMarker(xeLl, frame, marker); }
 
         // (1.2.4, integracion) XeSS FG pedido (fg=1 fg_tipo=xess) y no arrancado (sin las DLL, contexto o cadena fallidos): el motor va sin
-        // generacion -sin Streamline o con el de solo DLSS SR, tampoco hay DLSS-G- y el lanzador creia XeSS FG x2 en el motor. Se le dice
-        // una vez, como el x3 / x4 que no se puede (switch2-fgmult no 2 1: MotorFgEvento lo apunta y pasa la imagen a Magpie). Desde
+        // generacion -sin Streamline o con el de solo DLSS SR- y el lanzador creia XeSS FG x2 en el motor. Se le dice una vez. Desde
         // EventTick (cada 0,5 s, con la tuberia del lanzador ya conectada; no en espera)
+        // (1.2.4 ronda 6, QUITAFG: antes "switch2-fgmult no 2 1", el aviso de los multiplicadores, que ya no estan; ahora
+        // ["switch2-fgfallo","xess"]: el lanzador lo apunta y lleva XeSS FG por otro camino)
         bool xeFailSaid;
         void XeFgFailTick()
         {
             if (xeFailSaid || !xeFgFailed || mpvIpc == null || !(s.Fg && (s.FgTipo == "xess" || s.FgTipo == "xefg"))) return;
-            if (mpvIpc.Event("switch2-fgmult", "no", "2", "1") > 0)
+            if (mpvIpc.Event("switch2-fgfallo", "xess") > 0)
             {
                 xeFailSaid = true;
-                Log.Write("XeSS FG: no arranco en el motor: avisado el lanzador (switch2-fgmult no 2 1)");
+                Log.Write("XeSS FG: no arranco en el motor: avisado el lanzador (switch2-fgfallo xess)");
             }
         }
 

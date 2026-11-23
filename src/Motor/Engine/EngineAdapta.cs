@@ -92,8 +92,8 @@ namespace ConsoleEnhancer.Motor
                 return (s.AdaptaClave.Length > 0 ? s.AdaptaClave : "-") + "|" + s.Mode + "|fg" + (s.Fg ? 1 : 0) + "|sm" + s.SmoothMode + "|" + s.CapW + "x" + s.CapH +
                        "|in" + inW + "x" + inH + "|out" + outW + "x" + outH + "|nr" + (s.Nr ? 1 : 0) + (s.Nr ? "p" + Math.Max(1, Math.Min(3, adPedidoPasadas > 0 ? adPedidoPasadas : s.NrPasses)) : "");
             if (inW <= 0 || inH <= 0 || capW != s.CapW || capH != s.CapH) AdaptaEntradaPrevista(out iw, out ih);
-            string fg = s.Fg ? "fg1" + (s.FgTipo == "xess" || s.FgTipo == "xefg" ? "x" : s.FgTipo == "fsr3" ? "f" : "") + (s.FgMult > 2 ? "m" + s.FgMult : "")
-                             : "fg0" + (s.FgOwn > 1 ? "p" + s.FgOwn : "");
+            // (1.2.4 ronda 6, QUITAFG: sin x3 / x4 -fg1xm3, fg0p4...- ni DLSS-G: fg=1 sin fg_tipo no genera, cuenta como fg0)
+            string fg = s.Fg && (s.FgTipo == "xess" || s.FgTipo == "xefg" || s.FgTipo == "fsr3") ? "fg1" + (s.FgTipo == "fsr3" ? "f" : "x") : "fg0";
             return (s.AdaptaClave.Length > 0 ? s.AdaptaClave : "-") + "|" + s.Mode + "|" + fg + "|sm" + s.SmoothMode + "|" + s.CapW + "x" + s.CapH +
                    "|in" + iw + "x" + ih + "|out" + outW + "x" + outH + "|nr" + (s.Nr ? 1 : 0) + (s.Nr ? "p" + Math.Max(1, Math.Min(3, adPedidoPasadas > 0 ? adPedidoPasadas : s.NrPasses)) : "");
         }

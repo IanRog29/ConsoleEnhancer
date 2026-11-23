@@ -9,7 +9,8 @@ using ConsoleEnhancer.Motor.Native;
 
 namespace ConsoleEnhancer.Motor
 {
-    // Motor: captura -> GPU -> DLSS SR (Streamline) -> CAS -> aviso -> pantalla, con Reflex y DLSS-G
+    // Motor: captura -> GPU -> DLSS SR (Streamline) -> CAS -> aviso -> pantalla, con Reflex; generacion: XeSS FG / FSR 3 FG (su propia
+    // cadena) o Smooth Motion del driver (1.2.4 ronda 6, QUITAFG: sin DLSS-G)
     unsafe partial class Engine : IDisposable
     {
         const int FramesInFlight = 2, BackBuffers = 3, Slots = 3;
@@ -24,7 +25,7 @@ namespace ConsoleEnhancer.Motor
         readonly Osd osd = new Osd();
 
         // ---- Streamline / D3D12
-        bool slOn, dlssOk, fgOk, reflexOk, pclOk;
+        bool slOn, dlssOk, reflexOk, pclOk;   // (1.2.4 ronda 6, QUITAFG: fuera fgOk, DLSS-G ya no se carga)
         IDXGIFactory2 factory;
         ID3D12Device dev;
         ID3D12CommandQueue queue;
@@ -59,15 +60,15 @@ namespace ConsoleEnhancer.Motor
         int inW, inH;                                   // tamaño de inColor/depth/mvec
         ID3D12Resource rawColor, inColor, depth, mvec, outColor, final, composed, osdTex;
         ID3D12Resource rawSmall;    // 16-11 noche (entrada=): la captura reducida
-        ID3D12Resource mvecZero;    // 17-11 (fg_vectores=0): vectores a cero para DLSS-G (se crea a cero y nunca se escribe)
-        // 17-11 (fg_vectores=0): los vectores que ve la generacion (la etiqueta de la imagen); DLSS SR lleva los del motor (EvaluateDlss)
-        ID3D12Resource FgMvec { get { ID3D12Resource r = FgMvecRaw; return fgGuardValid && r != mvecZero ? mvecGuard : r; } }   // 21-11 (BORDE): fg_borde, EngineFgBorde.cs
-        ID3D12Resource FgMvecRaw { get { return fgApplied && s.FgVec == 0 && mvecZero != null ? mvecZero : fgApplied && s.FgVec >= 2 && mvecFg != null && !FgVecFullNow ? mvecFg : fgFillValid && FgFillNow ? mvecFg : mvec; } }   // (20-11 FGFALLOS: fg_vectores_completos) (21-11 FG21: fg_relleno)
-        // 17-11 15:20 (fg_profundidad=R): profundidad aproximada solo para DLSS-G (a <= R px de un borde fuerte, delante; lo liso, detras);
-        // DLSS SR sigue con la de siempre (a 0) como etiqueta local (EvaluateDlss)
+        // Los vectores y la profundidad de la etiqueta de la imagen (DLSS SR). (1.2.4 ronda 6, QUITAFG: sin DLSS-G son los del motor; antes
+        // DLSS-G podia llevar otros -fg_vectores=0 a cero, fg_borde, fg_vectores_completos / fg_relleno, fg_profundidad-: fuera mvecZero,
+        // mvecGuard, EngineFgBorde.cs y EngineFgRelleno.cs. XeSS FG / FSR 3 FG cogen mvecFg y depthFg en su propio sitio, EngineFgXe.cs /
+        // EngineFgFfx.cs)
+        ID3D12Resource FgMvec { get { return mvec; } }
+        // 17-11 15:20 (fg_profundidad=R): profundidad aproximada para la generacion (a <= R px de un borde fuerte, delante; lo liso, detras)
         ID3D12Resource depthFg;
-        ID3D12Resource FgDepthTex { get { return fgApplied && s.FgDepth > 0 && depthFg != null ? depthFg : depth; } }
-        ID3D12Resource mvecFg, gvec;   // 17-11 13:40 (REJAS, fg_vectores=2|3): vectores solo para DLSS-G (suavizados o uno global) y el global (1x1)
+        ID3D12Resource FgDepthTex { get { return depth; } }
+        ID3D12Resource mvecFg, gvec;   // 17-11 13:40 (REJAS, fg_vectores=2|3): vectores solo para la generacion (suavizados o uno global) y el global (1x1)
         int capW, capH;             // tamaño de rawColor (la captura)
         readonly ID3D12Resource[] osdUpload = new ID3D12Resource[FramesInFlight];
         readonly IntPtr[] osdUploadPtr = new IntPtr[FramesInFlight];
@@ -93,7 +94,10 @@ namespace ConsoleEnhancer.Motor
         readonly object pendingLock = new object();
         readonly List<KeyValuePair<string, string>> pending = new List<KeyValuePair<string, string>>();
         string dlssApplied = "";
-        bool fgApplied, fgEverOn;
+        // (1.2.4 ronda 6, QUITAFG; el usuario: "como el dlss fg va fatal, directamente quitalo") DLSS-G puesto: ya nunca. Se queda como
+        // propiedad siempre falsa para no tocar cada condicion de los vectores / latencia / ritmo (cambios pequeños frente a las otras ramas)
+        bool fgApplied { get { return false; } }
+        bool fgSinTipoSaid;   // fg=1 sin fg_tipo (o con uno que no es xess / fsr3): dicho una vez
         int reflexApplied = -1, reflexLimitApplied = 0;
         bool resetHistory = true;
         uint frameIndex;
@@ -149,7 +153,6 @@ namespace ConsoleEnhancer.Motor
             // 22-11 (1.2.4 MOTORFG): con FSR 3 FG / XeSS FG (su propia cadena) y DLSS de escalador, Streamline solo para DLSS SR, sin sus
             // ganchos de DXGI (enganche manual: la fabrica, el dispositivo y la cadena son los del sistema)
             if (slSoloDlss) { si.Features = new SlFeature[] { SlFeature.DLSS }; si.Flags |= SlPreferenceFlags.eUseManualHooking; }
-            if (!slSoloDlss) PrismaFgPrepare();   // (1.2.4 MOTORFG: la pieza propia PrismaFg.dll, si esta; EngineFgMulti.cs)
             long t = Clock.Now;
             DvcFeatures(si);   // 22-11 (1.2.4, DLSS5LEGAL: EngineDvc.cs): Vibrancia RTX y DLSS 5 oficial de Streamline, si estan junto al motor
             SlResult r = Sl.Init(si);
@@ -187,13 +190,11 @@ namespace ConsoleEnhancer.Motor
                 SlResult r = Sl.SetD3DDevice(Com.BorrowPtr(dev, typeof(ID3D12Device)));
                 bool l;
                 dlssOk = Sl.IsFeatureSupported(SlFeature.DLSS, luid) == SlResult.eOk && Sl.IsFeatureLoaded(SlFeature.DLSS, out l) == SlResult.eOk && l;
-                fgOk = Sl.IsFeatureSupported(SlFeature.DLSS_G, luid) == SlResult.eOk && Sl.IsFeatureLoaded(SlFeature.DLSS_G, out l) == SlResult.eOk && l;
                 reflexOk = Sl.IsFeatureSupported(SlFeature.Reflex, luid) == SlResult.eOk && Sl.IsFeatureLoaded(SlFeature.Reflex, out l) == SlResult.eOk && l;
                 pclOk = Sl.IsFeatureLoaded(SlFeature.PCL, out l) == SlResult.eOk && l;
-                if (slSoloDlss) { fgOk = reflexOk = pclOk = false; }   // (1.2.4 MOTORFG: solo DLSS SR; la generacion y la baja latencia son las de FSR 3 FG / XeSS FG)
-                Log.Write("slSetD3DDevice: " + r + " (" + Clock.SinceMs(t).ToString("0") + " ms); DLSS " + dlssOk + ", generacion " + fgOk + ", Reflex " + reflexOk + ", PCL " + pclOk);
+                if (slSoloDlss) { reflexOk = pclOk = false; }   // (1.2.4 MOTORFG: solo DLSS SR; la generacion y la baja latencia son las de FSR 3 FG / XeSS FG)
+                Log.Write("slSetD3DDevice: " + r + " (" + Clock.SinceMs(t).ToString("0") + " ms); DLSS " + dlssOk + ", Reflex " + reflexOk + ", PCL " + pclOk);
                 DvcCheck(luid);   // 22-11 (1.2.4, DLSS5LEGAL: EngineDvc.cs)
-                PrismaFgCheck();   // (1.2.4 MOTORFG)
             }
             D3D12_COMMAND_QUEUE_DESC qd = new D3D12_COMMAND_QUEUE_DESC();
             qd.Type = D3D12_COMMAND_LIST_TYPE.DIRECT;
@@ -316,7 +317,7 @@ namespace ConsoleEnhancer.Motor
             Hr.Check(tsReadback.Map(0, null, out tsPtr), "Map tiempos");
             Log.Write("Shaders y estados: " + Clock.SinceMs(t).ToString("0") + " ms");
             // 17-11 (rejas): los de calidad ya al arrancar (antes al entrar en el juego: si tardaban, la app creia la consola apagada)
-            if (s.MvPx || s.MvMask > 0 || s.FgUi > 0 || s.MvCapas) EnsureQualityPsos();
+            if (s.MvPx || s.MvMask > 0 || s.MvCapas) EnsureQualityPsos();
             if (s.MvCons > 0 || s.MvCapas || s.MvTruth > 0 || s.MvApert > 0 || s.MvEns > 0 || s.FgVec >= 2) EnsureRejasPsos();   // 17-11 (REJAS): tambien al arrancar
         }
 
@@ -441,9 +442,7 @@ namespace ConsoleEnhancer.Motor
             {
                 // La generacion (su propia cola) puede seguir leyendo lo etiquetado hasta su Present: se suelta a los 3 s
                 Bury(rawColor); Bury(inColor); Bury(depth); Bury(mvec); Bury(rawSmall);
-                if (mvecZero != null) { Bury(mvecZero); mvecZero = null; }
                 if (mvecFg != null) { Bury(mvecFg); mvecFg = null; }   // 17-11 13:40 (REJAS)
-                if (mvecGuard != null) { Bury(mvecGuard); mvecGuard = null; }   // 21-11 (BORDE)
                 if (depthFg != null) { Bury(depthFg); depthFg = null; }   // 17-11 15:20 (fg_profundidad)
                 rawColor = inColor = depth = mvec = rawSmall = null;
             }
@@ -452,9 +451,7 @@ namespace ConsoleEnhancer.Motor
             inColor = Tex(ColorFmt, iw, ih, true, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, "captura con bordes suavizados");
             depth = Tex(DXGI_FORMAT.R32_FLOAT, iw, ih, true, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, "profundidad");   // 17-11 (REJAS): con UAV (profundidad por capas)
             mvec = Tex(DXGI_FORMAT.R16G16_FLOAT, iw, ih, true, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, "movimiento");
-            mvecZero = Tex(DXGI_FORMAT.R16G16_FLOAT, iw, ih, false, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, "movimiento a cero (generacion)");
             mvecFg = Tex(DXGI_FORMAT.R16G16_FLOAT, iw, ih, true, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, "movimiento para la generacion");   // 17-11 13:40 (REJAS)
-            mvecGuard = Tex(DXGI_FORMAT.R16G16_FLOAT, iw, ih, true, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, "movimiento para la generacion con bordes");   // 21-11 (BORDE)
             depthFg = Tex(DXGI_FORMAT.R32_FLOAT, iw, ih, true, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, "profundidad para la generacion");   // 17-11 15:20 (fg_profundidad)
             if (gvec == null) gvec = Tex(DXGI_FORMAT.R32G32_FLOAT, 1, 1, true, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, "vector global");
             CreateMotionResources(iw, ih);
@@ -466,7 +463,7 @@ namespace ConsoleEnhancer.Motor
             capW = w; capH = h;
             inW = iw; inH = ih;
             if (rawSmall != null) Log.Write("Entrada reducida: captura " + w + "x" + h + " -> " + iw + "x" + ih + " (entrada=)");
-            dlssApplied = "";      // tamaño nuevo: DLSS y la generacion (fgSize) se vuelven a configurar
+            dlssApplied = "";      // tamaño nuevo: DLSS se vuelve a configurar
             resetHistory = true;
             Log.Write("Entrada " + w + "x" + h);
         }
@@ -474,7 +471,6 @@ namespace ConsoleEnhancer.Motor
         void WaitIdle()
         {
             if (queue == null) return;
-            FphDrain();   // (1.2.4 ronda 5, XEFGM: el hilo de presentacion de la generacion propia acaba lo suyo; EngineFgPropiaHilo.cs)
             fenceValue++;
             queue.Signal(fence, fenceValue);
             WaitFence(fenceValue);
@@ -799,9 +795,8 @@ namespace ConsoleEnhancer.Motor
 
         void ConfigureFeatures()
         {
-            // Reflex: siempre que este (la generacion lo exige); 0 en el ini solo sin generacion
-            // (17-11 16:45, reflex_fg=0: sin forzarlo con la generacion; con Reflex y la sincronizacion la salida se limita a 116 a 120 Hz)
-            int reflex = !reflexOk ? 0 : (s.Fg && fgOk && s.ReflexFgForce) ? Math.Max(1, s.Reflex) : s.Reflex;
+            // Reflex: el del ini (reflex=). (1.2.4 ronda 6, QUITAFG: antes forzado con DLSS-G -reflex_fg-, que lo exigia; DLSS-G ya no esta)
+            int reflex = !reflexOk ? 0 : s.Reflex;
             // (18-11, MOTOR-CE: sin Reflex ninguna llamada a Streamline: con streamline=0 ni se carga sl.interposer.dll; antes aqui un
             // slReflexSetOptions(eOff) que la cargaba y daba eErrorNotInitialized)
             if (!reflexOk) { reflexApplied = 0; reflexLimitApplied = s.ReflexLimitUs; }
@@ -836,46 +831,14 @@ namespace ConsoleEnhancer.Motor
                 presetSetAt = Clock.Now;   // 16-11 noche: AutoPresetTick no juzga los primeros 5 s (arranque de los modelos)
                 resetHistory = true;
             }
-            // (16-11: en espera, apagada con sus recursos guardados: con la generacion puesta, esconder la ventana puede bloquear a
-            // Streamline. Al despertar se vuelve a poner con la primera imagen, ya con la ventana a la vista: windowPending)
-            bool fg = s.Fg && fgOk && !inStandby && !windowPending;
-            uint gen = FgGenFor(fg);   // 22-11 (1.2.4 MOTORFG, EngineFgMulti.cs): fg_mult=3|4 -> 2 | 3 inventadas por real donde NVIDIA lo admite (RTX 50)
-            if (fgOk && (fg != fgApplied || (fg && fgSize != inW * 10000 + inH) || (fg && fgUiApplied != FgUiKey()) || (fg && gen != fgGenApplied)))
+            // (1.2.4 ronda 6, QUITAFG) la generacion: XeSS FG (fg_tipo=xess, EngineFgXe.cs) o FSR 3 FG (fg_tipo=fsr3, EngineFgFfx.cs), con su
+            // propia cadena, o Smooth Motion del driver (sm=, fg=0). DLSS-G (fg=1 sin fg_tipo) ya no esta: sin generacion, dicho una vez
+            if (s.Fg && !fgSinTipoSaid && s.FgTipo != "xess" && s.FgTipo != "xefg" && s.FgTipo != "fsr3")
             {
-                SlDLSSGOptions g = SlDLSSGOptions.Create();
-                g.mode = fg ? SlDLSSGMode.eOn : SlDLSSGMode.eOff;
-                g.numFramesToGenerate = gen;
-                g.flags = SlDLSSGFlags.eRetainResourcesWhenOff | (s.FgMenus ? SlDLSSGFlags.eEnableFullscreenMenuDetection : 0);   // (1.0.4: fg_menus)
-                g.numBackBuffers = BackBuffers;
-                g.mvecDepthWidth = (uint)inW; g.mvecDepthHeight = (uint)inH;
-                g.colorWidth = (uint)outW; g.colorHeight = (uint)outH;
-                g.colorBufferFormat = (uint)ColorFmt;
-                g.mvecBufferFormat = (uint)DXGI_FORMAT.R16G16_FLOAT;
-                g.depthBufferFormat = (uint)DXGI_FORMAT.R32_FLOAT;
-                g.hudLessBufferFormat = (uint)ColorFmt;
-                g.uiBufferFormat = UiBufferFormat();   // 16-11 (calidad): fgui (0 = sin interfaz, como antes)
-                g.enableUserInterfaceRecomposition = s.FgUi > 0 && s.FgUiRecomp ? SlBoolean.eTrue : SlBoolean.eFalse;
-                SlResult r = Sl.DLSSGSetOptions(vp, ref g);
-                fgGenApplied = fg ? gen : 1;
-                margenInventadas = (int)fgGenApplied; margenFgTipo = "dlss";   // (1.2.4: la reserva de EngineMargen.cs)
-                Log.Write("Generacion " + (fg ? "si" + (gen > 1 ? " x" + (gen + 1) : "") : "no") + ": " + r + (fg && s.FgUi > 0 ? " (interfaz quieta " + s.FgUi + (s.FgUiRecomp ? ", recomposicion" : "") + ")" : ""));
-                fgUiApplied = FgUiKey();
-                fgApplied = fg;
-                fgSize = inW * 10000 + inH;
-                if (fg) fgEverOn = true;
-                if (fg && r == SlResult.eOk) FgGenMaxRead();
-                if (fg && r != SlResult.eOk && gen > 1)
-                {
-                    // (x3 / x4 rechazado: otra vez con x2)
-                    fgGenMax = 1; fgGenMaxRead = true;
-                    g.numFramesToGenerate = 1;
-                    r = Sl.DLSSGSetOptions(vp, ref g);
-                    fgGenApplied = 1; margenInventadas = 1;
-                    Log.Write("Generacion x" + (gen + 1) + " no admitida: x2 (" + r + ")");
-                }
+                fgSinTipoSaid = true;
+                Log.Write("fg=1 sin fg_tipo" + (s.FgTipo.Length > 0 ? " (fg_tipo=" + s.FgTipo + ")" : "") + ": sin generacion (DLSS FG quitado en la 1.2.4)");
             }
         }
-        int fgSize;
 
         static SlDLSSPreset PresetOf(string p)
         {
@@ -1004,9 +967,7 @@ namespace ConsoleEnhancer.Motor
                 tags.Add(SlBufferType.ScalingOutputColor, Com.BorrowPtr(lin ? outLinear : outColor, typeof(ID3D12Resource)), (uint)D3D12_RESOURCE_STATES.UNORDERED_ACCESS, SlResourceLifecycle.eValidUntilEvaluate, outExt);
                 tags.Add(SlBufferType.Depth, Com.BorrowPtr(FgDepthTex, typeof(ID3D12Resource)), (uint)D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, SlResourceLifecycle.eValidUntilPresent, inExt);
                 tags.Add(SlBufferType.MotionVectors, Com.BorrowPtr(FgMvec, typeof(ID3D12Resource)), (uint)D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, SlResourceLifecycle.eValidUntilPresent, inExt);
-                if (fgApplied)
-                    TagHudless(outExt);   // (1.2.4 DLSSFG: con fgui=4/5 la imagen sin la interfaz quieta, EngineFgHud.cs)
-                AddQualityTags(inExt, outExt, true);   // 16-11 (calidad): mascara sin historia (DLSS SR) e interfaz (DLSS-G)
+                AddQualityTags(inExt, outExt, true);   // 16-11 (calidad): mascara sin historia (DLSS SR)
                 IntPtr cl = Com.BorrowPtr(list, typeof(ID3D12GraphicsCommandList));
                 Sl.SetTagForFrame(token, vp, tags, cl);
                 SlResult r = EvaluateDlss(token, cl);   // 16-11 (calidad): con mvmask_modo=1, sus propios vectores (etiqueta local)
@@ -1020,7 +981,6 @@ namespace ConsoleEnhancer.Motor
                 // 21-11 (EngineSr.cs): XeSS SR / FSR 3.1-4 en el motor
                 if (scalerNow == "xess") RecordXess(); else RecordFfx();
                 UavBarrier(outColor);
-                if (fgApplied) TagForFg(token, false);
             }
             else if (!native)
             {
@@ -1033,9 +993,7 @@ namespace ConsoleEnhancer.Motor
                     list.Dispatch(Groups(outW, 16), Groups(outH, 8), 1);
                 }
                 UavBarrier(outColor);
-                if (fgApplied) TagForFg(token, false);
             }
-            else if (fgApplied) TagForFg(token, true);
             PassMark(4);
             CpuMark(3);
 
@@ -1048,7 +1006,6 @@ namespace ConsoleEnhancer.Motor
             list.Dispatch(Groups(outW, 16), Groups(outH, 8), 1);
             Barrier(final, D3D12_RESOURCE_STATES.UNORDERED_ACCESS, D3D12_RESOURCE_STATES.COPY_SOURCE);
             if (!native) Barrier(outColor, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.UNORDERED_ACCESS);
-            RecordUiOut();   // 16-11 (calidad): la interfaz quieta a 4K para la generacion (fgui)
             RejasDump(slot);   // 17-11 (REJAS): volcado= (la salida y los vectores a ficheros, para medir)
             PassMark(5);
 
@@ -1073,15 +1030,14 @@ namespace ConsoleEnhancer.Motor
             FfxFgRecord();   // 21-11 (EngineFgFfx.cs): FSR 3 FG, configurar y preparar sus entradas
             XeFgRecord();    // 22-11 (1.2.4 MOTORFG, EngineFgXe.cs): XeSS FG, sus entradas
 
-            // 5. A la pantalla (22-11, 1.2.4 DLSS5LEGAL: con la generacion propia la copia la hace FpPresent tras las inventadas, EngineFgPropia.cs)
-            if (!FpTakeReal(show, slot))
+            // 5. A la pantalla (1.2.4 ronda 6, QUITAFG: sin la generacion propia -EngineFgPropia.cs-, siempre aqui)
             {
                 uint bi = ScIndex();
                 ID3D12Resource bb = backbuf[bi];
                 if (!(xeFgOn && s.XeTagMode == 4))   // (xefg_modo=4: prueba, sin copiar a la cadena)
                 {
                     Barrier(bb, D3D12_RESOURCE_STATES.PRESENT, D3D12_RESOURCE_STATES.COPY_DEST);
-                    CopyToBack(bb, show);   // (1.2.4 DLSSFG: con fgui_ver=1, la imagen sin interfaz -prueba-, EngineFgHud.cs)
+                    list.CopyResource(bb, show);
                     Barrier(bb, D3D12_RESOURCE_STATES.COPY_DEST, D3D12_RESOURCE_STATES.PRESENT);
                 }
             }
@@ -1096,19 +1052,6 @@ namespace ConsoleEnhancer.Motor
             CpuEnd();
         }
         int evalFails;
-
-        // Sin DLSS: las etiquetas que la generacion necesita igual
-        void TagForFg(IntPtr token, bool native)
-        {
-            tags.Clear();
-            SlExtent inExt = new SlExtent(); inExt.width = (uint)inW; inExt.height = (uint)inH;
-            SlExtent outExt = new SlExtent(); outExt.width = (uint)outW; outExt.height = (uint)outH;
-            tags.Add(SlBufferType.Depth, Com.BorrowPtr(FgDepthTex, typeof(ID3D12Resource)), (uint)D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, SlResourceLifecycle.eValidUntilPresent, inExt);
-            tags.Add(SlBufferType.MotionVectors, Com.BorrowPtr(FgMvec, typeof(ID3D12Resource)), (uint)D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, SlResourceLifecycle.eValidUntilPresent, inExt);
-            TagHudless(outExt);   // (1.2.4 DLSSFG: con fgui=4/5 la imagen sin la interfaz quieta, EngineFgHud.cs)
-            AddQualityTags(inExt, outExt, false);   // 16-11 (calidad): interfaz (DLSS-G)
-            Sl.SetTagForFrame(token, vp, tags, Com.BorrowPtr(list, typeof(ID3D12GraphicsCommandList)));
-        }
 
         // =============================================================================================== bucle
         public void Run()
@@ -1149,9 +1092,9 @@ namespace ConsoleEnhancer.Motor
                 IntPtr token = IntPtr.Zero;
                 if (slOn) Sl.GetNewFrameToken(frameIndex, out token);
                 LatQueueWait();   // 18-11 (LATENCIA, cola_max=): la swapchain con espera
-                // 18-11 (LATENCIA, reflex_dormir=0): sin dormir de Reflex cuando no va DLSS-G (que lo necesita)
+                // 18-11 (LATENCIA, reflex_dormir=0): sin dormir de Reflex (1.2.4 ronda 6: antes siempre con DLSS-G, que lo necesitaba)
                 latSleepMs = 0;
-                if (reflexOk && token != IntPtr.Zero && (fgApplied || s.ReflexSleep)) { long tz = Clock.Now; Sl.ReflexSleep(token); latSleepMs = Clock.SinceMs(tz); }
+                if (reflexOk && token != IntPtr.Zero && s.ReflexSleep) { long tz = Clock.Now; Sl.ReflexSleep(token); latSleepMs = Clock.SinceMs(tz); }
                 XeFgSleep();   // 22-11 (1.2.4 MOTORFG, EngineFgXe.cs): XeLL en vez de Reflex con XeSS FG
 
                 // La imagen mas nueva (las anteriores que no se pintaron se sueltan)
@@ -1234,8 +1177,8 @@ namespace ConsoleEnhancer.Motor
                 VrrPresentArgs(out syncNow, out flagsNow);
                 long submitAt = Clock.Now;
                 XeFgBeforePresent();
-                // (22-11, 1.2.4 DLSS5LEGAL: FpPresent = las inventadas propias y la real; sin ellas, ScPresent = la cadena de XeSS FG o la de siempre)
-                int hr = s.NoPresent ? 0 : fpHold ? FpPresent(syncNow, flagsNow) : ScPresent(syncNow, flagsNow);   // (17-11 REJAS: presentar=0, pruebas con la tele apagada)
+                // (ScPresent = la cadena de XeSS FG, la de Streamline o la de siempre)
+                int hr = s.NoPresent ? 0 : ScPresent(syncNow, flagsNow);   // (17-11 REJAS: presentar=0, pruebas con la tele apagada)
                 if (pclOk && token != IntPtr.Zero) Sl.PCLSetMarker(SlPCLMarker.ePresentEnd, token);
                 XeFgAfterPresent();
                 if (!s.NoPresent) LatQueuePresent();   // 21-11 (1.2.1, cola_cuenta=1: EngineLatencia.cs)
@@ -1262,22 +1205,15 @@ namespace ConsoleEnhancer.Motor
             double t = Clock.SinceMs(benchStart) / 1000.0;
             if (!benchRecording && t >= s.BenchWarm) { benchRecording = true; stats.StartRecording(); }
             if (t < s.BenchWarm + s.BenchSecs && !(s.DumpDir.Length > 0 && dumpTaken >= s.DumpN && t >= s.BenchWarm + 1)) return false;   // (17-11 REJAS: con volcado, al acabarlo)
-            string line = stats.Summary(s.BenchLabel, s) + "\tdlss=" + (dlssOk && scalerNow == "dlss") + "\tfg=" + fgApplied + "\treflex=" + reflexApplied + "\tfallos_dlss=" + evalFails + "\t" + FgState() + QualityBench() + PassesBench() + LatBench() + UniversalBench() + FpBench();
+            string line = stats.Summary(s.BenchLabel, s) + "\tdlss=" + (dlssOk && scalerNow == "dlss") + "\tfg=" + fgApplied + "\treflex=" + reflexApplied + "\tfallos_dlss=" + evalFails + "\t" + FgState() + QualityBench() + PassesBench() + LatBench() + UniversalBench();
             Log.Write("BANCO " + line);
             if (s.BenchOut.Length > 0) try { File.AppendAllText(Program.DataPath(s.BenchOut), line + "\r\n"); } catch (Exception ex) { Log.Error("Banco", ex); }   // (18-11: relativo a datos=)
             Program.Quit = true;
             return true;
         }
 
-        string FgState()
-        {
-            if (!fgOk) return "dlssg=no";
-            // (16-11 tirones: con la generacion puesta ya se pregunta tras cada imagen: lo de la ultima, sin otra llamada)
-            if (fgPolledAt != 0 && Clock.SinceMs(fgPolledAt) < 1500) return "dlssg=" + fgLastResult + "/" + fgLastStatus + "/presentadas " + fgLastPresented;
-            SlDLSSGState st;
-            SlResult r = Sl.DLSSGGetState(vp, out st);
-            return "dlssg=" + r + "/" + st.status + "/presentadas " + st.numFramesActuallyPresented;
-        }
+        // (la columna del banco de siempre; 1.2.4 ronda 6, QUITAFG: sin DLSS-G, siempre "no")
+        string FgState() { return "dlssg=no"; }
 
         void SecondTick()
         {
@@ -1290,24 +1226,7 @@ namespace ConsoleEnhancer.Motor
             FpsVigila();    // (21-11: si no se llega a los fps del modo por el PC, aviso al lanzador, EngineFps.cs)
             AutoPresetTick();
             Unbury(false);
-            // La generacion de NVIDIA se apaga sola sin el foco ("window not focused"): se recupera (como mucho cada 3 s). 16-11 (sin telon):
-            // no mientras el lanzador cambia de imagen (FocusHold: mpv tiene que seguir delante para Magpie)
-            if (fgApplied && !Program.FocusHold && !Program.HasFocus() && Clock.SinceMs(lastFocusTry) > 3000)
-            {
-                lastFocusTry = Clock.Now;
-                // 21-11 (1.0.11): con el menu Inicio, la barra de tareas o Alt+Tab delante, no (el usuario esta usando Windows: tecla Windows)
-                if (Program.ShellInFront())
-                {
-                    if (!shellLogged) { shellLogged = true; Log.Write("Sin el foco con la generacion puesta, pero lo tiene Windows (" + Program.ForegroundInfo() + "): no se recupera"); }
-                }
-                else
-                {
-                    shellLogged = false;
-                    string who = Program.ForegroundInfo();   // 17-11 (REJAS, pedido de VELOCIDAD): quien tenia el primer plano
-                    Log.Write("Sin el foco con la generacion puesta (lo tenia " + who + "): se recupera (" + (Program.Focus() ? "bien" : "no se pudo") + ")");
-                }
-            }
-            else if (Program.HasFocus()) shellLogged = false;
+            // (1.2.4 ronda 6, QUITAFG: fuera la recuperacion del foco de DLSS-G -se apagaba sola sin el foco-: XeSS FG / FSR 3 FG no la necesitan)
             string extra = "";
             if (reflexOk && reflexApplied > 0)
             {
@@ -1324,7 +1243,6 @@ namespace ConsoleEnhancer.Motor
                     if (n > 0) extra = string.Format(CultureInfo.InvariantCulture, " | Reflex PC {0:0.0} ms", sum / n);
                 }
             }
-            if (fgApplied) extra += " | " + FgState();
             lastStatus = t + extra;
             if (s.ShowStats || s.BenchSecs > 0) Log.Write(lastStatus);
             if (lastCapture != 0 && Clock.SinceMs(lastCapture) > 2000 && !noSignalLogged) { Log.Write("Sin imagen de la fuente desde hace 2 s"); noSignalLogged = true; }
@@ -1388,8 +1306,6 @@ namespace ConsoleEnhancer.Motor
             s.Preset = next;
             presetCap[CapKey] = next;
         }
-        long lastFocusTry;
-        bool shellLogged;   // (1.0.11: "lo tiene Windows" ya apuntado en esta perdida del foco)
         volatile bool reopenAsked;          // 16-11 (sin telon): switch2-reabrir
 
         // =============================================================================================== tuberia
@@ -1421,7 +1337,7 @@ namespace ConsoleEnhancer.Motor
                     frameEvent.Set();
                     return "ok";
                 case "status":
-                    return "ok " + lastStatus + " | " + s.Describe() + " | dlss=" + dlssOk + " fg=" + fgApplied + (fgApplied && fgGenApplied > 1 ? " x" + (fgGenApplied + 1) : "") + (xeFgOn ? " xefg=x" + XeFgMultNow : "") + " reflex=" + reflexApplied + " escalador=" + scalerNow + " streamline=" + (slOn ? 1 : 0) + (inStandby ? " | en espera" : "");
+                    return "ok " + lastStatus + " | " + s.Describe() + " | dlss=" + dlssOk +  (xeFgOn ? " xefg=x" + XeFgMultNow : "") + (ffxFgOn ? " fsr3fg=x2" : "") + " reflex=" + reflexApplied + " escalador=" + scalerNow + " streamline=" + (slOn ? 1 : 0) + (inStandby ? " | en espera" : "");
                 // 16-11: lo mismo que script-message switch2-standby / switch2-wake (para probar sin el lanzador)
                 case "standby": AskStandby(false); return "ok";
                 case "wake": AskStandby(true, arg == "detras"); return "ok";
@@ -1462,7 +1378,6 @@ namespace ConsoleEnhancer.Motor
             {
                 try
                 {
-                    if (fgApplied) { SlDLSSGOptions g = SlDLSSGOptions.Create(); g.mode = SlDLSSGMode.eOff; Sl.DLSSGSetOptions(vp, ref g); }
                     SlProxyRelease();   // (1.2.4 ronda 5, INTEGRA5: el proxy de la cadena, antes de slShutdown; EngineSlProxy.cs)
                     Sl.Shutdown();
                     Unbury(true);
