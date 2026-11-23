@@ -263,6 +263,23 @@ namespace ConsoleEnhancer.Motor
             Barrier(depth, D3D12_RESOURCE_STATES.UNORDERED_ACCESS, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE);
         }
 
+        // 23-11 (1.2.4 ronda 6, DLSSSR, prueba): mvverdad=8 con test=zoom test_zoom=1 (solo traslacion) = los vectores de verdad (uno para
+        // toda la imagen, por el camino de mvfijo) en vez de los estimados: para separar "vectores malos" de "lo que hace DLSS SR con
+        // vectores buenos" en la borrosidad de K/L/M al mover la camara
+        long zoomPrevGf = -1;
+        void ZoomTruth(bool newFrame)
+        {
+            if ((s.MvTruth & 8) == 0 || s.Test != "zoom" || s.TestZoomKind != 1 || !newFrame || curSeq < 0) return;
+            int gameFps = s.Mode == 30 ? 30 : 60;
+            int rep = gameFps >= 55 ? 1 : (int)Math.Round(s.FpsNum / (double)s.FpsDen / gameFps);   // (lo de TestSource.Loop)
+            long gf = curSeq / Math.Max(1, rep);
+            long gp = zoomPrevGf >= 0 && zoomPrevGf < gf ? zoomPrevGf : gf - 1;
+            double sx, sy;
+            ZoomScene.Shift4K(s.TestVel, gf, gp, out sx, out sy);
+            s.MvFixed = true; s.MvFixedX = sx * inW / ZoomScene.W4; s.MvFixedY = sy * inH / ZoomScene.H4;
+            zoomPrevGf = gf;
+        }
+
         // =============================================================================================== volcado
         const int DRing = 6;
         readonly ID3D12Resource[] dRb = new ID3D12Resource[DRing];
@@ -339,6 +356,7 @@ namespace ConsoleEnhancer.Motor
             D3D12_BOX mbox = new D3D12_BOX((uint)dMx, (uint)dMy, (uint)(dMx + dMw), (uint)(dMy + dMh));
             // 21-11 (FG21, prueba): con la variable S2_VOLCADO_FG=1 los vectores que recibe la generacion (FgMvec) en vez de mvec
             ID3D12Resource dmv = Environment.GetEnvironmentVariable("S2_VOLCADO_FG") == "1" ? FgMvec : mvec;
+            if (Environment.GetEnvironmentVariable("S2_VOLCADO_SR") == "1" && srVecValid && mvecSr != null) dmv = mvecSr;   // (23-11 DLSSSR: los de DLSS SR)
             Barrier(dmv, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.COPY_SOURCE);
             dst = D3D12_TEXTURE_COPY_LOCATION.FromFootprint(dRb[e], dFpMv);
             src = D3D12_TEXTURE_COPY_LOCATION.FromSubresource(dmv, 0);

@@ -30,6 +30,7 @@ namespace ConsoleEnhancer.Motor
         public string AdaptaClave = "", AdaptaFichero = "scales_engine.txt", AdaptaTecho = "";
         public int AdaptaNrSubeS = 45, AdaptaNrPaso = 15;   // 22-11 (1.2.3, MOTOR5): adapta_dlss5_sube_s / adapta_dlss5_paso (ver AdaptaSubir)
         public int AdaptaNrCorteS = 90;   // 22-11 (1.2.4 DLSS5Q): adapta_dlss5_corte_s, la subida del % espera a un corte de escena (como mucho esto; 0 = sin esperar)
+        public bool AdaptaSobrePedido = false;   // 23-11 (1.2.4 ronda 6, DLSSSR): adapta_modelo_sobre_pedido=1, el modelo puede pasar de lo pedido hasta adapta_techo (como antes)
         public string SrDlls = "";
 
         // Claves de ConsoleEnhancer que el Apply de siempre no conoce (false = desconocida, como antes)
@@ -44,12 +45,13 @@ namespace ConsoleEnhancer.Motor
                 case "adapta_dlss5_sube_s": { int n; if (int.TryParse(val.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out n)) AdaptaNrSubeS = Math.Max(20, Math.Min(600, n)); return true; }   // (1.2.3 MOTOR5)
                 case "adapta_dlss5_paso": { int n; if (int.TryParse(val.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out n)) AdaptaNrPaso = Math.Max(5, Math.Min(50, n)); return true; }
                 case "adapta_dlss5_corte_s": { int n; if (int.TryParse(val.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out n)) AdaptaNrCorteS = Math.Max(0, Math.Min(600, n)); return true; }   // (1.2.4 DLSS5Q)
+                case "adapta_modelo_sobre_pedido": { string v = val.Trim().ToLowerInvariant(); AdaptaSobrePedido = v == "1" || v == "si" || v == "true" || v == "on"; return true; }   // (1.2.4 ronda 6, DLSSSR)
                 case "dlls_sr": SrDlls = val.Trim(); return true;
                 case "fg_tipo": FgTipo = val.Trim().ToLowerInvariant(); return true;   // 21-11 (EngineFgFfx.cs): fsr3 = FSR 3 FG de FidelityFX   // 21-11 (EngineSr.cs): la carpeta de libxess.dll / amd_fidelityfx_*.dll (la de Magpie)
                 case "uso_grafica": case "gpu_indice": return ApplyMargen(key, val);   // (1.2.2, UNIVERSAL: EngineMargen.cs)
                 // (vrr= y vrr_fg_vsync= ya los hace el motor: Settings.Apply de Common.cs y EngineLatencia.cs, de Prisma LATENCIA4, fusion 20-11)
             }
-            return false;
+            return ApplySrVec(key.Trim().ToLowerInvariant(), val);   // (1.2.4 ronda 6, DLSSSR: sr_vectores, sr_vec_*: EngineSrVec.cs)
         }
     }
 
@@ -58,6 +60,7 @@ namespace ConsoleEnhancer.Motor
         sealed class AdaptaFila
         {
             public string Preset = "", NoPreset = "";
+            public string Pedido = "";   // (23-11 DLSSSR) el modelo que se pedia cuando se guardo (vacio en las filas de antes)
             public int Pct, Pasadas, NoPct;
             public string Fecha = "";
         }
@@ -205,7 +208,7 @@ namespace ConsoleEnhancer.Motor
             AdaptaFila f;
             if (!adTabla.TryGetValue(k, out f)) { if (nueva) Log.Write("Adapta: clave nueva " + k + " (se empieza por lo pedido: " + s.Preset + (s.Nr ? ", DLSS 5 al " + s.NrPct + " %" : "") + ")"); return; }
             List<string> hecho = new List<string>();
-            if (f.Preset.Length > 0 && f.Preset != s.Preset && AdRango(f.Preset) <= AdRango(TechoPreset))
+            if (f.Preset.Length > 0 && f.Preset != s.Preset && AdRango(f.Preset) <= AdRango(TechoPreset) && AdModeloAprendidoVale(f))
             {
                 hecho.Add("DLSS " + s.Preset + " -> " + f.Preset);
                 s.Preset = f.Preset;
@@ -217,7 +220,33 @@ namespace ConsoleEnhancer.Motor
             if (hecho.Count > 0) { adCambioAt = Clock.Now; Log.Write("Adapta: " + k + ": lo que cupo la ultima vez (" + f.Fecha + "): " + string.Join(", ", hecho.ToArray())); }
         }
 
-        string TechoPreset { get { string t = s.AdaptaTecho; return t == "L" || t == "M" || t == "K" || t == "E" ? t : (adPedidoPreset.Length > 0 ? adPedidoPreset : s.Preset); } }
+        // 23-11 (1.2.4 ronda 6, DLSSSR): el techo del modelo es lo PEDIDO (el modelo elegido en el menu o el del plan), y adapta_techo solo lo
+        // baja. Antes adapta_techo (escalas_modelo_max=L, lo escribe el plan) mandaba sobre lo pedido y lo aprendido de otra vez SUBIA el
+        // modelo: log del usuario 23-11 01:42:37 "DLSS K -> M", 01:43:24 y 02:16:14 "DLSS E -> M" (elegia K o E a 1440p y veia M, el que mas
+        // emborronaba al mover la camara). adapta_modelo_sobre_pedido=1 = como antes
+        string TechoPreset
+        {
+            get
+            {
+                string t = s.AdaptaTecho, pedido = adPedidoPreset.Length > 0 ? adPedidoPreset : s.Preset;
+                bool tv = t == "L" || t == "M" || t == "K" || t == "E";
+                if (s.AdaptaSobrePedido) return tv ? t : pedido;
+                return tv && AdRango(t) < AdRango(pedido) ? t : pedido;
+            }
+        }
+
+        // 23-11 (1.2.4 ronda 6, DLSSSR): el modelo de la fila solo vale si fue una BAJADA desde lo que se pedia entonces y ahora se pide eso
+        // o algo mas caro (entonces tampoco cabria). La fila guarda el modelo que habia cada vez que cambia algo (tambien el % de DLSS 5): con
+        // E elegido la fila decia E y al elegir M se ponia E (log de la prueba 23-11 03:23:33 "DLSS M -> E"; y al reves 03:27:08 "E -> M").
+        // Las filas de antes (sin pedido=) no cambian el modelo (si no cabe, lo baja AutoPresetTick como siempre).
+        // adapta_modelo_sobre_pedido=1 = como antes
+        bool AdModeloAprendidoVale(AdaptaFila f)
+        {
+            if (s.AdaptaSobrePedido) return true;
+            string pedido = adPedidoPreset.Length > 0 ? adPedidoPreset : s.Preset;
+            if (f.Pedido.Length == 0) return false;
+            return AdRango(f.Preset) < AdRango(f.Pedido) && AdRango(f.Pedido) <= AdRango(pedido);
+        }
 
         bool AdaptaBajar(double p95, double tope)
         {
@@ -359,6 +388,7 @@ namespace ConsoleEnhancer.Motor
             if (adClave.Length == 0) return;
             AdaptaFila f = Fila();
             f.Preset = s.Preset;
+            f.Pedido = adPedidoPreset.Length > 0 ? adPedidoPreset : s.Preset;   // (23-11 DLSSSR)
             f.Pct = s.Nr ? s.NrPct : f.Pct;
             f.Pasadas = s.Nr ? s.NrPasses : f.Pasadas;
             f.Fecha = DateTime.Now.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
@@ -392,6 +422,7 @@ namespace ConsoleEnhancer.Motor
                             case "pct": f.Pct = n; break;
                             case "pasadas": f.Pasadas = n; break;
                             case "no_preset": f.NoPreset = v; break;
+                            case "pedido": f.Pedido = v; break;   // (23-11 DLSSSR)
                             case "no_pct": f.NoPct = n; break;
                             case "fecha": f.Fecha = v; break;
                         }
@@ -417,6 +448,7 @@ namespace ConsoleEnhancer.Motor
                     if (f.Pct > 0) sb.Append("\tpct=").Append(f.Pct.ToString(CultureInfo.InvariantCulture));
                     if (f.Pasadas > 0) sb.Append("\tpasadas=").Append(f.Pasadas.ToString(CultureInfo.InvariantCulture));
                     if (f.NoPreset.Length > 0) sb.Append("\tno_preset=").Append(f.NoPreset);
+                    if (f.Pedido.Length > 0) sb.Append("\tpedido=").Append(f.Pedido);   // (23-11 DLSSSR)
                     if (f.NoPct > 0) sb.Append("\tno_pct=").Append(f.NoPct.ToString(CultureInfo.InvariantCulture));
                     sb.Append("\tfecha=").Append(f.Fecha).AppendLine();
                 }

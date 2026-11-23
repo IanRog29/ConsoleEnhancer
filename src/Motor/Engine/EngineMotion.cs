@@ -252,6 +252,7 @@ namespace ConsoleEnhancer.Motor
             SrvTex(TQMvSr, 1, biasMask, DXGI_FORMAT.R8_UNORM);
             UavTex(TQMvSr, U0, mvecSr, DXGI_FORMAT.R16G16_FLOAT);
             RejasViews();   // 17-11 (REJAS)
+            SrVecViews();   // 23-11 (1.2.4 ronda 6, DLSSSR: EngineSrVec.cs)
             mvPrevValid = false;
             motionValid = false;
             mvecDirty = false;
@@ -307,6 +308,7 @@ namespace ConsoleEnhancer.Motor
         void RecordMotion(bool newFrame)
         {
             uint* c = stackalloc uint[16];
+            ZoomTruth(newFrame);   // (1.2.4 ronda 6, DLSSSR: mvverdad=8, prueba; EngineRejas.cs)
             QFrameBegin();
             // Solo si alguien los usa: DLSS (captura mas pequeña que la salida) o la generacion. En el HOME a 4K nativo, nada
             // (18-11, MOTOR-CE: con fsr1 / catrom sin generacion no los usa nadie: tampoco)
@@ -468,6 +470,7 @@ namespace ConsoleEnhancer.Motor
                 Barrier(mvecSr, D3D12_RESOURCE_STATES.UNORDERED_ACCESS, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE);
                 srVecValid = true;
             }
+            RecordSrVec(cur, on, c);   // 23-11 (1.2.4 ronda 6, DLSSSR): los vectores de DLSS SR afinados (mvecSr; mvec no cambia), EngineSrVec.cs
 
             // 16-11 (calidad): interfaz quieta para la generacion
             if (quality && s.FgUi > 0 && fgApplied)

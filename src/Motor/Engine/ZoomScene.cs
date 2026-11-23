@@ -53,6 +53,16 @@ namespace ConsoleEnhancer.Motor
             ty = 50 * Math.Sin(2 * Math.PI * n * k / 210 + 1.1);
         }
 
+        // 23-11 (1.2.4 ronda 6, DLSSSR, prueba): con Kind = 1 (solo traslacion) el punto (X, Y) de la imagen n estaba en (X + sx, Y + sy)
+        // (px a 4K) en la imagen nPrev: los vectores de verdad (de la imagen de ahora a la anterior) para mvverdad=8 (EngineRejas.cs ZoomTruth)
+        public static void Shift4K(double speed, double n, double nPrev, out double sx, out double sy)
+        {
+            double k = speed <= 0 ? 1 : speed;
+            sx = (Tx(n, k) - Tx(nPrev, k)) / 0.80; sy = (Ty(n, k) - Ty(nPrev, k)) / 0.80;
+        }
+        static double Tx(double m, double k) { return 160 * Math.Sin(2 * Math.PI * m * k / 160) + 30 * Math.Sin(2 * Math.PI * m * k / 53); }
+        static double Ty(double m, double k) { return 50 * Math.Sin(2 * Math.PI * m * k / 210 + 1.1); }
+
         public void ToWorld(double n, double X, double Y, out double u, out double v)
         {
             double s, a, tx, ty; Params(n, out s, out a, out tx, out ty);
