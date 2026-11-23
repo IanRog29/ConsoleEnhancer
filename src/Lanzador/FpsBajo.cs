@@ -86,7 +86,7 @@ namespace ConsoleEnhancer
                 int n = cfg.FsrMultNow - 1;
                 Config.FsrMultSet(n);
                 hecho = Config.FsrMulLabel(n); hechoEn = Config.FsrMulLabel(n);
-                RestartLs(Config.FsrMulLabel(n), Tx.T("Un momento…", "One moment…"));
+                RestartLs(null, null);   // (1.2.4 ronda 7, INTEGRA7: sin aviso propio, como el de x4 -> x2: habla el OsdWarn de abajo)
             }
             else if (dlss5Shown && !cfg.Dlss5Off && cfg.Dlss5FitsNow && cfg.Dlss5PassesNow > 1)
             {
@@ -100,14 +100,14 @@ namespace ConsoleEnhancer
                 hecho = "DLSS 5 apagado"; hechoEn = "DLSS 5 off";
                 // (1.2.01: antes solo cambiaba el estado y la imagen seguia igual hasta otro cambio: como el boton, se reabre)
                 SaveCurProfile();
-                RestartLs("DLSS 5 desactivado", "Escalado " + ScalerText(), false, true);
+                RestartLs(null, null, false, true);   // (INTEGRA7: sin aviso propio: el OsdWarn)
             }
             else if (cfg.UpscaleOn && cfg.ScalerNow != "fsr" && cfg.ScalerNow != "ninguno")
             {
                 SetScalerChoice(true, "fsr");
                 hecho = "escalador FSR 1"; hechoEn = "FSR 1 upscaler";
                 SaveCurProfile();
-                RestartLs("Escalador · " + ScalerText(), "Un momento…");
+                RestartLs(null, null);   // (INTEGRA7: sin aviso propio: el OsdWarn)
             }
             else if (modo == 120)
             {
