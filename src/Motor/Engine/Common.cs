@@ -340,6 +340,7 @@ namespace ConsoleEnhancer.Motor
                 case "reflex": Reflex = I(val); break;
                 case "mode": Mode = I(val); break;
                 case "dedupe": Dedupe = val.Trim().ToLowerInvariant() == "auto" ? -1 : (B(val) ? 1 : 0); break;
+                case "grab_gris": GrabColor.Gray = B(val); break;   // 23-11 (SINMPV): 1 = las capturas para el lanzador en gris como antes (EngineGrabColor.cs)
                 case "ipc": Ipc = val.Trim(); break;
                 case "motion": Motion = B(val); break;
                 case "aa": Aa = B(val); break;
