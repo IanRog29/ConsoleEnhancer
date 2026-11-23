@@ -60,7 +60,9 @@ namespace ConsoleEnhancer
         public int EfgMultNow { get { return CapMode && !Mode120 ? EfgMult : 2; } }
 
         public static bool EfgCaido { get { return motorGenCaida.Contains(" efg"); } }
-        public static bool EfgPuede() { return !EfgCaido; }
+        // (1.2.4 ronda 6, INTEGRA6: solo con la pantalla a 100 Hz o mas. A 60 Hz -x2 del modo 30 = 60/s con sincronizacion- se midio rota: la real
+        // "lista" a los 100 ms, 19-26 reales de 29,97 y casi todas las inventadas saltadas, sesiones c2-c4 del 23-11; a 120 Hz va bien)
+        public static bool EfgPuede() { double hz = Pantalla.Hz(); return !EfgCaido && (hz <= 0 || hz >= 100); }
 
         // Lo que va en EngineLive con la cadena de Enhanced FG (fg=0 al motor: no es DLSS-G / XeSS FG / FSR 3 FG)
         public string EfgLiveArgs(bool on)
