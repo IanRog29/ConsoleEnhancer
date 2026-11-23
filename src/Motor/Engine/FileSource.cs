@@ -85,7 +85,8 @@ namespace ConsoleEnhancer.Motor
         bool raw, video;                    // crudo YUY2 / video comprimido (Media Foundation)
         long dataStart, frameBytes, frameStride;
         long frames;                        // imagenes del fichero
-        int fileNum, fileDen;               // el ritmo del fichero
+        int fileNum, fileDen;               // el ritmo del fichero (ajustado para que el del juego sea la señal / m)
+        double fileFpsNative;               // el suyo
         // las imagenes del juego: k = 0..K-1 -> imagen del fichero F0 + k * P (o siempre stillF)
         int P = 1; long F0, K = 1, stillF = -1;
         string desc = "";
@@ -205,16 +206,28 @@ namespace ConsoleEnhancer.Motor
                 else if (s.Mode == 30) { fileNum = 30000; fileDen = 1001; }
                 else { fileNum = 60000; fileDen = 1001; }
             }
-            // (nunca mas rapido que la señal)
-            if ((long)fileNum * sigDen > (long)sigNum * fileDen) { fileNum = sigNum; fileDen = sigDen; }
-            double ffps = fileNum / (double)fileDen;
-            // Las imagenes del juego
+            // El ritmo del JUEGO (el del fichero / paso): nunca mas rapido que la señal, y si es la señal / m (30 en 59,94, 60 en 59,94, 120 /
+            // 4 en 59,94) se clava a la señal / m, como una consola (sin un salto de cadencia cada ~30 s). Antes se recortaba el del FICHERO a
+            // la señal: un video de 120 con paso 4 iba a camara lenta (15 imagenes del juego en vez de 30)
             P = Math.Max(1, s.FileStep);
-            F0 = Math.Min(frames - 1, (long)Math.Round(s.FileFrom * ffps));
-            long end = s.FileTo > 0 ? Math.Min(frames, (long)Math.Round(s.FileTo * ffps)) : frames;
+            double nfps = fileNum / (double)fileDen;   // (el suyo, sin ajustar: para pasar segundos a imagenes igual que las herramientas)
+            {
+                double gr = fileNum / (double)fileDen / P, sr = sigNum / (double)sigDen;
+                if (gr >= sr) { fileNum = sigNum * P; fileDen = sigDen; }
+                else
+                {
+                    int m = (int)Math.Round(sr / gr);
+                    if (m >= 1 && Math.Abs(sr / m - gr) / gr < 0.003) { fileNum = sigNum * P; fileDen = sigDen * m; }
+                }
+            }
+            double ffps = fileNum / (double)fileDen;   // (el del fichero, ya ajustado)
+            // Las imagenes del juego
+            F0 = Math.Min(frames - 1, (long)Math.Round(s.FileFrom * nfps));
+            long end = s.FileTo > 0 ? Math.Min(frames, (long)Math.Round(s.FileTo * nfps)) : frames;
             if (end <= F0) end = Math.Min(frames, F0 + 1);
             K = Math.Max(1, (end - F0 + P - 1) / P);
-            stillF = s.FileStill >= 0 ? Math.Min(frames - 1, (long)Math.Round(s.FileStill * ffps)) : -1;
+            stillF = s.FileStill >= 0 ? Math.Min(frames - 1, (long)Math.Round(s.FileStill * nfps)) : -1;
+            fileFpsNative = nfps;
             if (!video) readBuf = new byte[frameBytes];
             ring = new byte[Ring][]; ringPin = new GCHandle[Ring]; ringFrame = new long[Ring];
             for (int i = 0; i < Ring; i++) { ring[i] = new byte[(long)w * h * 2]; ringPin[i] = GCHandle.Alloc(ring[i], GCHandleType.Pinned); ringFrame[i] = -1; }
@@ -391,7 +404,7 @@ namespace ConsoleEnhancer.Motor
                 {
                     // fin del fichero antes de lo esperado (la duracion no casaba): se recorta y vuelta a empezar
                     frames = Math.Max(1, mf.Frames);
-                    long end = Math.Min(frames, s.FileTo > 0 ? (long)Math.Round(s.FileTo * fileNum / (double)fileDen) : frames);
+                    long end = Math.Min(frames, s.FileTo > 0 ? (long)Math.Round(s.FileTo * fileFpsNative) : frames);
                     if (F0 >= end) F0 = 0;
                     K = Math.Max(1, (end - F0 + P - 1) / P);
                     if (stillF >= frames) stillF = frames - 1;
