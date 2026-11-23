@@ -26,8 +26,8 @@ namespace ConsoleEnhancer
 {
     partial class Config
     {
-        public static readonly string[] TiposGen = { "smooth", "xess", "fsr3" };
-        public static bool TipoGen(string t) { return t == "smooth" || t == "xess" || t == "fsr3"; }
+        public static readonly string[] TiposGen = { "smooth", "xess", "fsr3", "efg" };   // (1.2.4 ronda 6, ENHANCED: + Enhanced FG, EnhancedFg.cs)
+        public static bool TipoGen(string t) { return t == "smooth" || t == "xess" || t == "fsr3" || t == "efg"; }
 
         // Lo que va en lugar de DLSS FG / NVIDIA VFG en lo guardado (ParsePick); "" = lo del ini (hasta que Config.Load lo calcula)
         public static volatile string GenEnVezDeDlss = "";
@@ -57,6 +57,7 @@ namespace ConsoleEnhancer
                 case "smooth": return !Ce.NoNvidia && !NvProfiles.SmoothBroken && !NvProfiles.EngineSmoothBroken && !Pantalla.Is119;
                 case "xess": return XessDll() && !XessNo1080(videoSize) && !XessCaido;   // (1.2.4 ronda 6: y no si la grafica se perdio con el en esta sesion)
                 case "fsr3": return FsrFgDll();
+                case "efg": return EfgPuede();   // (1.2.4 ronda 6, ENHANCED: cualquier grafica, el motor; EnhancedFg.cs)
             }
             return false;
         }
@@ -132,7 +133,8 @@ namespace ConsoleEnhancer
             if (v == "fsr") return "fsr3";
             if (v == "smoothmotion" || v == "smooth_motion" || v == "sm") return "smooth"; // (NVIDIA Smooth Motion, la del driver)
             if (v == "dlss" || v == "vfg" || v == "xefg") return v == "xefg" ? "xess" : "";   // (1.2.4 ronda 6: DLSS FG y NVIDIA VFG ya no existen)
-            throw new FormatException("generacion_tipo: smooth, xess o fsr3");
+            if (v == "efg" || v == "enhanced" || v == "enhancedfg" || v == "enhanced_fg") return "efg";   // (1.2.4 ronda 6, ENHANCED)
+            throw new FormatException("generacion_tipo: smooth, xess, fsr3 o efg");
         }
 
         // 19-11 (GENERACION): un tipo guardado (perfil, games\framegen_type.txt): el tipo o "" si no vale. (1.2.4 ronda 6: dlss / vfg -> el mas

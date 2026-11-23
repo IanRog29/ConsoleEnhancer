@@ -52,6 +52,7 @@ namespace ConsoleEnhancer
                 if (FgOff || HomeNative || Mode120) return 0;
                 if (EngineFfxWanted) return 1;
                 if (FgTypeNow == "xess" && MotorFgSabe("xess") && !MotorGenAMagpie("xess")) return 20 + (Ce.EngineUpscaler(this) == "dlss" ? 1 : 0);   // (1.2.4 ronda 5, XEFGM: salvo si va por Magpie, XefgMotor.cs)
+                if (FgTypeNow == "efg" && EfgPuede()) return EfgChainId;   // (1.2.4 ronda 6, ENHANCED: Enhanced FG, su cola de presentacion se crea al abrir el motor; EnhancedFg.cs)
                 return 0;
             }
         }
@@ -60,7 +61,7 @@ namespace ConsoleEnhancer
         // Lo que se añade a los argumentos del motor al abrirlo (EngineArgs)
         public string MotorFgArgs(int chain)
         {
-            return ChainXess(chain) ? " fg_tipo=xess" : "";
+            return ChainXess(chain) ? " fg_tipo=xess" : EfgChain(chain) ? " efg_cola=1" : "";   // (1.2.4 ronda 6, ENHANCED: efg=N va en EngineLive)
         }
 
         // XeSS FG no arranco en el motor (switch2-fgfallo xess): en esta sesion no se le vuelve a pedir (va por Magpie)

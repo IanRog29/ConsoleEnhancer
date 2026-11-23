@@ -34,6 +34,7 @@ namespace ConsoleEnhancer
                 case "smooth": return "Smooth Motion";
                 case "fsr3": return "FSR 3 FG";
                 case "xess": return "XeSS FG";
+                case "efg": return Config.EfgLabel(true);   // (1.2.4 ronda 6, ENHANCED: EnhancedFg.cs)
                 default: return t;   // (1.2.4 ronda 6: DLSS FG y NVIDIA VFG ya no existen)
             }
         }
@@ -57,6 +58,8 @@ namespace ConsoleEnhancer
                 if (!cfg.FgAvailable || !Config.GenPuedeIr(t, videoSize)) continue;
                 r.Add(t);
             }
+            // (1.2.4 ronda 6, ENHANCED) Enhanced FG, la generacion propia del motor: opcion EXTRA, al final y en cualquier grafica (EnhancedFg.cs)
+            if (cfg.FgAvailable && Config.GenPuedeIr("efg", videoSize) && !r.Contains("efg")) r.Add("efg");
             return r;
         }
 
@@ -170,7 +173,7 @@ namespace ConsoleEnhancer
         string GenDetail(string t, bool engine)
         {
             if (cfg.Mode120) return "120 fps (esports) · sin generacion · baja latencia"; // 20-11 (HZ120): a 120 no hay generacion
-            string fps = (cfg.CapMode ? "30" : "60") + " → " + ((cfg.CapMode ? 30 : 60) * 2) + " fps";
+            string fps = (cfg.CapMode ? "30" : "60") + " → " + ((cfg.CapMode ? 30 : 60) * (t == "efg" ? cfg.EfgMultNow : 2)) + " fps";   // (1.2.4 ronda 6, ENHANCED: x2-x4)
             if (engine) return fps + " · motor propio";
             if (cfg.Dlss5Off) return fps + " · sin DLSS 5";
             return fps + " · DLSS 5 " + Dlss5PassText();
