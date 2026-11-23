@@ -90,8 +90,8 @@ namespace ConsoleEnhancer.Motor
             try
             {
                 FmhEnsure();
-                ulong cv = fmRepaint ? 0 : FmSubmitGenerate(k, fenceValue);
-                if (!fmRepaint) fmFrames++;
+                ulong cv = fmNoFsr ? 0 : FmSubmitGenerate(k, fenceValue);
+                if (!fmNoFsr) fmFrames++;
                 fmLastRealAt = Clock.Now;
                 if (fmFrames % 300 == 0)
                 {

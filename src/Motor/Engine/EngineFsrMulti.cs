@@ -187,6 +187,18 @@ void main(uint3 id : SV_DispatchThreadID)
         }
         int fmRW, fmRH;   // el tamaño "de render" que se le pasa a FSR en esta real (la entrada o su mitad)
         bool fmRepaint;                         // esta imagen es un repintado (sin imagen nueva): solo la real, sin FSR
+        bool fmNoFsr;                           // esta imagen va por el hilo sin FSR (repintado, aun sin contexto, generacion apagada)
+
+        // En espera (EngineStandby.cs PresentBlank): con la cola de presentacion propia, la imagen negra a la cadena desde ella
+        bool FmScBlank(ID3D12Resource src, uint sync, out int hr)
+        {
+            hr = 0;
+            if (scQueue == null) return false;
+            FmhDrain();
+            FmhEnsure();
+            hr = FmhCopyPresent(src, sync, 0, -1, Clock.Now, 0, fenceValue);
+            return true;
+        }
 
         // COLA DE PRESENTACION propia (fsrfg_multi_cola_cadena=1): la cadena se crea con ella y las copias a la cadena y los Present van por
         // ella; asi las inventadas salen a su hora aunque la cola de la imagen este ocupada (DLSS 5, la FSR de la real siguiente...)
@@ -380,9 +392,12 @@ void main(uint3 id : SV_DispatchThreadID)
         // lista del motor: la real (sin aviso) como entrada de FSR y la que se enseña (con aviso), al juego libre
         bool FmTakeReal(ID3D12Resource show, int slot)
         {
-            fmHold = false; fmGen = false; fmRepaint = false;
-            if (!FmWanted() || s.NoPresent || fmCtx == IntPtr.Zero) return false;
-            if (slot < 0 && scQueue == null) return false;   // (sin cola de presentacion propia el repintado va como siempre)
+            fmHold = false; fmGen = false; fmRepaint = false; fmNoFsr = true;
+            if (s.NoPresent) return false;
+            // Con la cola de presentacion propia TODO lo que se enseña va por el hilo (en ella): escribir la cadena desde la cola de la imagen
+            // y presentar en la otra hacia perder la grafica (DXGI_ERROR_ACCESS_DENIED, medido 23-11 en las primeras imagenes, antes de FSR)
+            bool fsr = FmWanted() && fmCtx != IntPtr.Zero && slot >= 0;
+            if (scQueue == null && !fsr) return false;
             int k = FmK;
             try
             {
@@ -392,9 +407,12 @@ void main(uint3 id : SV_DispatchThreadID)
                 if (!FmhSetFree(b, 250)) { Log.Write("FSR FG: el hilo de presentacion va tarde (250 ms): se espera"); FmhSetFree(b, 1000); }
                 fmSet = b;
                 D3D12_RESOURCE_BARRIER x;
-                x = D3D12_RESOURCE_BARRIER.CreateTransition(fmSrc[b], D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.COPY_DEST); list.ResourceBarrier(1, ref x);
-                list.CopyResource(fmSrc[b], final);
-                x = D3D12_RESOURCE_BARRIER.CreateTransition(fmSrc[b], D3D12_RESOURCE_STATES.COPY_DEST, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE); list.ResourceBarrier(1, ref x);
+                if (fsr)
+                {
+                    x = D3D12_RESOURCE_BARRIER.CreateTransition(fmSrc[b], D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.COPY_DEST); list.ResourceBarrier(1, ref x);
+                    list.CopyResource(fmSrc[b], final);
+                    x = D3D12_RESOURCE_BARRIER.CreateTransition(fmSrc[b], D3D12_RESOURCE_STATES.COPY_DEST, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE); list.ResourceBarrier(1, ref x);
+                }
                 x = D3D12_RESOURCE_BARRIER.CreateTransition(fmReal[b], D3D12_RESOURCE_STATES.COPY_SOURCE, D3D12_RESOURCE_STATES.COPY_DEST); list.ResourceBarrier(1, ref x);
                 list.CopyResource(fmReal[b], show);
                 x = D3D12_RESOURCE_BARRIER.CreateTransition(fmReal[b], D3D12_RESOURCE_STATES.COPY_DEST, D3D12_RESOURCE_STATES.COPY_SOURCE); list.ResourceBarrier(1, ref x);
@@ -402,11 +420,12 @@ void main(uint3 id : SV_DispatchThreadID)
             catch (Exception ex) { fmBroken = true; Log.Write("FSR FG x" + k + ": fallo (" + ex.Message + "): se sigue sin ella"); return false; }
             fmHold = true;
             fmRepaint = slot < 0;
+            fmNoFsr = !fsr;
             fmArrival = slot >= 0 ? slotArrival[slot] : Clock.Now;
             // inventadas solo con esta imagen preparada, una anterior (la 1a solo se guarda), sin corte y sin aviso encima (las inventadas no
             // lo llevarian: parpadearia)
             fmReset = fmPreparedId == 0 || frameReset || fmFrameId == 0;
-            fmGen = !fmRepaint && !fmReset && ReferenceEquals(show, final);
+            fmGen = fsr && !fmReset && ReferenceEquals(show, final);
             return true;
         }
 
