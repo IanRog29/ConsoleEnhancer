@@ -184,19 +184,21 @@ namespace ConsoleEnhancer
             return Asistente.Ejecutar(hw, nuevo) ? -1 : 0;
         }
 
-        // Extras no oficiales que pone el usuario en <app>\extras (DLSS 5): Magpie solo carga la DLL junto a su exe -> se copia a magpie\
-        // (y se dice que no es oficial). Si el usuario la quita de extras\, se quita tambien la copia que puso la app (marca .de_extras)
+        // Extras no oficiales que pone el usuario en <app>\extras (DLSS 5). Hasta la 1.2.4 de prueba se copiaban a magpie\ (Magpie solo
+        // cargaba la DLL junto a su exe); ahora el motor la lee de extras\ y aqui solo se quitan las copias viejas que puso la app
         public static void PrepararExtras()
         {
             try
             {
-                string ex = Path.Combine(Paths.AppDir, @"extras\" + Integrado.Dlss5Dll), dst = Path.Combine(Paths.MagpieDir, Integrado.Dlss5Dll), marca = dst + ".de_extras";
-                if (File.Exists(ex) && Directory.Exists(Paths.MagpieDir) && (!File.Exists(dst) || new FileInfo(dst).Length != new FileInfo(ex).Length))
+                // (1.2.4 ronda 6, QUITAFG, fase 2: sin Magpie el motor la lee de extras\ -dlss5_dir-: ya no se copia a magpie\ y la copia
+                // que puso la app alli -con su marca .de_extras, ~276 MB- se quita; una puesta a mano en magpie\, sin marca, no se toca)
+                string dst = Path.Combine(Paths.MagpieDir, Integrado.Dlss5Dll), marca = dst + ".de_extras";
+                if (File.Exists(marca))
                 {
-                    File.Copy(ex, dst, true); File.WriteAllText(marca, ex);
-                    Log.Write("DLSS 5: " + Integrado.Dlss5Dll + " de extras\\ copiada a magpie\\ (DLL de NVIDIA modificada por la comunidad, SIN FIRMA, no oficial)");
+                    if (File.Exists(dst)) File.Delete(dst);
+                    File.Delete(marca);
+                    Log.Write("DLSS 5: quitada la copia de magpie\\ que puso la app (el motor la lee de extras\\)");
                 }
-                else if (!File.Exists(ex) && File.Exists(marca) && File.Exists(dst)) { File.Delete(dst); File.Delete(marca); Log.Write("DLSS 5: ya no esta en extras\\: quitada de magpie\\"); }
             }
             catch (Exception e) { Log.Error("Extras (DLSS 5)", e); }
             // (19-11 a 1.2.4) runtimes\dlssg_sm86 de la comunidad, que pedia el DLSS FG de Magpie, se copiaba de extras\ a magpie\ (con su marca
@@ -540,8 +542,9 @@ namespace ConsoleEnhancer
             bool nv = fab == "nvidia";
             sb.AppendLine("escalador=" + (p.Escalador == "dlss" || p.Escalador == "xess" || p.Escalador == "fsr4" ? p.Escalador : p.Escalador == "ninguno" ? (nv && g != null && g.F.DlssSr.Si ? "dlss" : "fsr") : "fsr"));
             // (1.0.9) con XeSS / FSR 4 de serie, R3 = el otro (FSR 4 -> XeSS) o FSR 1
+            // (1.2.4 ronda 6, QUITAFG: sin Magpie no hay RTX Video ni Lanczos: con DLSS de serie, R3 = FSR 1 del motor; en Intel, XeSS)
             string alt = p.Escalador == "fsr4" ? (p.EscaladorAlternativo == "xess" ? "xess" : "fsr") : p.Escalador == "xess" ? "fsr" :
-                         nv && g != null && g.F.RtxVideo.Si ? "vsr" : g != null && g.F.XessSr.Si && g.Fab == Fabricante.Intel ? "xess" : "lanczos";
+                         g != null && g.F.XessSr.Si && g.Fab == Fabricante.Intel ? "xess" : "fsr";
             sb.AppendLine("escalador_alternativo=" + alt);
             string flujo = nv && g != null && g.F.Nvof.Si ? "nvidia" : "amd";
             sb.AppendLine("dlss_flujo=" + flujo);

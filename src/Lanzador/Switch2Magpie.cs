@@ -325,7 +325,7 @@ namespace ConsoleEnhancer
         // de NVIDIA, hecho para imagen de video comprimida como la de una capturadora); xess = XeSS SR; fsr = FSR 1 (EASU + RCAS)
         public string Scaler = "dlss";
         // El de R3 del mando (antes: escalador DLSS / el de LS). Nunca NIS (el usuario no lo quiere)
-        public string AltScaler = "vsr";
+        public string AltScaler = "fsr";   // (1.2.4 ronda 6, QUITAFG: antes "vsr", RTX Video de Magpie; el motor no lo hace: FSR 1)
         // Modelo de DLSS SR: 5 = E (DLSS 3, CNN), 10 = J, 11 = K (DLSS 4), 12 = L, 13 = M (DLSS 4.5). 11-11 (aceptado por el
         // usuario con LS): E en todo; K sin el jitter de un juego alisaba y arrastraba la textura suave. Con Magpie DLSS recibe
         // ademas movimiento medido por flujo optico (dlss_flujo): merece la pena volver a probar K o L
@@ -6430,7 +6430,7 @@ namespace ConsoleEnhancer
                     cfg.VideoSize = was;
                     if (!still)
                     {
-                        Log.Write((applying ? "Perfil" : "Mando") + ": captura a " + SizeName(size) + " (con ella toca mpv + Magpie: se reabre la imagen)");
+                        Log.Write((applying ? "Perfil" : "Mando") + ": captura a " + SizeName(size) + " (se reabre la imagen)");
                         relaunchSize = size;
                         SaveCurProfile();
                         ShowPadCurtain("Un momento…", "Captura " + SizeName(size));
@@ -11949,7 +11949,7 @@ namespace ConsoleEnhancer
                 {
                     relaunchEngine = false;
                     PrepareCfg();
-                    Log.Write("Cambio de motor: " + (cfg.EngineNow ? "motor propio" : "mpv + Magpie (DLSS 5)"));
+                    Log.Write("Cambio de motor: " + (cfg.EngineNow ? "motor propio" : "mpv sin el motor"));
                     // (16-11, dlss5_sin_telon: con el relevo la otra imagen ya esta a la vista: sin telon)
                     if (!RelevoShowing()) ShowCurtain();
                     signalOn = false;
@@ -11987,7 +11987,7 @@ namespace ConsoleEnhancer
                     engineCrashes++;
                     MotorGenCaida(p, p.ExitCode);   // (1.2.4 ronda 5, XEFGM: con XeSS FG / la generacion propia en el, esa generacion por Magpie el resto de la sesion; XefgMotor.cs)
                     Log.Write("El motor propio se ha cerrado solo (codigo " + p.ExitCode + ", vez " + engineCrashes + "; ver data\\logs\\engine.log): " +
-                              (engineCrashes >= 3 ? "el resto de la sesion mpv + Magpie" : "se vuelve a abrir"));
+                              (engineCrashes >= 3 ? "el resto de la sesion mpv sin el motor" : "se vuelve a abrir"));
                     if (engineCrashes >= 3) cfg.Engine = "magpie";
                     // (1.2.4 arreglos, RELEVO: la imagen congelada en vez de negro; sin la espera si hay un motor en espera que vale. RelevoMotor.cs.
                     // Lo que va por Magpie tras una caida con XeSS FG / la FG propia del motor lo decide XEFGM, XefgMotor.cs)
