@@ -558,7 +558,9 @@ namespace ConsoleEnhancer
             // (1.2.3 MOTOR5 tenia aqui la fila "DLSS 5 por: Motor / Magpie"; 1.2.4 SOLOMOTOR: fuera, no se elige: el motor siempre que sepa, SoloMotor.cs)
             FilaAjuste[] efgF = EfgFilas();   // (1.2.4 ronda 6, ENHANCED: multiplicador y baja latencia de Enhanced FG, EnhancedFg.cs)
             ajFilas.AddRange(new[] { cap, mo, fg, tipo, efgF[0], efgF[1], FsrMulFila(), SmoothX4Fila(), d5, d5no, niv, pas, esc });   // (FGMULTI: el multiplicador de FSR 3 FG, MultiFsr.cs; INTEGRA6: el de Smooth Motion, SmoothX4.cs)
-            ajFilas.RemoveAll(delegate(FilaAjuste f) { return !f.Visible; });
+            // (1.2.4 ronda 6, coordinador: las filas que enseña AjustesDepende segun el tipo elegido -multiplicadores de FSR 3 FG, Enhanced FG y
+            // Smooth Motion, baja latencia de Enhanced FG- nacen escondidas: si se quitaban aqui no salian nunca; el dibujo ya salta las escondidas)
+            ajFilas.RemoveAll(delegate(FilaAjuste f) { return !f.Visible && f.Id != "efgmul" && f.Id != "efglat" && f.Id != "fsrmul" && f.Id != "smx4"; });
             AjustesDepende(true);
         }
 
