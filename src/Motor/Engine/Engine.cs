@@ -318,6 +318,7 @@ namespace ConsoleEnhancer.Motor
             // 17-11 (rejas): los de calidad ya al arrancar (antes al entrar en el juego: si tardaban, la app creia la consola apagada)
             if (s.MvPx || s.MvMask > 0 || s.FgUi > 0 || s.MvCapas) EnsureQualityPsos();
             if (s.MvCons > 0 || s.MvCapas || s.MvTruth > 0 || s.MvApert > 0 || s.MvEns > 0 || s.FgVec >= 2) EnsureRejasPsos();   // 17-11 (REJAS): tambien al arrancar
+            if (s.Efg >= 2) EfgPsos();   // (1.2.4 ronda 6, ENHANCED: Enhanced FG, EngineFgEnhanced.cs)
         }
 
         ID3D12Resource MakeBuffer(D3D12_HEAP_TYPE type, long size, D3D12_RESOURCE_STATES state, string name)

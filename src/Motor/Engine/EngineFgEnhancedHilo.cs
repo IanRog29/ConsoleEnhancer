@@ -193,6 +193,7 @@ namespace ConsoleEnhancer.Motor
                     k[0] = (uint)efgQw; k[1] = (uint)efgQh; k[2] = (uint)efgBx[0]; k[3] = (uint)efgBy[0];
                     k[4] = F(t); k[5] = F(s.EfgKappa); k[6] = F(s.EfgTau); k[7] = F(s.EfgStillN);
                     k[8] = (uint)efgLw[0]; k[9] = (uint)efgLh[0]; k[10] = extrap ? 1u : 0u;
+                    k[12] = (uint)efgBx[1]; k[13] = (uint)efgBy[1]; k[14] = (uint)efgBx[3]; k[15] = (uint)efgBy[3];
                     EfgRun(psoEfgSel, c, 16, k, Groups(efgQw, 16), Groups(efgQh, 8), efgSel);
                 }
                 EfgZero(k);

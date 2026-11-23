@@ -83,7 +83,6 @@ namespace ConsoleEnhancer.Motor
     unsafe partial class Engine
     {
         const int EfgSets = 3, EfgTabs = 18;
-        static readonly D3D12_RESOURCE_STATES EfgRead = (D3D12_RESOURCE_STATES)((int)D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE | (int)D3D12_RESOURCE_STATES.COPY_SOURCE);
         ID3D12CommandQueue efgQueue;                 // la cola propia de presentacion (la cadena se crea en ella) o null (la del motor)
         ID3D12Fence efgFence;                        // la valla de lo que manda el hilo de presentacion
         readonly long[] efgSlotDone = new long[EfgSets];   // (valla efgFence) la ultima lista que lee cada ranura de efgRing
@@ -100,7 +99,7 @@ namespace ConsoleEnhancer.Motor
         IntPtr efgHeapPtr;
         D3D12_CPU_DESCRIPTOR_HANDLE efgCpu0;
         D3D12_GPU_DESCRIPTOR_HANDLE efgGpu0;
-        bool efgReady, efgBroken, efgSaid, efgHold, efgJobReset;
+        bool efgReady, efgBroken, efgHold, efgJobReset;
         int efgW = EfgSets - 1;
         long efgJobArrival, efgSeq;
 
@@ -146,14 +145,13 @@ namespace ConsoleEnhancer.Motor
         {
             if (efgReady) return;
             long t0 = Clock.Now;
-            psoEfgLuma = Pso(CompileCs("efg_luma", EfgShaders.Luma));
+            EfgPsos();
             psoEfgDown = Pso(CompileCs("efg_down", EfgShaders.Down));
             psoEfgFlow = Pso(CompileCs("efg_flujo", EfgShaders.Flow));
             psoEfgProp = Pso(CompileCs("efg_apoyo", EfgShaders.Prop));
             psoEfgStill = Pso(CompileCs("efg_quieto", EfgShaders.Still));
             psoEfgCut = Pso(CompileCs("efg_corte", EfgShaders.Cut));
             psoEfgSel = Pso(CompileCs("efg_eleccion", EfgShaders.Sel));
-            psoEfgFin = Pso(CompileCs("efg_inventada", EfgShaders.Fin));
             int W = outW, H = outH;
             efgLw[0] = (W + 1) / 2; efgLh[0] = (H + 1) / 2;
             for (int l = 1; l < 4; l++) { efgLw[l] = (efgLw[l - 1] + 1) / 2; efgLh[l] = (efgLh[l - 1] + 1) / 2; }
@@ -222,6 +220,8 @@ namespace ConsoleEnhancer.Motor
                 EfgSrv(c, 16, 0, efgL[p, 0], DXGI_FORMAT.R16_FLOAT); EfgSrv(c, 16, 1, efgL[c, 0], DXGI_FORMAT.R16_FLOAT);
                 EfgSrv(c, 16, 2, efgF[c, 1, 0], DXGI_FORMAT.R16G16B16A16_FLOAT); EfgSrv(c, 16, 3, efgF[c, 0, 0], DXGI_FORMAT.R16G16B16A16_FLOAT);
                 EfgSrv(c, 16, 4, efgSt[c], DXGI_FORMAT.R16G16_FLOAT); EfgUav(c, 16, 0, efgSel, DXGI_FORMAT.R16G16B16A16_FLOAT);
+                EfgSrv(c, 16, 5, efgF[c, 1, 1], DXGI_FORMAT.R16G16B16A16_FLOAT); EfgSrv(c, 16, 6, efgF[c, 0, 1], DXGI_FORMAT.R16G16B16A16_FLOAT);
+                EfgSrv(c, 16, 7, efgF[c, 0, 3], DXGI_FORMAT.R16G16B16A16_FLOAT);
                 EfgSrv(c, 17, 0, efgRing[p], ColorFmt); EfgSrv(c, 17, 1, efgRing[c], ColorFmt);
                 EfgSrv(c, 17, 2, efgSel, DXGI_FORMAT.R16G16B16A16_FLOAT); EfgSrv(c, 17, 3, efgSt[c], DXGI_FORMAT.R16G16_FLOAT);
                 EfgSrv(c, 17, 4, efgCut[c], DXGI_FORMAT.R32_FLOAT); EfgUav(c, 17, 0, efgGen, ColorFmt);
@@ -235,6 +235,20 @@ namespace ConsoleEnhancer.Motor
             Log.Write("Enhanced FG si (x" + s.Efg + ", " + EfgModeName() + "; flujo optico propio en los dos sentidos a " + efgLw[0] + "x" + efgLh[0] +
                       ", eleccion a " + efgQw + "x" + efgQh + ", " + (efgQueue != null ? "cola propia de presentacion" : "con la cola del motor") +
                       "; ~" + mb + " MB; listo en " + Clock.SinceMs(t0).ToString("0", IC) + " ms)");
+        }
+
+        // Los sombreadores (InitPipelines con efg pedido al arrancar: el flujo tarda en compilarse la 1a vez; luego van de la cache)
+        void EfgPsos()
+        {
+            if (psoEfgFin != null) return;
+            psoEfgLuma = Pso(CompileCs("efg_luma", EfgShaders.Luma));
+            psoEfgDown = Pso(CompileCs("efg_down", EfgShaders.Down));
+            psoEfgFlow = Pso(CompileCs("efg_flujo", EfgShaders.Flow));
+            psoEfgProp = Pso(CompileCs("efg_apoyo", EfgShaders.Prop));
+            psoEfgStill = Pso(CompileCs("efg_quieto", EfgShaders.Still));
+            psoEfgCut = Pso(CompileCs("efg_corte", EfgShaders.Cut));
+            psoEfgSel = Pso(CompileCs("efg_eleccion", EfgShaders.Sel));
+            psoEfgFin = Pso(CompileCs("efg_inventada", EfgShaders.Fin));
         }
 
         string EfgModeName()

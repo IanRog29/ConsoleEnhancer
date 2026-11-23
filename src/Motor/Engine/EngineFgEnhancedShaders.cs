@@ -224,12 +224,15 @@ void main(uint3 tid : SV_GroupThreadID)
         // vale el lado cuyo campo dice lo mismo que m (el "lado bueno"): lo destapado sale de la actual y lo tapado de la anterior. Lo quieto con
         // borde (interfaz) cuenta como algo que tapa: un m que no es 0 no puede coger su muestra de ahi. Sel = (m en L0, peso de la actual, coste)
         public const string Sel = @"
-cbuffer C : register(b0) { uint QW, QH, BX, BY; float T, Kappa, Tau, StillN; uint W0, H0, Extrap, Pad0; float Pad1, Pad2, Pad3, Pad4; }
+cbuffer C : register(b0) { uint QW, QH, BX, BY; float T, Kappa, Tau, StillN; uint W0, H0, Extrap, Pad0; uint BX1, BY1, BX3, BY3; }
 Texture2D<float> Lp : register(t0);
 Texture2D<float> Lc : register(t1);
 Texture2D<float4> Fp : register(t2);
 Texture2D<float4> Fc : register(t3);
 Texture2D<float2> St : register(t4);
+Texture2D<float4> Fp1 : register(t5);   // los de L1 (bloques de 32 puntos de la salida): el fondo entre barrotes finos
+Texture2D<float4> Fc1 : register(t6);
+Texture2D<float4> Fc3 : register(t7);   // y uno de L3 (128 puntos): casi el de la camara
 RWTexture2D<float4> Sel : register(u0);
 SamplerState Lin : register(s0);
 static float2 inv0, invB;
@@ -281,6 +284,10 @@ void main(uint3 id : SV_DispatchThreadID)
         Try(x, -Fc.Load(int3(b, 0)).xy);
     }
     Try(x, float2(0, 0));
+    float2 u1 = x / (16.0 * float2(BX1, BY1));
+    Try(x, Fp1.SampleLevel(Lin, u1, 0).xy * 2);
+    Try(x, -Fc1.SampleLevel(Lin, u1, 0).xy * 2);
+    Try(x, -Fc3.SampleLevel(Lin, x / (64.0 * float2(BX3, BY3)), 0).xy * 8);
     float2 m0 = bestM;
     Try(x, Fp.SampleLevel(Lin, (x - T * m0) * invB, 0).xy);
     Try(x, -Fc.SampleLevel(Lin, (x + (1 - T) * m0) * invB, 0).xy);
