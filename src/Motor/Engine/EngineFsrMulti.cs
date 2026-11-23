@@ -35,7 +35,8 @@ namespace ConsoleEnhancer.Motor
         public bool FsrMultiStill = true;   // fsrfg_multi_quieto=1|0: lo que no cambia entre las dos reales (la interfaz, el texto) va tal cual
         public float FsrMultiStillThr = 0.03f;
         public float FsrMultiStillRel = 0.15f;   // fsrfg_multi_quieto_relativo: el cambio frente al contraste de alli (3x3) por debajo del cual es quieto (0 = sin esto)   // fsrfg_multi_quieto_umbral: diferencia de color 0-1 (la mayor de 3x3) por debajo de la cual es "quieto"
-        public bool FsrMultiHalf = false;   // fsrfg_multi_mitad=0|1: la profundidad y los vectores a FSR a la mitad (sus pasadas "de render" a 1/4 de pixeles)
+        public int FsrMultiHalf = -1;       // fsrfg_multi_mitad=-1|0|1: la profundidad y los vectores a FSR a la mitad (sus pasadas "de render" a 1/4 de
+                                            // pixeles). -1 = con la entrada a 4K (medido: x4 -3 ms de latencia y la misma calidad); con menos, entera
         public bool FsrMultiSteps = true;   // fsrfg_multi_una=1|0: cada inventada en su lista (la 1a se enseña en cuanto esta)
         public string FsrMultiCsv = "";   // fsrfg_multi_csv=<fichero> (pruebas): cada Present del hilo (real / inventada, llegada de la real, hora del Present)
 
@@ -49,7 +50,7 @@ namespace ConsoleEnhancer.Motor
                 case "fsrfg_multi_dll": FsrMultiDll = val.Trim(); return true;
                 case "fsrfg_multi_csv": FsrMultiCsv = val.Trim(); return true;
                 case "fsrfg_multi_una": FsrMultiSteps = B(val); return true;
-                case "fsrfg_multi_mitad": FsrMultiHalf = B(val); return true;
+                case "fsrfg_multi_mitad": FsrMultiHalf = I(val); return true;
                 case "fsrfg_multi_quieto": FsrMultiStill = B(val); return true;
                 case "fsrfg_multi_quieto_umbral": FsrMultiStillThr = (float)Math.Max(0.001, Math.Min(0.5, D(val))); return true;
                 case "fsrfg_multi_quieto_relativo": FsrMultiStillRel = (float)Math.Max(0, Math.Min(10, D(val))); return true;
@@ -461,7 +462,7 @@ void main(uint3 id : SV_DispatchThreadID)
                 double dt = fmLastRealAt == 0 ? 33.4 : Clock.SinceMs(fmLastRealAt);
                 fmRW = inW; fmRH = inH;
                 float mvs = 1f;
-                if (s.FsrMultiHalf)
+                if (s.FsrMultiHalf > 0 || (s.FsrMultiHalf < 0 && inW >= 3000))
                 {
                     ID3D12Resource hd, hm; int hw, hh;
                     if (FmRecordHalf(dp, mv, id, out hd, out hm, out hw, out hh)) { dp = hd; mv = hm; fmRW = hw; fmRH = hh; mvs = 0.5f; }   // (los vectores siguen en px de la entrada: x 0,5)
