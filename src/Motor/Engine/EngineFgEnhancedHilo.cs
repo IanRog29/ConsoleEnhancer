@@ -17,7 +17,7 @@ namespace ConsoleEnhancer.Motor
     // a que la grafica la acabe y se presenta a su hora. Si llega otra real antes de acabar (la grafica no da), las inventadas que quedan se saltan.
     unsafe partial class Engine
     {
-        class EfgJob { public int W, K; public long Arrival, Seq, ReadyAt; public ulong Fence; public bool Reset, Show; public uint Sync, Flags; public double Phase, RealMs; public ManualResetEvent Ready; }
+        class EfgJob { public int W, K; public long Arrival, Content, Seq, ReadyAt; public ulong Fence; public bool Reset, Show; public uint Sync, Flags; public double Phase, RealMs; public ManualResetEvent Ready; }
 
         Thread efgThread;
         readonly Queue<EfgJob> efgJobs = new Queue<EfgJob>();
@@ -216,6 +216,8 @@ namespace ConsoleEnhancer.Motor
                 k[0] = (uint)efgQw; k[1] = (uint)efgQh; k[2] = (uint)efgBx[0]; k[3] = (uint)efgBy[0];
                 k[4] = F(t); k[5] = F(s.EfgKappa); k[6] = F(s.EfgTau); k[7] = F(s.EfgStillN);
                 k[8] = (uint)efgLw[0]; k[9] = (uint)efgLh[0]; k[10] = extrap ? 1u : 0u;
+                // (1.3.1, EFGCAL) solo al interpolar: los 3x3 bloques de alrededor y la busqueda local +-N en la eleccion (EfgShaders.Sel)
+                k[11] = extrap ? 0u : (uint)(Math.Max(0, Math.Min(3, s.EfgSelLocal)) | (s.EfgSelVecinos ? 256 : 0));
                 k[12] = (uint)efgBx[1]; k[13] = (uint)efgBy[1]; k[14] = (uint)efgBx[3]; k[15] = (uint)efgBy[3];
                 EfgRun(psoEfgSel, c, EfgTabSel, k, Groups(efgQw, 16), Groups(efgQh, 8), efgSel);
             }
@@ -224,6 +226,7 @@ namespace ConsoleEnhancer.Motor
             k[4] = F(hasPrev ? t : 1f); k[5] = F(s.EfgZeroPen); k[6] = F(s.EfgStillN); k[7] = F(s.EfgSigma);
             k[8] = extrap || !hasPrev ? 1u : 0u; k[9] = dup || cutCpu ? 1u : 0u; k[10] = (uint)efgLw[0]; k[11] = (uint)efgLh[0];
             k[12] = F(s.EfgCutThr); k[13] = F(s.EfgTau);
+            k[14] = extrap || !hasPrev ? 0u : (s.EfgNitidoOn ? 1u : 0u);   // (1.3.1, EFGCAL) Catmull-Rom para el candidato que mas pesa (solo al interpolar)
             EfgRun(psoEfgFin, c, EfgTabFin, k, Groups(outW, 16), Groups(outH, 8), null);
             EB(efgRing[p], D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.COMMON);
             EB(efgRing[c], D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.COMMON);
@@ -424,6 +427,19 @@ namespace ConsoleEnhancer.Motor
                 EfgEsperaLarga("la hora de la primera iba a " + ahead.ToString("0", IC) + " ms: se trae", ahead);
                 B = EfgAt(Clock.Now, need0 + s.EfgMarginMs);
             }
+            // (1.3.1, ronda 8, EFGCAL) el ritmo por la hora del contenido y el hueco de verdad (EngineFgEnhancedRitmo.cs; efg_ritmo=0 = lo de abajo)
+            if (s.EfgRitmo > 0 && (k == 2 || s.EfgRitmo >= 2) && !stale && s.EfgPhase < 0)
+            {
+                bool done = nReal == k - 1 && nReal > 0 ? EfgDoJobRitmoCalidad(j, c, flow, hasPrev, k, step, readyMs, vs, sy, fl)
+                          : nReal == 0 ? EfgDoJobRitmoLatencia(j, c, flow, hasPrev, k, step, readyMs, vs, sy, fl, B) : false;
+                if (done)
+                {
+                    efgPrevSeq = j.Seq;
+                    EfgTick(j, k, nReal, vs);
+                    return;
+                }
+            }
+            else efgPrevContent = j.Content != 0 ? j.Content : j.Arrival;
             // 3. por delante: con la real detras (calidad), el flujo y la primera inventada ya (la de cada siguiente, tras presentar la anterior)
             bool flowSent = false, genReady = false;
             if (nReal > 0)
@@ -464,9 +480,9 @@ namespace ConsoleEnhancer.Motor
                     EfgWaitUntil(ti);
                     long call = Clock.Now;
                     int hr = swap.Present(sy, (DXGI_PRESENT)fl);
-                    efgLastPresent = Clock.Now;
+                    efgLastPresent = Clock.Now; efgLastCall = call;
                     if (hr < 0) { Log.Write("Enhanced FG: Present: " + Hr.Format(hr)); if (Hr.IsDeviceLost(hr)) { efgHr = hr; return; } }
-                    if (real) efgReals++; else if (dup) efgDups++; else efgGens++;
+                    if (real) { efgReals++; efgPrevRealAt = call; } else if (dup) efgDups++; else efgGens++;
                     EfgCsvRow(j, i, real ? 'r' : dup ? 'd' : 'g', t, call, readyMs);
                     genReady = false;
                 }
@@ -488,7 +504,7 @@ namespace ConsoleEnhancer.Motor
             if (s.EfgCsv.Length == 0) return;
             efgCsvBuf.Append(kind).Append(';').Append(j.Seq.ToString(IC)).Append(';').Append(i.ToString(IC)).Append(';').Append(t.ToString("0.000", IC)).Append(';')
                      .Append(j.Arrival.ToString(IC)).Append(';').Append(call.ToString(IC)).Append(';').Append(readyMs.ToString("0.00", IC)).Append(';')
-                     .Append(efgLcur.ToString("0.00", IC)).Append("\r\n");
+                     .Append(efgLcur.ToString("0.00", IC)).Append(';').Append(j.Content.ToString(IC)).Append("\r\n");
             if (efgCsvAt == 0) efgCsvAt = Clock.Now;
             if (Clock.SinceMs(efgCsvAt) > 250 || efgCsvBuf.Length > 64 * 1024)
             {
@@ -505,7 +521,7 @@ namespace ConsoleEnhancer.Motor
             efgLastLog = Clock.Now;
             Log.Write("Enhanced FG x" + k + " (" + EfgModeName() + ", la real en la " + (nReal + 1) + "a de " + k + (vs ? ", con sincronizacion" : ", sin sincronizacion") + "): reales " + efgReals +
                       ", inventadas " + efgGens + ", repetidas " + efgDups + ", saltadas " + efgSkipped + ", tarde " + efgLate + "; L " + efgLcur.ToString("0.0", IC) +
-                      " ms (lista p90 " + EfgReadyP90().ToString("0.0", IC) + "), grafica: flujo " + efgFlowGpu.ToString("0.00", IC) + " ms, inventada " + efgGenGpu.ToString("0.00", IC) + " ms, copia " + efgCopyMs.ToString("0.00", IC) + " ms");
+                      " ms (lista p90 " + EfgReadyP90().ToString("0.0", IC) + "), grafica: flujo " + efgFlowGpu.ToString("0.00", IC) + " ms, inventada " + efgGenGpu.ToString("0.00", IC) + " ms, copia " + efgCopyMs.ToString("0.00", IC) + " ms" + EfgRitmoTxt());
         }
     }
 }

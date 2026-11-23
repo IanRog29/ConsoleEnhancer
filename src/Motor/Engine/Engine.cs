@@ -600,6 +600,7 @@ namespace ConsoleEnhancer.Motor
                 bool isNew = !IsDuplicate(src, pitch, rowBytes, h);
                 long since = capN - lastPassed;
                 bool pass = s.Mode == 30 ? (s.Dedupe30 >= 2 ? Pass30(isNew, since) : (isNew && since >= 2) || since >= 3) : isNew || since >= 2;
+                EfgNoteCapture(seq, arrival, isNew, pass);   // (1.3.1, EFGCAL: la hora del contenido para el ritmo de Enhanced FG)
                 if (!pass) { stats.Captured(true); return; }
                 lastPassedNew = isNew;
                 TirPass(since);     // (16-11 tirones: saltos de cadencia del juego)

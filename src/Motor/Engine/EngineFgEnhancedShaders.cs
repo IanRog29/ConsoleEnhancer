@@ -226,7 +226,7 @@ void main(uint3 tid : SV_GroupThreadID)
         // vale el lado cuyo campo dice lo mismo que m (el "lado bueno"): lo destapado sale de la actual y lo tapado de la anterior. Lo quieto con
         // borde (interfaz) cuenta como algo que tapa: un m que no es 0 no puede coger su muestra de ahi. Sel = (m en L0, peso de la actual, coste)
         public const string Sel = @"
-cbuffer C : register(b0) { uint QW, QH, BX, BY; float T, Kappa, Tau, StillN; uint W0, H0, Extrap, Pad0; uint BX1, BY1, BX3, BY3; }
+cbuffer C : register(b0) { uint QW, QH, BX, BY; float T, Kappa, Tau, StillN; uint W0, H0, Extrap, Opts; uint BX1, BY1, BX3, BY3; }
 Texture2D<float> Lp : register(t0);
 Texture2D<float> Lc : register(t1);
 Texture2D<float4> Fp : register(t2);
@@ -279,6 +279,18 @@ void main(uint3 id : SV_DispatchThreadID)
     float2 x = float2(id.xy) * 2 + 1;
     int2 b0 = int2(floor((x - 4) / 8));
     bestS = 1e9; bestW = T; bestM = 0;
+    if (Opts & 256)
+    {
+        // (EFGCAL) los 3x3 bloques alrededor (no solo los 2x2 mas cercanos): el vector bueno de un borde a veces es de un bloque mas alla
+        int2 cb = int2(floor(x / 8));
+        [loop] for (uint i = 0; i < 9; i++)
+        {
+            int2 b = clamp(cb + int2((int)(i % 3) - 1, (int)(i / 3) - 1), int2(0, 0), int2(BX - 1, BY - 1));
+            Try(x, Fp.Load(int3(b, 0)).xy);
+            Try(x, -Fc.Load(int3(b, 0)).xy);
+        }
+    }
+    else
     [unroll] for (int i = 0; i < 4; i++)
     {
         int2 b = clamp(b0 + int2(i & 1, i >> 1), int2(0, 0), int2(BX - 1, BY - 1));
@@ -293,6 +305,15 @@ void main(uint3 id : SV_DispatchThreadID)
     float2 m0 = bestM;
     Try(x, Fp.SampleLevel(Lin, (x - T * m0) * invB, 0).xy);
     Try(x, -Fc.SampleLevel(Lin, (x + (1 - T) * m0) * invB, 0).xy);
+    int loc = (int)(Opts & 255);
+    if (loc > 0)
+    {
+        // (EFGCAL) busqueda local +-loc puntos de L0 alrededor del elegido: lo fino que se mueve distinto de su bloque (postes, barras)
+        float2 c0 = bestM;
+        [loop] for (int dy = -loc; dy <= loc; dy++)
+            [loop] for (int dx = -loc; dx <= loc; dx++)
+                if (dx != 0 || dy != 0) Try(x, c0 + float2(dx, dy));
+    }
     Sel[id.xy] = float4(bestM, bestW, bestS);
 }";
 
@@ -300,7 +321,7 @@ void main(uint3 id : SV_DispatchThreadID)
         // ESTE punto (las dos muestras de color; las de oclusion con su coste), mezcladas por lo bien que casan. Con un corte de escena, la real
         // mas cercana en el tiempo
         public const string Fin = @"
-cbuffer C : register(b0) { uint W, H, QW, QH; float T, ZeroPen, StillN, Sigma; uint Extrap, CutCpu, W0, H0; float CutThr, TauF, Pad2, Pad3; }
+cbuffer C : register(b0) { uint W, H, QW, QH; float T, ZeroPen, StillN, Sigma; uint Extrap, CutCpu, W0, H0; float CutThr, TauF; uint FOpts; float Pad3; }
 Texture2D<float4> Prev : register(t0);
 Texture2D<float4> Cur : register(t1);
 Texture2D<float4> Sel : register(t2);
@@ -309,6 +330,18 @@ Texture2D<float> CutT : register(t4);
 RWTexture2D<unorm float4> Out : register(u0);
 SamplerState Lin : register(s0);
 float Y(float3 c) { return dot(c, float3(0.299, 0.587, 0.114)); }
+// (1.3.1, EFGCAL) Catmull-Rom con 5 muestras bilineales (sin las 4 esquinas, que pesan casi nada): la textura fina no se lava al llevarla
+// a medio punto (la bilineal es una media de 2 puntos ahi)
+float3 Cr(Texture2D<float4> tx, float2 p, float2 sz)
+{
+    float2 t1 = floor(p - 0.5) + 0.5, f = p - t1;
+    float2 w0 = f * (-0.5 + f * (1.0 - 0.5 * f)), w1 = 1.0 + f * f * (-2.5 + 1.5 * f), w2 = f * (0.5 + f * (2.0 - 1.5 * f)), w3 = f * f * (-0.5 + 0.5 * f);
+    float2 w12 = w1 + w2, t12 = (t1 + w2 / w12) / sz, t0 = (t1 - 1) / sz, t3 = (t1 + 2) / sz;
+    float3 r = tx.SampleLevel(Lin, float2(t12.x, t0.y), 0).rgb * (w12.x * w0.y) + tx.SampleLevel(Lin, float2(t0.x, t12.y), 0).rgb * (w0.x * w12.y) +
+               tx.SampleLevel(Lin, t12, 0).rgb * (w12.x * w12.y) + tx.SampleLevel(Lin, float2(t3.x, t12.y), 0).rgb * (w3.x * w12.y) +
+               tx.SampleLevel(Lin, float2(t12.x, t3.y), 0).rgb * (w12.x * w3.y);
+    return r / (w12.x * w0.y + w0.x * w12.y + w12.x * w12.y + w3.x * w12.y + w12.x * w3.y);
+}
 [numthreads(16, 8, 1)]
 void main(uint3 id : SV_DispatchThreadID)
 {
@@ -323,7 +356,7 @@ void main(uint3 id : SV_DispatchThreadID)
     float2 qf = X * 0.25 - 0.5;
     int2 q0 = int2(floor(qf));
     float2 fr = qf - float2(q0);
-    float3 o[5]; float e[5]; float bw[5];
+    float3 o[5]; float e[5]; float bw[5]; float2 Mk[4]; float Wk[4];
     [unroll] for (int i = 0; i < 4; i++)
     {
         int2 q = clamp(q0 + int2(i & 1, i >> 1), int2(0, 0), int2(QW - 1, QH - 1));
@@ -334,6 +367,7 @@ void main(uint3 id : SV_DispatchThreadID)
         bool two = Extrap != 0 ? s.w < TauF * 0.9 : abs(s.z - T) < 0.001;
         e[i] = two ? abs(Y(cp) - Y(cc)) : s.w;
         o[i] = lerp(cp, cc, s.z);
+        Mk[i] = M; Wk[i] = s.z;
         bw[i] = ((i & 1) ? fr.x : 1 - fr.x) * ((i >> 1) ? fr.y : 1 - fr.y);
     }
     float3 zp = Prev.Load(P).rgb, zc = Cur.Load(P).rgb;
@@ -342,12 +376,23 @@ void main(uint3 id : SV_DispatchThreadID)
     o[4] = Extrap != 0 ? zc : lerp(zp, zc, T);
     bw[4] = 0.5;
     float em = min(min(min(e[0], e[1]), min(e[2], e[3])), e[4]);
-    float3 acc = 0; float ws = 0;
-    [unroll] for (int k = 0; k < 5; k++)
+    float wk[5];
+    [unroll] for (int k0 = 0; k0 < 5; k0++) wk[k0] = (bw[k0] + 0.05) * exp(-(e[k0] - em) / Sigma);
+    int kb = -1;
+    if ((FOpts & 1) && Extrap == 0)
     {
-        float w = (bw[k] + 0.05) * exp(-(e[k] - em) / Sigma);
-        acc += o[k] * w; ws += w;
+        // (1.3.1, EFGCAL) el candidato que mas pesa, con Catmull-Rom en vez de bilineal (si pesa mas que el 0)
+        float wb = wk[4]; float2 Mb = 0; float Wb = 0;
+        [unroll] for (int k1 = 0; k1 < 4; k1++) if (wk[k1] > wb) { wb = wk[k1]; kb = k1; Mb = Mk[k1]; Wb = Wk[k1]; }
+        if (kb >= 0)
+        {
+            float2 sz = float2(W, H);
+            float3 ob = lerp(Cr(Prev, X - T * Mb, sz), Cr(Cur, X + (1 - T) * Mb, sz), Wb);
+            [unroll] for (int k2 = 0; k2 < 4; k2++) if (k2 == kb) o[k2] = ob;
+        }
     }
+    float3 acc = 0; float ws = 0;
+    [unroll] for (int k3 = 0; k3 < 5; k3++) { acc += o[k3] * wk[k3]; ws += wk[k3]; }
     Out[id.xy] = float4(saturate(acc / ws), 1);
 }";
     }
