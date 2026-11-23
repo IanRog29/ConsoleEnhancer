@@ -27,6 +27,10 @@ libraries used as well as that of the covered work. This permission does not cov
 libraries made by anyone other than their vendor (for example the community-modified nvngx_dlssnr.dll or the community dlssg_sm86
 package, which ConsoleEnhancer never distributes).
 
+The AMD FidelityFX SDK 1.1.4 source code that ConsoleEnhancer builds, with its own patch, into engine\CeFsrFg.dll is under the MIT
+license, which is compatible with the GPL: it needs no additional permission and keeps AMD's copyright and permission notice
+(THIRD-PARTY.md, licenses\AMD-FidelityFX-SDK-1.1.4-LICENSE.txt).
+
 This additional permission is granted only by the copyright holders of ConsoleEnhancer's own code. Code that ConsoleEnhancer takes
 from other GPL-3.0 projects keeps the plain terms its authors chose (see THIRD-PARTY.md). You may remove this additional permission
 from your copy of ConsoleEnhancer, or from modified versions of it, as section 7 of the GPL allows.
@@ -39,4 +43,6 @@ adicional (seccion 7 de la GPL): se puede repartir ConsoleEnhancer junto con las
 Vibrancia RTX, NGX y sus cabeceras publicas, Reflex, NVAPI), AMD FidelityFX, Intel XeSS (con XeSS FG y XeLL) y Microsoft Direct3D, que tienen sus propias licencias y no pasan a ser GPL; el codigo
 fuente que pide la GPL no incluye el de esas librerias. El permiso no vale para versiones modificadas de esas librerias por terceros
 (como la nvngx_dlssnr.dll comunitaria o el paquete dlssg_sm86, que ConsoleEnhancer no reparte nunca). Solo lo dan los autores del codigo propio de
-ConsoleEnhancer; lo que viene de otros proyectos GPL-3.0 sigue con sus condiciones (THIRD-PARTY.md).
+ConsoleEnhancer; lo que viene de otros proyectos GPL-3.0 sigue con sus condiciones (THIRD-PARTY.md). El codigo del FidelityFX SDK 1.1.4
+de AMD que ConsoleEnhancer compila, con su parche, en engine\CeFsrFg.dll es MIT (compatible con la GPL): no necesita este permiso y
+conserva el aviso de AMD.

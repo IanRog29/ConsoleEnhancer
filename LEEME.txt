@@ -2,8 +2,8 @@ ConsoleEnhancer - la app universal: cualquier consola, capturadora y grafica (18
 =========================================================================================================
 
 QUE ES
-Lo mismo que Prisma (Switch2Magpie + el motor Switch2Engine + Magpie + mpv), pero para cualquier PC (23-11, 1.2.4: ya sin mpv, todo
-por el motor propio): al abrirla por primera vez
+Lo mismo que Prisma (Switch2Magpie + el motor Switch2Engine + Magpie + mpv), pero para cualquier PC (23-11, 1.2.4: ya sin Magpie, sin
+mpv y sin DLSS FG, todo por el motor propio): al abrirla por primera vez
 detecta la grafica, la pantalla, la capturadora y los mandos, pregunta lo que no puede saber sola (asistente) y elige la cadena de
 imagen de ese PC. Es una COPIA aparte: Switch2Magpie y Switch2Engine no se tocan. Si Prisma esta abierto, ConsoleEnhancer no
 arranca (los dos usan la capturadora).
@@ -11,28 +11,28 @@ arranca (los dos usan la capturadora).
 PAQUETE PARA REPARTIR (20-11, agente GITHUB: lo que se sube a GitHub Releases; ver README.md y THIRD-PARTY.md)
   dist\ConsoleEnhancer\               carpeta portable (descomprimir donde sea y abrir ConsoleEnhancer.exe): 32 ficheros, 69 MB
   dist\ConsoleEnhancer-<version>.zip   lo mismo comprimido, 35 MB, y su .sha256 (scripts\empaquetar.ps1 -Zip -Version vX.Y.Z)
-  Dentro: ConsoleEnhancer.exe (+ ConsoleEnhancer.exe.config, 20-11 FUSION: un fallo en un hilo no cierra la app), motor\
-  (ConsoleEnhancerEngine.exe + las DLL de NVIDIA Streamline / DLSS / Reflex, firmadas), scripts\
-  (componentes.json; 1.2.4: sin los lua ni los glsl de mpv), recursos\base.ini, idiomas\en.txt, licencias\, extras\LEEME.txt,
-  portable.txt, LEEME.txt.
-  NO lleva Magpie: la app lo baja la primera vez que se abre de sus releases oficiales (SHA-256 de scripts\componentes.json;
-  sin internet, con los zip en <app>\descargas\; src\Lanzador\Componentes.cs). Asi ConsoleEnhancer no reparte los binarios de Magpie
-  Experimental con DLL de NVIDIA / AMD / Intel. (1.2.4, SINMPV: mpv ya no hace falta ni se baja: la imagen, las capturas para la
-  deteccion, los telones, la sonda de la espera, las pruebas del asistente y el sonido -ConsoleEnhancerEngine.exe --audio- son del motor.) Tampoco lleva
-  nvngx_dlssnr.dll ("DLSS 5", DLL de NVIDIA modificada y sin firma), runtimes\dlssg_sm86 (autofirmado), PrismaNr.dll, ningun ini ni
-  datos de juegos de nadie. Requisitos: Windows 10 2004+, .NET Framework 4.8, Direct3D 12.
+  Dentro: ConsoleEnhancer.exe (+ ConsoleEnhancer.exe.config, 20-11 FUSION: un fallo en un hilo no cierra la app), engine\
+  (ConsoleEnhancerEngine.exe + las DLL de NVIDIA Streamline / DLSS / Reflex, firmadas, + las piezas propias PrismaNr.dll -DLSS 5 con
+  el archivo del usuario- y CeFsrFg.dll -FSR 3 FG x3 / x4, codigo MIT de AMD cambiado-), scripts\ (components.json; 1.2.4: sin los
+  lua ni los glsl de mpv), resources\base.ini, languages\en.txt, licenses\, extras\README.txt, portable.txt, LEEME.txt.
+  1.2.4 ronda 6: NO lleva ni baja Magpie ni mpv. La primera vez la app baja solo el SDK de Intel XeSS 3.0.2 (<app>\xess) y el de AMD
+  FSR 2.3.0 (<app>\fsr) de sus releases oficiales (SHA-256 de scripts\components.json; sin internet, con los zip en <app>\downloads\;
+  de un magpie\ viejo se reaprovechan sus DLL de Intel / AMD; src\Lanzador\Componentes.cs). La imagen, las capturas para la
+  deteccion, los telones, la sonda de la espera, las pruebas del asistente y el sonido -ConsoleEnhancerEngine.exe --audio- son del
+  motor. No lleva nvngx_dlssnr.dll ("DLSS 5", DLL de NVIDIA modificada y sin firma), runtimes\dlssg_sm86, PrismaFg.dll, ningun ini
+  ni datos de juegos de nadie. Requisitos: Windows 10 2004+, .NET Framework 4.8, Direct3D 12.
 
 PUBLICAR (20-11, agente PUBLICAR: https://github.com/IanRog29/ConsoleEnhancer, autor IanRog29)
   - Bandeja: "Componentes: comprobar / volver a descargar" (estado de lo que baja la app; --componentes-reparar lo baja otra vez),
     "Anadir DLSS 5 (tu propio archivo)..." / "Quitar DLSS 5" y "Apoyar el proyecto (Ko-fi)" (src\Lanzador\Extras.cs).
-  - DLSS 5: el usuario elige SU nvngx_dlssnr.dll (y en RTX 30 su carpeta dlssg_sm86); se comprueba la cabecera PE (x64, DLL) y el
-    nombre, aviso de no oficial, copia a <app>\extras\ (Ce.PrepararExtras la pasa a magpie\), y encender (juegos\dlss5_activo.txt);
-    DLSS 5 en el motor siempre que haya engine\PrismaNr.dll (1.2.4: sin motor_dlss5 ni pregunta). Sin enlaces ni nombres de webs de descarga en ningun sitio.
-    1.2.4 ("haz lo que sea legal"): la app ya NO baja dlssg_sm86 (fuera de scripts\components.json; Componentes.AsegurarSm86 solo coge
-    una copia que ya este en el PC). Ultima decision del usuario (1.2.4): PrismaNr y PrismaFg (piezas propias del motor, C++) SI van a
-    git y al zip (el CI las compila con MSVC; PrismaNr con las 2 cabeceras de NGX de scripts\descargar_cabeceras_ngx.ps1, que no van a
-    git). Siguen fuera de git, del zip y del CI: nvngx_dlssnr.dll, dlssg_sm86 y cualquier DLL de NVIDIA no redistribuible. "Anadir
-    DLSS 5" busca en el PC del usuario (solo local, BuscaExtras.cs) lo que ya tenga.
+  - DLSS 5: el usuario elige SU nvngx_dlssnr.dll; se comprueba la cabecera PE (x64, DLL) y el nombre, aviso de no oficial, copia a
+    <app>\extras\ (el motor la lee de ahi, dlss5_dir; 1.2.4 ronda 6: ya no se copia a magpie\), y encender (games\dlss5_activo.txt);
+    DLSS 5 siempre en el motor con engine\PrismaNr.dll (1-3 pasadas, cualquier tipo de generacion). Sin enlaces ni nombres de webs de
+    descarga en ningun sitio. 1.2.4: PrismaNr (pieza propia del motor, C++) SI va a git y al zip (el CI la compila con MSVC y las 2
+    cabeceras de NGX de scripts\descargar_cabeceras_ngx.ps1, que no van a git); CeFsrFg tambien (build_fsrfg.bat, el FidelityFX SDK
+    v1.1.4 de AMD en el commit c6efa6b + parches\fidelityfx-fi-multi.patch). 1.2.4 ronda 6: sin DLSS FG, fuera PrismaFg y dlssg_sm86
+    (ni se baja, ni se busca, ni se usa). Siguen fuera de git, del zip y del CI: nvngx_dlssnr.dll, dlssg_sm86 y cualquier DLL de NVIDIA
+    no redistribuible. "Anadir DLSS 5" busca en el PC del usuario (solo local, BuscaExtras.cs) lo que ya tenga.
   - Asistente, ultimo paso: estado de los componentes, boton "Anadir / Quitar DLSS 5" (GeForce RTX) y un enlace discreto a Ko-fi.
   - Ko-fi: .github\FUNDING.yml (boton Sponsor), README (es / en), Acerca de, LEEME.txt del zip. Voluntario: la app es gratis y completa.
 
@@ -50,13 +50,16 @@ COMO SE USA
     internet-, es/en, sin red; 20-11 CE-UI: esa ventana ya se ajusta al contenido y no corta el texto).
 
 CADENA SEGUN LA GRAFICA (src\Deteccion\Plan.cs)
-  RTX 50: DLSS SR + Reflex + DLSS-G (x2; x3/x4 con pantallas de 180/240 Hz). RTX 40: DLSS SR + Reflex + Smooth Motion x2 (DLSS-G a
-  119,88 Hz). RTX 20/30: DLSS SR + Reflex, sin DLSS-G (FSR 3 FG por Magpie opcional). GTX/AMD/Intel: motor sin Streamline con FSR 1
-  (EASU + RCAS) propio; AMD: AFMF del driver (se explica) o FSR 3 FG por Magpie; Intel Arc: XeSS FG por Magpie. Con la pantalla a
-  60 Hz no hay generacion en el modo 60. Poca VRAM: sin motor en espera, menos pasadas de DLSS 5, captura a 1080p si no cabe.
+  (1.2.4 ronda 6: todo por el motor, sin DLSS-G.) RTX 40 / 50: DLSS SR + Reflex + Smooth Motion x2 (XeSS FG x2 a 119,88 Hz; Smooth
+  Motion x4 opcional = XeSS FG x2 del motor + Smooth Motion, smooth_x4). RTX 20/30: DLSS SR + Reflex, XeSS FG / FSR 3 FG opcionales.
+  GTX/AMD/Intel: XeSS o FSR 4 / 3.1 / FSR 1 (EASU + RCAS) en el motor; AMD: AFMF del driver (se explica) o FSR 3 FG del motor; Intel
+  Arc: XeSS FG del motor. En cualquiera: FSR 3 FG x2 / x3 / x4 (x3 / x4 con engine\CeFsrFg.dll, modo 30) y Enhanced FG (generacion
+  propia x2-x4, opcion extra, nunca de serie). Con la pantalla a 60 Hz no hay generacion en el modo 60. Poca VRAM: sin motor en
+  espera, menos pasadas de DLSS 5, captura a 1080p si no cabe.
 
 COMPILAR Y EMPAQUETAR (C# 5, nada que instalar)
-  build.bat -> bin\ConsoleEnhancer.exe (src\Lanzador + src\Deteccion)   build_motor.bat -> bin\motor\ConsoleEnhancerEngine.exe (src\Motor)
+  build.bat -> bin\ConsoleEnhancer.exe (src\Lanzador + src\Deteccion)   build_motor.bat -> bin\engine\ConsoleEnhancerEngine.exe (src\Motor)
+  build_prismanr.bat -> bin\engine\PrismaNr.dll   build_fsrfg.bat -> bin\engine\CeFsrFg.dll (C++, Visual Studio; ver README)
   tests\build_deteccion.bat -> tests\bin\DeteccionTest.exe (deteccion, plan y 19 PCs simulados)
   powershell -ExecutionPolicy Bypass -File scripts\empaquetar.ps1 [-Zip] [-Version vX.Y.Z] [-Web <url>] [-Destino <carpeta>] [-Forzar]
   Todo junto: preparar.bat (y "preparar.bat paquete").

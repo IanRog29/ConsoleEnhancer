@@ -181,6 +181,8 @@ Texto "$lic\README.txt" @(
     ' - NVIDIA Reflex (engine\sl.reflex.dll, sl.pcl.dll): streamline\reflex.license.txt.',
     ' - engine\PrismaNr.dll: codigo propio de ConsoleEnhancer (GPL-3.0); carga el archivo que pone el usuario sin la',
     '   comprobacion de NGX de NVIDIA (ver THIRD-PARTY.md) / own code; it loads the user-added file without NVIDIA''s NGX check.',
+    ' - engine\CeFsrFg.dll (FSR 3 FG x3 / x4): AMD FidelityFX SDK 1.1.4, MIT, cambiado por ConsoleEnhancer / modified by ConsoleEnhancer',
+    '   (AMD-FidelityFX-SDK-1.1.4-LICENSE.txt; el cambio esta en el codigo fuente: parches\fidelityfx-fi-multi.patch).',
     '',
     'Bajados por la app la primera vez (NO van en el paquete; cada uno con su licencia, dentro de su carpeta):',
     "Downloaded by the app on first start (NOT in the package; each one keeps its license inside its folder):",
@@ -189,7 +191,7 @@ Texto "$lic\README.txt" @(
     '',
     'Marcas (NVIDIA, DLSS, Reflex, GeForce RTX, AMD, FSR, FidelityFX, Intel, XeSS, Nintendo, Sony, PlayStation, Microsoft, Xbox...): de sus',
     'duenos; aqui solo describen compatibilidad. ConsoleEnhancer no esta afiliado a ninguno. / Trademarks belong to their owners.',
-    'No incluido / not included: nvngx_dlssnr.dll (ver extras\README.txt). Si va / included: engine\PrismaNr.dll.')
+    'No incluido / not included: nvngx_dlssnr.dll (ver extras\README.txt). Si va / included: engine\PrismaNr.dll, engine\CeFsrFg.dll.')
 Texto "$Destino\extras\README.txt" @(
     'Extras NO OFICIALES (no vienen con ConsoleEnhancer y la app funciona entera sin ellos). Solo si ya los tienes:',
     ' - nvngx_dlssnr.dll ("DLSS 5"): DLL de NVIDIA modificada por la comunidad, SIN FIRMA, sin licencia.',
@@ -237,7 +239,7 @@ Texto "$Destino\README.txt" @(
     "Ayuda, problemas y codigo fuente: $webTxt",
     'Licencias: licenses\README.txt. Extras no oficiales: extras\README.txt. Sin garantia (GPL-3.0).',
     'DLSS 5: no viene ni se baja nunca. DLSS 5 legal hoy no existe fuera de los juegos de NVIDIA en RTX 50; lo que',
-    'anadas tu es tuyo y bajo tu responsabilidad (extras\README.txt). La app funciona entera sin el. Las piezas propias del motor',
+    'anadas tu es tuyo y bajo tu responsabilidad (extras\README.txt). La app funciona entera sin el. La pieza propia del motor',
     'engine\PrismaNr.dll carga el archivo que pones tu sin la comprobacion de NGX de NVIDIA, cosa que sus terminos no permiten.',
     'ConsoleEnhancer es gratis y completo. Si te es util y quieres apoyarlo (opcional): https://ko-fi.com/ianrog29')
 
