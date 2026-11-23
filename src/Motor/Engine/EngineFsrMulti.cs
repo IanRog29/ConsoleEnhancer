@@ -32,6 +32,7 @@ namespace ConsoleEnhancer.Motor
         public string FsrMultiDll = "";
         public bool FsrMultiScQueue = true;  // fsrfg_multi_cola_cadena=0|1: la cadena (y las copias a ella) en una cola de presentacion propia
         public int FsrMultiQueue = 1;     // fsrfg_multi_cola=0|1|2: cola de calculo de prioridad normal / alta (de serie) / la de la imagen (sin asincrono)
+        public bool FsrMultiHalf = false;   // fsrfg_multi_mitad=0|1: la profundidad y los vectores a FSR a la mitad (sus pasadas "de render" a 1/4 de pixeles)
         public bool FsrMultiSteps = true;   // fsrfg_multi_una=1|0: cada inventada en su lista (la 1a se enseña en cuanto esta)
         public string FsrMultiCsv = "";   // fsrfg_multi_csv=<fichero> (pruebas): cada Present del hilo (real / inventada, llegada de la real, hora del Present)
 
@@ -45,6 +46,7 @@ namespace ConsoleEnhancer.Motor
                 case "fsrfg_multi_dll": FsrMultiDll = val.Trim(); return true;
                 case "fsrfg_multi_csv": FsrMultiCsv = val.Trim(); return true;
                 case "fsrfg_multi_una": FsrMultiSteps = B(val); return true;
+                case "fsrfg_multi_mitad": FsrMultiHalf = B(val); return true;
                 case "fsrfg_multi_cola": FsrMultiQueue = Math.Max(0, Math.Min(2, I(val))); return true;
                 case "fsrfg_multi_cola_cadena": FsrMultiScQueue = B(val); return true;
             }
@@ -91,6 +93,99 @@ namespace ConsoleEnhancer.Motor
         readonly AutoResetEvent fmCEv = new AutoResetEvent(false);
 
         bool FmWanted() { return s.FsrMulti >= 2 && !s.Fg && !fmBroken; }
+
+        // fsrfg_multi_mitad=1: profundidad (la mas cercana de cada 2x2) y vectores (los de esa muestra, en px de la entrada) a la mitad
+        const string FmHalfShader = @"
+cbuffer C : register(b0) { uint W, H, IW, IH; uint4 P1, P2, P3; }
+Texture2D<float> D : register(t0);
+Texture2D<float2> M : register(t1);
+RWTexture2D<float> OD : register(u0);
+RWTexture2D<float2> OM : register(u1);
+[numthreads(16, 8, 1)]
+void main(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= W || id.y >= H) return;
+    int2 b = int2(id.xy) * 2;
+    float best = 2; float2 mv = 0;
+    [unroll] for (int y = 0; y < 2; y++) [unroll] for (int x = 0; x < 2; x++)
+    {
+        int2 p = min(b + int2(x, y), int2(IW - 1, IH - 1));
+        float d = D[p];
+        if (d < best) { best = d; mv = M[p]; }
+    }
+    OD[id.xy] = best; OM[id.xy] = mv;
+}";
+        ID3D12PipelineState psoFmHalf;
+        ID3D12DescriptorHeap fmHalfHeap;
+        IntPtr fmHalfHeapPtr;
+        D3D12_CPU_DESCRIPTOR_HANDLE fmHalfCpu0;
+        D3D12_GPU_DESCRIPTOR_HANDLE fmHalfGpu0;
+        const int FmHalfSlots = 4;
+        int fmHalfSlot;
+        ID3D12Resource[] fmHalfD = new ID3D12Resource[2], fmHalfM = new ID3D12Resource[2];   // (por frameId & 1, como lo preparado)
+        int fmHalfW, fmHalfH;
+
+        // En la lista del motor, antes de preparar: las dos a la mitad (juego id & 1). Devuelve false si no se pudo (va a tamaño entero)
+        bool FmRecordHalf(ID3D12Resource dp, ID3D12Resource mv, ulong id, out ID3D12Resource hd, out ID3D12Resource hm, out int hw, out int hh)
+        {
+            hd = hm = null; hw = (inW + 1) / 2; hh = (inH + 1) / 2;
+            if (psoFmHalf == null)
+            {
+                psoFmHalf = Pso(CompileCs("fsrfgmitad", FmHalfShader));
+                D3D12_DESCRIPTOR_HEAP_DESC hdsc = new D3D12_DESCRIPTOR_HEAP_DESC();
+                hdsc.Type = D3D12_DESCRIPTOR_HEAP_TYPE.CBV_SRV_UAV;
+                hdsc.NumDescriptors = (uint)(FmHalfSlots * Shaders.TableSize);
+                hdsc.Flags = D3D12_DESCRIPTOR_HEAP_FLAGS.SHADER_VISIBLE;
+                object o;
+                Guid iid = typeof(ID3D12DescriptorHeap).GUID;
+                Hr.Check(dev.CreateDescriptorHeap(ref hdsc, ref iid, out o), "CreateDescriptorHeap (FSR FG, mitad)");
+                fmHalfHeap = (ID3D12DescriptorHeap)o;
+                fmHalfHeapPtr = Com.BorrowPtr(fmHalfHeap, typeof(ID3D12DescriptorHeap));
+                fmHalfHeap.GetCPUDescriptorHandleForHeapStart(out fmHalfCpu0);
+                fmHalfHeap.GetGPUDescriptorHandleForHeapStart(out fmHalfGpu0);
+            }
+            if (fmHalfW != hw || fmHalfH != hh || fmHalfD[0] == null)
+            {
+                for (int i = 0; i < 2; i++)
+                {
+                    if (fmHalfD[i] != null) Bury(fmHalfD[i]);
+                    if (fmHalfM[i] != null) Bury(fmHalfM[i]);
+                    fmHalfD[i] = Tex(DXGI_FORMAT.R32_FLOAT, hw, hh, true, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, "FSR FG: profundidad a la mitad " + i);
+                    fmHalfM[i] = Tex(DXGI_FORMAT.R16G16_FLOAT, hw, hh, true, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, "FSR FG: vectores a la mitad " + i);
+                }
+                fmHalfW = hw; fmHalfH = hh;
+            }
+            int b = (int)(id & 1);
+            hd = fmHalfD[b]; hm = fmHalfM[b];
+            // los descriptores en un anillo (los de la imagen anterior pueden estar aun en uso)
+            fmHalfSlot = (fmHalfSlot + 1) % FmHalfSlots;
+            int baseSlot = fmHalfSlot * Shaders.TableSize;
+            D3D12_SHADER_RESOURCE_VIEW_DESC sd = D3D12_SHADER_RESOURCE_VIEW_DESC.Tex2D(DXGI_FORMAT.R32_FLOAT);
+            dev.CreateShaderResourceView(dp, &sd, fmHalfCpu0.Offset(baseSlot + 0, inc));
+            D3D12_SHADER_RESOURCE_VIEW_DESC md = D3D12_SHADER_RESOURCE_VIEW_DESC.Tex2D(DXGI_FORMAT.R16G16_FLOAT);
+            dev.CreateShaderResourceView(mv, &md, fmHalfCpu0.Offset(baseSlot + 1, inc));
+            for (int i = 2; i < U0; i++) dev.CreateShaderResourceView(dp, &sd, fmHalfCpu0.Offset(baseSlot + i, inc));
+            D3D12_UNORDERED_ACCESS_VIEW_DESC ud = D3D12_UNORDERED_ACCESS_VIEW_DESC.Tex2D(DXGI_FORMAT.R32_FLOAT);
+            dev.CreateUnorderedAccessView(hd, null, &ud, fmHalfCpu0.Offset(baseSlot + U0, inc));
+            D3D12_UNORDERED_ACCESS_VIEW_DESC um = D3D12_UNORDERED_ACCESS_VIEW_DESC.Tex2D(DXGI_FORMAT.R16G16_FLOAT);
+            dev.CreateUnorderedAccessView(hm, null, &um, fmHalfCpu0.Offset(baseSlot + U0 + 1, inc));
+            D3D12_RESOURCE_BARRIER x;
+            x = D3D12_RESOURCE_BARRIER.CreateTransition(hd, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.UNORDERED_ACCESS); list.ResourceBarrier(1, ref x);
+            x = D3D12_RESOURCE_BARRIER.CreateTransition(hm, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.UNORDERED_ACCESS); list.ResourceBarrier(1, ref x);
+            uint* c = stackalloc uint[16];
+            for (int i = 0; i < 16; i++) c[i] = 0;
+            c[0] = (uint)hw; c[1] = (uint)hh; c[2] = (uint)inW; c[3] = (uint)inH;
+            list.SetDescriptorHeaps(1, ref fmHalfHeapPtr);
+            list.SetComputeRootSignature(rootSig);
+            list.SetPipelineState(psoFmHalf);
+            list.SetComputeRootDescriptorTable(1, fmHalfGpu0.Offset(baseSlot, inc));
+            list.SetComputeRoot32BitConstants(0, 4, c, 0);
+            list.Dispatch(Groups(hw, 16), Groups(hh, 8), 1);
+            x = D3D12_RESOURCE_BARRIER.CreateTransition(hd, D3D12_RESOURCE_STATES.UNORDERED_ACCESS, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE); list.ResourceBarrier(1, ref x);
+            x = D3D12_RESOURCE_BARRIER.CreateTransition(hm, D3D12_RESOURCE_STATES.UNORDERED_ACCESS, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE); list.ResourceBarrier(1, ref x);
+            return true;
+        }
+        int fmRW, fmRH;   // el tamaño "de render" que se le pasa a FSR en esta real (la entrada o su mitad)
         bool fmRepaint;                         // esta imagen es un repintado (sin imagen nueva): solo la real, sin FSR
 
         // COLA DE PRESENTACION propia (fsrfg_multi_cola_cadena=1): la cadena se crea con ella y las copias a la cadena y los Present van por
@@ -266,8 +361,15 @@ namespace ConsoleEnhancer.Motor
                 ulong id = fmFrameId + 1;
                 FmWaitCompute(fmPrepCv[id & 1], 200);   // (el calculo de hace dos reales aun leia este juego: casi nunca espera)
                 double dt = fmLastRealAt == 0 ? 33.4 : Clock.SinceMs(fmLastRealAt);
+                fmRW = inW; fmRH = inH;
+                float mvs = 1f;
+                if (s.FsrMultiHalf)
+                {
+                    ID3D12Resource hd, hm; int hw, hh;
+                    if (FmRecordHalf(dp, mv, id, out hd, out hm, out hw, out hh)) { dp = hd; mv = hm; fmRW = hw; fmRH = hh; mvs = 0.5f; }   // (los vectores siguen en px de la entrada: x 0,5)
+                }
                 int r = fmPrepare(fmCtx, Com.BorrowPtr(list, typeof(ID3D12GraphicsCommandList)), Com.BorrowPtr(dp, typeof(ID3D12Resource)), Com.BorrowPtr(mv, typeof(ID3D12Resource)),
-                                  inW, inH, 1f, 1f, (float)Math.Max(1, Math.Min(100, dt)), id);
+                                  fmRW, fmRH, mvs, mvs, (float)Math.Max(1, Math.Min(100, dt)), id);
                 if (r != 0) { Log.Write("FSR FG x" + s.FsrMulti + ": preparar = " + r + " (" + FmErrText() + "): sin ella"); fmBroken = true; return; }
                 fmPreparedId = id;
             }
@@ -331,14 +433,14 @@ namespace ConsoleEnhancer.Motor
                 int r;
                 if (steps)
                     r = fmStep(fmCtx, cl, src, (int)D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, Com.BorrowPtr(fmOut[b, L], typeof(ID3D12Resource)), (int)D3D12_RESOURCE_STATES.UNORDERED_ACCESS,
-                               (float)(L + 1) / k, (L == 0 ? 1 : 0) | (L == n - 1 ? 2 : 0), fmReset ? 1 : 0, id, (float)Math.Max(1, Math.Min(100, dt)), inW, inH);
+                               (float)(L + 1) / k, (L == 0 ? 1 : 0) | (L == n - 1 ? 2 : 0), fmReset ? 1 : 0, id, (float)Math.Max(1, Math.Min(100, dt)), fmRW > 0 ? fmRW : inW, fmRH > 0 ? fmRH : inH);
                 else
                 {
                     IntPtr* outs = stackalloc IntPtr[4];
                     float* times = stackalloc float[4];
                     for (int j = 0; j < n; j++) { outs[j] = Com.BorrowPtr(fmOut[b, j], typeof(ID3D12Resource)); times[j] = fmGen ? (float)(j + 1) / k : 0.5f; }
                     r = fmGenerate(fmCtx, cl, src, (int)D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, n, outs, (int)D3D12_RESOURCE_STATES.UNORDERED_ACCESS, times,
-                                   fmReset ? 1 : 0, id, (float)Math.Max(1, Math.Min(100, dt)), inW, inH);
+                                   fmReset ? 1 : 0, id, (float)Math.Max(1, Math.Min(100, dt)), fmRW > 0 ? fmRW : inW, fmRH > 0 ? fmRH : inH);
                 }
                 for (int j = j0; j < j1; j++) { x = D3D12_RESOURCE_BARRIER.CreateTransition(fmOut[b, j], D3D12_RESOURCE_STATES.UNORDERED_ACCESS, D3D12_RESOURCE_STATES.COPY_SOURCE); fmCList.ResourceBarrier(1, ref x); }
                 Hr.Check(fmCList.Close(), "Close (FSR FG, calculo)");
