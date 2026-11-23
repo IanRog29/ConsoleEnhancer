@@ -33,7 +33,7 @@ namespace ConsoleEnhancer.Deteccion
         public static OpcionesDeteccion Opciones(string caso, OpcionesDeteccion baseOp)
         {
             OpcionesDeteccion o = new OpcionesDeteccion();
-            o.ProbarD3D12 = baseOp.ProbarD3D12; o.TopeMs = baseOp.TopeMs; o.RutasDlssNr = baseOp.RutasDlssNr; o.RutasDlssgSm86 = baseOp.RutasDlssgSm86;
+            o.ProbarD3D12 = baseOp.ProbarD3D12; o.TopeMs = baseOp.TopeMs; o.RutasDlssNr = baseOp.RutasDlssNr;
             o.UsarMediaFoundation = baseOp.UsarMediaFoundation;
             if (caso == "sin-nvidia") o.UsarNvidia = false;
             if (caso == "sin-capturadora") o.BuscarCapturadoras = false;

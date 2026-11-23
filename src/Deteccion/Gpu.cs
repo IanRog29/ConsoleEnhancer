@@ -43,12 +43,12 @@ namespace ConsoleEnhancer.Deteccion
 
     public sealed class GpuFunciones
     {
-        public Funcion DlssSr = new Funcion(), DlssTransformer = new Funcion(), DlssG = new Funcion(), DlssMfg = new Funcion(),
+        // (1.2.4 ronda 6, QUITAFG: fuera DLSS-G, x3 / x4 y el runtime dlssg_sm86: la app ya no tiene DLSS FG)
+        public Funcion DlssSr = new Funcion(), DlssTransformer = new Funcion(),
                        SmoothMotion = new Funcion(), Reflex = new Funcion(), Nvof = new Funcion(), DlssNr = new Funcion(),
-                       DlssGComunidad = new Funcion(), RtxVideo = new Funcion(), RtxHdr = new Funcion(),
+                       RtxVideo = new Funcion(), RtxHdr = new Funcion(),
                        Fsr1 = new Funcion(), Fsr3Fg = new Funcion(), Fsr4 = new Funcion(), XessSr = new Funcion(), XessFg = new Funcion(),
                        Afmf = new Funcion(), AntiLag = new Funcion(), Motor = new Funcion();
-        public int MfgMax = 1;        // DLSS-G: imagenes por cada real que admite la grafica (2 en RTX 40, 4 en RTX 50)
     }
 
     public sealed class GpuInfo
@@ -314,16 +314,6 @@ namespace ConsoleEnhancer.Deteccion
                     f.DlssSr.Pon(drv == 0 || drv >= 51215, drv == 0 || drv >= 51215 ? "DLSS Super Resolution (Streamline)" : Tx.T("driver anterior a 512.15: actualízalo", "driver older than 512.15"));
                     f.DlssTransformer.Pon(drv == 0 || drv >= 57216, Tx.T("modelos transformer J/K (DLSS 4); L/M (DLSS 4.5) con driver reciente", "transformer presets J/K; L/M with a recent driver") +
                                           (g.Familia == FamiliaGpu.NvidiaRtx20 || g.Familia == FamiliaGpu.NvidiaRtx30 ? Tx.T("; en RTX 20/30 cuestan bastante más (sin FP8): el banco decide", "; slower on RTX 20/30") : ""));
-                    bool fgArq = g.Familia == FamiliaGpu.NvidiaRtx40 || g.Familia == FamiliaGpu.NvidiaRtx50;
-                    bool hagsOk = g.Hags == 2 || (g.Hags < 0 && g.HagsDeSerie);
-                    if (!fgArq) f.DlssG.Pon(false, Tx.T("DLSS Frame Generation solo en RTX 40 y 50", "DLSS FG needs RTX 40/50"));
-                    else if (!hagsOk) f.DlssG.Pon(false, g.Hags == 1 ? Tx.T("falta la «Programación de GPU acelerada por hardware» (Configuración > Pantalla > Gráficos)", "turn on Hardware-accelerated GPU scheduling") : Tx.T("HAGS sin confirmar", "HAGS unknown"));
-                    else if (!win10_2004) f.DlssG.Pon(false, Tx.T("pide Windows 10 2004 o posterior", "needs Windows 10 2004+"));
-                    else f.DlssG.Pon(true, "DLSS-G (Streamline) + Reflex");
-                    if (fgArq && g.Hags < 0) f.DlssG.Dudoso = true;
-                    if (f.DlssG.Si && gb < 6) { f.DlssG.Dudoso = true; f.DlssG.Motivo += Tx.T("; con menos de 6 GB va muy justa (~1,1 GB a 4K)", "; under 6 GB VRAM is tight"); }
-                    f.MfgMax = f.DlssG.Si ? (g.Familia == FamiliaGpu.NvidiaRtx50 && (drv == 0 || drv >= 57186) ? 4 : 2) : 1;
-                    f.DlssMfg.Pon(f.MfgMax >= 3, g.Familia == FamiliaGpu.NvidiaRtx50 ? Tx.T("generación múltiple x3/x4 (RTX 50)", "multi frame generation x3/x4") : Tx.T("x3/x4 solo en RTX 50", "x3/x4 only on RTX 50"));
                     // Smooth Motion: la generacion del driver (perfil del exe). RTX 50 desde 571.86; RTX 40 con drivers recientes (umbral aproximado)
                     bool smArq = g.Familia == FamiliaGpu.NvidiaRtx50 || g.Familia == FamiliaGpu.NvidiaRtx40;
                     int smMin = g.Familia == FamiliaGpu.NvidiaRtx50 ? 57186 : 59000;
@@ -333,7 +323,7 @@ namespace ConsoleEnhancer.Deteccion
                     {
                         f.SmoothMotion.Pon(true, Tx.T("generación del driver (perfil del exe, x2)", "driver frame generation (x2)") +
                                            (g.SmoothAjuste == 1 ? Tx.T("; el driver lista el ajuste", "; driver lists the setting") :
-                                            Tx.T("; ajuste oculto del driver: se confirma al ponerlo en el perfil (si falla, DLSS-G)", "; hidden driver setting: confirmed when set (falls back to DLSS-G)")));
+                                            Tx.T("; ajuste oculto del driver: se confirma al ponerlo en el perfil (si falla, XeSS FG)", "; hidden driver setting: confirmed when set (falls back to XeSS FG)")));
                         f.SmoothMotion.Dudoso = drv == 0 && g.SmoothAjuste != 1;
                     }
                     f.RtxVideo.Pon(drv == 0 || drv >= 53118, "RTX Video Super Resolution (Magpie)");
@@ -348,35 +338,26 @@ namespace ConsoleEnhancer.Deteccion
                                      (g.Familia == FamiliaGpu.NvidiaRtx40 || g.Familia == FamiliaGpu.NvidiaRtx50 ? "" : Tx.T("; sin el modelo FP8 (pide RTX 40/50)", "; no FP8 model")));
                         f.DlssNr.NoOficial = true;
                     }
-                    string sm86 = Existe(op.RutasDlssgSm86);
-                    if (g.Familia == FamiliaGpu.NvidiaRtx30 && sm86 != null)
-                    {
-                        f.DlssGComunidad.Pon(true, Tx.T("runtime dlssg_sm86 de la comunidad (autofirmado): DLSS-G en RTX 30 por Magpie, apagado de serie", "community dlssg_sm86 runtime (self-signed), off by default"));
-                        f.DlssGComunidad.NoOficial = true; f.DlssGComunidad.Dudoso = true;
-                    }
-                    else f.DlssGComunidad.Pon(false, g.Familia == FamiliaGpu.NvidiaRtx30 ? Tx.T("sin el runtime dlssg_sm86", "no dlssg_sm86 runtime") : "");
                 }
                 else
                 {
                     f.DlssSr.Pon(false, g.Familia == FamiliaGpu.NvidiaGtx ? Tx.T("GTX: sin núcleos tensor (sin DLSS)", "GTX: no tensor cores") : Tx.T("grafica sin núcleos tensor", "no tensor cores"));
                     f.DlssTransformer.Pon(false, "");
-                    f.DlssG.Pon(false, Tx.T("solo RTX 40 y 50", "RTX 40/50 only"));
                     f.SmoothMotion.Pon(false, Tx.T("solo RTX 40 y 50", "RTX 40/50 only"));
                     f.DlssNr.Pon(false, Tx.T("solo RTX", "RTX only"));
                     f.RtxVideo.Pon(false, Tx.T("solo RTX", "RTX only"));
                     f.RtxHdr.Pon(false, Tx.T("solo RTX", "RTX only"));
                 }
                 f.XessSr.Pon(sm64, sm64 ? Tx.T("XeSS (DP4a) por Magpie", "XeSS (DP4a) via Magpie") : Tx.T("pide SM 6.4 (DP4a)", "needs SM 6.4"));
-                f.XessFg.Pon(sm64 && d3d12, Tx.T("XeSS FG por Magpie (fuera de Intel: modo de compatibilidad)", "XeSS FG via Magpie (compat mode)"));
+                f.XessFg.Pon(sm64 && d3d12, Tx.T("XeSS FG x2 (motor propio; con DLSS 5, Magpie)", "XeSS FG x2 (own engine; with DLSS 5, Magpie)"));
                 f.XessFg.Dudoso = true;
             }
             else
             {
                 string no = Tx.T("solo NVIDIA RTX", "NVIDIA RTX only");
-                f.DlssSr.Pon(false, no); f.DlssTransformer.Pon(false, no); f.DlssG.Pon(false, no); f.DlssMfg.Pon(false, no);
+                f.DlssSr.Pon(false, no); f.DlssTransformer.Pon(false, no);
                 f.SmoothMotion.Pon(false, no); f.DlssNr.Pon(false, no); f.RtxVideo.Pon(false, no); f.RtxHdr.Pon(false, no);
                 f.Reflex.Pon(false, Tx.T("solo NVIDIA", "NVIDIA only")); f.Nvof.Pon(false, Tx.T("solo NVIDIA", "NVIDIA only"));
-                f.DlssGComunidad.Pon(false, "");
             }
 
             if (g.Fab == Fabricante.Amd)

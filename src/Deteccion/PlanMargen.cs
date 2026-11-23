@@ -50,7 +50,7 @@ namespace ConsoleEnhancer.Deteccion
     public static partial class Planificador
     {
         public const double UsoMotor = 0.85;            // el tope del motor jugando (motor_uso_grafica; EngineMargen.cs)
-        const double RefFgDlss2 = 4.5, RefFgSmooth2 = 2.5, RefFgFsr3 = 8.0, RefFgXess = 9.0, RefFgXessArc = 6.0, RefFgAfmf = 3.0;
+        const double RefFgSmooth2 = 2.5, RefFgFsr3 = 8.0, RefFgXess = 9.0, RefFgXessArc = 6.0, RefFgAfmf = 3.0;
         const double RefXess = 5.4, RefXessArc = 3.0, RefFsr4 = 3.0;
 
         // El indice para estimar: el de la tabla o, si la grafica no esta en ella (estimado por la familia), un 15 % menos
@@ -61,20 +61,15 @@ namespace ConsoleEnhancer.Deteccion
         }
 
         // ms por imagen real de la generacion (a la salida de ahora; esc = pixeles de salida / 4K / indice)
-        public static double CosteGeneracion(string gen, GpuInfo g, double esc) { return CosteGeneracion(gen, g, esc, 2); }
-
-        // mult: imagenes por cada real (x3 / x4 de DLSS-G y XeSS FG: una inventada mas cada vez, como en EscalaAuto). Smooth Motion, FSR 3 FG
-        // y AFMF son x2 fijos
-        public static double CosteGeneracion(string gen, GpuInfo g, double esc, int mult)
+        // (1.2.4 ronda 6, QUITAFG: todas x2; sin DLSS-G)
+        public static double CosteGeneracion(string gen, GpuInfo g, double esc)
         {
             bool arc = g != null && (g.Familia == FamiliaGpu.IntelArc || g.Familia == FamiliaGpu.IntelArcB);
-            double n = Math.Max(1, mult - 1);
             switch (gen)
             {
-                case "dlssg": return RefFgDlss2 * esc * n;
                 case "smooth": return RefFgSmooth2 * esc;
                 case "fsr3fg": return RefFgFsr3 * esc;
-                case "xessfg": return (arc ? RefFgXessArc : RefFgXess) * esc * n;
+                case "xessfg": return (arc ? RefFgXessArc : RefFgXess) * esc;
                 case "afmf": return RefFgAfmf * esc;
                 default: return 0;
             }
@@ -248,21 +243,19 @@ namespace ConsoleEnhancer.Deteccion
             double esc = (p.OutW * (double)p.OutH) / (3840.0 * 2160.0) / idx;
             double fijo = CosteLigero(p, g, p.CapW, p.CapH, true);
             // (AFMF es del driver: no esta en el selector, pero el plan lo apunta para el asistente)
-            string[] tipos = { "smooth", "dlss", "fsr3", "xess", "afmf" };
-            string[] gens = { "smooth", "dlssg", "fsr3fg", "xessfg", "afmf" };
+            string[] tipos = { "smooth", "fsr3", "xess", "afmf" };
+            string[] gens = { "smooth", "fsr3fg", "xessfg", "afmf" };
             for (int i = 0; i < tipos.Length; i++)
             {
                 if (!lista.Contains(tipos[i]) && !(tipos[i] == "afmf" && gen == "afmf")) continue;
-                // (con x3 / x4 de serie, lo de serie con su multiplicador; lo demas del selector, x2: lo minimo que se puede elegir)
-                int mult = gen == gens[i] ? (modo == "60" ? p.Mult60 : p.Mult30) : 2;
-                double c = fijo + CosteGeneracion(gens[i], g, esc, mult);
+                double c = fijo + CosteGeneracion(gens[i], g, esc);
                 if (c <= periodo) continue;
                 lista.Remove(tipos[i]);
                 p.Motivos.Add(Tx.T("Modo " + modo + ": " + NombreGen(gens[i]) + " no cabe en esta gráfica a esta salida (" + Tx.N(c, "0.0") + " de " + Tx.N(periodo, "0.0") + " ms por imagen real): fuera del selector",
                                    "Mode " + modo + ": " + NombreGen(gens[i]) + " does not fit this GPU at this output: removed from the picker"));
                 if (gen == gens[i])
                 {
-                    if (modo == "60") { p.Gen60 = "ninguna"; p.Mult60 = 1; } else { p.Gen30 = "ninguna"; p.Mult30 = 1; }
+                    if (modo == "60") p.Gen60 = "ninguna"; else p.Gen30 = "ninguna";
                     gen = "ninguna";
                     if (p.Gen60 == "ninguna" && p.Gen30 == "ninguna") p.GenDeSerie = false;
                     // (y su modo con generacion del plan, con su aviso de "ni lo mas ligero cabe")
@@ -273,7 +266,7 @@ namespace ConsoleEnhancer.Deteccion
             }
         }
 
-        static string NombreGen(string g) { return g == "dlssg" ? "DLSS FG" : g == "smooth" ? "Smooth Motion" : g == "fsr3fg" ? "FSR 3 FG" : g == "xessfg" ? "XeSS FG" : g; }
+        static string NombreGen(string g) { return g == "smooth" ? "Smooth Motion" : g == "fsr3fg" ? "FSR 3 FG" : g == "xessfg" ? "XeSS FG" : g; }
 
         // capturas_120: la mas alta que cabe a 120 (sin generacion) con lo mas ligero en el 85 % de 8,34 ms
         static void Tope120(PlanImagen p, GpuInfo g)
@@ -308,7 +301,7 @@ namespace ConsoleEnhancer.Deteccion
             if (p.Escalador == "dlss") mb += (g != null && g.F.DlssTransformer.Si ? 650 : 350) * q;
             else if (p.Escalador == "xess" || p.Escalador == "fsr4") mb += 400 * q;
             string gen = p.GenDeSerie ? (p.Gen60 != "ninguna" ? p.Gen60 : p.Gen30) : "ninguna";
-            if (gen == "dlssg") mb += 1100 * q; else if (gen == "fsr3fg" || gen == "xessfg") mb += 700 * q; else if (gen == "smooth") mb += 300 * q;
+            if (gen == "fsr3fg" || gen == "xessfg") mb += 700 * q; else if (gen == "smooth") mb += 300 * q;
             p.VramPrevistaMb = mb;
             p.VramTotalMb = g != null ? g.Vram / (1024.0 * 1024.0) : 0;
             double libre = p.VramTotalMb * UsoMotor;

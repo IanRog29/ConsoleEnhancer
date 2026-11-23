@@ -39,15 +39,13 @@ echo.
 echo [3/4] Motor ^(build_motor.bat^)...
 call "%~dp0build_motor.bat"
 if errorlevel 1 goto :mal
-rem (1.2.4) las piezas propias del motor en C++ (necesitan Visual Studio 2022 o sus Build Tools con C++): sin ellas la app va igual
-rem (sin DLSS 5 en el motor ni DLSS FG x3 / x4 con dlssg_sm86); el paquete si las necesita
+rem (1.2.4) la pieza propia del motor en C++ (necesita Visual Studio 2022 o sus Build Tools con C++): sin ella la app va igual
+rem (sin DLSS 5 en el motor); el paquete si la necesita. (1.2.4 ronda 6: PrismaFg -DLSS FG x3 / x4- ya no existe)
 echo.
-echo [3b] Piezas del motor ^(PrismaNr, PrismaFg^)...
+echo [3b] Pieza del motor ^(PrismaNr^)...
 if defined DESCARGAR %PS% "%~dp0scripts\descargar_cabeceras_ngx.ps1"
 call "%~dp0build_prismanr.bat"
 if errorlevel 1 (echo Aviso: sin PrismaNr.dll ^(hace falta Visual Studio con C++^) & if defined PAQUETE goto :mal)
-call "%~dp0build_prismafg.bat"
-if errorlevel 1 (echo Aviso: sin PrismaFg.dll ^(hace falta Visual Studio con C++^) & if defined PAQUETE goto :mal)
 echo.
 echo [4/4] Pruebas ^(tests\build_deteccion.bat^)...
 call "%~dp0tests\build_deteccion.bat"

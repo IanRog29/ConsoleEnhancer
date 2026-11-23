@@ -25,7 +25,10 @@
 //     (FpsBajo: DLSS 5 fuera, FSR 1, captura...). Aviso corto en pantalla y en el log; lo bajado se recuerda por combinacion (juego + cadena)
 //     en data\games\proteccion.txt (7 dias, proteccion_dias) y lo elegido NO se borra: al cambiar algo de la cadena, vuelve.
 //     60 s llegando con algo "a prueba" -> se recuerda que si llega (la prevision ya no lo baja).
-// ini: proteccion=1|0 (0 = como la 1.2.3), proteccion_umbral=95, proteccion_lejos=90, proteccion_dias=7
+// (1.2.4 ronda 6, QUITAFG: sin multiplicadores -x3 / x4 fuera- la prevision de "x4 no va" y "a prueba" ya no hace falta; queda la
+// VIGILANCIA de la generacion de Magpie -ProteVigila, antes TrayApp.MultVigila- y lo que baja: el modelo de DLSS SR y la escalera de FpsBajo,
+// recordado por combinacion)
+// ini: proteccion=1|0 (0 = como la 1.2.3), proteccion_umbral=95, proteccion_dias=7 (proteccion_lejos: se lee, ya no se usa)
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -146,19 +149,16 @@ namespace ConsoleEnhancer
             return CeParseXefgm(key, val);   // (1.2.4 ronda 5, XEFGM: motor_xefg_dlss5, motor_propia_dlss5; XefgMotor.cs)
         }
 
-        // La cadena con el multiplicador m y el tipo, para la prevision y la clave (sin la regla de la grafica dentro: multGpuDentro)
-        public CadenaEscala ProteCadena(bool cap30, int m, string tipo)
+        // Las imagenes reales por segundo del modo (la captura va a 60000/1001)
+        public static double ModoBase(bool cap30) { return cap30 ? 29.97 : 59.94; }
+
+        // La cadena con el tipo de generacion, para la clave (1.2.4 ronda 6: siempre x2)
+        public CadenaEscala ProteCadena(bool cap30, string tipo)
         {
-            bool antes = multGpuDentro;
-            multGpuDentro = true;
-            try
-            {
-                CadenaEscala c = CadenaEscalaPara(1);
-                c.Gen = tipo; c.Mult = m;
-                c.Modo = cap30 ? 30 : 60; c.Objetivo = MultBase(cap30);
-                return c;
-            }
-            finally { multGpuDentro = antes; }
+            CadenaEscala c = CadenaEscalaPara(1);
+            c.Gen = tipo; c.Mult = 2;
+            c.Modo = cap30 ? 30 : 60; c.Objetivo = ModoBase(cap30);
+            return c;
         }
 
         // La clave de una combinacion: la grafica, el juego, la cadena (modo, generacion + multiplicador, captura, ventana, salida, escalador),
@@ -168,130 +168,18 @@ namespace ConsoleEnhancer
             int d5 = !Dlss5Off && Integrado.Dlss5Available ? Math.Max(1, Math.Min(3, Passes30)) : 0;
             int mod = c.Escala && c.Esc == "dlss" ? DlssModelBaseSinD5 : 0;
             string g = Escalas.GpuClave;
-            return (g.Length > 0 ? g : "-") + "|" + (string.IsNullOrEmpty(c.Juego) ? "*" : c.Juego.Replace("|", " ").Replace("\t", " ")) + "|" + c.Clave + "|m" + mod + "|d5" + d5 + ProteVia(c.Gen, c.Mult);
-        }
-        // (1.2.4 ronda 5, XEFGM) por donde va esa generacion: "|vpropia" (la generacion propia del motor), "|vmotor" (XeSS FG / DLSS FG x3 / x4
-        // del motor) o nada (Magpie). En la prueba del usuario la generacion propia x4 (12,7 de 30 reales) quedo apuntada como "XeSS FG x4" y
-        // despues avisaba "XeSS FG x4 a prueba" con lo de la propia; lo medido con una no vale para la otra
-        string ProteVia(string tipo, int m)
-        {
-            if (m <= 2 || !MultTipo(tipo)) return "";
-            string v = MotorFgViaAhora(tipo, m);
-            // (con "|vmagpie" tambien Magpie: lo apuntado por la 1.2.4 sin la via -p. ej. la propia x4 como "xess x4"- ya no cuenta para nadie)
-            return v == "propia" ? "|vpropia" : v.Length > 0 ? "|vmotor" : "|vmagpie";
+            return (g.Length > 0 ? g : "-") + "|" + (string.IsNullOrEmpty(c.Juego) ? "*" : c.Juego.Replace("|", " ").Replace("\t", " ")) + "|" + c.Clave + "|m" + mod + "|d5" + d5;
         }
         // (el modelo elegido sin pasar por las pasadas de DLSS 5: lo que no cambia con la escala automatica)
         int DlssModelBaseSinD5 { get { string pk = DlssPick; if (pk.Length > 0) return DlssPickNum(pk); if (CapMode && DlssModel30 > 0) return DlssModel30; if (DlssModel > 0) return DlssModel; return 0; } }
 
-        // Las reales previstas con esta cadena, sin DLSS 5 (la escala automatica le da lo que quede o lo quita). XeSS FG x3 / x4 de
-        // compatibilidad: 1 / (m x W); lo demas: si el hilo pasa del tiempo de una real, 1 / W
-        public static double ProteReales(CadenaEscala c, out double w, out double presupuesto)
-        {
-            double k = EscalaAuto.KDe(c.Juego, c.Clave);
-            w = EscalaAuto.Prevision(c, 0, 0, k, 0);
-            presupuesto = EscalaAuto.Presupuesto(c);
-            if (EscalaAuto.XessCompat(c))
-            {
-                w = EscalaAuto.XessCompatW(c, k);
-                return Math.Min(c.Objetivo, 1000.0 / Math.Max(1, c.Mult * w));
-            }
-            return Math.Min(c.Objetivo, 1000.0 / Math.Max(1, w));
-        }
-
-        // Explicitamente elegido en esta sesion (menu, bandeja, Ctrl+X): se prueba aunque la prevision o lo recordado digan que no
-        static readonly HashSet<string> protePrueba = new HashSet<string>();
-        static readonly object protePruebaSync = new object();
-        public void ProtePrueba(bool cap30, int m, string tipo)
-        {
-            if (!ProteOn || m <= 2 || !MultTipo(tipo)) return;
-            string k = ProteClave(ProteCadena(cap30, m, tipo));
-            lock (protePruebaSync) { protePrueba.Add(k); pruebaUltima = (cap30 ? 30 : 60) + "|" + m + "|" + tipo; pruebaAt = DateTime.UtcNow; }
-            ProteMemoria.Version++;
-        }
-        // (lo elegido con otra captura en el mismo menu: la captura cambia despues; 90 s vale para la cadena que salga)
-        static string pruebaUltima = "";
-        static DateTime pruebaAt = DateTime.MinValue;
-        public static void ProtePruebaFuera(string clave) { lock (protePruebaSync) { protePrueba.Remove(clave); pruebaUltima = ""; } }
-        static bool EnPrueba(string clave) { lock (protePruebaSync) return protePrueba.Contains(clave); }
-
-        static string R0(double v) { return Math.Round(v).ToString(CultureInfo.InvariantCulture); }
-
-        // Por que x m NO va de forma automatica con esto (null = va): lo recordado o la prevision lejos. es / en cortos (van en el menu)
-        public string ProteNoVa(bool cap30, int m, string tipo, out string en)
-        {
-            en = null;
-            if (!ProteOn || m <= 2 || !MultTipo(tipo) || multGpuDentro) return null;
-            try
-            {
-                CadenaEscala c = ProteCadena(cap30, m, tipo);
-                string k = ProteClave(c);
-                ProteMemoria.Entrada e = ProteMemoria.Mira(k);
-                lock (protePruebaSync)
-                    if (pruebaUltima == (cap30 ? 30 : 60) + "|" + m + "|" + tipo && (DateTime.UtcNow - pruebaAt).TotalSeconds < 90) protePrueba.Add(k);
-                if (EnPrueba(k) || (e != null && e.Res == "si")) return null;
-                string o = R0(c.Objetivo);
-                if (e != null && e.Res == "no")
-                {
-                    en = "didn't hold here (" + R0(e.Reales) + " of " + o + " real fps)";
-                    return "no llegó aquí (" + R0(e.Reales) + " de " + o + " reales)";
-                }
-                if (!XessMultiCabe) return null;   // (xess_fg_multi_cabe=0: sin prevision)
-                if (ProteMotorHace(m, tipo)) return null;   // (1.2.4, integracion: la prevision es la del hilo de Magpie; el motor vigila lo suyo)
-                double w, b, r = ProteReales(c, out w, out b);
-                if (r < c.Objetivo * ProteLejos)
-                {
-                    en = "GPU can't keep up (~" + R0(r) + " of " + o + " real fps)";
-                    return "la gráfica no da (~" + R0(r) + " de " + o + " reales)";
-                }
-            }
-            catch (Exception ex) { Log.Error("Proteccion: prevision x" + m, ex); }
-            return null;
-        }
-
-        // (1.2.4, integracion) Esta generacion la haria el motor (el reparto de SoloMotor.cs / MotorFg.cs: XeSS FG x2, DLSS FG x3 / x4 en
-        // RTX 50...) y DLSS 5 no la manda a Magpie: la prevision del hilo de Magpie no vale ahi (solo cuenta lo recordado; la vigilancia del
-        // motor -switch2-fps bajo, ProteMotor- sigue). Sin propiedades que vuelvan a la cuenta del multiplicador (sin recursion)
-        bool ProteMotorHace(int m, string tipo)
-        {
-            return Engine == "propio" && MotorSabeGeneracion(tipo, m) && (Dlss5Off || MotorDlss5Disponible) && !MotorGenAMagpie(tipo, m);   // (1.2.4 ronda 5, XEFGM: lo que va por Magpie, con su prevision; XefgMotor.cs)
-        }
-
-        // Aviso de "a prueba" (se elige y va, pero justo): null = sin aviso
-        public string ProteAviso(bool cap30, int m, string tipo, out string en)
-        {
-            en = null;
-            if (!ProteOn || !MultTipo(tipo) || multGpuDentro) return null;
-            try
-            {
-                CadenaEscala c = ProteCadena(cap30, m, tipo);
-                string k = ProteClave(c);
-                ProteMemoria.Entrada e = ProteMemoria.Mira(k);
-                if (e != null && e.Res == "si") return null;
-                string o = R0(c.Objetivo);
-                if (e != null && e.Res == "no")
-                {
-                    en = "on trial: it didn't hold here before (" + R0(e.Reales) + " of " + o + " real fps)";
-                    return "a prueba: antes no llegó aquí (" + R0(e.Reales) + " de " + o + " reales)";
-                }
-                if (ProteMotorHace(m, tipo)) return null;   // (1.2.4, integracion: ver ProteMotorHace)
-                double w, b, r = ProteReales(c, out w, out b);
-                if (r < c.Objetivo * 0.97)
-                {
-                    en = "on trial (~" + R0(r) + " of " + o + " real fps expected)";
-                    return "a prueba (previstas ~" + R0(r) + " de " + o + " reales)";
-                }
-            }
-            catch (Exception ex) { Log.Error("Proteccion: aviso x" + m, ex); }
-            return null;
-        }
-
         // El modelo de DLSS SR que llego en esta combinacion (lo bajo la vigilancia); 0 = ninguno
         public int ProteModeloTope()
         {
-            if (!ProteOn || multGpuDentro) return 0;
+            if (!ProteOn) return 0;
             try
             {
-                CadenaEscala c = ProteCadena(CapMode, FgOff || Mode120 ? 2 : FgMultNow, FgOff || Mode120 ? "" : FgTypeNow);
+                CadenaEscala c = ProteCadena(CapMode, FgOff || Mode120 ? "" : FgTypeNow);
                 if (!c.Escala || c.Esc != "dlss") return 0;
                 ProteMemoria.Entrada e = ProteMemoria.Mira(ProteClave(c));
                 if (e == null || !e.Res.StartsWith("modelo=")) return 0;
@@ -304,13 +192,11 @@ namespace ConsoleEnhancer
     partial class TrayApp
     {
         DateTime proteBienDesde = DateTime.MinValue;
-        string proteBienClave = "";
 
         // Lo bajado por la proteccion: recordado, aviso y Magpie otra vez (lo elegido se queda)
         void ProteReabrir(string clave, string res, double real, double modo, string es, string en, string log)
         {
             ProteMemoria.Anota(clave, res, real, modo);
-            Config.ProtePruebaFuera(clave);
             Log.Write("Proteccion: " + log + " (recordado para esta combinacion en " + ProteMemoria.Fichero + "; lo elegido se guarda)");
             OnUi(delegate { OsdWarn(Tx.T(es, en), "7000"); });
             ThreadPool.QueueUserWorkItem(delegate
@@ -330,27 +216,15 @@ namespace ConsoleEnhancer
             });
         }
 
-        // (desde MultVigila) no llega: lo siguiente por orden (el multiplicador, el modelo de DLSS SR, la escalera de FpsBajo). true = hecho
-        bool ProteBajar(int m, string tipo, double real, double modo, double salida, double objetivo)
+        // (desde ProteVigila) no llega: lo siguiente por orden (el modelo de DLSS SR, la escalera de FpsBajo). true = hecho
+        bool ProteBajar(string tipo, double real, double modo, double salida, double objetivo)
         {
-            string fs = Math.Round(salida).ToString(CultureInfo.InvariantCulture), fo = Math.Round(objetivo).ToString(CultureInfo.InvariantCulture);
             string rr = real.ToString("0.0", CultureInfo.InvariantCulture), ro = Math.Round(modo).ToString(CultureInfo.InvariantCulture);
-            string nombre = cfg.FgName + cfg.MotorFgViaNota(tipo, m);   // (1.2.4 ronda 5, XEFGM: " (FG propia)" si es la del motor)
-            CadenaEscala c = cfg.ProteCadena(cfg.CapMode, m, tipo);
+            string nombre = cfg.FgName;
+            CadenaEscala c = cfg.ProteCadena(cfg.CapMode, tipo);
             string clave = cfg.ProteClave(c);
             string medida = "salida " + salida.ToString("0.0", CultureInfo.InvariantCulture) + " de " + objetivo.ToString("0.0", CultureInfo.InvariantCulture) + ", reales " + rr + " de " + modo.ToString("0.00", CultureInfo.InvariantCulture);
-            // 1) el multiplicador
-            if (m > 2)
-            {
-                int nuevo = m - 1;
-                while (nuevo > 2 && cfg.MultBloqueado(cfg.CapMode, nuevo, tipo)) nuevo--;
-                ProteReabrir(clave, "no", real, modo,
-                    "Va a tirones (" + rr + " de " + ro + " reales) · " + nombre + " x" + m + " → x" + nuevo,
-                    "Stuttering (" + rr + " of " + ro + " real fps): " + nombre + " x" + m + " -> x" + nuevo,
-                    "no se llega con " + nombre + " x" + m + " (" + medida + "): x" + nuevo);
-                return true;
-            }
-            // 2) el modelo de DLSS SR, uno mas ligero (M / L -> K -> E)
+            // 1) el modelo de DLSS SR, uno mas ligero (M / L -> K -> E)
             if (c.Escala && c.Esc == "dlss")
             {
                 int ahora = cfg.DlssModelNow, nuevo = EscalaAuto.MasLigero(ahora);
@@ -360,55 +234,121 @@ namespace ConsoleEnhancer
                     ProteReabrir(clave, "modelo=" + b, real, modo,
                         "Va a tirones (" + rr + " de " + ro + " reales) · DLSS " + a + " → " + b,
                         "Stuttering (" + rr + " of " + ro + " real fps): DLSS " + a + " -> " + b,
-                        "no se llega con DLSS " + a + " y " + nombre + " x" + m + " (" + medida + "): DLSS " + b);
+                        "no se llega con DLSS " + a + " y " + nombre + " (" + medida + "): DLSS " + b);
                     return true;
                 }
             }
-            // 3) la escalera de siempre (DLSS 5 fuera, FSR 1, captura...)
-            Log.Write("Proteccion: no se llega con " + nombre + " x" + m + " (" + medida + "): lo siguiente de la escalera");
+            // 2) la escalera de siempre (DLSS 5 fuera, FSR 1, captura...)
+            Log.Write("Proteccion: no se llega con " + nombre + " (" + medida + "): lo siguiente de la escalera");
             ProteMemoria.Entrada ya = ProteMemoria.Mira(clave);
             if (ya == null || !ya.Res.StartsWith("modelo=")) ProteMemoria.Anota(clave, "no", real, modo);   // (el modelo ya bajado se queda)
             FpsLanza(real, modo, 0, "Magpie");
             return true;
         }
 
-        // (1.2.4) El motor propio no llega ("switch2-fps bajo", FpsBajo.cs; antes ya ha bajado lo suyo: % de DLSS 5, pasadas, modelo -EngineAdapta-):
-        // con x3 / x4 en el motor (agente MOTORFG) lo siguiente es el multiplicador, recordado por combinacion como con Magpie. true = hecho
-        DateTime proteMotorAt = DateTime.MinValue;
-        bool ProteMotor(double real, double obj)
+        // ---------------- vigilancia (1.2.4 ronda 6: antes TrayApp.MultVigila, Multiplicador.cs) ----------------
+        int proteMal;
+        DateTime proteBajadoAt = DateTime.MinValue;
+
+        // XeSS FG: las imagenes que saca no estan en el "Output cadence" de Magpie (generated=0: las presenta la cadena de Intel; medido el
+        // 22-11, x2 a 1440p: nuevas 721, inventadas 0, y PresentMon 57,9 imagenes/s con la mitad "Intel XeSS-FG"). Si, cada ~4 s, "XeSSFG SDK
+        // output: requested=2x frames=1439 submissions=720" (acumuladas): de dos seguidas, la salida (frames/s) y las reales (submissions/s)
+        // Una linea "2026-11-22 05:48:24.014|info|...|XeSSFG SDK output: requested=2x frames=477 submissions=120 ..." -> hora (s), frames, submissions
+        public static bool ProteXessLinea(string line, out double ts, out long frames, out long subs)
         {
-            try
-            {
-                if (!Config.ProteOn || !Config.EngineActive || (DateTime.Now - proteMotorAt).TotalSeconds < 30) return false;
-                PrepareCfg();
-                string tipo = cfg.FgTypeNow;
-                if (cfg.FgOff || cfg.Mode120 || !Config.MultTipo(tipo)) return false;
-                int m = cfg.FgMultNow;
-                if (m <= 2) return false;
-                proteMotorAt = DateTime.Now;
-                return ProteBajar(m, tipo, real, Config.MultBase(cfg.CapMode), real * m, Config.MultBase(cfg.CapMode) * m);
-            }
-            catch (Exception ex) { Log.Error("Proteccion (motor)", ex); return false; }
+            ts = 0; frames = subs = 0;
+            if (line == null || line.IndexOf("XeSSFG SDK output", StringComparison.Ordinal) < 0) return false;
+            System.Text.RegularExpressions.Match m = System.Text.RegularExpressions.Regex.Match(line, @"^(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d\.\d+)\|.*XeSSFG SDK output: requested=\dx frames=(\d+) submissions=(\d+)");
+            DateTime t;
+            if (!m.Success || !DateTime.TryParse(m.Groups[1].Value, CultureInfo.InvariantCulture, DateTimeStyles.None, out t)) return false;
+            ts = t.Ticks / 1e7;
+            frames = long.Parse(m.Groups[2].Value, CultureInfo.InvariantCulture);
+            subs = long.Parse(m.Groups[3].Value, CultureInfo.InvariantCulture);
+            return true;
         }
 
-        // (MultVigila, ventana buena) 60 s llegando con una combinacion "a prueba" (lo previsto o lo recordado decia que no): se recuerda que si
-        void ProteBien(int m, string tipo, double real, double modo)
+        long proteLogPos = -1;
+        double proteXeT = -1, proteXeOut = -1, proteXeReal = -1;
+        long proteXeFrames = -1, proteXeSubs = -1;
+        DateTime proteXeAt = DateTime.MinValue;
+
+        void ProteLeerXess()
+        {
+            string path = Paths.MagpieLog;
+            if (!File.Exists(path)) return;
+            using (FileStream fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+            {
+                if (proteLogPos < 0 || proteLogPos > fs.Length) { proteLogPos = Math.Max(0, fs.Length - 65536); proteXeT = -1; }   // (primera vez o log rotado)
+                fs.Seek(proteLogPos, SeekOrigin.Begin);
+                byte[] buf = new byte[Math.Min(fs.Length - proteLogPos, 4 * 1024 * 1024)];
+                int n = 0, r;
+                while (n < buf.Length && (r = fs.Read(buf, n, buf.Length - n)) > 0) n += r;
+                if (n == 0) return;
+                int end = Array.LastIndexOf(buf, (byte)'\n', n - 1);
+                if (end < 0) return;
+                proteLogPos += end + 1;
+                foreach (string line in Encoding.UTF8.GetString(buf, 0, end + 1).Split('\n'))
+                {
+                    double ts; long f, s;
+                    if (!ProteXessLinea(line, out ts, out f, out s)) continue;
+                    if (proteXeT > 0 && f >= proteXeFrames && s >= proteXeSubs && ts > proteXeT + 1 && ts < proteXeT + 30)
+                    {
+                        proteXeOut = (f - proteXeFrames) / (ts - proteXeT);
+                        proteXeReal = (s - proteXeSubs) / (ts - proteXeT);
+                        proteXeAt = DateTime.Now;
+                    }
+                    proteXeT = ts; proteXeFrames = f; proteXeSubs = s;   // (si baja, es otra sesion de Magpie: desde aqui)
+                }
+            }
+        }
+
+        // CheckLsPacing cada 5 s con Magpie. true = ha bajado algo (lo demas no juzga esta vez). (1.2.4, XEFG: con cualquier generacion de
+        // Magpie y por orden: con DLSS 5 por Magpie y su escala automatica, primero su % y sus pasadas -EscalaVigila, que va detras: aqui no se
+        // juzga mientras se puedan bajar-; luego el modelo de DLSS SR y la escalera de FpsBajo. Reales por debajo del 95 % -proteccion_umbral- o
+        // la salida del 92 %, dos ventanas seguidas. proteccion=0 = nada)
+        bool ProteVigila(LsStats st)
         {
             try
             {
-                if (m <= 2 || !Config.MultTipo(tipo)) { proteBienClave = ""; return; }
-                string clave = cfg.ProteClave(cfg.ProteCadena(cfg.CapMode, m, tipo));
-                if (clave != proteBienClave) { proteBienClave = clave; proteBienDesde = DateTime.Now; return; }
-                if ((DateTime.Now - proteBienDesde).TotalSeconds < 60) return;
-                proteBienDesde = DateTime.MaxValue;   // (una vez)
-                ProteMemoria.Entrada e = ProteMemoria.Mira(clave);
-                string en;
-                bool dudosa = (e != null && e.Res == "no") || cfg.ProteAviso(cfg.CapMode, m, tipo, out en) != null;
-                if (!dudosa) return;
-                ProteMemoria.Anota(clave, "si", real, modo);
-                Log.Write("Proteccion: " + cfg.FgName + " x" + m + " llega (60 s, reales " + real.ToString("0.0", CultureInfo.InvariantCulture) + "): recordado para esta combinacion");
+                PrepareCfg();
+                string tipo = cfg.FgTypeNow;
+                bool xess = tipo == "xess";
+                bool fgMagpie = !cfg.FgOff && !cfg.Mode120 && fgWanted && tipo != "smooth" && tipo.Length > 0;
+                if (!Config.ProteOn) { proteMal = 0; return false; }
+                if (xess && fgMagpie) ProteLeerXess();
+                if (!fgMagpie || Config.EngineActive || cfg.HomeNative || InHome || homeBusy || passesBusy || relaunchSize != null || relaunchEngine ||
+                    userExit || !lsReady || applying || MagpieLive.RunningFor() < 20 || (DateTime.Now - proteBajadoAt).TotalSeconds < 30) { proteMal = 0; return false; }
+                // (el % de DLSS 5 y sus pasadas, antes: los baja EscalaVigila)
+                if (cfg.Dlss5AutoAhora && cfg.D5Tuned && !cfg.EngineDlss5Now)
+                {
+                    int n5 = cfg.Dlss5PassesNow, p5 = cfg.Dlss5PctNow;
+                    if (n5 > 1 || p5 > EscalaAuto.Suelo(cfg.CadenaEscalaPara(Math.Max(1, n5)))) { proteMal = 0; return false; }
+                }
+                double fuente = FuenteFps(), modo = Config.ModoBase(cfg.CapMode);
+                if (fuente < modo * 0.92) { proteMal = 0; return false; }   // (el juego no da el modo entero: no es cosa del PC)
+                int hz = Pantalla.Hz();
+                double salida, real;
+                if (xess)
+                {
+                    if ((DateTime.Now - proteXeAt).TotalSeconds > 6 || proteXeOut <= 0) return false;   // (sin dato nuevo: se sigue la cuenta)
+                    salida = proteXeOut; real = proteXeReal;
+                    proteXeAt = DateTime.MinValue;   // (cada dato una vez)
+                }
+                else
+                {
+                    if (st.CapN == 0 || st.CapTime <= 0) return false;
+                    salida = (st.NewSum + st.GenSum) / st.CapTime; real = st.NewSum / st.CapTime;
+                    if (st.GenSum == 0) salida = real * 2;   // (FSR 3 FG: sin inventadas en el resumen, solo las reales)
+                }
+                double objetivo = Math.Min(modo * 2, hz >= 60 ? hz - 0.2 : modo * 2);
+                bool mal = salida < objetivo * 0.92 || real < modo * Config.ProteUmbral;
+                proteMal = mal ? proteMal + 1 : 0;
+                if (!mal || proteMal < 2) return false;
+                proteMal = 0;
+                proteBajadoAt = DateTime.Now;
+                return ProteBajar(tipo, real, modo, salida, objetivo);
             }
-            catch (Exception ex) { Log.Error("Proteccion: llega", ex); }
+            catch (Exception ex) { Log.Error("Proteccion (vigilancia)", ex); return false; }
         }
     }
 }

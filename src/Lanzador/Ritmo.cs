@@ -484,18 +484,15 @@ namespace ConsoleEnhancer
             {
                 string t = FgTypeNow;
                 if (t == "smooth") return false;
-                if (FgMultNow >= 3) return !XessFijoNow;   // (1.2.4, XEFG: XeSS FG x4 de compatibilidad a refresco fijo, Multiplicador.cs)
-                // (1.2.3: DLSS FG x2 fijo solo si ese camino esta -VsyncHalfFgNow- y con una pantalla de 120 Hz, donde "cada 2 refrescos" son
-                // los 60 huecos de 59,94; a 144 / 165 Hz serian 72 / 82,5 huecos para 59,94 imagenes (una de cada 5-6 el doble): por VRR. Sin
-                // ese camino tambien por VRR: sin VRR iria por DirectComposition)
-                if (t == "dlss") { int hz = Pantalla.Hz(); return !(RitmoFijo30Dlss && VsyncHalfFgNow && hz >= 118 && hz <= 122); }
+                // (1.2.4 ronda 6, QUITAFG: sin DLSS FG -magpie_fijo_30_dlss- ni x3 / x4: XeSS FG / FSR 3 FG x2 por VRR solo con magpie_vrr_30_otras)
                 return RitmoVrr30Otras;
             }
         }
         // El modo 30 sin generacion por VRR (magpie_vrr_30=1)
         bool RitmoVrr30SinFgNow { get { return RitmoVrr30 && MagpieVrr30Fg && CapMode && FgOff; } }
-        // x3 / x4 sin VRR: DXGI con la sincronizacion vertical forzada (estado 3 de NvProfiles), cada imagen un refresco
-        public bool RitmoFijo1Now { get { return CapMode && !FgOff && FgTypeNow != "smooth" && FgMultNow >= 3 && !MagpieVrrNow && !NvProfiles.VsyncBroken; } }
+        // x3 / x4 sin VRR: DXGI con la sincronizacion vertical forzada (estado 3 de NvProfiles), cada imagen un refresco. (1.2.4 ronda 6,
+        // QUITAFG: sin x3 / x4, nunca)
+        public bool RitmoFijo1Now { get { return false; } }
         public bool RitmoSigueNow { get { return RitmoSigue30Fg && CapMode && !FgOff && FgTypeNow != "smooth"; } }
         public double RitmoRate(double rate) { return !FgOff && RitmoMargenFg > 0 ? Math.Round(rate * (1 + RitmoMargenFg / 100.0), 2) : rate; }
     }

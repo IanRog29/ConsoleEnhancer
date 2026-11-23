@@ -1,7 +1,6 @@
 # descargar_cabeceras_ngx.ps1 - baja las DOS cabeceras publicas de NGX con las que se compila src\PrismaNr\PrismaNr.cpp (y la licencia del
 # SDK) del repositorio oficial de NVIDIA (github.com/NVIDIA/DLSS, carpeta include), en una version fija y comprobando el SHA-256 de cada
 # fichero. Van a terceros\dlss_sdk (fuera de git: .gitignore terceros/). Solo sirven para COMPILAR: no van en el repositorio ni en el zip.
-# PrismaFg no necesita ninguna cabecera de NVIDIA (solo Windows: kernel32 y bcrypt).
 #
 # Uso: powershell -ExecutionPolicy Bypass -File scripts\descargar_cabeceras_ngx.ps1 [-Destino <carpeta>] [-Forzar]
 param(

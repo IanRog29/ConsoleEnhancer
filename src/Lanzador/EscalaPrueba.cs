@@ -57,7 +57,6 @@ namespace ConsoleEnhancer
             c.Gen = modo >= 100 ? "" : gen; c.Mult = 2;
             c.Esc = esc; c.Escala = !(c.VenW >= outW && c.VenH >= outH); c.Modelo = modelo;
             c.Ligero = ligero; c.FlujoSr = !ligero;
-            c.VectoresFg = c.Gen == "dlss" && modo == 30 && c.VenH < 2000;
             c.Indice = g.Indice; c.Familia = g.Fam; c.VramGb = g.Vram;
             return c;
         }
@@ -178,24 +177,17 @@ namespace ConsoleEnhancer
             // (1.2.3, MULTI2: con lo fijo de DLSS 5 en el hilo de Magpie -el flujo a 1440p ~5 ms, CALIDAD 1.2.2- el 60 + DLSS FG no tiene sitio
             // para DLSS 5 en el modelo nuevo: el 40 % de Prisma fue con su Magpie de entonces. Sin medir con la 0.6.12 -la tele se fue a su
             // reposo a las 12:00-; aqui solo que no pase de aquel 40 %)
-            int p60fg = Pct(Cadena(ti, 60, "2560x1440", "2560x1440", "dlss", "dlss", 5, true, 3840, 2160), 1);
-            Ok(p60fg <= 40, "4060 Ti 60 + DLSS FG ligero, E, 1 pasada: como mucho el 40 % de Prisma (" + p60fg + " %; -1 = no cabe)");
+            // (1.2.4 ronda 6, QUITAFG: fuera las comprobaciones medidas con DLSS FG -el 60 + DLSS FG ligero, 4K x2 / x3 / x4, M con DLSS FG-:
+            // DLSS FG ya no esta y su coste no cuenta)
             // (1.2.3, MULTI2: XeSS FG genera en su propia cola -no alarga el hilo de Magpie-; lo de Prisma -70/45/35- era con el XeSS FG de
             // entonces. MEDIDO el 22-11 a 4K, abajo)
             // MEDIDO el 22-11 (tele 4K a 120 con VRR, captura 4K sin escalar, fuente de 30 en 59,94, DLSS 5 nivel 3 de 1 pasada; reales que
             // recibe Magpie): DLSS FG x2 al 50 % 28,3 (no llega); x3 al 45 % 28,6 y al 40 % 29,5 (min 28,2); x4 al 45 % 27,2; XeSS FG x2 al 50 %
             // 29,9 (llega, 77 % de grafica)
-            foreach (int[] mm in new[] { new[] { 2, 50 }, new[] { 3, 40 }, new[] { 4, 45 } })
-            {
-                CadenaEscala c4 = Cadena(ti, 30, "3840x2160", "3840x2160", "dlss", "dlss", 5, false, 3840, 2160); c4.Mult = mm[0];
-                int p4 = Pct(c4, 1);
-                Ok(p4 < mm[1], "4060 Ti a 4K, 30 + DLSS FG x" + mm[0] + ": por debajo del " + mm[1] + " % que no llego (medido 22-11): " + p4 + " %");
-            }
             CadenaEscala cx = Cadena(ti, 30, "3840x2160", "3840x2160", "xess", "dlss", 5, false, 3840, 2160);
             int px = Pct(cx, 1);
             Ok(px >= 40 && px <= 55, "4060 Ti a 4K, 30 + XeSS FG x2: entre 40 y 55 % (medido 22-11: al 50 % llega, 29,9 reales): " + px + " %");
             // (M: 16-11, 70 % con la grafica al 80 %. 1.2.3: el uso ya es el del hilo de Magpie -92 %-: sin cambiarlo para esta)
-            Cerca(Cadena(ti, 30, "2560x1440", "2560x1440", "dlss", "dlss", 13, false, 3840, 2160), new[] { 70, -2, -2 }, "30 + DLSS FG, M (16-11: M 70 % = 80 % de grafica)");
             int ti120 = Pct(Cadena(ti, 120, "2560x1440", "2560x1440", "", "dlss", 5, false, 3840, 2160), 1);
             Ok(ti120 < 0 || ti120 <= 25, "4060 Ti a 120 fps (1440p -> 4K): DLSS 5 no cabe o al minimo (" + ti120 + "; log del 21-11 19:12: al 35 % Magpie recibia ~100 de 120)");
             int ue = Pct(Cadena(ti, 30, "2560x1440", "2560x1440", "dlss", "dlss", 5, false, 3840, 2160), 1), um = Pct(Cadena(ti, 30, "2560x1440", "2560x1440", "dlss", "dlss", 13, false, 3840, 2160), 1);
@@ -371,7 +363,7 @@ namespace ConsoleEnhancer
         {
             sb.AppendLine("== 4) Con el ini de este PC (" + Paths.IniFile + ", solo lectura) y su grafica ==");
             if (!File.Exists(Paths.IniFile)) { sb.AppendLine("  (no hay ini)"); return; }
-            Forzar("dlss5State", 1); Forzar("dlssgState", 1);
+            Forzar("dlss5State", 1);
             bool w1080 = Config.Window1080;
             try
             {
@@ -404,7 +396,7 @@ namespace ConsoleEnhancer
                 Ok(menosE > menosM, "con tu ini, 1440p 30 + FG -> pantalla: con DLSS E mas % que con M (" + menosE + " frente a " + menosM + ")");
             }
             catch (Exception ex) { fallos++; sb.AppendLine("  EXCEPCION: " + ex.Message); }
-            finally { Config.Window1080 = w1080; Forzar("dlss5State", 0); Forzar("dlssgState", 0); try { File.Delete(Path.Combine(Path.GetTempPath(), "ce_test_escala_ini.txt")); } catch { } }
+            finally { Config.Window1080 = w1080; Forzar("dlss5State", 0); try { File.Delete(Path.Combine(Path.GetTempPath(), "ce_test_escala_ini.txt")); } catch { } }
             sb.AppendLine();
         }
 
@@ -497,7 +489,7 @@ namespace ConsoleEnhancer
         {
             sb.AppendLine("== 3) La config de Magpie que se escribiria (MagpieConfig.Chain, Config en memoria) ==");
             Forzar("dlss5State", 1);   // (como si estuviera nvngx_dlssnr.dll en magpie\)
-            Forzar("dlssgState", 1);   // (y runtimes\dlssg_sm86: DLSS FG por Magpie)
+              // (y runtimes\dlssg_sm86: DLSS FG por Magpie)
             EscalaAuto.SalidaPrueba(3840, 2160);
             bool w1080 = Config.Window1080;
             try
@@ -537,7 +529,7 @@ namespace ConsoleEnhancer
             finally
             {
                 Config.Window1080 = w1080;
-                Forzar("dlss5State", 0); Forzar("dlssgState", 0);
+                Forzar("dlss5State", 0);
                 EscalaAuto.SalidaFija = false;
                 EscalaAuto.GpuFija(-1, "rtx40", 8);
                 try { File.Delete(Path.Combine(Path.GetTempPath(), "ce_test_escala_cfg.txt")); } catch { }
