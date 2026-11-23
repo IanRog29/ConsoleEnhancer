@@ -16,9 +16,13 @@ namespace ConsoleEnhancer.Motor
     //    acaba la grafica, asi que salen igual de separadas aunque la imagen pesada (DLSS 5) tarde distinto cada vez; y lo de esa cola no espera
     //    detras de la siguiente imagen pesada (lo que le pasaba a la propia vieja con DLSS 5). Con VRR, cada una a su hora sin sincronizacion; si
     //    la salida no cabe con margen bajo el refresco (x4 de 30 en 120 Hz, x2 del modo 60), con ella.
-    //  - calidad como DLSS FG / XeSS FG: FLUJO OPTICO PROPIO jerarquico (piramide de luma de 4 niveles a media resolucion, bloques de 8x8 de lo
+    //  - calidad como DLSS FG / XeSS FG: FLUJO OPTICO PROPIO jerarquico (piramide de luma de 5 niveles a media resolucion, bloques de 8x8 de lo
     //    grueso a lo fino con candidatos del padre, del vecino, temporal y 0, subpunto) en los DOS sentidos (de la actual a la anterior y de la
-    //    anterior a la actual) y una pasada de apoyo entre vecinos. La inventada de cada instante elige el movimiento por punto con las dos
+    //    anterior a la actual) y una pasada de apoyo entre vecinos en cada nivel.
+    //    (1.2.4 ronda 7, EFG2, medido con VIDEO REAL de juego contra la verdad: con 4 niveles la busqueda gruesa llegaba a +-64 puntos de L0
+    //    -128 a 4K- y los giros rapidos de camara -Fallout 4, CS2, GTA V conduciendo- se salian: vectores sueltos y la inventada casi una
+    //    mezcla. Con 5 niveles (+-128 / +-256 a 4K) y el apoyo en todos los niveles: GTA V 5,37 -> 4,61, CS2 3,63 -> 3,14, Fallout 4 8,34 ->
+    //    6,59, Witcher 3 4,10 -> 4,02; el umbral de oclusion efg_tau 0,04 -> 0,08: menos inventadas de un solo lado.) La inventada de cada instante elige el movimiento por punto con las dos
     //    imagenes (lo que esta en x en el instante t viene de x - t m en la anterior y de x + (1 - t) m en la actual): si casan, se mezclan; si no,
     //    es una OCLUSION y la comprobacion de ida y vuelta (el campo del otro sentido dice lo mismo que m o no) dice de que lado sale: lo que se
     //    destapa, de la actual; lo que se tapa, de la anterior ("relleno desde el lado bueno").
@@ -48,9 +52,13 @@ namespace ConsoleEnhancer.Motor
         public int EfgVsync = -1;
         public double EfgMarginMs = 1.0;
         public string EfgCsv = "";
-        public float EfgTau = 0.04f, EfgKappa = 0.01f, EfgSigma = 0.012f, EfgZeroPen = 0.02f, EfgCutThr = 0.45f, EfgLambda = 0.002f, EfgBeta = 0.01f;
+        public float EfgTau = 0.08f, EfgKappa = 0.01f, EfgSigma = 0.012f, EfgZeroPen = 0.02f, EfgCutThr = 0.45f, EfgLambda = 0.002f, EfgBeta = 0.01f;
         public float EfgStillDiff = 3f / 255, EfgStillGrad = 0.05f;
         public int EfgStillN = 3, EfgRadius = 8;
+        public int EfgLevels = 5;               // (EFG2) niveles de la piramide del flujo (4-6; antes 4)
+        public bool EfgPropAll = true;          // (EFG2) la pasada de apoyo entre vecinos tambien en los niveles gruesos (antes solo en L0)
+        public int EfgSearch = 1;               // (EFG2) busqueda alrededor del mejor en los niveles gruesos (+-N). De serie 1: con 2 el simulador
+                                                // daba -1 %, pero en la tele (otra sesion) salio algo peor y no pude repetirlo: queda para probar
         public bool EfgStamps = true;           // efg_tiempos=0: sin las marcas de tiempo de la grafica (prueba)
 
         bool ApplyEfg(string key, string val)
@@ -76,6 +84,9 @@ namespace ConsoleEnhancer.Motor
                 case "efg_quieto_dif": EfgStillDiff = (float)D(val); return true;
                 case "efg_quieto_borde": EfgStillGrad = (float)D(val); return true;
                 case "efg_radio": EfgRadius = Math.Max(2, Math.Min(16, I(val))); return true;
+                case "efg_niveles": EfgLevels = Math.Max(4, Math.Min(6, I(val))); return true;
+                case "efg_apoyo_niveles": EfgPropAll = B(val); return true;
+                case "efg_busqueda": EfgSearch = Math.Max(1, Math.Min(4, I(val))); return true;
                 case "efg_tiempos": EfgStamps = B(val); return true;
             }
             return false;
@@ -84,17 +95,27 @@ namespace ConsoleEnhancer.Motor
 
     unsafe partial class Engine
     {
-        const int EfgSets = 3, EfgTabs = 18;
+        // (1.2.4 ronda 7, EFG2) hasta 6 niveles de piramide (de serie 5: con 4 la busqueda gruesa llegaba a +-64 puntos de L0 y los giros
+        // rapidos -Fallout 4, CS2- se salian); tablas por nivel con EfgTabDown / EfgTabFlow / ...
+        const int EfgSets = 3, EfgMaxLv = 6, EfgTabs = 5 * EfgMaxLv + 6;
+        int efgLv = 5;
+        static int EfgTabDown(int l) { return l; }
+        static int EfgTabFlow(int d, int l) { return EfgMaxLv + d * EfgMaxLv + l; }
+        static int EfgTabProp(int d) { return 3 * EfgMaxLv + d; }
+        const int EfgTabStill = 3 * EfgMaxLv + 2, EfgTabCut = 3 * EfgMaxLv + 3, EfgTabSel = 3 * EfgMaxLv + 4, EfgTabFin = 3 * EfgMaxLv + 5;
+        static int EfgTabPropL(int d, int l) { return 3 * EfgMaxLv + 6 + d * EfgMaxLv + l; }   // (apoyo en los niveles gruesos)
         ID3D12CommandQueue efgQueue;                 // la cola propia de presentacion (la cadena se crea en ella) o null (la del motor)
         ID3D12Fence efgFence;                        // la valla de lo que manda el hilo de presentacion
         readonly long[] efgSlotDone = new long[EfgSets];   // (valla efgFence) la ultima lista que lee cada ranura de efgRing
         readonly ID3D12Resource[] efgRing = new ID3D12Resource[EfgSets];   // copias de las reales (lo que se enseña)
         ID3D12Resource efgGen, efgSel;
-        readonly ID3D12Resource[,] efgL = new ID3D12Resource[EfgSets, 4];
-        readonly ID3D12Resource[,,] efgF = new ID3D12Resource[EfgSets, 2, 4];   // [juego, sentido 0 = C2P / 1 = P2C, nivel]
+        readonly ID3D12Resource[,] efgL = new ID3D12Resource[EfgSets, EfgMaxLv];
+        readonly ID3D12Resource[,,] efgF = new ID3D12Resource[EfgSets, 2, EfgMaxLv];   // [juego, sentido 0 = C2P / 1 = P2C, nivel]
         readonly ID3D12Resource[,] efgFRaw = new ID3D12Resource[EfgSets, 2];
+        readonly ID3D12Resource[,] efgFRawL = new ID3D12Resource[2, EfgMaxLv];   // (EFG2) el flujo de cada nivel grueso antes de su apoyo (comun)
+        bool efgPropAll;
         readonly ID3D12Resource[] efgSt = new ID3D12Resource[EfgSets], efgCut = new ID3D12Resource[EfgSets];
-        readonly int[] efgLw = new int[4], efgLh = new int[4], efgBx = new int[4], efgBy = new int[4];
+        readonly int[] efgLw = new int[EfgMaxLv], efgLh = new int[EfgMaxLv], efgBx = new int[EfgMaxLv], efgBy = new int[EfgMaxLv];
         int efgQw, efgQh;
         ID3D12PipelineState psoEfgLuma, psoEfgDown, psoEfgFlow, psoEfgProp, psoEfgStill, psoEfgCut, psoEfgSel, psoEfgFin;
         ID3D12DescriptorHeap efgHeap;
@@ -157,15 +178,16 @@ namespace ConsoleEnhancer.Motor
             long t0 = Clock.Now;
             EfgPsos();
             int W = outW, H = outH;
+            efgLv = Math.Max(4, Math.Min(EfgMaxLv, s.EfgLevels));
             efgLw[0] = (W + 1) / 2; efgLh[0] = (H + 1) / 2;
-            for (int l = 1; l < 4; l++) { efgLw[l] = (efgLw[l - 1] + 1) / 2; efgLh[l] = (efgLh[l - 1] + 1) / 2; }
-            for (int l = 0; l < 4; l++) { efgBx[l] = (efgLw[l] + 7) / 8; efgBy[l] = (efgLh[l] + 7) / 8; }
+            for (int l = 1; l < efgLv; l++) { efgLw[l] = (efgLw[l - 1] + 1) / 2; efgLh[l] = (efgLh[l - 1] + 1) / 2; }
+            for (int l = 0; l < efgLv; l++) { efgBx[l] = (efgLw[l] + 7) / 8; efgBy[l] = (efgLh[l] + 7) / 8; }
             efgQw = efgLw[1]; efgQh = efgLh[1];
             const D3D12_RESOURCE_STATES NP = D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE;
             for (int c = 0; c < EfgSets; c++)
             {
                 efgRing[c] = Tex(ColorFmt, W, H, false, D3D12_RESOURCE_STATES.COMMON, "Enhanced FG: real " + c);
-                for (int l = 0; l < 4; l++)
+                for (int l = 0; l < efgLv; l++)
                 {
                     efgL[c, l] = Tex(DXGI_FORMAT.R16_FLOAT, efgLw[l], efgLh[l], true, NP, "Enhanced FG: luma " + c + "/" + l);
                     for (int d = 0; d < 2; d++) efgF[c, d, l] = Tex(DXGI_FORMAT.R16G16B16A16_FLOAT, efgBx[l], efgBy[l], true, NP, "Enhanced FG: flujo " + c + "/" + d + "/" + l);
@@ -174,6 +196,10 @@ namespace ConsoleEnhancer.Motor
                 efgSt[c] = Tex(DXGI_FORMAT.R16G16_FLOAT, efgLw[0], efgLh[0], true, NP, "Enhanced FG: quieto " + c);
                 efgCut[c] = Tex(DXGI_FORMAT.R32_FLOAT, 1, 1, true, NP, "Enhanced FG: corte " + c);
             }
+            efgPropAll = s.EfgPropAll;
+            if (efgPropAll)
+                for (int d = 0; d < 2; d++)
+                    for (int l = 1; l < efgLv; l++) efgFRawL[d, l] = Tex(DXGI_FORMAT.R16G16B16A16_FLOAT, efgBx[l], efgBy[l], true, NP, "Enhanced FG: flujo sin apoyo " + d + "/" + l);
             efgSel = Tex(DXGI_FORMAT.R16G16B16A16_FLOAT, efgQw, efgQh, true, NP, "Enhanced FG: eleccion");
             efgGen = Tex(ColorFmt, W, H, true, D3D12_RESOURCE_STATES.UNORDERED_ACCESS, "Enhanced FG: inventada");
             // tablas de descriptores propias (EfgTabs por juego)
@@ -198,37 +224,45 @@ namespace ConsoleEnhancer.Motor
             for (int c = 0; c < EfgSets; c++)
             {
                 int p = (c + EfgSets - 1) % EfgSets;
-                EfgSrv(c, 0, 0, efgRing[c], ColorFmt); EfgUav(c, 0, 0, efgL[c, 0], DXGI_FORMAT.R16_FLOAT);
-                for (int l = 1; l < 4; l++) { EfgSrv(c, l, 0, efgL[c, l - 1], DXGI_FORMAT.R16_FLOAT); EfgUav(c, l, 0, efgL[c, l], DXGI_FORMAT.R16_FLOAT); }
+                EfgSrv(c, EfgTabDown(0), 0, efgRing[c], ColorFmt); EfgUav(c, EfgTabDown(0), 0, efgL[c, 0], DXGI_FORMAT.R16_FLOAT);
+                for (int l = 1; l < efgLv; l++) { EfgSrv(c, EfgTabDown(l), 0, efgL[c, l - 1], DXGI_FORMAT.R16_FLOAT); EfgUav(c, EfgTabDown(l), 0, efgL[c, l], DXGI_FORMAT.R16_FLOAT); }
                 for (int d = 0; d < 2; d++)
-                    for (int l = 0; l < 4; l++)
+                    for (int l = 0; l < efgLv; l++)
                     {
-                        int t = 4 + d * 4 + l;
+                        int t = EfgTabFlow(d, l);
                         EfgSrv(c, t, 0, d == 0 ? efgL[c, l] : efgL[p, l], DXGI_FORMAT.R16_FLOAT);
                         EfgSrv(c, t, 1, d == 0 ? efgL[p, l] : efgL[c, l], DXGI_FORMAT.R16_FLOAT);
-                        if (l < 3) EfgSrv(c, t, 2, efgF[c, d, l + 1], DXGI_FORMAT.R16G16B16A16_FLOAT);
-                        EfgSrv(c, t, 3, efgF[p, 0, 0], DXGI_FORMAT.R16G16B16A16_FLOAT);
-                        EfgUav(c, t, 0, l == 0 ? efgFRaw[c, d] : efgF[c, d, l], DXGI_FORMAT.R16G16B16A16_FLOAT);
+                        if (l < efgLv - 1) EfgSrv(c, t, 2, efgF[c, d, l + 1], DXGI_FORMAT.R16G16B16A16_FLOAT);
+                        EfgSrv(c, t, 3, efgF[p, 0, l], DXGI_FORMAT.R16G16B16A16_FLOAT);
+                        EfgUav(c, t, 0, l == 0 ? efgFRaw[c, d] : efgPropAll ? efgFRawL[d, l] : efgF[c, d, l], DXGI_FORMAT.R16G16B16A16_FLOAT);
+                        if (efgPropAll && l > 0)
+                        {
+                            int tp = EfgTabPropL(d, l);
+                            EfgSrv(c, tp, 0, d == 0 ? efgL[c, l] : efgL[p, l], DXGI_FORMAT.R16_FLOAT);
+                            EfgSrv(c, tp, 1, d == 0 ? efgL[p, l] : efgL[c, l], DXGI_FORMAT.R16_FLOAT);
+                            EfgSrv(c, tp, 2, efgFRawL[d, l], DXGI_FORMAT.R16G16B16A16_FLOAT);
+                            EfgUav(c, tp, 0, efgF[c, d, l], DXGI_FORMAT.R16G16B16A16_FLOAT);
+                        }
                     }
                 for (int d = 0; d < 2; d++)
                 {
-                    int t = 12 + d;
+                    int t = EfgTabProp(d);
                     EfgSrv(c, t, 0, d == 0 ? efgL[c, 0] : efgL[p, 0], DXGI_FORMAT.R16_FLOAT);
                     EfgSrv(c, t, 1, d == 0 ? efgL[p, 0] : efgL[c, 0], DXGI_FORMAT.R16_FLOAT);
                     EfgSrv(c, t, 2, efgFRaw[c, d], DXGI_FORMAT.R16G16B16A16_FLOAT);
                     EfgUav(c, t, 0, efgF[c, d, 0], DXGI_FORMAT.R16G16B16A16_FLOAT);
                 }
-                EfgSrv(c, 14, 0, efgL[c, 0], DXGI_FORMAT.R16_FLOAT); EfgSrv(c, 14, 1, efgL[p, 0], DXGI_FORMAT.R16_FLOAT);
-                EfgSrv(c, 14, 2, efgSt[p], DXGI_FORMAT.R16G16_FLOAT); EfgUav(c, 14, 0, efgSt[c], DXGI_FORMAT.R16G16_FLOAT);
-                EfgSrv(c, 15, 0, efgF[c, 0, 0], DXGI_FORMAT.R16G16B16A16_FLOAT); EfgUav(c, 15, 0, efgCut[c], DXGI_FORMAT.R32_FLOAT);
-                EfgSrv(c, 16, 0, efgL[p, 0], DXGI_FORMAT.R16_FLOAT); EfgSrv(c, 16, 1, efgL[c, 0], DXGI_FORMAT.R16_FLOAT);
-                EfgSrv(c, 16, 2, efgF[c, 1, 0], DXGI_FORMAT.R16G16B16A16_FLOAT); EfgSrv(c, 16, 3, efgF[c, 0, 0], DXGI_FORMAT.R16G16B16A16_FLOAT);
-                EfgSrv(c, 16, 4, efgSt[c], DXGI_FORMAT.R16G16_FLOAT); EfgUav(c, 16, 0, efgSel, DXGI_FORMAT.R16G16B16A16_FLOAT);
-                EfgSrv(c, 16, 5, efgF[c, 1, 1], DXGI_FORMAT.R16G16B16A16_FLOAT); EfgSrv(c, 16, 6, efgF[c, 0, 1], DXGI_FORMAT.R16G16B16A16_FLOAT);
-                EfgSrv(c, 16, 7, efgF[c, 0, 3], DXGI_FORMAT.R16G16B16A16_FLOAT);
-                EfgSrv(c, 17, 0, efgRing[p], ColorFmt); EfgSrv(c, 17, 1, efgRing[c], ColorFmt);
-                EfgSrv(c, 17, 2, efgSel, DXGI_FORMAT.R16G16B16A16_FLOAT); EfgSrv(c, 17, 3, efgSt[c], DXGI_FORMAT.R16G16_FLOAT);
-                EfgSrv(c, 17, 4, efgCut[c], DXGI_FORMAT.R32_FLOAT); EfgUav(c, 17, 0, efgGen, ColorFmt);
+                EfgSrv(c, EfgTabStill, 0, efgL[c, 0], DXGI_FORMAT.R16_FLOAT); EfgSrv(c, EfgTabStill, 1, efgL[p, 0], DXGI_FORMAT.R16_FLOAT);
+                EfgSrv(c, EfgTabStill, 2, efgSt[p], DXGI_FORMAT.R16G16_FLOAT); EfgUav(c, EfgTabStill, 0, efgSt[c], DXGI_FORMAT.R16G16_FLOAT);
+                EfgSrv(c, EfgTabCut, 0, efgF[c, 0, 0], DXGI_FORMAT.R16G16B16A16_FLOAT); EfgUav(c, EfgTabCut, 0, efgCut[c], DXGI_FORMAT.R32_FLOAT);
+                EfgSrv(c, EfgTabSel, 0, efgL[p, 0], DXGI_FORMAT.R16_FLOAT); EfgSrv(c, EfgTabSel, 1, efgL[c, 0], DXGI_FORMAT.R16_FLOAT);
+                EfgSrv(c, EfgTabSel, 2, efgF[c, 1, 0], DXGI_FORMAT.R16G16B16A16_FLOAT); EfgSrv(c, EfgTabSel, 3, efgF[c, 0, 0], DXGI_FORMAT.R16G16B16A16_FLOAT);
+                EfgSrv(c, EfgTabSel, 4, efgSt[c], DXGI_FORMAT.R16G16_FLOAT); EfgUav(c, EfgTabSel, 0, efgSel, DXGI_FORMAT.R16G16B16A16_FLOAT);
+                EfgSrv(c, EfgTabSel, 5, efgF[c, 1, 1], DXGI_FORMAT.R16G16B16A16_FLOAT); EfgSrv(c, EfgTabSel, 6, efgF[c, 0, 1], DXGI_FORMAT.R16G16B16A16_FLOAT);
+                EfgSrv(c, EfgTabSel, 7, efgF[c, 0, 3], DXGI_FORMAT.R16G16B16A16_FLOAT);
+                EfgSrv(c, EfgTabFin, 0, efgRing[p], ColorFmt); EfgSrv(c, EfgTabFin, 1, efgRing[c], ColorFmt);
+                EfgSrv(c, EfgTabFin, 2, efgSel, DXGI_FORMAT.R16G16B16A16_FLOAT); EfgSrv(c, EfgTabFin, 3, efgSt[c], DXGI_FORMAT.R16G16_FLOAT);
+                EfgSrv(c, EfgTabFin, 4, efgCut[c], DXGI_FORMAT.R32_FLOAT); EfgUav(c, EfgTabFin, 0, efgGen, ColorFmt);
             }
             iid = typeof(ID3D12Fence).GUID;
             Hr.Check(dev.CreateFence(0, D3D12_FENCE_FLAGS.NONE, ref iid, out o), "CreateFence (Enhanced FG)");
@@ -340,8 +374,8 @@ namespace ConsoleEnhancer.Motor
         {
             if (s.Efg < 2) return "";
             return "\tefg=x" + s.Efg + " modo=" + (s.EfgMode == 1 ? "latencia" : "calidad") + " reales=" + efgReals + " inventadas=" + efgGens + " repetidas=" + efgDups +
-                   " tarde=" + efgLate + " saltadas=" + efgSkipped + " L=" + efgLcur.ToString("0.0", IC) + "ms flujo=" + efgFlowMs.ToString("0.00", IC) +
-                   "ms inventada=" + efgGenMs.ToString("0.00", IC) + "ms copia=" + efgCopyMs.ToString("0.00", IC) + "ms" + (efgQueue != null ? " cola=propia" : " cola=motor") +
+                   " tarde=" + efgLate + " saltadas=" + efgSkipped + " L=" + efgLcur.ToString("0.0", IC) + "ms flujo=" + efgFlowGpu.ToString("0.00", IC) +
+                   "ms inventada=" + efgGenGpu.ToString("0.00", IC) + "ms copia=" + efgCopyMs.ToString("0.00", IC) + "ms" + (efgQueue != null ? " cola=propia" : " cola=motor") +
                    " ensenadas=" + efgShows + (efgBroken ? " rota" : "");
         }
     }
