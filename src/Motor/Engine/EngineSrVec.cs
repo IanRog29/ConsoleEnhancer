@@ -60,7 +60,7 @@ namespace ConsoleEnhancer.Motor
                 case "sr_tramado": SrDedither = I(val); return true;
                 case "sr_completos_xess": SrXessFfxFull = B(val); return true;
             }
-            return false;
+            return ApplySrBanco(key, val);   // (23-11 ronda 7, SRBLUR: EngineSrBanco.cs)
         }
     }
 

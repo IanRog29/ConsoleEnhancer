@@ -436,7 +436,7 @@ namespace ConsoleEnhancer.Motor
             // 16-11 noche (entrada=WxH): la captura reducida a WxH antes de todo lo demas (bordes, vectores, DLSS) si es mayor y no es la
             // de salida: DLSS 4.5 (M) a 60 con generacion no cabe con 1440p de entrada (51,6 reales) y si con 1080p (8,8 ms)
             int iw = w, ih = h;
-            if (s.InW > 0 && s.InH > 0 && w > s.InW && h > s.InH && !(w >= s.OutW && h >= s.OutH)) { iw = s.InW; ih = s.InH; }
+            if (s.InW > 0 && s.InH > 0 && w > s.InW && h > s.InH && (s.EntradaPrueba || !(w >= s.OutW && h >= s.OutH))) { iw = s.InW; ih = s.InH; }
             if (w == capW && h == capH && iw == inW && ih == inH) return;
             WaitIdle();
             if (inColor != null)
@@ -924,7 +924,7 @@ namespace ConsoleEnhancer.Motor
                     Barrier(rawSmall, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.UNORDERED_ACCESS);
                     c[0] = (uint)inW; c[1] = (uint)inH; c[2] = 0; c[3] = 0;
                     c[4] = F(1f / capW); c[5] = F(1f / capH); c[6] = F(capW); c[7] = F(capH);
-                    BindCompute(psoScale, TDown, c, 8);
+                    BindCompute(DownPso(), TDown, c, 8);   // (23-11 ronda 7, SRBLUR: entrada_filtro=1, EngineSrBanco.cs)
                     list.Dispatch(Groups(inW, 16), Groups(inH, 8), 1);
                     Barrier(rawSmall, D3D12_RESOURCE_STATES.UNORDERED_ACCESS, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE);
                 }
@@ -1289,6 +1289,7 @@ namespace ConsoleEnhancer.Motor
             // 16-11 noche: recien puesto el modelo (o cambiado el tamaño) se pierden imagenes unos segundos aunque quepa (M a 1080p con
             // generacion: 4 perdidas/s a los 2 s con la grafica en 9,8 ms de 11): no se juzga hasta los 5 s
             if (Clock.SinceMs(presetSetAt) < 5000) { overSecs = 0; return; }
+            if (AutoPresetEspera()) { overSecs = 0; return; }   // (23-11 ronda 7, SRBLUR: con DLSS 5 baja antes Adapta, y nada tras rehacer DLSS 5; EngineSrBlur.cs)
             double limit = TopeGpu(); // 20-11 (HZ120): a 120 el hueco por fotograma es ~8,3 ms. (1.2.2, UNIVERSAL: el 85 %, EngineMargen.cs; antes 26/31/8,0/11,0/15,5 fijos)
             TopeGpuLog();
             // 16-11 (tirones): con la generacion lo de NVIDIA no se ve en lo medido: si ademas se pierden imagenes de la captura (3 o mas
