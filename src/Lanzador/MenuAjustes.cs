@@ -539,6 +539,11 @@ namespace ConsoleEnhancer
             if (cfg.AltScaler != cfg.Scaler && cfg.AltScaler != "fsr" && cfg.AltScaler != "ninguno") { ev.Add("alt"); et.Add(cfg.ScalerName(cfg.AltScaler)); }
             // (1.2.01, el usuario: "añade opcion de fsr 1 o de directamente no usar reescalado por si no quiere el usuario"): para este juego
             if (cfg.Scaler != "fsr") { ev.Add("pick:fsr"); et.Add("FSR 1"); }
+            // (23-11, 1.2.4 ronda 6 DLSSSR; el usuario: "añade reescalado xess si puedes tambien al motor"): XeSS SR, por el motor (EngineSr.cs,
+            // libxess.dll de dlls_sr= o junto al motor), tambien en NVIDIA; para este juego como FSR 1
+            bool xessSr = false;
+            try { xessSr = File.Exists(Path.Combine(Paths.MagpieDir, "libxess.dll")) || (cfg.EnginePath.Length > 0 && File.Exists(Path.Combine(Path.GetDirectoryName(cfg.EnginePath), "libxess.dll"))); } catch { }
+            if (cfg.Scaler != "xess" && xessSr) { ev.Add("pick:xess"); et.Add("XeSS"); }
             if (cfg.Scaler != "ninguno") { ev.Add("pick:ninguno"); et.Add(Tx.T("Sin reescalado", "No upscaling")); }
             string ea = scalerPick.Length > 0 && cfg.Scaler != scalerPick ? "pick:" + scalerPick :
                         !dlssScalerOn && ev.Contains("alt") ? "alt" : ev[0] == "normal" ? "normal" : "dlss:" + (Config.DlssPick.Length > 0 ? Config.DlssPick : "auto");

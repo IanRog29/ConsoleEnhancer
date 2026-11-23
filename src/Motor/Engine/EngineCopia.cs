@@ -305,8 +305,8 @@ namespace ConsoleEnhancer.Motor
         void BandAa(int y0, int y1, uint* c)
         {
             Barrier(inColor, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.UNORDERED_ACCESS);
-            c[0] = (uint)inW; c[1] = (uint)inH; c[2] = s.Dedither ? 1u : 0u; c[3] = s.Aa ? 1u : 0u;
-            c[4] = (uint)Math.Max(0, Math.Min(80, (int)Math.Round(s.FlatDenoise * 10)));
+            c[0] = (uint)inW; c[1] = (uint)inH; c[2] = DeditherNow ? 1u : 0u; c[3] = AaNow ? 1u : 0u;   // (23-11 DLSSSR: con el escalador temporal sin DLSS 5, sr_liso / sr_aa / sr_tramado; EngineSrVec.cs)
+            c[4] = (uint)Math.Max(0, Math.Min(80, (int)Math.Round(FlatNow * 10)));
             c[5] = (uint)y0; c[6] = (uint)y1;
             BindCompute(psoAa, TAa, c, 7);
             list.Dispatch(Groups(inW, 16), Groups(y1 - y0, 8), 1);

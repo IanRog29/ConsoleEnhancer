@@ -53,6 +53,16 @@ namespace ConsoleEnhancer.Motor
             ty = 50 * Math.Sin(2 * Math.PI * n * k / 210 + 1.1);
         }
 
+        // 23-11 (1.2.4 ronda 6, DLSSSR, prueba): con Kind = 1 (solo traslacion) el punto (X, Y) de la imagen n estaba en (X + sx, Y + sy)
+        // (px a 4K) en la imagen nPrev: los vectores de verdad (de la imagen de ahora a la anterior) para mvverdad=8 (EngineRejas.cs ZoomTruth)
+        public static void Shift4K(double speed, double n, double nPrev, out double sx, out double sy)
+        {
+            double k = speed <= 0 ? 1 : speed;
+            sx = (Tx(n, k) - Tx(nPrev, k)) / 0.80; sy = (Ty(n, k) - Ty(nPrev, k)) / 0.80;
+        }
+        static double Tx(double m, double k) { return 160 * Math.Sin(2 * Math.PI * m * k / 160) + 30 * Math.Sin(2 * Math.PI * m * k / 53); }
+        static double Ty(double m, double k) { return 50 * Math.Sin(2 * Math.PI * m * k / 210 + 1.1); }
+
         public void ToWorld(double n, double X, double Y, out double u, out double v)
         {
             double s, a, tx, ty; Params(n, out s, out a, out tx, out ty);
@@ -100,6 +110,9 @@ namespace ConsoleEnhancer.Motor
         {
             double fx = (double)W4 / w, fy = (double)H4 / h;
             long dp = (long)dst;
+            // (23-11 DLSSSR: los parametros de la imagen una vez, no en cada muestra -ToWorld- : la misma cuenta, ~10 veces mas rapido)
+            double ps, pa, ptx, pty; Params(n, out ps, out pa, out ptx, out pty);
+            double pca = Math.Cos(pa), psa = Math.Sin(pa), pk = Pk;
             Parallel.For(0, h, delegate (int y)
             {
                 byte* row = (byte*)dp + (long)y * pitch;
@@ -111,7 +124,9 @@ namespace ConsoleEnhancer.Motor
                     for (int k = 0; k < 4; k++)
                     {
                         double X = (x + 0.25 + 0.5 * (k & 1)) * fx, Y = (y + 0.25 + 0.5 * (k >> 1)) * fy;
-                        double u, v; ToWorld(n, X, Y, out u, out v);
+                        double ddx = X - W4 / 2.0, ddy = Y - H4 / 2.0;
+                        double u = tw / 2.0 + ps * (pca * ddx - psa * ddy) + ptx * (1 + pk * ddy / H4);
+                        double v = th / 2.0 + ps * (psa * ddx + pca * ddy) + pty;
                         float b, g, r; Sample(u, v, out b, out g, out r);
                         sb += b; sg += g; sr += r;
                     }

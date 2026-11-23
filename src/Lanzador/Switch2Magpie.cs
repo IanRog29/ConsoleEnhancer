@@ -4398,7 +4398,7 @@ namespace ConsoleEnhancer
                     p.Passes = Math.Max(1, Math.Min(3, p.Passes)); // (sin 4 pasadas desde el 03-11: las guardadas con 4 pasan a 3)
                     p.Dlss5 = f[4].Trim() != "0";
                     p.Scaler = f[5].Trim() != "0";
-                    if (f[5].Trim() == "fsr" || f[5].Trim() == "ninguno") p.ScalerPick = f[5].Trim();   // (1.2.01: FSR 1 / sin reescalado)
+                    if (f[5].Trim() == "fsr" || f[5].Trim() == "ninguno" || f[5].Trim() == "xess") p.ScalerPick = f[5].Trim();   // (1.2.01: FSR 1 / sin reescalado; 23-11 DLSSSR: XeSS)
                     p.Cap = f.Length > 6 && f[6].Trim() == "30";
                     p.Mode120 = f.Length > 6 && f[6].Trim() == "120"; // 20-11 (HZ120)
                     p.Fg = !(f.Length > 7 && f[7].Trim() == "0");
@@ -8970,7 +8970,7 @@ namespace ConsoleEnhancer
         {
             dlssScalerOn = normal;
             cfg.AltScalerOn = !normal;
-            scalerPick = pick == "fsr" || pick == "ninguno" ? pick : "";   // (1.2.01)
+            scalerPick = pick == "fsr" || pick == "ninguno" || pick == "xess" ? pick : "";   // (1.2.01; 23-11, 1.2.4 ronda 6 DLSSSR: XeSS SR del motor)
             cfg.ScalerPick = scalerPick;
         }
         string scalerPick = "";
@@ -10133,7 +10133,9 @@ namespace ConsoleEnhancer
             double s = c == "1920x1080" ? cfg.UpscaleSharpen1080 : c == "1280x720" ? cfg.UpscaleSharpen720 : c == "3840x2160" ? 0 : cfg.UpscaleSharpen;
             // 16-11: con los modelos transformer, menos (halo oscuro con K a 0,5)
             string p = cfg.EnginePresetNow;
-            if (p == "J" || p == "K" || p == "L" || p == "M") s *= cfg.EngineSharpenTransformer;
+            // (23-11, 1.2.4 ronda 6 DLSSSR: solo con DLSS de escalador; antes tambien con XeSS / FSR si el modelo de DLSS elegido era J/K/L/M,
+            // y con motor_nitidez_transformer=0 de serie se quedaban sin enfoque)
+            if ((p == "J" || p == "K" || p == "L" || p == "M") && Ce.EngineUpscaler(cfg) == "dlss") s *= cfg.EngineSharpenTransformer;
             // (22-11, 1.2.2 REESCALADO: "sin reescalado" -catrom- sin enfoque, como en Magpie; antes 0,5 a 1080p si el modelo de DLSS elegido
             // era E: x enfoque_sin_reescalado, src\Lanzador\Reescalado.cs)
             if (Ce.EngineUpscaler(cfg) == "catrom") s *= cfg.SharpenNoScale;

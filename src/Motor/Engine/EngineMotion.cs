@@ -114,7 +114,7 @@ namespace ConsoleEnhancer.Motor
         // de DLSS5VEC2/3 con fg_vectores=2; con fg_vectores=1 lee mvec y se quedan ligeros, como antes). Si no caben (AutoPresetTick ->
         // MvSrFallback), vuelven a ser ligeros para ese modo y modelo
         bool MvFullWanted { get { return MvFullForDlss5 || MvFullForSr; } }
-        bool MvFullForSr { get { return (s.MvFullSr & MvSrModeBit) != 0 && s.Upscaler == "dlss" && dlssOk && !dlssBroken && (inW != outW || inH != outH) && !(fgApplied && s.FgVec == 1) && !mvSrLight.Contains(MvSrKey); } }
+        bool MvFullForSr { get { return (s.MvFullSr & MvSrModeBit) != 0 && (s.Upscaler == "dlss" && dlssOk && !dlssBroken || SrXessFfxFull) && (inW != outW || inH != outH) && !(fgApplied && s.FgVec == 1) && !mvSrLight.Contains(MvSrKey); } }
         int MvSrModeBit { get { return s.Is120 ? 16 : (s.Mode == 30 ? 1 : 4) << (fgApplied ? 1 : 0); } }   // (Common.cs MvModes: 30 30fg 60 60fg 120)
         string MvSrKey { get { return CapKey + "|" + s.Preset; } }
         readonly System.Collections.Generic.HashSet<string> mvSrLight = new System.Collections.Generic.HashSet<string>();
@@ -237,6 +237,7 @@ namespace ConsoleEnhancer.Motor
             SrvTex(TQMvSr, 1, biasMask, DXGI_FORMAT.R8_UNORM);
             UavTex(TQMvSr, U0, mvecSr, DXGI_FORMAT.R16G16_FLOAT);
             RejasViews();   // 17-11 (REJAS)
+            SrVecViews();   // 23-11 (1.2.4 ronda 6, DLSSSR: EngineSrVec.cs)
             mvPrevValid = false;
             motionValid = false;
             mvecDirty = false;
@@ -290,6 +291,7 @@ namespace ConsoleEnhancer.Motor
         void RecordMotion(bool newFrame)
         {
             uint* c = stackalloc uint[16];
+            ZoomTruth(newFrame);   // (1.2.4 ronda 6, DLSSSR: mvverdad=8, prueba; EngineRejas.cs)
             QFrameBegin();
             // Solo si alguien los usa: DLSS (captura mas pequeña que la salida) o la generacion. En el HOME a 4K nativo, nada
             // (18-11, MOTOR-CE: con fsr1 / catrom sin generacion no los usa nadie: tampoco)
@@ -448,6 +450,7 @@ namespace ConsoleEnhancer.Motor
                 Barrier(mvecSr, D3D12_RESOURCE_STATES.UNORDERED_ACCESS, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE);
                 srVecValid = true;
             }
+            RecordSrVec(cur, on, c);   // 23-11 (1.2.4 ronda 6, DLSSSR): los vectores de DLSS SR afinados (mvecSr; mvec no cambia), EngineSrVec.cs
 
             QStampEnd(on);
             if (on && s.MvLog) MotionReadback();
