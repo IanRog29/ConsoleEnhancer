@@ -296,7 +296,7 @@ namespace ConsoleEnhancer.Motor
             XefgResourceData dp = new XefgResourceData();
             dp.type = XEFG_RES_DEPTH; dp.validity = rv;
             dp.sizeX = (uint)inW; dp.sizeY = (uint)inH;
-            dp.pResource = Com.BorrowPtr(s.FgDepth > 0 && depthFg != null && FfxFgVecNow ? depthFg : depth, typeof(ID3D12Resource));
+            dp.pResource = Com.BorrowPtr((s.FgDepth > 0 || FgCabezaNow) && depthFg != null && FfxFgVecNow ? depthFg : depth, typeof(ID3D12Resource));   // (1.2.4 ronda 6, CABEZA: la del personaje delante, EngineFgCabeza.cs)
             dp.incomingState = (int)D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE;
             if (r >= 0) r = xeTagRes(xeFg, cl, xeFgFrame, ref dp);
             if (r >= 0 && s.XeHudless)
