@@ -28,6 +28,9 @@ namespace ConsoleEnhancer.Motor
         public int SrVecRadius = 8, SrVecStep = 2, SrVecIter = 6;
         public double SrVecMax = 1.5, SrVecGain = 0.8, SrVecLambda = 5e-6, SrVecFloor = 0;
         public bool SrVecEsm = true;
+        // Los filtros de la entrada (Shaders.cs Aa: bordes, tramado y liso) con el escalador temporal y SIN DLSS 5 (con DLSS 5 son su entrada:
+        // no cambian). -1 = los de siempre (aa=, dedither=, liso=)
+        public double SrFlat = -1; public int SrAa = -1, SrDedither = -1;
 
         bool ApplySrVec(string key, string val)
         {
@@ -42,6 +45,9 @@ namespace ConsoleEnhancer.Motor
                 case "sr_vec_lambda": SrVecLambda = Math.Max(0, D(val)); return true;
                 case "sr_vec_suelo": SrVecFloor = Math.Max(0, D(val)); return true;
                 case "sr_vec_esm": SrVecEsm = B(val); return true;
+                case "sr_liso": SrFlat = D(val); return true;
+                case "sr_aa": SrAa = I(val); return true;
+                case "sr_tramado": SrDedither = I(val); return true;
             }
             return false;
         }
@@ -53,6 +59,12 @@ namespace ConsoleEnhancer.Motor
         // TSrBlur + juego (2): t0 = luma del nivel 0 de ese juego, u0 = su luma desenfocada
         const int TSrVec = TNr + 9, TSrBlur = TNr + 11;
         ID3D12PipelineState psoSrVec, psoSrBlur;
+
+        // (Engine.cs RenderFrame y EngineCopia.cs: la pasada de bordes / tramado / liso) con el escalador temporal que reescala y sin DLSS 5
+        bool SrFiltroPropio { get { return !s.Nr && (inW != outW || inH != outH) && (scalerNow == "dlss" || scalerNow == "xess" || scalerNow == "ffx"); } }
+        bool AaNow { get { return SrFiltroPropio && s.SrAa >= 0 ? s.SrAa > 0 : s.Aa; } }
+        bool DeditherNow { get { return SrFiltroPropio && s.SrDedither >= 0 ? s.SrDedither > 0 : s.Dedither; } }
+        double FlatNow { get { return SrFiltroPropio && s.SrFlat >= 0 ? s.SrFlat : s.FlatDenoise; } }
         readonly ID3D12Resource[] srBlur = new ID3D12Resource[2];
 
         const string SrBlurShader = @"

@@ -969,8 +969,8 @@ namespace ConsoleEnhancer.Motor
                 }
                 // 1a. Bordes y tramado (el s2_aa.glsl de mpv); sin el, copia
                 Barrier(inColor, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.UNORDERED_ACCESS);
-                c[0] = (uint)inW; c[1] = (uint)inH; c[2] = s.Dedither ? 1u : 0u; c[3] = s.Aa ? 1u : 0u;
-                c[4] = (uint)Math.Max(0, Math.Min(80, (int)Math.Round(s.FlatDenoise * 10)));   // 16-11 noche: liso (Pad1.x)
+                c[0] = (uint)inW; c[1] = (uint)inH; c[2] = DeditherNow ? 1u : 0u; c[3] = AaNow ? 1u : 0u;   // (23-11 DLSSSR: con el escalador temporal sin DLSS 5, sr_liso / sr_aa / sr_tramado; EngineSrVec.cs)
+                c[4] = (uint)Math.Max(0, Math.Min(80, (int)Math.Round(FlatNow * 10)));   // 16-11 noche: liso (Pad1.x)
                 c[5] = 0; c[6] = 0;   // 20-11 (LATENCIA7): primera y ultima fila (Pad1.yz; 0 = la imagen entera)
                 BindCompute(psoAa, TAa, c, 7);
                 list.Dispatch(Groups(inW, 16), Groups(inH, 8), 1);
