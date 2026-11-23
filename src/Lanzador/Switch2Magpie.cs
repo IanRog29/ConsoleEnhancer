@@ -11987,9 +11987,9 @@ namespace ConsoleEnhancer
                     engineCrashes++;
                     FsrMulCaida(p, p.ExitCode);     // (1.2.4 ronda 6, FGMULTI: con FSR 3 FG x3 / x4, x2 el resto de la sesion; MultiFsr.cs)
                     MotorGenCaida(p, p.ExitCode);   // (1.2.4 ronda 5, XEFGM: con XeSS FG / la generacion propia en el, esa generacion por Magpie el resto de la sesion; XefgMotor.cs)
-                    Log.Write("El motor propio se ha cerrado solo (codigo " + p.ExitCode + ", vez " + engineCrashes + "; ver data\\logs\\engine.log): " +
-                              (engineCrashes >= 3 ? "el resto de la sesion mpv sin el motor" : "se vuelve a abrir"));
-                    if (engineCrashes >= 3) cfg.Engine = "magpie";
+                    // (1.2.4 ronda 6, INTEGRA6: sin mpv ni Magpie no hay "el resto de la sesion sin el motor": se vuelve a abrir siempre -antes, a
+                    // la 3a, cfg.Engine = "magpie" y EngineNow falso el resto de la sesion aunque la imagen siguiera por el motor-)
+                    Log.Write("El motor propio se ha cerrado solo (codigo " + p.ExitCode + ", vez " + engineCrashes + "; ver data\\logs\\engine.log): se vuelve a abrir");
                     // (1.2.4 arreglos, RELEVO: la imagen congelada en vez de negro; sin la espera si hay un motor en espera que vale. RelevoMotor.cs.
                     // Lo que va por Magpie tras una caida con XeSS FG / la FG propia del motor lo decide XEFGM, XefgMotor.cs)
                     CrashCurtain(p);
