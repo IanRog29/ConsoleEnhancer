@@ -125,6 +125,7 @@ void main(uint3 tid : SV_GroupThreadID)
         //             se aparta del global gana por ZLam (lo de delante tapa: el personaje, el arma, el coche no se los come el fondo); en los
         //             HUECOS (lo que se destapa: ningun candidato casa), se coge de donde hay fondo (ZHole x lo que la muestra se aparta del
         //             global): antes se estiraba el borde del personaje / del arma sobre lo destapado.
+        //  ZP > 0   = LISO: donde lo que llega no tiene textura, hacia el global (o, con Flags 64, hacia el vector grueso de L3 de x);
         //  Flags 32 = LO QUE LLEGA (sustituye al coste de 16 con su misma idea): lo que se ve en x es lo que LLEGA a x desde la actual (la
         //             muestra x - t m se mueve con m: Ec < ZV0 + ZV1 |m|); entre lo que llega gana lo de delante (ZLam) y casar con la anterior
         //             (D x ZD) solo desempata: lo animado (las manos, el arma, el personaje que se mueve) no casa con la anterior y antes perdia
@@ -145,7 +146,7 @@ Texture2D<float4> Fc3 : register(t7);
 RWTexture2D<float4> Sel : register(u0);
 RWTexture2D<float4> Gm : register(u1);
 SamplerState Lin : register(s0);
-static float2 inv0, invB, gX;
+static float2 inv0, invB, gX, pRef;
 static float bestS;
 static float2 bestM;
 static float G[12], Gp[12];
@@ -221,9 +222,10 @@ float Cost(float2 x, float2 m)
         }
         if (gOk && ZP > 0)
         {
-            // LISO: donde lo que llega no tiene textura, hacia el modelo global (sin remiendos de vectores sueltos en una pared lisa)
+            // LISO: donde lo que llega no tiene textura, hacia el modelo global o (Flags 64) hacia el vector grueso de L3 de ese sitio (sin
+            // remiendos de vectores sueltos en una pared lisa)
             float tw0 = saturate((Fc.SampleLevel(Lin, qc * invB, 0).w - 0.004) / 0.01);
-            float pr = ZP * (1 - tw0) * min(length(m - gX), 16);
+            float pr = ZP * (1 - tw0) * min(length(m - pRef), 16);
             S2 += pr; S1 += pr;
         }
         r = min(S1, S2);
@@ -247,6 +249,7 @@ void main(uint3 id : SV_DispatchThreadID)
     float2 x = float2(id.xy) * 2 + 1;
     float t = T - 1;
     gX = gOk ? EvalG(x, false) : 0;
+    pRef = (Flags & 64) ? -Fc3.SampleLevel(Lin, x / (64.0 * float2(b3)), 0).xy * 8 : gX;
     useZ = gOk && (Flags & 16) != 0;
     useN = gOk && (Flags & 32) != 0;
     sc = W0 / 1920.0;

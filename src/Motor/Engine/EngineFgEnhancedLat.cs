@@ -23,7 +23,8 @@ namespace ConsoleEnhancer.Motor
     //  - la inventada (efg_lat_fin=1) elige entre las 4 elecciones de alrededor por su coste (a un cuarto de resolucion) y no punto a punto
     //    por lo que casa con la ANTERIOR (en lo animado nunca casa): sin el granulado de puntos sueltos.
     // Claves (motor) y su "volver atras" (todo junto: efg_lat=0 = la extrapolacion de la 1.3 tal cual):
-    //  efg_lat=1, efg_lat_orden=2 (1 = afin), efg_lat_liso=0 (0.006 = hacia el global donde no hay textura: paredes enteras, pero el error medio sube un 6 % en CS2 x4), efg_lat_delante=1 (0 = no; 2 = "lo que llega", en prueba: peor en
+    //  efg_lat=1, efg_lat_orden=2 (1 = afin), efg_lat_liso=0 (0.006 = donde no hay textura, hacia el vector grueso de ese sitio -efg_lat_liso_local=1- o el
+    //  global -0-: paredes enteras sin manchas, pero el error medio de CS2 x4 sube un 2 % / 6 %), efg_lat_delante=1 (0 = no; 2 = "lo que llega", en prueba: peor en
     //  el error medio), efg_lat_delante_peso=0.01, efg_lat_hueco=0.005, efg_lat_anterior=0.25 (solo con delante=2), efg_lat_borde=1 (0 = no),
     //  efg_lat_estira=3 (0 o 1 = repetir el borde), efg_lat_fin=1 (0 = punto a punto como antes), efg_lat_global=0 (1 = el global tambien
     //  como candidato: sin efecto medible).
@@ -35,6 +36,7 @@ namespace ConsoleEnhancer.Motor
         public int EfgLatZ = 1;                 // 0 = sin delante / detras, 1 = sobre el coste de antes (de serie), 2 = "lo que llega" (Flags 32, prueba)
         public float EfgLatStretch = 3f, EfgLatZLam = 0.01f, EfgLatZHole = 0.005f, EfgLatZD = 0.25f, EfgLatZP = 0f;
         public int EfgLatFin = 1;
+        public bool EfgLatSmoothLocal = true;   // efg_lat_liso_local=1: lo liso tira hacia el vector grueso de L3 de ese sitio (0 = hacia el global)
 
         bool ApplyEfgLat(string key, string val)
         {
@@ -51,6 +53,7 @@ namespace ConsoleEnhancer.Motor
                 case "efg_lat_delante_peso": EfgLatZLam = (float)Math.Max(0, Math.Min(0.2, D(val))); return true;
                 case "efg_lat_hueco": EfgLatZHole = (float)Math.Max(0, Math.Min(0.1, D(val))); return true;
                 case "efg_lat_fin": EfgLatFin = Math.Max(0, Math.Min(1, I(val))); return true;
+                case "efg_lat_liso_local": EfgLatSmoothLocal = B(val); return true;
             }
             return false;
         }
@@ -221,7 +224,7 @@ namespace ConsoleEnhancer.Motor
                 k[0] = (uint)efgQw; k[1] = (uint)efgQh; k[2] = (uint)efgBx[0]; k[3] = (uint)efgBy[0];
                 k[4] = F(t); k[5] = F(s.EfgKappa); k[6] = F(s.EfgTau); k[7] = F(s.EfgStillN);
                 k[8] = (uint)efgLw[0]; k[9] = (uint)efgLh[0];
-                k[10] = (s.EfgLatGlobal ? 1u : 0u) | (s.EfgLatBorder ? 2u : 0u) | (s.EfgLatZ == 1 ? 16u : 0u) | (s.EfgLatZ == 2 ? 32u : 0u);
+                k[10] = (s.EfgLatGlobal ? 1u : 0u) | (s.EfgLatBorder ? 2u : 0u) | (s.EfgLatZ == 1 ? 16u : 0u) | (s.EfgLatZ == 2 ? 32u : 0u) | (s.EfgLatSmoothLocal ? 64u : 0u);
                 k[11] = F(s.EfgLatZD);
                 k[12] = F(s.EfgLatZLam); k[13] = F(s.EfgLatZHole); k[14] = F(8f * efgLw[0] / 1920f); k[15] = F(s.EfgLatZP);
                 EB(efgSel, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.UNORDERED_ACCESS);
