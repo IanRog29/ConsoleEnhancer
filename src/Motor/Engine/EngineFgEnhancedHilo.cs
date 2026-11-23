@@ -330,7 +330,11 @@ namespace ConsoleEnhancer.Motor
                     catch (Exception ex) { Log.Write("Enhanced FG: hilo de presentacion: " + ex.Message); if (Hr.IsDeviceLost(ex.HResult)) efgHr = ex.HResult; }
                 }
             }
-            finally { efgIdle.Set(); MmcssOff(mm); }
+            finally
+            {
+                efgIdle.Set(); MmcssOff(mm);
+                if (s.EfgCsv.Length > 0 && efgCsvBuf.Length > 0) try { File.AppendAllText(Program.DataPath(s.EfgCsv), efgCsvBuf.ToString()); } catch { }
+            }
         }
 
         void EfgDoJob(EfgJob j, bool stale)
@@ -416,7 +420,7 @@ namespace ConsoleEnhancer.Motor
                      .Append(j.Arrival.ToString(IC)).Append(';').Append(call.ToString(IC)).Append(';').Append(readyMs.ToString("0.00", IC)).Append(';')
                      .Append(efgLcur.ToString("0.00", IC)).Append("\r\n");
             if (efgCsvAt == 0) efgCsvAt = Clock.Now;
-            if (Clock.SinceMs(efgCsvAt) > 1000 || efgCsvBuf.Length > 64 * 1024)
+            if (Clock.SinceMs(efgCsvAt) > 250 || efgCsvBuf.Length > 64 * 1024)
             {
                 efgCsvAt = Clock.Now;
                 try { File.AppendAllText(Program.DataPath(s.EfgCsv), efgCsvBuf.ToString()); } catch { }
