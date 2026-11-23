@@ -452,6 +452,14 @@ namespace ConsoleEnhancer
         public const double ActualRecienteS = 20;       // la puesta ha visto su propio menu hace menos de esto: gana
         static readonly Dictionary<string, double> puntos = new Dictionary<string, double>();
         static readonly Dictionary<string, List<DateTime>> propias = new Dictionary<string, List<DateTime>>();
+        // 23-11 (SWITCH2, el usuario: "he pasado de la ps5 a poner la switch 2 y no detecta que es la switch 2"): con console.txt = ps5,
+        // la Switch 2 vista ("Nintendo Switch 2" en pantalla, su HOME) no cambiaba hasta 2 pruebas con 5 s entre medias (16 s tras abrir)
+        // y, mientras, la logica de la PS5 casaba la portada de GTA VI con su HOME. Las pruebas CONCLUYENTES (el HOME de la Switch 2: su
+        // referencia, o el nombre cian del juego con su hora y la bateria en la misma captura) bastan con 2 capturas distintas (sin los 5 s)
+        static readonly Dictionary<string, List<DateTime>> concluyentes = new Dictionary<string, List<DateTime>>();
+        public const double ConcluyenteMinS = 0.25;     // 2 concluyentes: de capturas distintas (no la misma dos veces)
+        public const double ConcluyenteVentanaS = 60;   // ...en este rato
+        public const double ApuntaS = 20;               // ApuntaAOtra: una prueba propia de otra consola hace menos de esto
         static readonly Dictionary<string, DateTime> rechazoLog = new Dictionary<string, DateTime>();
         static DateTime puntosAt = DateTime.MinValue;
         static string ultimaPistaLog;
@@ -496,6 +504,7 @@ namespace ConsoleEnhancer
                 DateTime now = Ahora();
                 Olvidar(now);
                 if (propia) ApuntaPropia(p.Clave, now);
+                if (propia && peso >= PuntosCambio) ApuntaConcluyente(p.Clave, now);   // (23-11, SWITCH2)
                 double top = Math.Max(peso, p2 != null ? peso2 : 0);
                 foreach (ConsolaPerfil q in Todas)
                 {
@@ -534,10 +543,58 @@ namespace ConsoleEnhancer
             return r;
         }
 
+        // Con sync (23-11, SWITCH2): una prueba concluyente de esta consola, ahora
+        static void ApuntaConcluyente(string clave, DateTime now)
+        {
+            List<DateTime> l;
+            if (!concluyentes.TryGetValue(clave, out l)) concluyentes[clave] = l = new List<DateTime>();
+            l.Add(now);
+            l.RemoveAll(delegate (DateTime t) { return (now - t).TotalSeconds > ConcluyenteVentanaS || t > now; });
+            if (l.Count > 16) l.RemoveRange(0, l.Count - 16);
+        }
+
+        // Con sync: ¿2 pruebas concluyentes de capturas distintas en el ultimo minuto?
+        static bool ConcluyenteLocked(string clave, DateTime now)
+        {
+            List<DateTime> l;
+            if (!concluyentes.TryGetValue(clave, out l)) return false;
+            List<DateTime> r = new List<DateTime>();
+            foreach (DateTime t in l) if ((now - t).TotalSeconds <= ConcluyenteVentanaS && t <= now) r.Add(t);
+            return r.Count >= 2 && (r[r.Count - 1] - r[0]).TotalSeconds >= ConcluyenteMinS;
+        }
+
+        // 23-11 (SWITCH2): ¿la imagen apunta ahora a otra consola que la puesta? La de mas puntos (1,5 como poco y mas que la puesta) con
+        // una prueba propia hace menos de ApuntaS. Mientras, lo que reconoce juegos de la puesta (portadas e iconos de la PS5) no actua:
+        // 18:10:20 la portada de "PS5: Grand Theft Auto VI" caso con el HOME de la Switch 2 y se iba a arrancar ese juego
+        public static ConsolaPerfil ApuntaAOtra()
+        {
+            lock (sync)
+            {
+                if (!iniciada || elegida != Auto || actual == null) return null;
+                DateTime now = Ahora();
+                Olvidar(now);
+                double va;
+                puntos.TryGetValue(actual.Clave, out va);
+                ConsolaPerfil mejor = null;
+                double bm = 0;
+                foreach (ConsolaPerfil q in Todas)
+                {
+                    if (q == actual || q == Otra) continue;
+                    List<DateTime> l = PropiasLocked(q.Clave, now);
+                    if (l.Count == 0 || (now - l[l.Count - 1]).TotalSeconds > ApuntaS) continue;
+                    double v;
+                    puntos.TryGetValue(q.Clave, out v);
+                    if (v >= 1.5 && v > va && v > bm) { bm = v; mejor = q; }
+                }
+                return mejor;
+            }
+        }
+
         // Con sync: ¿esta consola esta confirmada por sus pruebas propias, repetidas en el tiempo? (falta = lo que le falta, para el log)
         static bool ConfirmadaLocked(ConsolaPerfil c, DateTime now, out string falta)
         {
             falta = null;
+            if (ConcluyenteLocked(c.Clave, now)) return true;   // (23-11, SWITCH2: su HOME en 2 capturas)
             List<DateTime> l = PropiasLocked(c.Clave, now);
             int need = 2;
             double span = SeparacionS;
@@ -641,7 +698,7 @@ namespace ConsoleEnhancer
         {
             lock (sync)
             {
-                puntos.Clear(); propias.Clear(); rechazoLog.Clear(); puntosAt = DateTime.MinValue; ultimaPistaLog = null;
+                puntos.Clear(); propias.Clear(); concluyentes.Clear(); rechazoLog.Clear(); puntosAt = DateTime.MinValue; ultimaPistaLog = null;
                 iniciada = false; actual = null; elegida = Auto;
             }
             Configurar(ini);
@@ -667,6 +724,22 @@ namespace ConsoleEnhancer
             if (altoNativo > 1080) return Pista(what, true, "switch2", 2);
             if (altoNativo > 0) return Pista(what, true, "switch1", 2);
             return Pista(what, false, "switch2", 0.5, "switch1", 0.5); // (sin medir: una de las dos)
+        }
+
+        // 23-11 (SWITCH2): con otra consola puesta, sin games\home_ref.txt o con una de otra captura (lo que pasaba el 23-11 a las 18:10: la
+        // Switch 2 se cambio a los 16 s): el HOME de Nintendo con el nombre del juego en cian y la hora del PC arriba a la derecha con el
+        // wifi y la bateria a su lado, en la MISMA captura (TrayApp.ObservaHomeSwitch). Concluyente: dos capturas asi y es la Switch 2
+        // (la Switch 1, SIN PROBAR, tiene un HOME parecido: con ella, consola=switch1 en el ini)
+        public static ConsolaPerfil VistoHomeSwitch2(string hora)
+        {
+            return Pista("el HOME de la Switch 2 (el nombre del juego en cian y la hora \"" + hora + "\" con la bateria)", true, "switch2", PuntosCambio);
+        }
+
+        // (23-11, SWITCH2) Solo la hora del HOME de Nintendo con la bateria (sin el nombre cian: el HOME apareciendo sobre el juego, el
+        // cursor en la barra de abajo): prueba propia, no concluyente (la Switch 1 tiene la misma hora)
+        public static ConsolaPerfil VistoRelojSwitch(string hora)
+        {
+            return Pista("la hora \"" + hora + "\" del HOME de Nintendo (con la bateria)", true, "switch2", 1.5, "switch1", 0.5);
         }
 
         // 19-11: el menu de la PS5 visto con otra consola puesta (src\MenuPs5.cs: su hora arriba a la derecha, la del PC, sin nada a su

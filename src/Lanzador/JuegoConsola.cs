@@ -1612,6 +1612,9 @@ namespace ConsoleEnhancer
         public static void Guarda(string perfil, double[] f) { almacen.Guarda(perfil, f, Misma); }
         public static void Renombra(string viejo, string nuevo) { almacen.Renombra(viejo, nuevo); }
         public static List<string> Nombres() { return almacen.Nombres(); }   // (1.2.2)
+        // (23-11, SWITCH2) las portadas parecidas a esta (mal memorizadas: el HOME de la Switch 2 como portada de un juego de la PS5) fuera
+        public static List<string> QuitaParecidas(double[] f) { return almacen.QuitaParecidas(f, Misma); }
+        internal static void Olvida() { almacen.Olvida(); }   // (pruebas)
     }
 
     // 21-11 (quinta vuelta): el icono del juego en foco del inicio de la PS5 (JuegoConsola.IconoFoco) de cada perfil (games\console_icons.txt)
@@ -1723,6 +1726,24 @@ namespace ConsoleEnhancer
         {
             lock (sync) { Carga(); foreach (KeyValuePair<string, double[]> kv in lista) if (kv.Key == perfil) return true; return false; }
         }
+
+        // (23-11, SWITCH2) quita las firmas parecidas a f (por debajo de umbral); devuelve de que perfiles eran
+        public List<string> QuitaParecidas(double[] f, double umbral)
+        {
+            List<string> r = new List<string>();
+            if (f == null || f.Length != n) return r;
+            lock (sync)
+            {
+                Carga();
+                for (int i = lista.Count - 1; i >= 0; i--)
+                    if (JuegoConsola.DistHuella(lista[i].Value, f) < umbral) { r.Add(lista[i].Key); lista.RemoveAt(i); }
+                if (r.Count > 0) Escribe();
+            }
+            return r;
+        }
+
+        // (pruebas) olvidar lo cargado (otra carpeta de datos)
+        public void Olvida() { lock (sync) lista = null; }
 
         // (1.2.2) los perfiles con alguna firma (sin repetir)
         public List<string> Nombres()

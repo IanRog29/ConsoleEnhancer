@@ -5,6 +5,32 @@ publicada es una etiqueta `vX.Y.Z` de git; GitHub Actions monta su zip y copia a
 
 ## [Sin publicar]
 
+### English
+
+#### Fixed
+- **Nintendo Switch 2 recognised as soon as it is on screen.** With the PS5 remembered as the last console, the Switch 2 took ~16 s
+  to be recognised and, meanwhile, the PS5 logic matched a PS5 game cover against the Switch 2 HOME. Now the Switch 2 HOME (the game
+  name in cyan plus the clock with the battery icon) switches to the Switch 2 on the second capture (~0.5 s), and while the picture
+  points to another console nothing of the PS5 game recognition (covers, icons, names) runs. A PS5 cover wrongly memorised from the
+  Switch 2 HOME is removed by itself.
+- **Switch 2 game names read in the HOME are kept for the game profile.** The reads of each game were lost when the cursor moved to
+  another game, so entering it after coming back saved it as "Game 1". Now the reads of each game icon last the whole session; the
+  "Game N" profiles saved by this bug get their real name (from the log of that session), and the Switch 2 games and settings of the
+  older Switch-2-only version of the app are imported once (with their HOME icons).
+
+### Castellano
+
+#### Arreglado
+- **La Nintendo Switch 2 se reconoce en cuanto se ve.** Con la PS5 como ultima consola, la Switch 2 tardaba ~16 s en reconocerse y,
+  mientras, la PS5 casaba la portada de uno de sus juegos con el HOME de la Switch 2. Ahora su HOME (el nombre del juego en cian y la
+  hora con la bateria) cambia a la Switch 2 a la segunda captura (~0,5 s) y, mientras la imagen apunte a otra consola, no actua nada
+  del reconocimiento de juegos de la PS5 (portadas, iconos, nombres). La portada de la PS5 memorizada por error del HOME de la Switch 2
+  se quita sola.
+- **El nombre de cada juego de la Switch 2 leido en el HOME sirve para su perfil.** Las lecturas se perdian al mover el cursor a otro
+  juego y, al volver a el y entrar, se guardaba como "Juego 1". Ahora las lecturas de cada icono duran toda la sesion; los "Juego N"
+  guardados por este fallo pasan a su nombre (del log de esa sesion) y los juegos de la Switch 2 de la version de antes de la app (la
+  que era solo para la Switch 2) se importan una vez, con sus ajustes y sus iconos del HOME.
+
 ## [1.2.4] - 2026-11-23
 
 **Everything in ConsoleEnhancer's own engine, without Magpie, mpv or NVIDIA DLSS Frame Generation.** (The 1.2.4 build published

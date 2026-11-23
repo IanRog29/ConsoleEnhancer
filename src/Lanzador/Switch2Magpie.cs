@@ -3441,7 +3441,8 @@ namespace ConsoleEnhancer
             // (solo frases que no pueden ser el nombre de un juego: una casilla tomada por la consola no guarda perfil)
             "eshop", "ajustes de la consola", "ajustes de consola", "ajustes del sistema", "opciones de energía", "notificaciones",
             "control parental", "controles parentales", "todos los programas", "system settings", "sleep mode", "power options",
-            "virtual game cards", "friend list", "parental controls", "all software" };
+            "virtual game cards", "friend list", "parental controls", "all software",
+            "gestión de datos", "gestion de datos", "data management" };   // (23-11, SWITCH2: se guardaba como un juego)
         static string[] systemKeys;
 
         // Una casilla de la consola, no un juego. 15-11: por su clave (sin mayusculas, acentos ni signos) y aunque el OCR pierda las
@@ -6890,6 +6891,33 @@ namespace ConsoleEnhancer
         // El nombre del juego seleccionado se lee en varias capturas (NameReads), con la captura entera mientras haga falta (la
         // ligera de 1280x720 sale de 1 de cada 3 pixeles de la de 4K, sin filtrar: letras peores para el OCR)
         NameReads selReads;             // lecturas del nombre del juego seleccionado en el HOME (otro icono: otras)
+        // 23-11 (SWITCH2, el usuario: "en mi anterior app iba como la seda"): las lecturas eran de cada seleccion y se perdian al mover
+        // el cursor. 18:10:37 "Ocarina of Time" quedo seguro (2 lecturas), el cursor fue a Arceus y volvio; al entrar a las 18:10:46
+        // solo llevaba 1 lectura de esa seleccion: "no esta confirmado" y se guardo como "Juego 1". Ahora las lecturas de cada icono
+        // se guardan para toda la sesion (con homeSync): al volver a el siguen (seguro sigue seguro; si no, la siguiente lectura igual
+        // lo confirma). Las de un nombre que se desplaza (marquesina) o que se dejo de leer sin seguro empiezan de nuevo, como antes
+        readonly List<NameReads> lecturasHome = new List<NameReads>();
+        const int LecturasHomeMax = 48;
+
+        // (con homeSync) Las lecturas de antes de este icono que siguen valiendo, o null
+        NameReads LecturasDe(double[] icon)
+        {
+            if (icon == null) return null;
+            foreach (NameReads r in lecturasHome)
+                if (r.Icon != null && HomeLabel.Diff(icon, r.Icon) <= HomeLabel.SameIcon)
+                    return r.Sure || (!r.Clipped && !r.Done && r.Best != null) ? r : null;
+            return null;
+        }
+
+        // (con homeSync) Las lecturas de una seleccion nueva: la primera de su icono (las de antes del mismo icono fuera)
+        void GuardaLecturas(NameReads nr)
+        {
+            if (nr == null || nr.Icon == null || nr.Library) return;
+            for (int i = lecturasHome.Count - 1; i >= 0; i--)
+                if (lecturasHome[i].Icon != null && HomeLabel.Diff(nr.Icon, lecturasHome[i].Icon) <= HomeLabel.SameIcon) lecturasHome.RemoveAt(i);
+            lecturasHome.Insert(0, nr);
+            if (lecturasHome.Count > LecturasHomeMax) lecturasHome.RemoveRange(LecturasHomeMax, lecturasHome.Count - LecturasHomeMax);
+        }
         volatile bool nameFullGrab;     // la siguiente captura entera (GrabTick)
         bool enterSure;                 // el nombre del juego en el que se entra esta confirmado (DecideHomeNative -> EntryProfile)
         bool enterConfirmed;            // 16-11 (revision): y lo esta del todo (NameReads.Sure, no solo Firm): solo esto marca NameSure
@@ -8069,6 +8097,8 @@ namespace ConsoleEnhancer
                         if (Consolas.Actual.MenuPropio) MenuPs5Captura(full, small, noSignal);
                         return;
                     }
+                    // (23-11, SWITCH2: el HOME de la Switch 2 con otra consola puesta, en cada captura y antes que lo de la PS5)
+                    if (!conHome) ObservaHomeSwitch(full, small, noSignal);
                     if (!conHome) ObservaConsola(full, small, strips, noSignal, homeRef);
                     // 19-11: el menu de la PS5 (src\MenuPs5.cs): con ella puesta, su menu a 4K nativo; con otra y consola=auto, pista a su favor
                     if (Consolas.Actual.MenuPropio) MenuPs5Captura(full, small, noSignal);
@@ -8107,16 +8137,23 @@ namespace ConsoleEnhancer
                         known = library ? null : GameProfiles.FindByIcon(icon);
                         NameReads nr;
                         bool sysLike;
+                        NameReads previas = null;
                         lock (homeSync)
                         {
                             freshSel = selReads == null || (library ? !selReads.SameBox(box)
                                                                     : selReads.Library || HomeLabel.Diff(icon, selReads.Icon) > HomeLabel.SameIcon);
-                            if (freshSel) selReads = library ? new NameReads(box) : new NameReads(icon, known != null ? known.Name : null);
+                            // 23-11 (SWITCH2): las lecturas de este mismo icono de antes (otra seleccion de esta sesion) siguen: ver LecturasDe
+                            if (freshSel && !library && (known == null || !known.NameSure)) previas = LecturasDe(icon);
+                            if (freshSel) selReads = previas ?? (library ? new NameReads(box) : new NameReads(icon, known != null ? known.Name : null));
+                            if (freshSel && !library && previas == null) GuardaLecturas(selReads);
                             nr = selReads;
                             // (la ultima casilla de la consola, en el mismo sitio: ya leida)
                             sysLike = !library && sysShape != null && HomeLabel.Same(lab, sysShape) && Math.Abs(box.Y - sysBox.Y) <= 3 &&
                                       Math.Abs(box.X + box.Width / 2 - (sysBox.X + sysBox.Width / 2)) <= 6;
                         }
+                        // (23-11, SWITCH2: ya seguro de antes y el perfil de su icono sin el: se le pone, como si se acabara de leer)
+                        if (previas != null && previas.Sure && known != null && !known.NameSure && previas.Best != null)
+                            ImproveProfile(known, previas.Best, true, "leido en el HOME antes", true);
                         bool readName = !sysLike && label != null && (known == null || !known.NameSure) && !nr.Done;
                         if (readName)
                         {
@@ -12233,6 +12270,9 @@ namespace ConsoleEnhancer
                 if (arg == "--esperar-salida") Ce.EsperarSalida();
                 // 19-11: el lector del menu de la PS5 con imagenes (src\MenuPs5.cs): --test-ps5=<carpeta>[;<informe>]
                 if (arg.StartsWith("--test-ps5=")) return RelojPs5.Prueba(arg.Substring(11));
+                // 23-11 (SWITCH2): la Switch 2 con la PS5 puesta, sus capturas, las lecturas del HOME y la importacion / "Juego 1" sobre copias:
+                // --test-switch2=<informe>[;<datos de la app>[;<datos de la version de antes>]] (src\Lanzador\Switch2Datos.cs)
+                if (arg == "--test-switch2" || arg.StartsWith("--test-switch2=")) return TrayApp.Switch2Prueba(arg.Length > 15 ? arg.Substring(15) : null);
 
                 // 20-11 (PS5JUEGO): leer el nombre del juego en el overlay (centro de control / conmutador de la PS5, Guia / fichas de la
                 // Xbox): --test-juegos-consola=<carpeta>[;<informe>] (xbox_* usa la Xbox, el resto la PS5)

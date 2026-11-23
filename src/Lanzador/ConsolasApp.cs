@@ -30,6 +30,7 @@ namespace ConsoleEnhancer
         void ConsolaAlAbrir()
         {
             MigraNombresConsola();   // (1.2.2: nombres de juegos con basura del OCR a su nombre bueno, src\VueltaJuego.cs)
+            Switch2AlAbrir();        // (23-11, SWITCH2: los juegos de la Switch 2 de la version de antes y los "Juego N" con nombre; src\Lanzador\Switch2Datos.cs)
             homeIni = cfg.HomeNativeEnabled;
             Log.Write(Consolas.Iniciar());
             Consolas.Cambiada -= OnConsolaCambiada;
@@ -107,7 +108,23 @@ namespace ConsoleEnhancer
             // home_4k_nativo=0; este solo manda sobre el HOME de la Switch 2 (ver ConsolaAlAbrir)
             cfg.HomeNativeEnabled = (homeIni && nueva.TieneHome) || nueva.MenuPropio;
             // Con HOME (la Switch 2): nada mas; en cuanto se vea su HOME, a 4K nativo como siempre (AnalyzeGrab / HomeTick)
-            if (nueva.TieneHome) return;
+            // 23-11 (SWITCH2): el juego de antes era de la otra consola ("Consola", "PS5: ..."): ya no es el que esta en marcha. 18:10:27,
+            // recien cambiada a la Switch 2 desde la PS5, la vuelta del HOME a Ocarina of Time (en uso) se tomo por la vuelta a "Consola"
+            // (sus ajustes, y lo cambiado con el mando se guardaba ahi). Sin el, se entra en el del cursor (el que esta en uso)
+            if (nueva.TieneHome)
+            {
+                lock (profileSync)
+                {
+                    string cg = curGame;
+                    if (cg != null && (cg == ConsolaPerfil.NombrePerfilConsola || JuegoConsola.TagConsola(cg) != null))
+                    {
+                        curGame = null;
+                        curGameGuess = false;
+                        Log.Write("Consola " + nueva.Corto + ": \"" + cg + "\" era de la consola de antes: ningun juego en marcha hasta ver su HOME");
+                    }
+                }
+                return;
+            }
             lock (homeSync) { ps5MenuHits = 0; ps5OutHits = 0; menuMaq.Reiniciar(); } // (19-11: con menu propio, su menu se mira desde ahora: MenuPs5Captura)
             // (19-11: ya a 4K nativo y la nueva con menu propio: se sigue asi, con los ajustes de la consola para cuando se salga del menu)
             if (nueva.MenuPropio && cfg.HomeNative && !homeGrace) { AplicarPerfilConsola(nueva); return; }
@@ -209,6 +226,41 @@ namespace ConsoleEnhancer
                       lit.ToString("0.###", CultureInfo.InvariantCulture) + ", umbral " + cfg.HdcpWarnSecs.ToString("0.#", CultureInfo.InvariantCulture) +
                       " s; captura " + cfg.CaptureNow + "): puede ser el HDCP (" + c.ConsejoHdcp + ")");
             OnUi(delegate { OsdWarn(c.ConsejoHdcp, "8000"); });
+        }
+
+        // 23-11 (SWITCH2, el usuario: "he pasado de la ps5 a poner la switch 2 y no detecta que es la switch 2"): con otra consola puesta
+        // (console.txt = ps5) solo contaban el HOME de la Switch 2 igual a games\home_ref.txt (que en esta version aun no estaba) y el texto
+        // "Nintendo Switch 2" leido cada 5 s (2 pruebas con 5 s entre medias): se cambio a los 16 s, y mientras la PS5 caso la portada de
+        // GTA VI con el HOME. Ahora, en CADA captura (antes que lo de la PS5): el nombre del juego en cian (HomeLabel.Selected, ~1 ms a
+        // 640x360) y, solo si esta, la hora del PC arriba a la derecha con el wifi y la bateria (DetectorMenu.RelojSwitch, OCR de esa
+        // zona). Las dos en la misma captura = el HOME de la Switch 2, prueba concluyente: a la segunda captura, Switch 2
+        DateTime obsSwLog = DateTime.MinValue, obsSwRelojAt = DateTime.MinValue;
+        void ObservaHomeSwitch(Bitmap full, Bitmap small, bool noSignal)
+        {
+            if (noSignal || Consolas.Fija || Consolas.Actual.TieneHome || full == null || small == null) return;
+            try
+            {
+                Rectangle box;
+                bool hint;
+                HomeLabel.LabelText label;
+                int hy;
+                byte[] lab = HomeLabel.Selected(small, out box, out hint, out label, out hy);
+                DateTime now = DateTime.Now;
+                // (sin el nombre cian, la hora sola: una vez por segundo como mucho; con el, en cada captura)
+                if (lab == null && (now - obsSwRelojAt).TotalSeconds < 1 && now >= obsSwRelojAt) return;
+                if (lab == null) obsSwRelojAt = now;
+                string rh, ro, rp;
+                if (!DetectorMenu.RelojSwitch(full, now, out rh, out ro, out rp)) return;
+                if ((now - obsSwLog).TotalSeconds >= 30 || now < obsSwLog)
+                {
+                    obsSwLog = now;
+                    Log.Write("Consola: el HOME de la Switch 2 a la vista con " + Consolas.Actual.Corto + " puesta (" + (lab != null ? "el nombre del juego en cian y " : "") +
+                              "la hora \"" + rh + "\" arriba a la derecha con la bateria): prueba " + (lab != null ? "concluyente" : "propia"));
+                }
+                if (lab != null) Consolas.VistoHomeSwitch2(rh);
+                else Consolas.VistoRelojSwitch(rh);
+            }
+            catch (Exception ex) { Log.Error("Consola: buscando el HOME de la Switch 2", ex); }
         }
 
         // ChooseLook (cada 0,5 s): un juego a 40 (la consola a 120 Hz, la captura a 60: a tirones), al log una vez y como pista

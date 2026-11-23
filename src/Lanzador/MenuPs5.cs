@@ -783,7 +783,23 @@ namespace ConsoleEnhancer
         }
 
         // ¿Reconocer los juegos uno a uno con esta consola? (clave del ini ps5_reconocer_juegos / xbox_reconocer_juegos)
-        bool RecoJuegosActivo(ConsolaPerfil c) { return JuegoConsola.Activo(c, cfg); }
+        // 23-11 (SWITCH2): mientras la imagen apunte a otra consola (Consolas.ApuntaAOtra: el HOME de la Switch 2, "Nintendo Switch 2" en
+        // pantalla...), nada de reconocer juegos de la puesta: 18:10:20 la portada de "PS5: Grand Theft Auto VI" caso con el HOME de la
+        // Switch 2 y se iba a arrancar ese juego
+        DateTime recoOtraLog = DateTime.MinValue;
+        bool RecoJuegosActivo(ConsolaPerfil c)
+        {
+            if (!JuegoConsola.Activo(c, cfg)) return false;
+            ConsolaPerfil otra = Consolas.ApuntaAOtra();
+            if (otra == null) return true;
+            DateTime now = DateTime.Now;
+            if ((now - recoOtraLog).TotalSeconds >= 30 || now < recoOtraLog)
+            {
+                recoOtraLog = now;
+                Log.Write("Consola: la imagen apunta a " + otra.Corto + ": nada de portadas, iconos ni nombres de juegos de la " + c.Corto + " hasta que se aclare");
+            }
+            return false;
+        }
 
         // 1.2.1 (SALIDA PRUDENTE): hasta cuando, tras el menu de apagado de la consola (lo de despues es la consola apagandose)
         DateTime PrudenteTrasApagado()
