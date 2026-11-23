@@ -545,6 +545,7 @@ namespace ConsoleEnhancer.Motor
         readonly List<double> latMs = new List<double>();       // llegada de la captura -> vuelta de Present
         readonly List<double> gpuMs = new List<double>();
         int captured, dups, presented, late;
+        int qCaptured, qDups, qPresented, qLate; double qGpuMax;   // (1.3.1, FPS: cada 250 ms, EngineEscalera.cs)
         long windowStart = Clock.Now, lastPresent;
         public string Last = "";
         public double LastGpuP95, LastRate;         // del ultimo segundo (para bajar de modelo si no cabe)
@@ -555,13 +556,13 @@ namespace ConsoleEnhancer.Motor
         int allCaptured, allDups, allPresented;
         long recStart;
 
-        public void Captured(bool dup) { lock (sync) { captured++; if (dup) dups++; if (Recording) { allCaptured++; if (dup) allDups++; } } }
+        public void Captured(bool dup) { lock (sync) { captured++; qCaptured++; if (dup) { dups++; qDups++; } if (Recording) { allCaptured++; if (dup) allDups++; } } }
 
         public void Presented(long arrival, long now, double gpu)
         {
             lock (sync)
             {
-                presented++;
+                presented++; qPresented++; if (gpu > qGpuMax) qGpuMax = gpu;
                 double lat = Clock.Ms(arrival, now);
                 latMs.Add(lat);
                 if (gpu > 0) gpuMs.Add(gpu);
@@ -576,7 +577,13 @@ namespace ConsoleEnhancer.Motor
             }
         }
 
-        public void Late() { lock (sync) late++; }
+        public void Late() { lock (sync) { late++; qLate++; } }
+
+        // (1.3.1, FPS) lo de los ultimos ~250 ms (desde la llamada anterior), para ver en 1-2 s que no se llega (EngineEscalera.cs)
+        public void Cuarto(out int cap, out int dup, out int pres, out int lt, out double gpuMax)
+        {
+            lock (sync) { cap = qCaptured; dup = qDups; pres = qPresented; lt = qLate; gpuMax = qGpuMax; qCaptured = qDups = qPresented = qLate = 0; qGpuMax = 0; }
+        }
 
         static double Pct(List<double> v, double p)
         {
@@ -615,6 +622,7 @@ namespace ConsoleEnhancer.Motor
             lock (sync)
             {
                 captured = dups = presented = late = 0;
+                qCaptured = qDups = qPresented = qLate = 0; qGpuMax = 0;
                 frameMs.Clear(); latMs.Clear(); gpuMs.Clear();
                 windowStart = Clock.Now;
                 lastPresent = 0;

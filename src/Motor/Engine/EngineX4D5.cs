@@ -56,6 +56,7 @@ namespace ConsoleEnhancer.Motor
             try
             {
                 if (!X4D5Activo) { x4Clave = ""; x4Hist = x4Hist6 = x4OkN = 0; return; }
+                if (s.Escalera) { X4D5Empezar(); return; }   // (1.3.1, FPS: lo baja EngineEscalera.cs, tambien el reescalado DLSS; esto solo el inicio)
                 string clave = s.SmoothMode + "|" + s.Efg + "|" + inW + "x" + inH + "|" + outW + "x" + outH;
                 if (clave != x4Clave) { x4Clave = clave; x4CalmaDesde = Clock.Now; x4Hist = x4Hist6 = x4OkN = 0; x4OkDicho = -1; x4PctPedido = adPedidoPct > 0 ? adPedidoPct : s.NrPct; }
                 X4D5Empezar();
@@ -120,6 +121,7 @@ namespace ConsoleEnhancer.Motor
             Log.Write("x4 con DLSS 5: Smooth Motion x4 sin nada aprendido: DLSS 5 empieza al " + s.X4D5Inicio + " % (pedido " + s.NrPct + " %; x4d5_inicio)");
             s.NrPct = s.X4D5Inicio;
             x4Inicio = true;
+            if (s.Escalera && s.Adapta && adTabla != null && adClave.Length > 0) AdaptaGuardarFila();   // (1.3.1, FPS: aprendido; el que se despierta de la espera empieza aqui)
         }
 
         // La primera vez con Smooth Motion x4 + DLSS 5 (sin fila aprendida y sin adapta): de x4d5_inicio, no de lo pedido (que no llega)

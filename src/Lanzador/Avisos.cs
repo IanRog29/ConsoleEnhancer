@@ -548,6 +548,7 @@ namespace ConsoleEnhancer
                 Config.MotorDlss5Prueba1(1);
                 fallos += AvisosUnaVez(sb, fallosTxt, baseCfg, ref n);
                 fallos += AvisosNoPuede(sb, fallosTxt, baseCfg, ref n);
+                fallos += AvisosEscalera(sb, fallosTxt, ref n);   // (1.3.1, FPS)
                 fallos += AvisosSesion(sb, fallosTxt, baseCfg, informe, ref n);
             }
             catch (Exception ex) { fallos++; sb.AppendLine("FALLO: " + ex); fallosTxt.Add("excepcion: " + ex.Message); }
@@ -984,6 +985,60 @@ namespace ConsoleEnhancer
                     Config.X4NoLlegaOlvida();
                 }
             Pantalla.HzPrueba = 120;
+            return fallos;
+        }
+
+        // (1.3.1, FPS) Los avisos de la escalera de fps (FpsBajo.cs): lo bajado que ya cabe ("Enhanced FG x4 · DLSS 5 al 25 % y DLSS K para que
+        // quepa") y el rojo cuando ya no queda nada en el motor ("No se llega a 120 fps (99) ni con DLSS 5 al 25 % y DLSS E · Smooth Motion x2 esta
+        // sesión"), en los dos idiomas: sin palabras viejas, sin separadores de mas y que quepan en la pastilla a 4K
+        static int AvisosEscalera(StringBuilder sb, List<string> fallosTxt, ref int n)
+        {
+            int fallos = 0;
+            sb.AppendLine("== la escalera de fps (lo bajado por el motor; el multiplicador esta sesion)");
+            string[] quienes = { "Smooth Motion x4", "Smooth Motion x2", "Enhanced FG x4", "Enhanced FG x3", "Enhanced FG x2", "XeSS FG", "FSR 3 FG x4", "30 fps", "60 fps", "120 fps" };
+            int[] pcts = { -1, 25, 35, 100 };
+            string[] srs = { "", "L", "K", "E", "F" };
+            foreach (bool en in new[] { false, true })
+            {
+                Idioma.Poner(en ? "en" : "es");
+                List<string> textos = new List<string>();
+                foreach (string q in quienes)
+                    foreach (int p in pcts)
+                        foreach (string sr in srs)
+                        {
+                            string t = TrayApp.EscaleraTexto(q, p, sr);
+                            if (t == null) { if (p > 0 || sr.Length > 0) textos.Add("(vacio con algo bajado: " + q + " " + p + " " + sr + ")"); continue; }
+                            textos.Add(t);
+                        }
+                foreach (int salida in new[] { 30, 60, 120 })
+                    foreach (int p in pcts)
+                        foreach (string sr in srs)
+                            foreach (string hecho in new[] { "Smooth Motion x2", "Enhanced FG x2", null, "DLSS 5 apagado|DLSS 5 off", "escalador FSR 1|FSR 1 upscaler", "captura a 1080p|capture at 1080p" })
+                            {
+                                string falta = Tx.T("No se llega a " + salida + " fps (" + (salida - 21) + ")", salida + " fps not reached (" + (salida - 21) + ")") + TrayApp.EscaleraNiCon(p, sr);
+                                bool sesion = hecho != null && hecho.EndsWith("x2", StringComparison.Ordinal);
+                                string h = hecho, he = hecho;
+                                if (hecho != null && hecho.Contains("|")) { h = hecho.Split('|')[0]; he = hecho.Split('|')[1]; }
+                                textos.Add(TrayApp.FpsBajaTexto(falta, h, he, sesion));
+                            }
+                foreach (string t in textos)
+                {
+                    n++;
+                    string r = null;
+                    if (t.StartsWith("(vacio", StringComparison.Ordinal)) r = "aviso vacio";
+                    else
+                    {
+                        foreach (string w in AvisoPalabrasViejas) if (t.IndexOf(w, StringComparison.Ordinal) >= 0) { r = "dice \"" + w + "\""; break; }
+                        if (r == null && (t.Contains(" ·  · ") || t.Contains(" · · ") || t.EndsWith(" · ") || t.StartsWith(" · ") || t.EndsWith(" ·") || t.Contains("  "))) r = "separadores / espacios de mas";
+                        if (r == null && en && (t.Contains(" al ") || t.Contains("sesión") || t.Contains("quepa"))) r = "castellano en el ingles";
+                        if (r == null && !en && (t.Contains(" at ") || t.Contains("session") || t.Contains("fits"))) r = "ingles en el castellano";
+                        if (r == null) { float ancho = AvisoAncho(t, 2f); if (ancho > AvisoMaxW) r = "no cabe en la pastilla a 4K (" + (int)ancho + " de " + AvisoMaxW + " px)"; }
+                    }
+                    if (r != null) { fallos++; fallosTxt.Add("escalera: " + r + " | " + t); }
+                    sb.AppendLine((r == null ? "      " : "FALLO ") + "escalera | " + t + (r != null ? "   <- " + r : ""));
+                }
+            }
+            Idioma.Poner("es");
             return fallos;
         }
 
