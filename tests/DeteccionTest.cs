@@ -50,12 +50,9 @@ static class DeteccionTest
         OpcionesDeteccion op = new OpcionesDeteccion();
         op.ProbarD3D12 = d3d12;
         List<string> dnr = new List<string>(OpcionesDeteccion.RutasExtra(raiz, "nvngx_dlssnr.dll"));
-        List<string> sm86 = new List<string>(OpcionesDeteccion.RutasExtra(raiz, @"runtimes\dlssg_sm86"));
         dnr.Add(Path.Combine(raiz, @"terceros\magpie\nvngx_dlssnr.dll"));
-        sm86.Add(Path.Combine(raiz, @"terceros\magpie\runtimes\dlssg_sm86"));
-        if (magpie.Length > 0) { dnr.Add(Path.Combine(magpie, "nvngx_dlssnr.dll")); sm86.Add(Path.Combine(magpie, @"runtimes\dlssg_sm86")); }
+        if (magpie.Length > 0) dnr.Add(Path.Combine(magpie, "nvngx_dlssnr.dll"));
         op.RutasDlssNr = dnr.ToArray();
-        op.RutasDlssgSm86 = sm86.ToArray();
         op.AbrirCapturadoras = formatos;
         op.AntesDeAbrir = CogerTurno;
         op.DespuesDeAbrir = SoltarTurno;
@@ -114,10 +111,10 @@ static class DeteccionTest
             {
                 // resumen: la grafica, la pantalla y la capturadora que cambian en el caso
                 foreach (GpuInfo g in hw.Gpus)
-                    W("  GPU " + g.Nombre + " [" + g.Familia + ", " + Tx.Mb(g.Vram) + ", driver " + g.Driver + "]: DLSS " + Tx.SiNo(g.F.DlssSr.Si) + ", DLSS-G " + Tx.SiNo(g.F.DlssG.Si) +
-                      (g.F.MfgMax > 2 ? " x" + g.F.MfgMax : "") + ", Smooth Motion " + Tx.SiNo(g.F.SmoothMotion.Si) + ", Reflex " + Tx.SiNo(g.F.Reflex.Si) + ", FSR 3 FG " + Tx.SiNo(g.F.Fsr3Fg.Si) +
+                    W("  GPU " + g.Nombre + " [" + g.Familia + ", " + Tx.Mb(g.Vram) + ", driver " + g.Driver + "]: DLSS " + Tx.SiNo(g.F.DlssSr.Si) +
+                      ", Smooth Motion " + Tx.SiNo(g.F.SmoothMotion.Si) + ", Reflex " + Tx.SiNo(g.F.Reflex.Si) + ", FSR 3 FG " + Tx.SiNo(g.F.Fsr3Fg.Si) +
                       ", XeSS FG " + Tx.SiNo(g.F.XessFg.Si) + ", AFMF " + Tx.SiNo(g.F.Afmf.Si) + ", FSR 4 " + Tx.SiNo(g.F.Fsr4.Si) + ", DLSS 5 " + Tx.SiNo(g.F.DlssNr.Si) +
-                      (g.F.DlssG.Si ? "" : " (DLSS-G: " + g.F.DlssG.Motivo + ")"));
+                      (g.F.SmoothMotion.Si ? "" : " (Smooth Motion: " + g.F.SmoothMotion.Motivo + ")"));
                 foreach (PantallaInfo p in hw.Pantallas) if (p.Principal) W("  " + Tx.T("Pantalla ", "Display ") + p.Nombre + " " + p.Ancho + "x" + p.Alto + " @ " + Tx.N(p.HzExacto, "0.###") + " Hz, VRR " + Tx.SiNo(p.VrrPosible) + ", HDR " + Tx.SiNo(p.HdrPosible));
                 foreach (CapturadoraInfo c in hw.Capturadoras) if (c.Tipo != TipoCaptura.Virtual) W("  " + Tx.T("Capturadora ", "Capture ") + c.Nombre + " [" + Hardware.Tipo(c.Tipo) + "] audio: " + (c.Audio != null ? c.Audio.Nombre + " (" + c.AudioMotivo + ")" : c.AudioMotivo));
                 if (hw.Capturadoras.Count == 0) W("  " + Tx.T("Capturadoras: ninguna", "Capture devices: none"));

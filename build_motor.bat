@@ -1,6 +1,6 @@
 @echo off
 rem Compila bin\engine\ConsoleEnhancerEngine.exe (el motor de imagen de ConsoleEnhancer: C# 5, .NET Framework 4.8, nada que instalar)
-rem y copia al lado (si faltan) las DLL de produccion de Streamline (DLSS, generacion, Reflex; firmadas por NVIDIA) de
+rem y copia al lado (si faltan) las DLL de produccion de Streamline (DLSS, Reflex; firmadas por NVIDIA) de
 rem terceros\streamline (scripts\descargar_dependencias.ps1) o de la raiz del SDK que diga la variable STREAMLINE_DIR.
 rem Sin ellas (o con streamline=0, o sin grafica NVIDIA) el motor va sin Streamline: FSR 1 + RCAS y swapchain con espera.
 setlocal
@@ -16,7 +16,9 @@ rem Windows 10/11, PerMonitorV2 como SetProcessDpiAwarenessContext al empezar Ma
   /r:System.dll /r:System.Core.dll /r:System.Drawing.dll /r:System.Windows.Forms.dll ^
   /recurse:src\Motor\*.cs src\Version.cs
 if errorlevel 1 (echo *** ERROR de compilacion *** & exit /b 1)
-for %%f in (sl.interposer.dll sl.common.dll sl.dlss.dll sl.dlss_g.dll sl.reflex.dll sl.pcl.dll nvngx_dlss.dll nvngx_dlssg.dll sl.deepdvc.dll nvngx_deepdvc.dll) do (
+rem (1.2.4 ronda 6) sin DLSS FG en el motor: ni sl.dlss_g.dll ni nvngx_dlssg.dll (las de una compilacion anterior se quitan)
+for %%f in (sl.dlss_g.dll nvngx_dlssg.dll PrismaFg.dll) do if exist "bin\engine\%%f" del /q "bin\engine\%%f"
+for %%f in (sl.interposer.dll sl.common.dll sl.dlss.dll sl.reflex.dll sl.pcl.dll nvngx_dlss.dll sl.deepdvc.dll nvngx_deepdvc.dll) do (
   if not exist "bin\engine\%%f" (
     if exist "%SL%\%%f" (copy /y "%SL%\%%f" bin\engine\ >nul) else (echo Aviso: no esta %SL%\%%f)
   )

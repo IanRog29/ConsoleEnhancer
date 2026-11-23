@@ -116,7 +116,7 @@ namespace ConsoleEnhancer.Motor.Native
         PCL = 4,
         DeepDVC = 5,
         Latewarp = 6,
-        DLSS_G = 1000,
+        DLSS_G = 1000,   // (1.2.4 ronda 6, QUITAFG: el motor ya no la pide)
         DLSS_RR = 1001,
         NvPerf = 1002,
         DirectSR = 1003,
@@ -289,35 +289,7 @@ namespace ConsoleEnhancer.Motor.Native
         eCount
     }
 
-    // sl_dlss_g.h
-    public enum SlDLSSGMode : uint { eOff, eOn, eAuto, eDynamic, eCount }
-
-    [Flags]
-    public enum SlDLSSGFlags : uint
-    {
-        None = 0,
-        eShowOnlyInterpolatedFrame = 1 << 0,
-        eDynamicResolutionEnabled = 1 << 1,
-        eRequestVRAMEstimate = 1 << 2,
-        eRetainResourcesWhenOff = 1 << 3,
-        eEnableFullscreenMenuDetection = 1 << 4,
-        eAll = eShowOnlyInterpolatedFrame | eDynamicResolutionEnabled | eRequestVRAMEstimate | eRetainResourcesWhenOff |
-               eEnableFullscreenMenuDetection
-    }
-
-    public enum SlDLSSGQueueParallelismMode : uint { eBlockPresentingClientQueue, eBlockNoClientQueues, eCount }
-
-    [Flags]
-    public enum SlDLSSGStatus : uint
-    {
-        eOk = 0,
-        eFailResolutionTooLow = 1 << 0,
-        eFailReflexNotDetectedAtRuntime = 1 << 1,
-        eFailHDRFormatNotSupported = 1 << 2,
-        eFailCommonConstantsInvalid = 1 << 3,
-        eFailGetCurrentBackBufferIndexNotCalled = 1 << 4,
-        eReserved5 = 1 << 5
-    }
+    // (sl_dlss_g.h: 1.2.4 ronda 6, QUITAFG: fuera los tipos de DLSS-G, el motor ya no la usa)
 
     // sl_reflex.h: enum ReflexMode (plain C enum = int)
     public enum SlReflexMode : int { eOff, eLowLatency, eLowLatencyWithBoost, ReflexMode_eCount }
@@ -870,78 +842,6 @@ namespace ConsoleEnhancer.Motor.Native
         }
     }
 
-    // ------------------------------------------------------------------------------------------------ DLSS-G (FG)
-
-    // sl::DLSSGOptions v5 {FAC5F1CB-2DFD-4F36-A1E6-3A9E865256C5}. Size 120.
-    [StructLayout(LayoutKind.Sequential)]
-    public struct SlDLSSGOptions
-    {
-        public static readonly Guid TypeGuid = SlGuid.Make(0xfac5f1cb, 0x2dfd, 0x4f36, 0xa1, 0xe6, 0x3a, 0x9e, 0x86, 0x52, 0x56, 0xc5);
-        public const uint Version = SlConst.kStructVersion5;
-
-        public SlBaseStructure Base;
-        public SlDLSSGMode mode;                    // @32
-        public uint numFramesToGenerate;            // @36 1 = 2x
-        public SlDLSSGFlags flags;                  // @40
-        public uint dynamicResWidth;                // @44
-        public uint dynamicResHeight;               // @48
-        public uint numBackBuffers;                 // @52
-        public uint mvecDepthWidth;                 // @56
-        public uint mvecDepthHeight;                // @60
-        public uint colorWidth;                     // @64
-        public uint colorHeight;                    // @68
-        public uint colorBufferFormat;              // @72 DXGI_FORMAT
-        public uint mvecBufferFormat;               // @76
-        public uint depthBufferFormat;              // @80
-        public uint hudLessBufferFormat;            // @84
-        public uint uiBufferFormat;                 // @88
-        public IntPtr onErrorCallback;              // @96 PFunOnAPIErrorCallback*
-        public SlBoolean bReserved15;               // @104 (v2)
-        public SlDLSSGQueueParallelismMode queueParallelismMode; // @108 (v3)
-        public SlBoolean enableUserInterfaceRecomposition;       // @112 (v4)
-        public float dynamicTargetFrameRate;        // @116 (v5) 0 = display refresh
-
-        public static SlDLSSGOptions Create()
-        {
-            SlDLSSGOptions o = new SlDLSSGOptions();
-            o.Base = new SlBaseStructure(TypeGuid, Version);
-            o.mode = SlDLSSGMode.eOff;
-            o.numFramesToGenerate = 1;
-            o.bReserved15 = SlBoolean.eInvalid;
-            o.queueParallelismMode = SlDLSSGQueueParallelismMode.eBlockPresentingClientQueue;
-            o.enableUserInterfaceRecomposition = SlBoolean.eFalse;
-            o.dynamicTargetFrameRate = 0f;
-            return o;
-        }
-    }
-
-    // sl::DLSSGState v4 {CC8AC8E1-A179-44F5-97FA-E74112F9BC61}. Size 88.
-    [StructLayout(LayoutKind.Sequential)]
-    public struct SlDLSSGState
-    {
-        public static readonly Guid TypeGuid = SlGuid.Make(0xcc8ac8e1, 0xa179, 0x44f5, 0x97, 0xfa, 0xe7, 0x41, 0x12, 0xf9, 0xbc, 0x61);
-        public const uint Version = SlConst.kStructVersion4;
-
-        public SlBaseStructure Base;
-        public ulong estimatedVRAMUsageInBytes;     // @32
-        public SlDLSSGStatus status;                // @40
-        public uint minWidthOrHeight;               // @44
-        public uint numFramesActuallyPresented;     // @48
-        public uint numFramesToGenerateMax;         // @52 (v2)
-        public SlBoolean bReserved4;                // @56
-        public SlBoolean bIsVsyncSupportAvailable;  // @57
-        public IntPtr inputsProcessingCompletionFence;                 // @64 ID3D12Fence*
-        public ulong lastPresentInputsProcessingCompletionFenceValue;  // @72
-        public SlBoolean bIsDynamicMFGSupported;    // @80 (v4)
-
-        public static SlDLSSGState Create()
-        {
-            SlDLSSGState s = new SlDLSSGState();
-            s.Base = new SlBaseStructure(TypeGuid, Version);
-            return s;
-        }
-    }
-
     // ------------------------------------------------------------------------------------------------ Reflex
 
     // sl::ReflexOptions v1 {F03AF81A-6D0B-4902-A651-C4965E215434}. Size 48.
@@ -1199,10 +1099,6 @@ namespace ConsoleEnhancer.Motor.Native
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate SlResult PFun_slDLSSGetOptimalSettings(ref SlDLSSOptions options, ref SlDLSSOptimalSettings settings);
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate SlResult PFun_slDLSSGetState(ref SlViewportHandle viewport, ref SlDLSSState state);
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate SlResult PFun_slDLSSSetOptions(ref SlViewportHandle viewport, ref SlDLSSOptions options);
-        // sl_dlss_g.h (options pointer may be null; second delegate type for the non-null case, same native function)
-        [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate SlResult PFun_slDLSSGGetState(ref SlViewportHandle viewport, ref SlDLSSGState state, IntPtr optionsOrNull);
-        [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate SlResult PFun_slDLSSGGetStateWithOptions(ref SlViewportHandle viewport, ref SlDLSSGState state, ref SlDLSSGOptions options);
-        [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate SlResult PFun_slDLSSGSetOptions(ref SlViewportHandle viewport, ref SlDLSSGOptions options);
         // sl_reflex.h
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate SlResult PFun_slReflexGetState(ref SlReflexState state);
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate SlResult PFun_slReflexSleep(IntPtr frameToken);
@@ -1215,9 +1111,6 @@ namespace ConsoleEnhancer.Motor.Native
         static PFun_slDLSSGetOptimalSettings s_dlssGetOptimalSettings;
         static PFun_slDLSSGetState s_dlssGetState;
         static PFun_slDLSSSetOptions s_dlssSetOptions;
-        static PFun_slDLSSGGetState s_dlssgGetState;
-        static PFun_slDLSSGGetStateWithOptions s_dlssgGetStateWithOptions;
-        static PFun_slDLSSGSetOptions s_dlssgSetOptions;
         static PFun_slReflexGetState s_reflexGetState;
         static PFun_slReflexSleep s_reflexSleep;
         static PFun_slReflexSetOptions s_reflexSetOptions;
@@ -1230,9 +1123,6 @@ namespace ConsoleEnhancer.Motor.Native
         public static SlResult Get(out PFun_slDLSSGetOptimalSettings fn) { return Fetch(SlFeature.DLSS, "slDLSSGetOptimalSettings", ref s_dlssGetOptimalSettings, out fn); }
         public static SlResult Get(out PFun_slDLSSGetState fn) { return Fetch(SlFeature.DLSS, "slDLSSGetState", ref s_dlssGetState, out fn); }
         public static SlResult Get(out PFun_slDLSSSetOptions fn) { return Fetch(SlFeature.DLSS, "slDLSSSetOptions", ref s_dlssSetOptions, out fn); }
-        public static SlResult Get(out PFun_slDLSSGGetState fn) { return Fetch(SlFeature.DLSS_G, "slDLSSGGetState", ref s_dlssgGetState, out fn); }
-        public static SlResult Get(out PFun_slDLSSGGetStateWithOptions fn) { return Fetch(SlFeature.DLSS_G, "slDLSSGGetState", ref s_dlssgGetStateWithOptions, out fn); }
-        public static SlResult Get(out PFun_slDLSSGSetOptions fn) { return Fetch(SlFeature.DLSS_G, "slDLSSGSetOptions", ref s_dlssgSetOptions, out fn); }
         public static SlResult Get(out PFun_slReflexGetState fn) { return Fetch(SlFeature.Reflex, "slReflexGetState", ref s_reflexGetState, out fn); }
         public static SlResult Get(out PFun_slReflexSleep fn) { return Fetch(SlFeature.Reflex, "slReflexSleep", ref s_reflexSleep, out fn); }
         public static SlResult Get(out PFun_slReflexSetOptions fn) { return Fetch(SlFeature.Reflex, "slReflexSetOptions", ref s_reflexSetOptions, out fn); }
@@ -1249,7 +1139,6 @@ namespace ConsoleEnhancer.Motor.Native
         public static void Reset()
         {
             s_dlssGetOptimalSettings = null; s_dlssGetState = null; s_dlssSetOptions = null;
-            s_dlssgGetState = null; s_dlssgGetStateWithOptions = null; s_dlssgSetOptions = null;
             s_reflexGetState = null; s_reflexSleep = null; s_reflexSetOptions = null;
             s_pclSetMarker = null; s_pclGetState = null; s_pclSetOptions = null;
             lock (s_raw) s_raw.Clear();
@@ -1348,7 +1237,8 @@ namespace ConsoleEnhancer.Motor.Native
 
         public SlInitSettings()
         {
-            Features = new SlFeature[] { SlFeature.DLSS, SlFeature.DLSS_G, SlFeature.Reflex, SlFeature.PCL };
+            // (1.2.4 ronda 6, QUITAFG: sin DLSS_G; el motor no carga sl.dlss_g.dll ni nvngx_dlssg.dll)
+            Features = new SlFeature[] { SlFeature.DLSS, SlFeature.Reflex, SlFeature.PCL };
             RenderApi = SlRenderAPI.eD3D12;
             Engine = SlEngineType.eCustom;
             EngineVersion = "1.0.0";
@@ -1612,7 +1502,6 @@ namespace ConsoleEnhancer.Motor.Native
             switch (f)
             {
                 case SlFeature.DLSS: return "slEvaluateFeature(DLSS)";
-                case SlFeature.DLSS_G: return "slEvaluateFeature(DLSS_G)";
                 case SlFeature.NIS: return "slEvaluateFeature(NIS)";
                 default: return "slEvaluateFeature";
             }
@@ -1667,36 +1556,7 @@ namespace ConsoleEnhancer.Motor.Native
             return Check(fn(ref viewport, ref options), "slDLSSSetOptions");
         }
 
-        // ---- DLSS-G
-
-        // Cheap per-frame query (no options -> no VRAM estimate).
-        public static SlResult DLSSGGetState(SlViewportHandle viewport, out SlDLSSGState state)
-        {
-            state = SlDLSSGState.Create();
-            SlFns.PFun_slDLSSGGetState fn;
-            SlResult r = SlFns.Get(out fn);
-            if (r != SlResult.eOk) return Check(r, "slDLSSGGetState(fetch)");
-            return Check(fn(ref viewport, ref state, IntPtr.Zero), "slDLSSGGetState");
-        }
-
-        // With options (e.g. flags |= eRequestVRAMEstimate). Expensive, do not call per frame.
-        public static SlResult DLSSGGetState(SlViewportHandle viewport, ref SlDLSSGOptions options, out SlDLSSGState state)
-        {
-            state = SlDLSSGState.Create();
-            SlFns.PFun_slDLSSGGetStateWithOptions fn;
-            SlResult r = SlFns.Get(out fn);
-            if (r != SlResult.eOk) return Check(r, "slDLSSGGetState(fetch)");
-            return Check(fn(ref viewport, ref state, ref options), "slDLSSGGetState(options)");
-        }
-
-        // Call on the presenting thread; takes effect at the next Present.
-        public static SlResult DLSSGSetOptions(SlViewportHandle viewport, ref SlDLSSGOptions options)
-        {
-            SlFns.PFun_slDLSSGSetOptions fn;
-            SlResult r = SlFns.Get(out fn);
-            if (r != SlResult.eOk) return Check(r, "slDLSSGSetOptions(fetch)");
-            return Check(fn(ref viewport, ref options), "slDLSSGSetOptions");
-        }
+        // ---- (DLSS-G: 1.2.4 ronda 6, QUITAFG, fuera)
 
         // ---- Reflex
 

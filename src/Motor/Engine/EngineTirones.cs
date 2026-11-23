@@ -23,7 +23,7 @@ namespace ConsoleEnhancer.Motor
         readonly float[] tirLat = new float[4096];
         int tirLatN;
         int tirGpuOver; double tirGpuWorst;
-        int tirFgShort, tirFgCalls, tirFgSkip;  // generacion: presentaciones con menos de 2 imagenes (tras las 30 primeras)
+        // (1.2.4 ronda 6, QUITAFG: fuera tirFgShort / tirFgCalls / tirFgSkip, lo que presentaba DLSS-G por imagen)
         int tirLate, tirDups;                   // (de Stats, cada segundo)
         long tirSessionFrames = -1;
         bool tirBeatSaid;
@@ -32,11 +32,6 @@ namespace ConsoleEnhancer.Motor
         int tirCapGaps; double tirCapWorst;
         int tirCadJumps, tirLastPass;
         readonly object tirCapLock = new object();
-        // la ultima pregunta a la generacion (FgState la reutiliza: una llamada por imagen, no dos)
-        int fgLastPresented = -1;
-        long fgPolledAt;
-        SlResult fgLastResult;
-        SlDLSSGStatus fgLastStatus;
         int tirGc2Start;                        // recolecciones completas de memoria al empezar la ventana (contexto)
         Timer tirGrabTimer;                     // test_grab_ms: capturas como las del lanzador, sin lanzador
         // Tras un cambio (sesion nueva, tamaño, generacion, modelo, modo, escalador) 2 s sin contar: esos tirones ya los dice su linea
@@ -51,7 +46,7 @@ namespace ConsoleEnhancer.Motor
         {
             tirStart = now;
             tirFrames = 0; tirSlow = 0; tirSlowWorst = 0; tirLatN = 0; tirGpuOver = 0; tirGpuWorst = 0;
-            tirFgShort = 0; tirFgCalls = 0; tirLate = 0; tirDups = 0;
+            tirLate = 0; tirDups = 0;
             tirGc2Start = GC.CollectionCount(2);
             lock (tirCapLock) { tirCapGaps = 0; tirCapWorst = 0; tirCadJumps = 0; }
             if (s.TestGrabMs > 0 && tirGrabTimer == null)
@@ -71,13 +66,12 @@ namespace ConsoleEnhancer.Motor
                 TirReset(now);
                 tirPrevPresent = 0;
                 tirBeatSaid = false;
-                tirFgSkip = 30;
             }
             tirSessionFrames = presentedFrames;
             string st0 = inW + "x" + inH + "|" + fgApplied + "|" + s.Preset + "|" + s.Mode + "|" + s.Upscaler;
             if (st0 != tirState) { tirState = st0; tirMuteUntil = now + (long)(2000 / Clock.TickMs); }
             tirMuted = now < tirMuteUntil;
-            if (tirMuted) { tirPrevPresent = now; tirPrevArrival = arrival; tirFgSkip = 30; return; }
+            if (tirMuted) { tirPrevPresent = now; tirPrevArrival = arrival; return; }
             tirFrames++;
             double frame = TirFrameMs;
             if (tirLatN < tirLat.Length) tirLat[tirLatN++] = (float)Clock.Ms(arrival, now);
@@ -89,19 +83,6 @@ namespace ConsoleEnhancer.Motor
             }
             tirPrevPresent = now; tirPrevArrival = arrival;
             if (gpuMs > TirGpuLimit) { tirGpuOver++; if (gpuMs > tirGpuWorst) tirGpuWorst = gpuMs; }
-            if (fgApplied && fgOk)
-            {
-                SlDLSSGState st;
-                SlResult r = Sl.DLSSGGetState(vp, out st);
-                fgLastResult = r; fgLastStatus = st.status; fgLastPresented = (int)st.numFramesActuallyPresented; fgPolledAt = now;
-                if (tirFgSkip > 0) tirFgSkip--;
-                else if (r == SlResult.eOk && st.status == SlDLSSGStatus.eOk)
-                {
-                    tirFgCalls++;
-                    if (st.numFramesActuallyPresented < 2) tirFgShort++;
-                }
-            }
-            else tirFgSkip = 30;
         }
 
         // Hilo de captura: cada imagen que llega (antes de quitar repetidas)
@@ -147,17 +128,16 @@ namespace ConsoleEnhancer.Motor
             }
             // (los saltos de cadencia del juego cuentan si son muchos: un juego a 30 con imagenes de 1 y 3 refrescos; con repetidas
             // quitadas y la generacion, la tele las enseña irregulares: medido, 136 imagenes de 25 ms en 40 s)
-            bool any = tirLate > 0 || tirSlow > 0 || spikes > 0 || gaps > 0 || tirFgShort > 0 || tirGpuOver > 0 || jumps >= 10;
+            bool any = tirLate > 0 || tirSlow > 0 || spikes > 0 || gaps > 0 || tirGpuOver > 0 || jumps >= 10;
             if (any && tirFrames > 0)
             {
                 System.Text.StringBuilder sb = new System.Text.StringBuilder();
                 // (1.2.4 ronda 5, XEFGM: decia "sin generacion" tambien con XeSS FG / FSR 3 FG / la propia del motor)
-                sb.AppendFormat(IC, "Tirones ({0:0} s, {1} imagenes, {2}):", secs, tirFrames, fgApplied ? "con generacion" : (xeFgOn && xeFgEnabledNow) ? "con XeSS FG x" + XeFgMultNow : ffxFgOn ? "con FSR 3 FG" : FpWanted() ? "con la generacion propia x" + s.FgOwn : "sin generacion");
+                sb.AppendFormat(IC, "Tirones ({0:0} s, {1} imagenes, {2}):", secs, tirFrames, (xeFgOn && xeFgEnabledNow) ? "con XeSS FG x2" : ffxFgOn ? "con FSR 3 FG" : s.SmoothMode > 0 ? "con Smooth Motion" : "sin generacion");
                 if (tirLate > 0) sb.AppendFormat(IC, " {0} perdidas antes de pintarlas |", tirLate);
                 if (tirSlow > 0) sb.AppendFormat(IC, " {0} presentadas con retraso (peor +{1:0.0} ms) |", tirSlow, tirSlowWorst);
                 if (spikes > 0) sb.AppendFormat(IC, " latencia: {0} picos (peor {1:0.0} ms, mediana {2:0.0}) |", spikes, worstLat, med);
                 if (gaps > 0) sb.AppendFormat(IC, " captura: {0} huecos (peor {1:0.0} ms) |", gaps, capWorst);
-                if (tirFgShort > 0) sb.AppendFormat(IC, " generacion: {0} de {1} sin la intermedia |", tirFgShort, tirFgCalls);
                 if (tirGpuOver > 0) sb.AppendFormat(IC, " grafica: {0} por encima de {1:0.0} ms (peor {2:0.0}) |", tirGpuOver, TirGpuLimit, tirGpuWorst);
                 if (tirDups > 0 || jumps > 0) sb.AppendFormat(IC, " juego: {0} repetidas quitadas, {1} saltos de cadencia |", tirDups, jumps);
                 int gc2 = GC.CollectionCount(2) - tirGc2Start;

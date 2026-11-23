@@ -111,6 +111,38 @@ namespace ConsoleEnhancer
             return 0;
         }
 
+        // (1.2.4 ronda 6, QUITAFG) Sin Magpie, las DLL de Intel XeSS y AMD FidelityFX que usa el motor van en xess\ y fsr\ (de sus releases
+        // oficiales: componentes xess y fsr). Una carpeta de la app de antes las tiene en magpie\ (las mismas versiones; libxell 1.3.0.5 en vez
+        // de 1.3.2.10): se copian ahi una vez y no hace falta bajarlas. Lo demas de magpie\ no se toca (es de la version anterior)
+        static void RecogerDeMagpie() { RecogerDe(Paths.MagpieDir); }
+        // (tambien HeredarDatos, Integrado.cs: del magpie\ de la carpeta de la version de antes, sin copiar el Magpie entero)
+        public static void RecogerDe(string magpieDir)
+        {
+            try
+            {
+                string[][] grupos = { new[] { Paths.XessDir, "libxess.dll", "libxess_fg.dll", "libxell.dll", "INTEL-XESS-LICENSE.txt", "INTEL-XESS-THIRD-PARTY.txt" },
+                                      new[] { Paths.FsrDir, "amd_fidelityfx_loader_dx12.dll", "amd_fidelityfx_upscaler_dx12.dll", "amd_fidelityfx_framegeneration_dx12.dll", "AMD-FSR-SDK-LICENSE.md" } };
+                foreach (string[] g in grupos)
+                {
+                    if (File.Exists(Path.Combine(g[0], g[2]))) continue;
+                    bool todas = true;
+                    for (int i = 1; i <= 3; i++) if (!File.Exists(Path.Combine(magpieDir, g[i]))) todas = false;
+                    if (!todas) continue;
+                    Directory.CreateDirectory(g[0]);
+                    int n = 0;
+                    for (int i = 1; i < g.Length; i++)
+                    {
+                        string de = Path.Combine(magpieDir, g[i]);
+                        if (!File.Exists(de)) continue;
+                        File.Copy(de, Path.Combine(g[0], g[i]), true);
+                        n++;
+                    }
+                    Log.Write("Componentes: " + n + " ficheros de " + magpieDir + " (la instalacion de antes) copiados a " + g[0] + " para el motor (sin volver a bajarlos)");
+                }
+            }
+            catch (Exception ex) { Log.Error("Componentes: recogiendo las DLL de magpie\\", ex); }
+        }
+
         // ---- al abrir la app (Main, antes del asistente): -1 = seguir, otro = salir con ese codigo ----
         public static int Asegurar(string[] args, bool dryRun)
         {
@@ -130,6 +162,7 @@ namespace ConsoleEnhancer
                 todos = Leer(Tabla);
             }
             catch (Exception ex) { Log.Error("Componentes: " + Tabla, ex); return -1; }
+            if (!reparar) RecogerDeMagpie();   // (1.2.4 ronda 6, QUITAFG: las DLL de Intel / AMD de una instalacion de antes, sin volver a bajarlas)
             List<Componente> faltan = new List<Componente>();
             bool alguno = false;
             foreach (Componente c in todos)
@@ -303,236 +336,8 @@ namespace ConsoleEnhancer
             return rels.Count;
         }
 
-        // ---- (1.2.07) dlssg_sm86 sin que el usuario ponga nada ----
-        // Con DLSS 5 el DLSS FG va por Magpie, y el de este Magpie solo funciona con runtimes\dlssg_sm86 (tambien en RTX 40/50). El
-        // 21-11 el usuario: "otra vez me dice que no puedo poner dlss fg porque falta noseque archivo, no tiene que hacer falta poner
-        // ningun archivo" / "que lo incluya la app". No va dentro del zip (lleva DLL de NVIDIA), asi que, en segundo plano, se busca en
-        // el PC: la copia que guarda Magpie (%LOCALAPPDATA%\Magpie\DlssgSm86\<zip>\<id>), otras versiones de la app al lado (extras\ o
-        // magpie\runtimes\) y %LOCALAPPDATA%\ConsoleEnhancer\extras, y va a extras\runtimes\dlssg_sm86 (Ce.PrepararExtras lo pone en
-        // magpie\). Solo con NVIDIA y DLSS 5 puesto (o DLSS FG x3 / x4 pedido); un intento por sesion.
-        // (1.2.4, el usuario: "haz lo que sea legal") la app YA NO LO BAJA: dlssg_sm86 hace que NGX cargue DLSS-G saltandose la
-        // comprobacion de NVIDIA y reparte su nvngx_dlssg.dll suelta. Si el usuario lo tiene (lo pone el, o esta en otra copia suya del PC),
-        // se usa como antes; si no, DLSS FG con DLSS 5 por Magpie no esta y va otra generacion
-        static int sm86Corriendo;
-        static volatile bool sm86Intentado;
-        public static bool Sm86Bajando { get { return Interlocked.CompareExchange(ref sm86Corriendo, 0, 0) == 1; } }
-        public static void AsegurarSm86()
-        {
-            try
-            {
-                // (1.2.2: tambien sin DLSS 5 si se pide DLSS FG x3 / x4, que va por Magpie: Config.MultPideSm86, Multiplicador.cs)
-                if (Ce.NoNvidia || (!Extras.HayDlss5 && !Config.MultPideSm86) || sm86Intentado) return;
-                // (puesto a mano o de una version anterior sin los .ini de Magpie: se ponen)
-                string mag = Path.Combine(Paths.MagpieDir, @"runtimes\dlssg_sm86");
-                // (1.2.08) otra version de dlssg_for_sm86 (puesta a mano): Magpie no la valida (y no escala) -> fuera
-                string malMag = Directory.Exists(mag) ? Sm86Distinto(mag) : null;
-                if (malMag != null) { if (!QuitarSm86Distinto(mag, malMag)) return; }
-                else if (File.Exists(Path.Combine(mag, "version.dll"))) { PonerIniMagpie(mag); return; }
-                string malEx = Extras.HaySm86 ? Sm86Distinto(Extras.Sm86Puesto) : null;
-                if (malEx != null) { if (!QuitarSm86Distinto(Extras.Sm86Puesto, malEx)) return; }
-                else if (Extras.HaySm86) { if (malMag != null) Ce.PrepararExtras(); return; }   // (en extras\ y aun no en magpie\: lo copia Ce.PrepararExtras)
-                if (Interlocked.Exchange(ref sm86Corriendo, 1) == 1) return;
-            }
-            catch { return; }
-            sm86Intentado = true;
-            Thread t = new Thread(delegate ()
-            {
-                try
-                {
-                    string de = Sm86EnElPc();
-                    if (de == null)
-                    {
-                        // (1.2.4: ya no se baja; ver arriba)
-                        Log.Write("dlssg_sm86: no esta en este PC (la app no lo baja): DLSS FG por Magpie con DLSS 5 / x3 / x4 no esta; si lo tienes, ponlo en " + Extras.Sm86);
-                        return;
-                    }
-                    int n = CopiarSm86(de, Extras.Sm86);
-                    Log.Write("dlssg_sm86: cogido de " + de + " (" + n + " ficheros) a extras\\runtimes\\ (una copia que ya estaba en este PC)");
-                    PonerIniMagpie(Extras.Sm86);
-                    Ce.PrepararExtras();
-                    PonerIniMagpie(Path.Combine(Paths.MagpieDir, @"runtimes\dlssg_sm86"));
-                    Integrado.Dlss5Rever();
-                    Log.Write("dlssg_sm86: listo (DLSS FG con DLSS 5 disponible" + (Integrado.MagpieDlssgOk ? "" : "; falta copiarlo a magpie\\") + ")");
-                }
-                catch (Exception ex) { Log.Error("dlssg_sm86 (buscar / bajar)", ex); }
-                finally { Interlocked.Exchange(ref sm86Corriendo, 0); }
-            });
-            t.IsBackground = true;
-            t.Name = "dlssg_sm86";
-            t.Start();
-        }
-
-        // forward.ini y native.ini: los escribe Magpie (no vienen en el zip de dlssg_for_sm86) y su build-manifest.json los comprueba
-        // por SHA-256 (sin ellos: "Frame generation did not start ... validation failed"). Los mismos bytes que los de Magpie 0.6.12
-        const string ForwardIni = "OyBNYW5hZ2VkIGJ5IE1hZ3BpZS4gRmVhdHVyZSBwcmVzZXRzIGFyZSBzdWJtaXR0ZWQgdGhyb3VnaCBOR1gsIG5vdCB0aGlzIElOSS4KW0dlbmVyYWxdCkVuYWJsZWQ9MQoKW0ZyYW1lR2VuZXJhdGlvbl0KRW5naW5lPURMU1MKTWF4R2VuZXJhdGVkRnJhbWVzPTMKRm9yY2VHZW5lcmF0ZWRGcmFtZXM9MApGb3JjZVBsdWdpbkZyYW1lcz0wCkltYWdlQXBwcm94PTAKCltETFNTR10KT3B0aW1pemVkPTEKUHJlc2V0PUF1dG8KCltDb21wYXRpYmlsaXR5XQpSb3V0ZXI9QXV0bwpLZXJuZWxJbWFnZT1QVFgKQWNjZWxlcmF0ZU5ld2VyR3B1cz0xClNwb29mQXJjaFRvR2FtZT0wCkZvcmNlU004NlJvdXRlPTAKU2ltdWxhdGVBbXBlcmU9MApMYXVuY2hDaGFpbnM9MApDaGFpbkJsb2NrMD0wCgpbUnVudGltZV0KTW9kZT1CdW5kbGVkCgpbU3VwZXJSZXNvbHV0aW9uXQpNb2RlPU9mZgoKW0xvZ2dpbmddCkxldmVsPTIKRGlyZWN0b3J5PWRsc3NnX3NtODZcbG9ncwo=";
-        const string NativeIni = "OyBNYW5hZ2VkIGJ5IE1hZ3BpZS4gRmVhdHVyZSBwcmVzZXRzIGFyZSBzdWJtaXR0ZWQgdGhyb3VnaCBOR1gsIG5vdCB0aGlzIElOSS4KW0dlbmVyYWxdCkVuYWJsZWQ9MQoKW0ZyYW1lR2VuZXJhdGlvbl0KRW5naW5lPURMU1MKTWF4R2VuZXJhdGVkRnJhbWVzPTMKRm9yY2VHZW5lcmF0ZWRGcmFtZXM9MApGb3JjZVBsdWdpbkZyYW1lcz0wCkltYWdlQXBwcm94PTAKCltETFNTR10KT3B0aW1pemVkPTEKUHJlc2V0PUF1dG8KCltDb21wYXRpYmlsaXR5XQpSb3V0ZXI9QXV0bwpLZXJuZWxJbWFnZT1BdXRvCkFjY2VsZXJhdGVOZXdlckdwdXM9MQpTcG9vZkFyY2hUb0dhbWU9MApGb3JjZVNNODZSb3V0ZT0wClNpbXVsYXRlQW1wZXJlPTAKTGF1bmNoQ2hhaW5zPTAKQ2hhaW5CbG9jazA9MAoKW1J1bnRpbWVdCk1vZGU9QnVuZGxlZAoKW1N1cGVyUmVzb2x1dGlvbl0KTW9kZT1PZmYKCltMb2dnaW5nXQpMZXZlbD0yCkRpcmVjdG9yeT1kbHNzZ19zbTg2XGxvZ3MK";
-        static void PonerIniMagpie(string d)
-        {
-            try
-            {
-                if (!Directory.Exists(d)) return;
-                foreach (KeyValuePair<string, string> kv in new[] { new KeyValuePair<string, string>("forward.ini", ForwardIni), new KeyValuePair<string, string>("native.ini", NativeIni) })
-                {
-                    string f = Path.Combine(d, kv.Key);
-                    byte[] b = Convert.FromBase64String(kv.Value);
-                    if (!File.Exists(f) || new FileInfo(f).Length != b.Length) File.WriteAllBytes(f, b);
-                }
-            }
-            catch (Exception ex) { Log.Error("dlssg_sm86: forward.ini / native.ini", ex); }
-        }
-
-        public static bool Sm86Vale(string d)   // (1.2.3 MOTOR5: tambien ExtrasGuardados.cs)
-        {
-            return Directory.Exists(d) && File.Exists(Path.Combine(d, "version.dll")) &&
-                   File.Exists(Path.Combine(d, @"dlssg_sm86\runtime\nvngx_dlssg.dll")) && File.Exists(Path.Combine(d, @"dlssg_sm86\backend\sm86_backend.dll")) &&
-                   File.Exists(Path.Combine(d, @"dlssg_sm86\kernels\fg_kernels.dll")) && Sm86Distinto(d) == null;
-        }
-
-        // (1.2.08, un usuario de Reddit con RTX 3060 Ti: "sigue sin funcionarle lo del fg") Magpie 0.6.12 comprueba runtimes\dlssg_sm86
-        // con su build-manifest.json (SHA-256 de cada fichero): con otra version de dlssg_for_sm86 (la suya traia 30 ficheros) sale
-        // "Frame generation did not start ... validation failed" y Magpie no escala. Lo que pide el manifiesto (sin los .ini, que pone
-        // PonerIniMagpie). Vacio = no hay manifiesto: no se comprueba
-        static Dictionary<string, string> sm86Esperado;
-        static Dictionary<string, string> Sm86Esperado()
-        {
-            Dictionary<string, string> r = sm86Esperado;
-            if (r != null) return r;
-            r = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            try
-            {
-                string mf = Path.Combine(Paths.MagpieDir, "build-manifest.json");
-                if (!File.Exists(mf)) return r;
-                JavaScriptSerializer js = new JavaScriptSerializer();
-                js.MaxJsonLength = int.MaxValue;
-                Dictionary<string, object> root = js.DeserializeObject(File.ReadAllText(mf, Encoding.UTF8)) as Dictionary<string, object>;
-                object fo;
-                if (root == null || !root.TryGetValue("files", out fo) || !(fo is object[])) return r;
-                const string pre = "runtimes/dlssg_sm86/";
-                foreach (object o in (object[])fo)
-                {
-                    Dictionary<string, object> e = o as Dictionary<string, object>;
-                    if (e == null || !(e.ContainsKey("path") && e["path"] is string) || !e.ContainsKey("sha256") || !(e["sha256"] is string)) continue;
-                    string p = (string)e["path"];
-                    if (!p.StartsWith(pre, StringComparison.OrdinalIgnoreCase) || p.EndsWith(".ini", StringComparison.OrdinalIgnoreCase)) continue;
-                    r[p.Substring(pre.Length).Replace('/', '\\')] = (string)e["sha256"];
-                }
-                if (r.Count > 0) sm86Esperado = r;
-            }
-            catch (Exception ex) { Log.Write("dlssg_sm86: no se pudo leer el build-manifest.json de Magpie (" + ex.Message + ")"); }
-            return r;
-        }
-
-        // null = es la version que espera este Magpie (o no se puede saber); si no, que fichero no cuadra
-        public static string Sm86Distinto(string d)
-        {
-            Dictionary<string, string> esp = Sm86Esperado();
-            if (esp.Count == 0 || !Directory.Exists(d)) return null;
-            // (unos 30 MB de SHA-256: una vez por carpeta mientras no cambien sus ficheros)
-            string firma = "";
-            foreach (string k in esp.Keys)
-            {
-                FileInfo fi = new FileInfo(Path.Combine(d, k));
-                firma += fi.Exists ? fi.Length + ":" + fi.LastWriteTimeUtc.Ticks + ";" : "-;";
-            }
-            string clave = Path.GetFullPath(d).TrimEnd('\\').ToLowerInvariant() + "|" + firma;
-            lock (sm86Visto) { string r; if (sm86Visto.TryGetValue(clave, out r)) return r; }
-            string res = Sm86DistintoAhora(d, esp);
-            lock (sm86Visto) sm86Visto[clave] = res;
-            return res;
-        }
-        static readonly Dictionary<string, string> sm86Visto = new Dictionary<string, string>();
-
-        static string Sm86DistintoAhora(string d, Dictionary<string, string> esp)
-        {
-            foreach (KeyValuePair<string, string> kv in esp)
-            {
-                string f = Path.Combine(d, kv.Key);
-                if (!File.Exists(f)) return kv.Key + " falta";
-                try
-                {
-                    using (FileStream s = File.OpenRead(f))
-                    using (SHA256 h = SHA256.Create())
-                        if (!BitConverter.ToString(h.ComputeHash(s)).Replace("-", "").Equals(kv.Value, StringComparison.OrdinalIgnoreCase))
-                            return kv.Key + " es de otra version";
-                }
-                catch (Exception ex) { return kv.Key + ": " + ex.Message; }
-            }
-            return null;
-        }
-
-        // Fuera una copia que no es la que espera Magpie (y su marca .de_extras); false = no se pudo (Magpie abierto)
-        static bool QuitarSm86Distinto(string d, string por)
-        {
-            try
-            {
-                if (Directory.Exists(d)) Directory.Delete(d, true);
-                if (File.Exists(d.TrimEnd('\\') + ".de_extras")) File.Delete(d.TrimEnd('\\') + ".de_extras");
-                Log.Write("dlssg_sm86: " + d + " no es la version que espera este Magpie (" + por + "; con ella Magpie no escala): quitado");
-                return true;
-            }
-            catch (Exception ex) { Log.Write("dlssg_sm86: " + d + " no es la version que espera Magpie (" + por + ") y no se pudo quitar: " + ex.Message); return false; }
-        }
-
-        static string Sm86EnElPc()
-        {
-            List<string> c = new List<string>();
-            string la = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            try
-            {
-                string mag = Path.Combine(la, @"Magpie\DlssgSm86");
-                if (Directory.Exists(mag))
-                    foreach (string z in Directory.GetDirectories(mag)) foreach (string id in Directory.GetDirectories(z)) c.Add(id);
-            }
-            catch { }
-            try
-            {
-                string app = Paths.AppDir.TrimEnd('\\'), padre = Path.GetDirectoryName(app);
-                if (!string.IsNullOrEmpty(padre) && Directory.Exists(padre))
-                    foreach (string dir in Directory.GetDirectories(padre, "ConsoleEnhancer*"))
-                    {
-                        if (string.Equals(dir.TrimEnd('\\'), app, StringComparison.OrdinalIgnoreCase)) continue;
-                        c.Add(Path.Combine(dir, @"extras\runtimes\dlssg_sm86"));
-                        c.Add(Path.Combine(dir, @"magpie\runtimes\dlssg_sm86"));
-                    }
-            }
-            catch { }
-            c.Add(Path.Combine(la, @"ConsoleEnhancer\extras\runtimes\dlssg_sm86"));
-            string mejor = null;
-            DateTime cuando = DateTime.MinValue;
-            foreach (string d in c)
-                try
-                {
-                    if (!Sm86Vale(d)) continue;
-                    DateTime w = File.GetLastWriteTimeUtc(Path.Combine(d, "version.dll"));
-                    if (mejor == null || w > cuando) { mejor = d; cuando = w; }
-                }
-                catch { }
-            return mejor;
-        }
-
-        // Solo lo que hace falta (sin logs\ ni los .ini que escribe Magpie)
-        public static int CopiarSm86(string de, string a)   // (1.2.3 MOTOR5: tambien ExtrasGuardados.cs)
-        {
-            a = a.TrimEnd('\\');
-            string tmp = a + ".parcial";
-            if (Directory.Exists(tmp)) Directory.Delete(tmp, true);
-            Directory.CreateDirectory(tmp);
-            int n = 0;
-            foreach (string f in new[] { "version.dll", "LICENSE.md", "THIRD_PARTY_NOTICES.txt" })
-                if (File.Exists(Path.Combine(de, f))) { File.Copy(Path.Combine(de, f), Path.Combine(tmp, f), true); n++; }
-            foreach (string sub in new[] { "backend", "kernels", "runtime" })
-            {
-                string s = Path.Combine(de, @"dlssg_sm86\" + sub), t = Path.Combine(tmp, @"dlssg_sm86\" + sub);
-                if (!Directory.Exists(s)) continue;
-                Directory.CreateDirectory(t);
-                foreach (string f in Directory.GetFiles(s, "*.dll")) { File.Copy(f, Path.Combine(t, Path.GetFileName(f)), true); n++; }
-            }
-            if (!Sm86Vale(tmp)) { Directory.Delete(tmp, true); throw new InvalidDataException("dlssg_sm86 incompleto en " + de); }
-            if (Directory.Exists(a)) Directory.Delete(a, true);
-            Directory.CreateDirectory(Path.GetDirectoryName(a));
-            Directory.Move(tmp, a);
-            return n;
-        }
+        // (1.2.07-1.2.4: AsegurarSm86 y lo demas de dlssg_sm86, el runtime de la comunidad que pedia el DLSS FG de Magpie. 1.2.4 ronda 6,
+        // QUITAFG: sin DLSS FG en la app, fuera)
 
         public static bool SePuedeEscribir(string dir)
         {
@@ -595,13 +400,13 @@ namespace ConsoleEnhancer
             fsr.Licencia = "MIT"; fsr.Bytes = 30000000L;
             fsr.Url = "https://github.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK/releases";
             l.Add(fsr);
-            Componente mag = new Componente();
-            mag.Nombre = "magpie"; mag.Titulo = "Magpie"; mag.Version = "0.11.0-pre";
-            mag.DescripcionEs = "reescalado de la imagen y generación de fotogramas (FSR, NIS y la generación de Magpie)";
-            mag.DescripcionEn = "image upscaling and frame generation (FSR, NIS and Magpie's own frame generation)";
-            mag.Licencia = "GPL-3.0-only"; mag.Bytes = 620000000L;
-            mag.Url = "https://github.com/Blinue/Magpie/releases/download/v0.11.0-pre/Magpie-v0.11.0-pre-x64.zip";
-            l.Add(mag);
+            Componente xe = new Componente();
+            xe.Nombre = "xess"; xe.Titulo = "Intel XeSS SDK"; xe.Version = "v3.0.2";
+            xe.DescripcionEs = "XeSS y XeSS Frame Generation de Intel para el motor propio";
+            xe.DescripcionEn = "Intel XeSS and XeSS Frame Generation for the built-in engine";
+            xe.Licencia = "Intel Simplified Software License"; xe.Bytes = 76839749L;
+            xe.Url = "https://github.com/intel/xess/releases/download/v3.0.2/XeSS_SDK_3.0.2.zip";
+            l.Add(xe);
             return l;
         }
     }
@@ -792,19 +597,19 @@ namespace ConsoleEnhancer
             {
                 case "comprobando":
                     bajar.Enabled = false; salir.Text = Tx.T("Cancelar", "Cancel");
-                    estado.Text = Tx.T("Comprobando ", "Checking ") + "Magpie-v0.11.0-pre-x64.zip...";
+                    estado.Text = Tx.T("Comprobando ", "Checking ") + "XeSS_SDK_3.0.2.zip...";
                     barra.Value = 0; break;
                 case "descargando":
                     bajar.Enabled = false; salir.Text = Tx.T("Cancelar", "Cancel");
-                    estado.Text = Tx.T("Bajando ", "Downloading ") + "Magpie 0.11.0-pre: 214 / 620 MB (18.6 MB/s)";
+                    estado.Text = Tx.T("Bajando ", "Downloading ") + "Intel XeSS SDK v3.0.2: 31 / 73 MB (18.6 MB/s)";
                     barra.Value = 345; break;
                 case "sacando":
                     bajar.Enabled = false; salir.Text = Tx.T("Cancelar", "Cancel");
-                    estado.Text = Tx.T("Sacando ", "Extracting ") + "Magpie: 1234" + Tx.T(" ficheros", " files");
+                    estado.Text = Tx.T("Sacando ", "Extracting ") + "Intel XeSS SDK: 3" + Tx.T(" ficheros", " files");
                     barra.Value = 1000; break;
                 case "error":
                     bajar.Enabled = true; bajar.Text = Tx.T("Reintentar", "Retry"); salir.Text = Tx.T("Salir", "Exit");
-                    estado.Text = Tx.T("La descarga de ", "The download of ") + "Magpie" +
+                    estado.Text = Tx.T("La descarga de ", "The download of ") + "xess" +
                                   Tx.T(" no tiene la huella SHA-256 esperada (", " does not have the expected SHA-256 (") +
                                   "9f2c8b17a4e03d5c6f1289ab)"; break;
                 case "sin-internet":
@@ -899,12 +704,12 @@ namespace ConsoleEnhancer
                         "Free software: you can redistribute and modify it under the GNU GPL version 3 (with an additional permission to use it " +
                         "with the NVIDIA, AMD and Intel libraries: LICENSE-EXCEPTION.txt). It comes WITH ABSOLUTELY NO WARRANTY. Licenses and " +
                         "third-party components: the licenses\\ folder (README.txt).") + "\r\n\r\n" +
-                   Tx.T("Usa: NVIDIA DLSS, NVIDIA DLSS Frame Generation, NVIDIA Reflex y NVIDIA Streamline (© NVIDIA Corporation, con sus licencias); " +
+                   Tx.T("Usa: NVIDIA DLSS, NVIDIA Reflex y NVIDIA Streamline (© NVIDIA Corporation, con sus licencias); " +
                         "AMD FidelityFX Super Resolution 1 y CAS (© Advanced Micro Devices, Inc., MIT); NVIDIA FXAA 3.11 (© NVIDIA Corporation, BSD); " +
-                        "mpv y Magpie Experimental (GPL, bajados de sus páginas oficiales).",
-                        "Uses: NVIDIA DLSS, NVIDIA DLSS Frame Generation, NVIDIA Reflex and NVIDIA Streamline (© NVIDIA Corporation, under their " +
+                        "mpv (GPL), Intel XeSS (Intel Simplified Software License) y AMD FSR SDK (MIT), bajados de sus páginas oficiales.",
+                        "Uses: NVIDIA DLSS, NVIDIA Reflex and NVIDIA Streamline (© NVIDIA Corporation, under their " +
                         "licenses); AMD FidelityFX Super Resolution 1 and CAS (© Advanced Micro Devices, Inc., MIT); NVIDIA FXAA 3.11 (© NVIDIA " +
-                        "Corporation, BSD); mpv and Magpie Experimental (GPL, downloaded from their official pages).") + "\r\n\r\n" +
+                        "Corporation, BSD); mpv (GPL), Intel XeSS (Intel Simplified Software License) and the AMD FSR SDK (MIT), downloaded from their official pages.") + "\r\n\r\n" +
                    Tx.T("NVIDIA, DLSS, Reflex, GeForce RTX, AMD, FidelityFX, Intel, XeSS, Nintendo, PlayStation, Xbox y las demás marcas son de " +
                         "sus dueños. ConsoleEnhancer no está afiliado a ninguno de ellos.",
                         "NVIDIA, DLSS, Reflex, GeForce RTX, AMD, FidelityFX, Intel, XeSS, Nintendo, PlayStation, Xbox and other marks belong to " +

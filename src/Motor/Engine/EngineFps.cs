@@ -17,18 +17,18 @@ namespace ConsoleEnhancer.Motor
 
         void FpsVigila()
         {
-            string clave = s.Mode + "|" + (s.Fg ? 1 : 0) + "|" + inW + "x" + inH + "|" + s.Preset + "|p" + s.FgOwn;   // (1.2.4 ronda 5: y la generacion propia x3 / x4)
+            string clave = s.Mode + "|" + (s.Fg ? 1 : 0) + "|" + inW + "x" + inH + "|" + s.Preset + "|" + s.FgTipo;   // (1.2.4 ronda 6, QUITAFG: el tipo de generacion -antes la propia x3 / x4, que ya no esta-)
             if (clave != fpsClave) { fpsClave = clave; fpsCalmaDesde = Clock.Now; fpsMalN = 0; fpsHist = 0; }
             if (inStandby || noSignalScreen || nosigSilencio || lastCapture == 0 || Clock.SinceMs(lastCapture) > 1500 || Clock.SinceMs(fpsCalmaDesde) < 10000)
             { fpsMalN = 0; fpsHist = 0; return; }
             double objetivo = s.Mode == 30 ? 29.97 : s.Mode >= 100 ? 119.88 : 59.94;
             double tope = 1000.0 / objetivo;
             bool bajo = stats.LastRate < objetivo * 0.9;
-            // (1.2.4 ronda 5, XEFGM) con la generacion propia del motor (o XeSS FG) las reales tambien se pierden por el pintado / la presentacion
+            // (1.2.4 ronda 5, XEFGM) con XeSS FG (y la generacion propia, quitada en la ronda 6) las reales tambien se pierden por el pintado / la presentacion
             // con la grafica dentro del tope: cualquier imagen perdida cuenta como culpa del PC (la consola lenta no deja imagenes sin pintar).
             // Y 5 de los ultimos 7 s (antes 5 seguidos: con las perdidas a rachas -la prueba del usuario, x4 propia a 22 de 30 reales con 107
             // perdidas en 20 s- no avisaba nunca)
-            bool pc = stats.LastGpuP95 > tope * 0.95 || stats.LastLate > 2 || ((FpWanted() || (xeFgOn && xeFgEnabledNow)) && stats.LastLate > 0);
+            bool pc = stats.LastGpuP95 > tope * 0.95 || stats.LastLate > 2 || (xeFgOn && xeFgEnabledNow && stats.LastLate > 0);
             fpsHist = ((fpsHist << 1) | (bajo && pc ? 1 : 0)) & 0x7F;
             int malos = 0;
             for (int b = 0; b < 7; b++) if ((fpsHist & (1 << b)) != 0) malos++;

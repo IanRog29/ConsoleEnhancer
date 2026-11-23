@@ -11,8 +11,8 @@ English · [Español](#español)
 
 **Your console on the TV, better than ever, without touching a keyboard.** ConsoleEnhancer turns the living-room PC into the "box"
 between your console and your TV: plug the console into a capture card, the PC into the TV, and that's it. Turn the console on and the
-app opens by itself; the picture is **upscaled to 4K** (DLSS, FSR, XeSS, RTX Video), with **frame generation** when your GPU supports it
-(DLSS Frame Generation, Smooth Motion, FSR 3 / XeSS FG), **HDR** and **VRR**, and **as little latency as possible**. Everything is driven
+app opens by itself; the picture is **upscaled to 4K** (DLSS, FSR, XeSS), with **frame generation** when your GPU supports it
+(Smooth Motion, XeSS FG, FSR 3 FG), **HDR** and **VRR**, and **as little latency as possible**. Everything is driven
 **with the controller** from the couch, no mouse or keyboard; when you turn the console off, the app closes by itself and, if you want,
 the PC goes into a **low-power mode, like a console in rest mode**: it doesn't shut down or sleep, it stays on using as little as
 possible, and turning the console back on brings the picture back by itself.
@@ -39,16 +39,16 @@ First-run details:
 
 - If Windows says *"Windows protected your PC"*: **More info > Run anyway** (the exe is not signed with a paid certificate; the source
   code is here for anyone who wants to review it).
-- The first time it downloads **mpv** and **Magpie** (two free programs that do the upscaling and Magpie's frame generation) from their
-  official pages: about 670 MB, once, with their SHA-256 hash checked. Click **Download**. If something breaks later:
-  tray icon > **Components: check / download again**.
+- The first time it downloads **mpv**, **Intel XeSS** and **AMD FSR** (free components the app uses: the player and its engine's XeSS /
+  FSR upscaling and frame generation) from their official pages: about 270 MB, once, with their SHA-256 hash checked. Click
+  **Download**. If something breaks later: tray icon > **Components: check / download again**.
 - The **wizard** asks for the language and shows what was detected, the capture card with **Test picture**, the sound with **Test sound**,
   the console, the display and the plan. At the end you choose whether it starts with Windows and what the PC does when you turn the
   console off (nothing, low-power mode, sleep or shut down; see [Power](#power-what-the-pc-does-when-the-console-turns-off)).
 
 **Settings and uninstall: open `ConsoleEnhancer Settings.exe`** (next to `ConsoleEnhancer.exe`), with the app open or closed. It has
 everything in one window: open the app or the setup wizard, how the PC is used (like a console / like a normal PC), start with Windows,
-black desktop, what the PC does when the console turns off, DLSS 5 (your own file), download mpv/Magpie again, test the countdown or
+black desktop, what the PC does when the console turns off, DLSS 5 (your own file), download the components again, test the countdown or
 the standby, the logs and **Uninstall** (it puts Windows back as it was and deletes only the app's own files; you choose whether to keep
 your settings and game profiles). The same options are in the tray icon menu.
 
@@ -65,8 +65,7 @@ is in front**. They go by position, so the same spot does the same thing on ever
 | **Settings menu** on screen (open / close) | Xbox button | PS | HOME | `Ctrl`+`O` |
 | **30 → 60 → 120 fps** mode | Menu ≡ | Options | + | `Ctrl`+`M` |
 | **Frame generation** on / off | View ⧉ | Create (PS5) / Share (PS4) · touchpad | − · Capture | `Ctrl`+`F` |
-| Frame generation **type** (DLSS FG, XeSS FG, Smooth Motion, FSR 3 FG…) | L3 | L3 | L3 | `Ctrl`+`G` |
-| Frame generation **×2 / ×3 / ×4** ² | settings menu | settings menu | settings menu | `Ctrl`+`X` |
+| Frame generation **type** (XeSS FG, Smooth Motion, FSR 3 FG) | L3 | L3 | L3 | `Ctrl`+`G` |
 | Dither filter (new / old) | hold L3 1 s | hold L3 1 s | hold L3 1 s | |
 | **Capture** at 720p / 1080p / 1440p / 4K | D-pad ← ↑ → ↓ | D-pad ← ↑ → ↓ | D-pad ← ↑ → ↓ | `Ctrl`+`1` … `Ctrl`+`4` |
 | Main / alternative **upscaler** | R3 | R3 | R3 | `Ctrl`+`R` |
@@ -77,9 +76,6 @@ is in front**. They go by position, so the same spot does the same thing on ever
 | Quit the app | | | | `Alt`+`F4` |
 
 ¹ Only with the optional "DLSS 5" file (see [DLSS 5](#dlss-5-optional)).
-² ×3 and ×4 exist only for **DLSS FG and XeSS FG**, and only when they fit your screen: real fps × multiplier must not go over the
-refresh rate. On a 120 Hz TV that means the **30 fps mode** (30 × 3 = 90, 30 × 4 = 120); in the 60 fps mode they are shown **locked**,
-with the reason. Without VRR, ×3 is locked too (90 fps on a 120 Hz screen would judder). Also in the tray menu.
 
 The 120 fps mode only shows up where your capture card and screen allow it; otherwise the mode button toggles 30 ↔ 60. Generic
 controllers: Start = Menu, Select = View, the rest by position. The old layout (View = 30 fps, Menu = 60 fps): `mando_botones=prisma`.
@@ -128,46 +124,40 @@ with help a lot too.
 | | Minimum | For the best results |
 |---|---|---|
 | System | Windows 10 2004 or later, 64-bit, .NET Framework 4.8 (built into Windows 10/11) | Windows 11 |
-| GPU | Any with Direct3D 12 (NVIDIA, AMD or Intel) | NVIDIA GeForce RTX (DLSS; RTX 40/50: Smooth Motion and DLSS Frame Generation) |
+| GPU | Any with Direct3D 12 (NVIDIA, AMD or Intel) | NVIDIA GeForce RTX (DLSS; RTX 40/50: Smooth Motion) |
 | Capture card | Any DirectShow device (USB/UVC or PCIe) with the console connected | One that captures at 1440p or 4K with low latency |
 | Display | Any | 4K 120 Hz TV or monitor (frame generation needs 100 Hz or more) |
-| Disk | About 1.2 GB | |
+| Disk | About 500 MB | |
 
 ## What it does
 
 - **First-run wizard** (and again from the tray), 9 steps: language, what was detected, the capture card with *Test picture*, the sound
   with *Test sound*, the console, the display, the **picture** (HDR and VRR), the **controller** (button table for yours) and the plan.
-- **Chain chosen by GPU** (`src\Deteccion\Plan.cs`): RTX 50, DLSS SR + Reflex + DLSS-G (x2-x4); RTX 40, DLSS SR + Reflex + DLSS
-  Frame Generation (Smooth Motion as an alternative in the selector); RTX 20/30, DLSS SR + Reflex (optional FSR 3 FG; on RTX 30 also
-  DLSS FG through Magpie with DLSS 5); without DLSS, **XeSS** on GTX and Intel Arc and **FSR 4** on AMD
-  RX 6000 / 7000 / 9000 (official on RX 9000; on RX 6000 / 7000 through the FSR 4.1.1 unlock of the bundled Magpie, experimental;
-  otherwise FSR 3.1), plus whatever frame generation each one has (driver AFMF, FSR 3 FG, XeSS FG).
+- **Chain chosen by GPU** (`src\Deteccion\Plan.cs`): RTX 40 / 50, DLSS SR + Reflex + **Smooth Motion** ×2 (XeSS FG ×2 with the TV
+  at 119.88 Hz or a driver without Smooth Motion; XeSS FG and FSR 3 FG in the selector); RTX 20/30, DLSS SR + Reflex (XeSS FG / FSR 3
+  FG optional); without DLSS, **XeSS** on GTX and Intel Arc and **FSR 4** on AMD RX 6000 / 7000 / 9000 (official on RX 9000; on
+  RX 6000 / 7000 through the FSR 4.1.1 unlock, experimental; otherwise FSR 3.1), plus whatever frame generation each one has (driver
+  AFMF, FSR 3 FG, XeSS FG).
 - **Built-in image engine** (D3D12, `src\Motor`), the path the game takes whenever it can (there is nothing to choose): DirectShow
-  capture; upscaling with DLSS, XeSS, FSR 3.1 / FSR 4 (with the Intel and AMD DLLs that come with Magpie) or FSR 1 (EASU + RCAS); frame
-  generation with DLSS FG (×2; ×3 / ×4 on RTX 50 through NVIDIA's official path), **XeSS FG ×2** (without DLSS 5), Smooth Motion,
-  **FSR 3 FG on any GPU** and, only as a last resort for ×3 / ×4, **its own frame generation** (shown as "x4 (own FG)";
-  `motor_fg_propia=0` turns it off); Reflex / XeLL; and, optionally, NVIDIA RTX Dynamic Vibrance (`motor_extra=vibrancia=1`). For what
-  the engine doesn't do (NVIDIA VFG, RTX Video, FSR 3 FG together with DLSS), for what it doesn't do as well as 1.2.3 did (XeSS FG
-  together with DLSS 5, XeSS FG ×3 / ×4 outside Intel GPUs, its own ×3 / ×4 with DLSS 5) and for DLSS 5 when the engine can't run it,
-  mpv + Magpie step in by themselves, as in 1.2.3. Colour from YUY2 / NV12 capture cards is properly reconstructed, without blocky red edges (`croma=2` in `motor_extra`;
-  `croma=0` = as before).
+  capture; upscaling with DLSS, XeSS, FSR 3.1 / FSR 4 (with Intel's and AMD's official DLLs, downloaded on first start) or FSR 1 (EASU +
+  RCAS); frame generation ×2 with **Smooth Motion** (NVIDIA driver, RTX 40 / 50), **XeSS FG** and **FSR 3 FG on any GPU** (also with
+  DLSS as the upscaler), all of them also with "DLSS 5"; Reflex / XeLL; and, optionally, NVIDIA RTX Dynamic Vibrance
+  (`motor_extra=vibrancia=1`). Colour from YUY2 / NV12 capture cards is properly reconstructed, without blocky red edges (`croma=2`
+  in `motor_extra`; `croma=0` = as before).
 - **Scaling that adapts to your PC** (`escalas_adaptables=1`, on by default): the wizard estimates the DLSS model and percentages for
   your GPU and display; while you play, the engine measures GPU time every second and lowers quality if it can't keep up (within 2 s)
-  or raises it little by little if there is headroom (after 20 s), and remembers it for next time (`data\scales_engine.txt`). With
-  "DLSS 5" through Magpie, the **DLSS 5 scale follows your whole picture chain**: it is worked out from the capture, your TV, the
-  30 / 60 / 120 mode, the frame generation type, the DLSS upscaler model and the passes, scaled for your GPU (a lighter DLSS model
-  leaves room for more DLSS 5), and adjusted while you play (`dlss5_escala_auto=1`; 0 = the fixed tables). Tray > Picture >
-  *Self-adjusting scales* / *Forget the learned scales*. With the "DLSS 5" extra in the engine there is also an **emergency brake**: if
+  or raises it little by little if there is headroom (after 20 s), and remembers it for next time (`data\scales_engine.txt`). Tray >
+  Picture > *Self-adjusting scales* / *Forget the learned scales*. With the "DLSS 5" extra there is also an **emergency brake**: if
   the GPU is far over budget, it drops a pass or cuts the % at once (so the GPU doesn't choke) and keeps that as the learned value.
-- **Checks that your frame rate is reached** (built-in engine and mpv + Magpie): if the mode's frame rate (or the output with frame
+- **Checks that your frame rate is reached** (built-in engine): if the mode's frame rate (or the output with frame
   generation) is missed because of the PC (not the console game), it acts within seconds: first the DLSS 5 scale, then one pass less,
   a lighter DLSS model, a cheaper frame generation type, and only then DLSS 5 off, 120 → 60, a lower capture, 60 → 30 with frame
   generation. A notice says what changed ("60 fps not reached (52): DLSS 5 scale 50% -> 40%"). With GPU to spare for a few minutes, the
   DLSS 5 scale goes back up the next time you enter the game, never to a value that already failed. Remembered per game and GPU
   (`data\scales_auto.txt`).
-- **Backup engine** (`motor_reserva=1`): while you play, an engine with the mode's other frame generation type (Smooth Motion / DLSS
-  FG) waits ready in the background, so switching between them takes ~0.5 s instead of 4-5 s. `motor_reserva=0` removes it (it uses
-  ~0.9 GB of video memory).
+- **Backup engine** (`motor_reserva=1`): while you play, an engine with the mode's other frame generation type waits ready in the
+  background (XeSS FG while you play with Smooth Motion; Smooth Motion while you play with XeSS FG or FSR 3 FG), so switching between
+  them takes ~0.5 s instead of 4-5 s. `motor_reserva=0` removes it (it uses ~0.9 GB of video memory).
 - **Doesn't close by itself if the GPU stalls**: if the picture stops moving with the console on (GPU stuck or reset, the engine
   changing settings), the app tells it apart from a console that was turned off (the engine reports it, the capture card keeps sending
   frames or the console keeps making sound), waits and, if it lasts more than 8 s, reopens just the picture (*Recovering the picture*).
@@ -185,23 +175,14 @@ with help a lot too.
   the driver allow it; on AMD / Intel, enable it in the wizard (`vrr=1`). Also in tray > Picture > VRR. When on, the built-in engine
   presents each frame as soon as it is done (without waiting for the refresh) and, with frame generation, syncs only where needed
   (`motor_vrr_fg_vsync=-1`); only if the display reports VRR, so as not to cause stutter on one that doesn't have it. In 60 mode with
-  DLSS FG on a 120 Hz G-SYNC display, the engine runs at a **fixed refresh rate** (G-SYNC is turned off only in the NVIDIA profile for its
+  XeSS FG or FSR 3 FG on a 120 Hz G-SYNC display, the engine runs at a **fixed refresh rate** (G-SYNC is turned off only in the NVIDIA profile for its
   exe while you play like this; it is restored on exit, and if the app crashes, the next time it opens): with G-SYNC, Reflex capped the
   output at ~116 frames/s and ~2 console frames per second were lost; this way all of them come through, with less latency
   (`motor_60fg_refresco_fijo=auto`; at 144 Hz or more, at 119.88 Hz, without VRR or without NVIDIA nothing is changed).
 - **Frame generation selector**: L3 while playing (or Ctrl+G on the keyboard over the picture, the settings menu or the tray) cycles
-  through the types your GPU has and remembers the choice per game. Only what can keep pace is offered.
-- **×2 / ×3 / ×4 frame generation** (DLSS FG and XeSS FG): the settings menu's *Multiplier* row, the tray or Ctrl+X. ×3 / ×4 only
-  when they fit your screen (real fps × multiplier ≤ refresh rate: with a 120 Hz TV, the 30 fps mode gives 90 / 120 fps); otherwise
-  they are shown locked with the reason. Saved per game and mode; if the output can't be reached, the multiplier is lowered first.
-  ×3 / ×4: NVIDIA's DLSS FG ×3 / ×4 run in the engine (RTX 50; RTX 40 with `engine\PrismaFg.dll` and your own `dlssg_sm86`) and Intel's
-  XeSS FG ×3 / ×4 in the engine on Intel GPUs; on other GPUs XeSS FG ×3 / ×4 go through Magpie, as in 1.2.3 (the engine's own frame
-  generation smeared HUDs and text on real console content). The engine's own frame generation (**"x4 (own FG)"**) is only used when
-  nothing else can (`motor_xefg_propia=1` uses it for XeSS FG ×3 / ×4). Through Magpie, DLSS 5 is kept at 35 % or more with ×3 / ×4, or
-  removed for that multiplier when it doesn't fit.
-- **Protection**: if a combination can't hold the real frame rate of the mode, the app lowers what shows least (DLSS 5 scale and
-  passes, multiplier, DLSS SR model...), tells you, and remembers it for that game and settings for 7 days. Picking something by hand
-  always tries it. `proteccion=0` turns it off.
+  through the types your GPU has (Smooth Motion, XeSS FG, FSR 3 FG) and remembers the choice per game. Only what can keep pace is
+  offered. Frame generation is always ×2: since 1.2.4 there is no DLSS Frame Generation and no ×3 / ×4 (they didn't work well); game
+  profiles and settings that used them switch by themselves to the closest type (on NVIDIA, Smooth Motion) and keep everything else.
 - **120 fps mode (esports)**: for the console's 120 Hz games, it captures at 120 with no frame generation and the lowest latency. The
   mode button goes 30 → 60 → 120 only if the console outputs 120, the TV runs at **120 Hz or more** and the current capture is one your
   capture card provides at 120 (usually **1080p or 1440p**; the wizard reads it from the capture card, capturas_120). At 4K it stays
@@ -234,7 +215,7 @@ with help a lot too.
   type, 30 / 60 / 120 mode, capture 720p / 1080p / 1440p / 4K, DLSS 5 (on / off, level, passes), alternative upscaler, dither filter,
   *Show current settings (on screen)* and the settings menu; plus Picture options, start-up and power options, the wizard, components,
   Add / Remove DLSS 5, About and licenses and the Ko-fi link. Useful when there is no controller connected to the PC.
-- **Keyboard shortcuts** over the console picture: Ctrl+F, Ctrl+G, Ctrl+X, Ctrl+M, Ctrl+1…4, Ctrl+R, Ctrl+D, Ctrl+I, Ctrl+O, Alt+F4 (see
+- **Keyboard shortcuts** over the console picture: Ctrl+F, Ctrl+G, Ctrl+M, Ctrl+1…4, Ctrl+R, Ctrl+D, Ctrl+I, Ctrl+O, Alt+F4 (see
   [Controls](#controls)). Shortcuts keep working with Joyxoff and similar tools running.
 - **Closing**: tray > Exit, Alt+F4, the window's X or closing it from the taskbar quits the whole app (it isn't taken for a signal
   drop). The Windows key, the Start menu, the taskbar and Alt+Tab work normally while you play.
@@ -254,11 +235,12 @@ with help a lot too.
 - **`ConsoleEnhancer Settings.exe`** next to `ConsoleEnhancer.exe` (replaces `Inicio y apagado.bat`): all of the above plus DLSS 5,
   components, logs, the countdown and standby tests and uninstall, in one window. If the app is open, it offers to restart it to apply
   the changes.
-- **Components**: mpv and Magpie are downloaded once from their official pages with their SHA-256 checked (offline, from the zips in
-  `downloads\`); tray > *Components: check / download again* repairs them.
+- **Components**: mpv, Intel XeSS and AMD FSR are downloaded once from their official pages with their SHA-256 checked (offline, from
+  the zips in `downloads\`; if the app folder still has a `magpie\` folder from an older version, the Intel and AMD files are taken
+  from there without downloading anything); tray > *Components: check / download again* repairs them.
 - **Updates keep your data**: the first time a new version opens, it copies the settings, per-game profiles and recognised console from
-  the previous version's folder (noted in `data\inherited.txt`), reuses mpv, Magpie and the compiled shaders (first start ~11 s instead
-  of ~1 min) and applies the new general settings while keeping what the wizard chose (backup in `.antes-*`).
+  the previous version's folder (noted in `data\inherited.txt`), reuses the downloaded components and the compiled shaders (first start
+  ~11 s instead of ~1 min) and applies the new general settings while keeping what the wizard chose (backup in `.antes-*`).
 - **Portable**: with `portable.txt` next to the exe (included in the zip), everything is stored in `data\`; if you delete it, in
   `%LOCALAPPDATA%\ConsoleEnhancer`.
 - **Interface in English and Spanish**, chosen in the wizard's first step.
@@ -280,7 +262,7 @@ power?*) or in `ConsoleEnhancer Settings.exe`.
 It is **not** sleep and **not** shutdown: the PC stays on, so nothing has to "turn it on" again. When the console turns off:
 
 1. No countdown: a black cover with no pointer goes over every screen at once (the taskbar stays hidden), the screen goes off,
-   ConsoleEnhancer closes (mpv, Magpie and the engine with it) and Windows switches to a temporary low-power plan (*Power saver*
+   ConsoleEnhancer closes (mpv and the engine with it) and Windows switches to a temporary low-power plan (*Power saver*
    with the processor capped at 50 % and no boost, `espera_cpu_max`; deleted on waking), so the CPU and GPU drop to their lowest
    clocks (the GPU idles in P8; an RTX 4060 Ti measured 8.5-9 W with the screen off).
 2. Only a tiny watcher stays, in its own small process (about 0.1 % of one core, low priority, EcoQoS, without raising Windows' timer
@@ -305,7 +287,7 @@ left like that all day), but it's the only mode where turning the console on is 
 
 ## DLSS 5 (optional)
 
-"DLSS 5" is the community name for an NVIDIA neural filter (DLSSNR, the one Magpie uses) that redraws the console picture with more
+"DLSS 5" is the community name for an NVIDIA neural filter (DLSSNR) that redraws the console picture with more
 detail before upscaling. **It is not an official NVIDIA feature and does not ship with ConsoleEnhancer**: it needs `nvngx_dlssnr.dll`, a
 community-modified NVIDIA DLL with no signature or license that cannot be redistributed. So the app **does not include it, download it
 or say where to get it**. Everything else (DLSS, frame generation, HDR, VRR...) works the same without it.
@@ -320,9 +302,7 @@ If you already have your own file, adding it takes one click:
    first the one that suits your GPU, and you pick (or *Pick another file…*). Nothing is downloaded. If DLSS 5 is missing when the app
    starts, it looks once and asks first.
 3. The app checks that it is a 64-bit Windows DLL with that name, tells you whether it is NVIDIA's original (valid NVIDIA signature) or
-   the unsigned community-modified one, and copies it to `extras\` next to the exe. If you also have the community `dlssg_sm86`
-   package (the app **does not ship or download it**), it can be copied too, into `extras\runtimes\dlssg_sm86`: it gives DLSS FG
-   ×3 / ×4 in the engine on RTX 40 (and DLSS FG through Magpie); without it, ×3 / ×4 use the engine's own frame generation.
+   the unsigned community-modified one, and copies it to `extras\` next to the exe.
 4. Choose whether to turn it on now. While playing, the controller's **A** button turns it on and off (X / Y / B: passes; L1 / L2 / R2 /
    R1: level).
 
@@ -330,28 +310,30 @@ To remove it: tray icon > **Remove DLSS 5** (deletes the copy in `extras\`; your
 
 Your DLSS 5 files are also kept in `%LOCALAPPDATA%\ConsoleEnhancer\extras`, so a new version unzipped into a new folder picks them up
 by itself. With your file, DLSS 5 runs inside the app's own engine (`engine\PrismaNr.dll`, which ships with the app since 1.2.4; 1 to 3
-passes): much lower latency (4K, 30 fps mode + DLSS FG ×2: 43 ms instead of ~72 ms for the real frame; 1080p → 4K with 2 passes: 37
-instead of ~52) and a steadier pace. There is nothing to choose. `motor_dlss5_pasadas=1` sends 2-3 passes to Magpie, as in 1.2.3.
+passes, with any frame generation type): much lower latency than through Magpie in 1.2.3 (measured then at 4K, 30 fps mode + frame
+generation ×2: 43 ms instead of ~72 ms for the real frame; 1080p → 4K with 2 passes: 37 instead of ~52) and a steadier pace. There is
+nothing to choose.
 
 ## DLSS 5 and the law
 
 Short and neutral (this is what the licences say; it is not legal advice):
 
-- **What ConsoleEnhancer ships**: its own code (GPL-3.0) and NVIDIA's official Streamline / DLSS SR / DLSS FG / Reflex / RTX Dynamic
-  Vibrance DLLs, unmodified, which NVIDIA allows apps to redistribute. It downloads mpv and Magpie from their official pages.
-- **Since 1.2.4 the repository and the zip also carry `PrismaNr` and `PrismaFg`**, the engine's own native pieces (own code). They
-  load the files you add yourself (`nvngx_dlssnr.dll`, the `dlssg_sm86` package) without going through NVIDIA's check (NGX), which
-  NVIDIA's terms do not allow. The user decided to publish them knowing that. Without your files they do nothing. PrismaNr is compiled
-  with NVIDIA's public NGX headers, which are only used to build it and are not in the repository.
-- **What it never ships, downloads or links to**: `nvngx_dlssnr.dll` ("DLSS 5"), the `dlssg_sm86` package or any modified NVIDIA file.
-  *Add DLSS 5* only looks on your own PC. Each person adds their own file, at their own risk.
+- **What ConsoleEnhancer ships**: its own code (GPL-3.0) and NVIDIA's official Streamline / DLSS SR / Reflex / RTX Dynamic Vibrance
+  DLLs, unmodified, which NVIDIA allows apps to redistribute. It downloads mpv and Intel's and AMD's XeSS / FSR files from their
+  official pages.
+- **Since 1.2.4 the repository and the zip also carry `PrismaNr`**, the engine's own native piece (own code). It loads the file you
+  add yourself (`nvngx_dlssnr.dll`) without going through NVIDIA's check (NGX), which NVIDIA's terms do not allow. The user decided to
+  publish it knowing that. Without your file it does nothing. It is compiled with NVIDIA's public NGX headers, which are only used to
+  build it and are not in the repository.
+- **What it never ships, downloads or links to**: `nvngx_dlssnr.dll` ("DLSS 5") or any modified NVIDIA file. *Add DLSS 5* only looks
+  on your own PC. Each person adds their own file, at their own risk.
 - **Legal DLSS 5 does not exist today outside NVIDIA's own games**: NVIDIA has released DLSS 5 only inside the games that ship it, only
   on RTX 50, with no SDK or Streamline plugin for other apps (checked on 22-11-2026: the public NGX route answers "please update display
   driver" with the current driver, and a newer one would only accept NVIDIA's signed original, which only runs on RTX 50). The DLL that
   circulates for RTX 20 / 30 / 40 is a modified NVIDIA binary.
-- What every RTX gets officially in the engine: DLSS Super Resolution, DLSS Frame Generation (RTX 40 / 50; ×3 / ×4 on RTX 50), Reflex
-  and, optionally, RTX Dynamic Vibrance (it is not DLSS 5: it adds colour and clarity, it doesn't relight). The engine's own frame
-  generation (own code) gives ×3 / ×4 on any GPU without anything from NVIDIA, AMD or Intel.
+- What every RTX gets officially in the engine: DLSS Super Resolution, Reflex, the driver's Smooth Motion (RTX 40 / 50) and,
+  optionally, RTX Dynamic Vibrance (it is not DLSS 5: it adds colour and clarity, it doesn't relight).
+
 ## FAQ / common problems
 
 **Windows or the antivirus won't let me open it / Microsoft Defender removed ConsoleEnhancer.exe.** The exes are not code-signed yet,
@@ -366,10 +348,10 @@ again, add **only the app folder** as an exclusion (*Manage settings > Exclusion
 https://www.microsoft.com/wdsi/filesubmission ("Incorrectly detected as malware/malicious"). Each release lists the SHA-256 of the
 zip and of every file in it (`.files.sha256`), and you can build it yourself (see *For developers*).
 
-**The picture stays but there is no sound and the controller does nothing.** Microsoft Defender closed the app while mpv and Magpie
+**The picture stays but there is no sound and the controller does nothing.** Microsoft Defender closed the app while mpv and the engine
 kept showing the picture: see the previous answer (the app also explains it the next time it opens).
 
-**The mpv / Magpie download fails.** Internet is needed once. Behind a proxy or offline: download the two zips linked in that window
+**The mpv / XeSS / FSR download fails.** Internet is needed once. Behind a proxy or offline: download the zips linked in that window
 (also in `licenses\VERSIONS.txt`) on another PC and put them in a `downloads\` folder next to `ConsoleEnhancer.exe`; they are checked
 the same way. If it says it can't write, the folder is read-only (Program Files): move it to one of your own.
 
@@ -401,8 +383,8 @@ why ("NO es la consola apagada: ...").
 **Black screens of a few seconds, and `DXGI_ERROR_DEVICE_HUNG` / "grafica perdida" in `engine.log`.** That is the graphics card
 resetting under load (Windows logs it as `nvlddmkm` event 153 in *Event Viewer > System*). A **video memory overclock** (for example a
 memory clock offset in MSI Afterburner) can do it with DLSS 5 plus frame generation even when games look fine: set the memory clock back
-to stock and test again. Since 1.2.4 the app keeps the last picture on screen while it recovers, and if it happens with XeSS FG or the
-engine's own frame generation, that frame generation goes through Magpie for the rest of the session.
+to stock and test again. Since 1.2.4 the app keeps the last picture on screen while it recovers, and if it happens with XeSS FG, the
+rest of the session uses another frame generation type in the engine.
 
 **My desktop is stuck black.** `ConsoleEnhancer.exe --restaurar-escritorio`.
 
@@ -413,7 +395,7 @@ contain anything of yours you don't want to show, such as folder names).
 **What about "DLSS 5"?** It is a community-modified NVIDIA DLL: **it is not included, not downloaded and not recommended**. The app
 works fully without it; if you already have it, see [DLSS 5 (optional)](#dlss-5-optional).
 
-**Is mpv or Magpie broken?** Tray icon > **Components: check / download again**: it says what is missing and downloads them again from
+**Is mpv, XeSS or FSR broken?** Tray icon > **Components: check / download again**: it says what is missing and downloads them again from
 their official pages.
 
 **"Shut down the PC when the console is turned off" closed my stuff.** In *Shut down* mode it really shuts down Windows after the
@@ -432,25 +414,24 @@ low-power mode in `ConsoleEnhancer Settings.exe` > *Test standby*.
 - **License**: ConsoleEnhancer is free software under the **GPL-3.0** (`LICENSE`), **without any warranty**, with a section 7 additional
   permission for use with the official NVIDIA, AMD, Intel and Microsoft libraries (`LICENSE-EXCEPTION.txt`). Third-party code, versions
   and licenses: [`THIRD-PARTY.md`](THIRD-PARTY.md) and `licenses\` in the zip.
-- **What is in the zip**: the app (with the engine's own `PrismaNr.dll` / `PrismaFg.dll`, see [DLSS 5 and the law](#dlss-5-and-the-law))
+- **What is in the zip**: the app (with the engine's own `PrismaNr.dll`, see [DLSS 5 and the law](#dlss-5-and-the-law))
   and the NVIDIA Streamline / DLSS / Reflex / RTX Dynamic Vibrance DLLs, unmodified and signed by NVIDIA, which NVIDIA allows to be
   redistributed inside an application; their terms (no selling them on their own, no reverse engineering...) are in
   `licenses\NVIDIA-NOTICE.txt` and also apply to you.
-- **mpv and Magpie are not redistributed by ConsoleEnhancer**: the app downloads them from their official releases, with their licenses
-  (GPL) and source code on their pages.
+- **mpv, Intel XeSS and AMD FSR are not redistributed by ConsoleEnhancer**: the app downloads them from their official releases, with
+  their licenses (mpv: GPL, with its source code on its page; XeSS: Intel Simplified Software License; FSR: MIT).
 - **"DLSS 5" is not included.** `nvngx_dlssnr.dll` is a community-modified NVIDIA DLL with no signature or license, and
   it is not in the repository or the zip, the app doesn't download it, and using it may go against NVIDIA's terms. If you already have
   it, you can add it yourself (tray > *Add DLSS 5*, which copies it to `extras\`) at your own risk: the app warns that it is not
-  official. The `dlssg_sm86` package Magpie's DLSS FG needs is not in the zip and, since 1.2.4, the app no longer downloads it either.
-  See [DLSS 5 and the law](#dlss-5-and-the-law).
+  official. See [DLSS 5 and the law](#dlss-5-and-the-law).
 - **Author**: ConsoleEnhancer is created and maintained by **IanRog29** (with contributions from its contributors). Copyright (C) 2026
   IanRog29 and ConsoleEnhancer contributors.
 - **Donations**: voluntary (Ko-fi); they don't give access to anything extra and don't buy third-party DLLs.
 - **Trademarks**: NVIDIA, GeForce RTX, DLSS, Reflex, AMD, FSR, FidelityFX, Intel, XeSS, Nintendo, PlayStation, Xbox, Windows and others
   belong to their owners; they are named only to describe compatibility. ConsoleEnhancer is not affiliated with, sponsored or endorsed by
   any of them. Uses NVIDIA DLSS, NVIDIA Reflex and NVIDIA Streamline.
-- **Privacy**: the app doesn't send anything anywhere. It only connects to the internet to download mpv and Magpie from GitHub the first
-  time.
+- **Privacy**: the app doesn't send anything anywhere. It only connects to the internet to download mpv, XeSS and FSR from GitHub the
+  first time.
 - **Content**: it shows your console's picture on your screen; it doesn't record, doesn't stream and doesn't remove HDCP.
 
 ## For developers
@@ -463,24 +444,23 @@ it is built with the `csc.exe` of .NET Framework 4.8 that ships with Windows (C#
 Step by step:
 
 ```bat
-powershell -ExecutionPolicy Bypass -File scripts\descargar_dependencias.ps1   :: terceros\mpv, terceros\magpie, terceros\streamline
-build.bat                       :: bin\ConsoleEnhancer.exe (src\Lanzador + src\Deteccion) y bin\ listo (mpv y magpie enlazados a terceros\)
+powershell -ExecutionPolicy Bypass -File scripts\descargar_dependencias.ps1   :: terceros\mpv, terceros\xess, terceros\fsr, terceros\streamline
+build.bat                       :: bin\ConsoleEnhancer.exe (src\Lanzador + src\Deteccion) y bin\ listo (mpv, xess y fsr enlazados a terceros\)
 build_motor.bat                 :: bin\engine\ConsoleEnhancerEngine.exe (src\Motor) + DLL de Streamline
 powershell -ExecutionPolicy Bypass -File scripts\descargar_cabeceras_ngx.ps1   :: terceros\dlss_sdk (2 cabeceras de NGX / NGX headers)
 build_prismanr.bat              :: bin\engine\PrismaNr.dll (C++, Visual Studio)
-build_prismafg.bat              :: bin\engine\PrismaFg.dll (C++, Visual Studio)
 tests\build_deteccion.bat       :: tests\bin\DeteccionTest.exe
 tests\bin\DeteccionTest.exe --simula=todo --sin-d3d12 --salida=deteccion.txt   :: 23 PCs simulados
 powershell -ExecutionPolicy Bypass -File scripts\empaquetar.ps1 -Zip -Version v1.2.4   :: dist\ConsoleEnhancer\ y dist\ConsoleEnhancer-v1.2.4.zip
 ```
 
-- **The engine's own native pieces** (`src\PrismaNr`, `src\PrismaFg`, C++): they need Visual Studio 2022 (or its Build Tools) with C++,
-  and PrismaNr also NVIDIA's two public NGX headers (`scripts\descargar_cabeceras_ngx.ps1`, pinned version and SHA-256; not in git). The
-  app runs without them; the package requires them (`preparar.bat` builds them when Visual Studio is there).
+- **The engine's own native piece** (`src\PrismaNr`, C++): it needs Visual Studio 2022 (or its Build Tools) with C++ and NVIDIA's two
+  public NGX headers (`scripts\descargar_cabeceras_ngx.ps1`, pinned version and SHA-256; not in git). The app runs without it; the
+  package requires it (`preparar.bat` builds it when Visual Studio is there).
 - **Dependencies**: the table `scripts\components.json` (version, URL, SHA-256 and what is taken from each zip) is used by
   `descargar_dependencias.ps1` and by the app itself. To change a version, change it there.
 - **Package** (`scripts\empaquetar.ps1`): allow-list. It includes the app, the engine with Streamline / DLSS, scripts, languages,
-  resources and licenses; it does **not** include mpv or Magpie (the app downloads them) or anything non-redistributable, and it checks
+  resources and licenses; it does **not** include mpv, XeSS or FSR (the app downloads them) or anything non-redistributable, and it checks
   that there is no data from the PC it is built on (your user name, the computer name and whatever you put in `scripts\privado.txt`,
   which is not in git).
 - **GitHub Actions** (`.github/workflows/compilar.yml`): builds and runs the tests on every push; with a `v*` tag it builds the zip and
@@ -492,9 +472,9 @@ powershell -ExecutionPolicy Bypass -File scripts\empaquetar.ps1 -Zip -Version v1
 | `--datos=<carpeta>` | A different data folder (ini, log, games): doesn't touch the real ones |
 | `--asistente-auto` | Writes the ini with the detection plan (estimated scales, picture, controller), without asking |
 | `--simula=<caso>` | With `--asistente-auto`: another PC's plan (`amd-rx7800xt`, `intel-arc-b580`, `rtx3060`, `sin-nvidia`...) |
-| `--dry-run` | Prepares the Magpie copy and writes the chain and the mpv command line to the log, without launching anything |
-| `--componentes=<carpeta>` | Downloads and installs mpv and Magpie in that folder without asking (or from the zips in `<carpeta>\downloads`) and reports in `componentes.log` |
-| `--componentes-reparar` | Downloads mpv and Magpie again even if they are fine (what tray > *Components: check / download again* does) |
+| `--dry-run` | Writes the chain and the command lines to the log, without launching anything |
+| `--componentes=<carpeta>` | Downloads and installs mpv, XeSS and FSR in that folder without asking (or from the zips in `<carpeta>\downloads`) and reports in `componentes.log` |
+| `--componentes-reparar` | Downloads mpv, XeSS and FSR again even if they are fine (what tray > *Components: check / download again* does) |
 | `--ui-preview=asistente;<carpeta>` | Images of the wizard's 9 steps (es / en), without opening anything |
 | `--ui-preview=apagado;<carpeta>` | Images of the shutdown notice |
 | `--prueba-apagado[=<s>[;fuera]]` | The real countdown; when it ends it only writes "SIMULADO" to the log |
@@ -508,14 +488,14 @@ powershell -ExecutionPolicy Bypass -File scripts\empaquetar.ps1 -Zip -Version v1
 **Layout**
 
 ```
-src\Lanzador\   the tray app (C# 5, WinForms): mpv, Magpie, the engine, controllers, curtain, wizard, components, start-up and shutdown,
+src\Lanzador\   the tray app (C# 5, WinForms): mpv, the engine, controllers, curtain, wizard, components, start-up and shutdown,
                 user extras (Add / Remove DLSS 5) and the support link (Extras.cs)
 src\Deteccion\  detection of GPU, displays, capture cards, audio and controllers; the picture plan; simulated PCs
 src\Motor\      the D3D12 image engine (capture, DLSS / XeSS / FSR, frame generation, Reflex, OSD)
 scripts\        components.json, descargar_dependencias.ps1, empaquetar.ps1
 resources\       base.ini (starting settings), icon
 languages\        en.txt (English on-screen texts)
-parches\        source code changes for Magpie (GPL-3.0), optional
+parches\        source code patches for third-party code, optional (parches\LEEME.txt)
 tests\          DeteccionTest
 DISENO.md       design and decisions; LEEME.txt: status, what has been tested and what is missing
 ```
@@ -531,8 +511,8 @@ Read [`CONTRIBUTING.md`](CONTRIBUTING.md) before sending changes (C# 5, no binar
 
 **Tu consola en la tele, mejor que nunca, sin tocar el teclado.** ConsoleEnhancer convierte el PC del salón en la "caja" que va entre
 tu consola y tu tele: conectas la consola a una capturadora, el PC a la tele, y listo. Enciendes la consola y la app se abre sola; la
-imagen llega **reescalada a 4K** (DLSS, FSR, XeSS, RTX Video), con **generación de fotogramas** si tu gráfica puede (DLSS Frame
-Generation, Smooth Motion, FSR 3 / XeSS FG), **HDR** y **VRR**, y con el **menor retraso posible**. Todo se maneja **con el mando** desde el
+imagen llega **reescalada a 4K** (DLSS, FSR, XeSS), con **generación de fotogramas** si tu gráfica puede (Smooth Motion, XeSS FG,
+FSR 3 FG), **HDR** y **VRR**, y con el **menor retraso posible**. Todo se maneja **con el mando** desde el
 sofá, sin ratón ni teclado; y al apagar la consola, la app se cierra sola y, si quieres, el PC pasa a un **modo de bajo consumo, como
 una consola en reposo**: no se apaga ni se suspende, sigue encendido gastando lo mínimo, y al volver a encender la consola vuelve la
 imagen sola.
@@ -560,16 +540,16 @@ Detalles de la primera vez:
 
 - Si Windows dice *"Windows protegió su PC"*: **Más información > Ejecutar de todas formas** (el exe no está firmado con un certificado
   de pago; el código está aquí para quien quiera revisarlo).
-- La primera vez baja **mpv** y **Magpie** (dos programas libres que hacen el reescalado y la generación de fotogramas por Magpie) de sus
-  páginas oficiales: unos 670 MB, una sola vez, comprobando su huella SHA-256. Pulsa **Descargar**. Si algo se estropea más tarde:
-  icono de la bandeja > **Componentes: comprobar / volver a descargar**.
+- La primera vez baja **mpv**, **Intel XeSS** y **AMD FSR** (componentes libres que usa la app: el reproductor y el reescalado y la
+  generación XeSS / FSR de su motor) de sus páginas oficiales: unos 270 MB, una sola vez, comprobando su huella SHA-256. Pulsa
+  **Descargar**. Si algo se estropea más tarde: icono de la bandeja > **Componentes: comprobar / volver a descargar**.
 - El **asistente** pregunta el idioma y enseña lo detectado, la capturadora con **Probar imagen**, el sonido con **Probar sonido**, la
   consola, la pantalla y el plan. Al final eliges si se abre al iniciar Windows y qué hace el PC al apagar la consola (nada, bajo
   consumo, suspender o apagar; ver [Energía](#energía-qué-hace-el-pc-al-apagar-la-consola)).
 
 **Ajustes y desinstalar: abre `ConsoleEnhancer Settings.exe`** (junto a `ConsoleEnhancer.exe`), con la app abierta o cerrada. Tiene
 todo en una ventana: abrir la app o el asistente, cómo se usa el PC (como una consola / como un PC normal), abrirse con Windows,
-escritorio negro, qué hace el PC al apagar la consola, DLSS 5 (tu propio archivo), volver a bajar mpv/Magpie, probar el aviso o la
+escritorio negro, qué hace el PC al apagar la consola, DLSS 5 (tu propio archivo), volver a bajar los componentes, probar el aviso o la
 espera, los registros y **Desinstalar** (deja Windows como estaba y borra solo los archivos de la app; tú eliges si guardar tus ajustes y
 perfiles). Lo mismo está en el menú del icono de la bandeja.
 
@@ -586,8 +566,7 @@ delante**. Van por posición: el mismo sitio hace lo mismo en cualquier mando.
 | **Menú de ajustes** en pantalla (abrir / cerrar) | botón Xbox | PS | HOME | `Ctrl`+`O` |
 | Modo **30 → 60 → 120 fps** | Menú ≡ | Options | + | `Ctrl`+`M` |
 | **Generación de fotogramas** sí / no | Vista ⧉ | Crear (PS5) / Share (PS4) · panel táctil | − · Captura | `Ctrl`+`F` |
-| **Tipo** de generación (DLSS FG, XeSS FG, Smooth Motion, FSR 3 FG…) | L3 | L3 | L3 | `Ctrl`+`G` |
-| Generación **×2 / ×3 / ×4** ² | menú de ajustes | menú de ajustes | menú de ajustes | `Ctrl`+`X` |
+| **Tipo** de generación (XeSS FG, Smooth Motion, FSR 3 FG) | L3 | L3 | L3 | `Ctrl`+`G` |
 | Filtro de tramado (nuevo / viejo) | mantener L3 1 s | mantener L3 1 s | mantener L3 1 s | |
 | **Captura** a 720p / 1080p / 1440p / 4K | cruceta ← ↑ → ↓ | cruceta ← ↑ → ↓ | cruceta ← ↑ → ↓ | `Ctrl`+`1` … `Ctrl`+`4` |
 | **Escalador** principal / alternativo | R3 | R3 | R3 | `Ctrl`+`R` |
@@ -598,9 +577,6 @@ delante**. Van por posición: el mismo sitio hace lo mismo en cualquier mando.
 | Salir de la app | | | | `Alt`+`F4` |
 
 ¹ Solo con el archivo opcional "DLSS 5" (ver [DLSS 5](#dlss-5-opcional)).
-² ×3 y ×4 solo existen con **DLSS FG y XeSS FG**, y solo si caben en tu pantalla: los fps reales × el multiplicador no pueden pasar
-del refresco. En una tele de 120 Hz eso es el **modo 30** (30 × 3 = 90, 30 × 4 = 120); en el modo 60 salen **bloqueados**, con el motivo.
-Sin VRR, ×3 también sale bloqueado (90 fps en una pantalla de 120 Hz irían a saltos). También en el menú de la bandeja.
 
 El modo 120 fps solo aparece donde tu capturadora y tu pantalla lo admiten; si no, el botón del modo alterna 30 ↔ 60. Mandos genéricos:
 Start = Menú, Select = Vista, lo demás por posición. La distribución de antes (Vista = 30 fps, Menú = 60 fps): `mando_botones=prisma`.
@@ -649,46 +625,40 @@ y contar en qué PC y con qué consola lo usas.
 | | Mínimo | Para lo mejor |
 |---|---|---|
 | Sistema | Windows 10 2004 o posterior, 64 bits, .NET Framework 4.8 (viene con Windows 10/11) | Windows 11 |
-| Gráfica | Cualquiera con Direct3D 12 (NVIDIA, AMD o Intel) | NVIDIA GeForce RTX (DLSS; RTX 40/50: Smooth Motion y DLSS Frame Generation) |
+| Gráfica | Cualquiera con Direct3D 12 (NVIDIA, AMD o Intel) | NVIDIA GeForce RTX (DLSS; RTX 40/50: Smooth Motion) |
 | Capturadora | Cualquiera DirectShow (USB/UVC o PCIe) con la consola conectada | Una que capture a 1440p o 4K y con poco retraso |
 | Pantalla | Cualquiera | Tele o monitor 4K de 120 Hz (la generación de fotogramas necesita 100 Hz o más) |
-| Disco | Unos 1,2 GB | |
+| Disco | Unos 500 MB | |
 
 ## Qué hace
 
 - **Asistente del primer arranque** (y otra vez desde la bandeja), 9 pasos: idioma, lo detectado, la capturadora con *Probar imagen*,
   el sonido con *Probar sonido*, la consola, la pantalla, la **imagen** (HDR y VRR), el **mando** (tabla de botones del tuyo) y el plan.
-- **Cadena según la gráfica** (`src\Deteccion\Plan.cs`): RTX 50, DLSS SR + Reflex + DLSS-G (x2-x4); RTX 40, DLSS SR + Reflex + DLSS
-  Frame Generation (Smooth Motion como alternativa en el selector); RTX 20/30, DLSS SR + Reflex (FSR 3 FG opcional; en RTX 30 también
-  DLSS FG por Magpie con DLSS 5); sin DLSS, **XeSS** en GTX e Intel Arc y **FSR 4** en AMD RX 6000 / 7000 /
-  9000 (oficial en las RX 9000; en RX 6000 / 7000 con el desbloqueo de FSR 4.1.1 del Magpie que trae la app, experimental; si no,
-  FSR 3.1), y la generación que tenga cada una (AFMF del driver, FSR 3 FG, XeSS FG).
+- **Cadena según la gráfica** (`src\Deteccion\Plan.cs`): RTX 40 / 50, DLSS SR + Reflex + **Smooth Motion** ×2 (XeSS FG ×2 con la tele
+  a 119,88 Hz o un driver sin Smooth Motion; XeSS FG y FSR 3 FG en el selector); RTX 20/30, DLSS SR + Reflex (XeSS FG / FSR 3 FG
+  opcionales); sin DLSS, **XeSS** en GTX e Intel Arc y **FSR 4** en AMD RX 6000 / 7000 / 9000 (oficial en las RX 9000; en RX 6000 /
+  7000 con el desbloqueo de FSR 4.1.1, experimental; si no, FSR 3.1), y la generación que tenga cada una (AFMF del driver, FSR 3 FG,
+  XeSS FG).
 - **Motor de imagen propio** (D3D12, `src\Motor`), el camino del juego siempre que se pueda (no hay nada que elegir): captura
-  DirectShow; escalado con DLSS, XeSS, FSR 3.1 / FSR 4 (con las DLL de Intel y AMD que trae Magpie) o FSR 1 (EASU + RCAS); generación
-  de fotogramas con DLSS FG (×2; ×3 / ×4 en RTX 50 por la vía oficial de NVIDIA), **XeSS FG ×2** (sin DLSS 5), Smooth Motion, **FSR 3
-  FG en cualquier gráfica** y, solo como último recurso para ×3 / ×4, **su generación propia** (sale como «x4 (FG propia)»;
-  `motor_fg_propia=0` la quita); Reflex / XeLL; y, si quieres, la Vibrancia RTX de NVIDIA (`motor_extra=vibrancia=1`). Para lo que el
-  motor no hace (NVIDIA VFG, RTX Video, FSR 3 FG junto con DLSS), para lo que no hace tan bien como la 1.2.3 (XeSS FG junto con DLSS 5,
-  XeSS FG ×3 / ×4 fuera de las gráficas Intel, su ×3 / ×4 propia con DLSS 5) y para DLSS 5 cuando el motor no puede, entran mpv + Magpie
-  solos, como en la 1.2.3. El color de las capturadoras YUY2 / NV12 se
-  reconstruye bien, sin bordes rojos en escalones (`croma=2` en `motor_extra`; `croma=0` = como antes).
+  DirectShow; escalado con DLSS, XeSS, FSR 3.1 / FSR 4 (con las DLL oficiales de Intel y AMD, que se bajan la primera vez) o FSR 1
+  (EASU + RCAS); generación de fotogramas ×2 con **Smooth Motion** (driver de NVIDIA, RTX 40 / 50), **XeSS FG** y **FSR 3 FG en
+  cualquier gráfica** (también con DLSS de escalador), todas también con "DLSS 5"; Reflex / XeLL; y, si quieres, la Vibrancia RTX de
+  NVIDIA (`motor_extra=vibrancia=1`). El color de las capturadoras YUY2 / NV12 se reconstruye bien, sin bordes rojos en escalones
+  (`croma=2` en `motor_extra`; `croma=0` = como antes).
 - **Escalas que se adaptan a tu PC** (`escalas_adaptables=1`, de serie): el asistente estima el modelo de DLSS y los porcentajes para tu
   gráfica y tu pantalla; jugando, el motor mide el tiempo de gráfica cada segundo y baja la calidad si no llega (en 2 s) o la sube poco
-  a poco si sobra (tras 20 s), y lo recuerda para la próxima vez (`data\scales_engine.txt`). Con "DLSS 5" por Magpie, **la escala de
-  DLSS 5 sigue a toda la cadena**: sale de la captura, la tele, el modo 30 / 60 / 120, el tipo de generación, el modelo de DLSS y las
-  pasadas, a la medida de tu gráfica (un modelo de DLSS más ligero deja sitio a más DLSS 5), y se ajusta jugando
-  (`dlss5_escala_auto=1`; 0 = las tablas fijas). Bandeja > Imagen > *Escalas que se adaptan solas* / *Olvidar las escalas aprendidas*.
-  Con el extra "DLSS 5" en el motor hay además un **freno de emergencia**: si la gráfica va muy por encima de lo que cabe, quita una
-  pasada o baja el % de golpe (para no atascar la gráfica) y eso queda como lo aprendido.
-- **Comprueba que se llegan los fps** (motor propio y mpv + Magpie): si no se llega a los fps del modo (o a los de salida con la
+  a poco si sobra (tras 20 s), y lo recuerda para la próxima vez (`data\scales_engine.txt`). Bandeja > Imagen > *Escalas que se
+  adaptan solas* / *Olvidar las escalas aprendidas*. Con el extra "DLSS 5" hay además un **freno de emergencia**: si la gráfica va muy
+  por encima de lo que cabe, quita una pasada o baja el % de golpe (para no atascar la gráfica) y eso queda como lo aprendido.
+- **Comprueba que se llegan los fps** (motor propio): si no se llega a los fps del modo (o a los de salida con la
   generación) por culpa del PC (no del juego de la consola), actúa en segundos: primero la escala de DLSS 5, luego una pasada menos, un
   modelo de DLSS más ligero, una generación más barata y solo después DLSS 5 fuera, 120 → 60, captura más baja, 60 → 30 con generación.
   Un aviso dice qué ha cambiado ("No se llega a 60 fps (52) · DLSS 5 al 50 % → 40 %"). Si sobra gráfica unos minutos, la escala de
   DLSS 5 vuelve a subir la próxima vez que entres al juego, nunca a un valor que ya falló. Se recuerda por juego y gráfica
   (`data\scales_auto.txt`).
 - **Motor de reserva** (`motor_reserva=1`): jugando, queda preparado en segundo plano un motor con el otro tipo de generación del modo
-  (Smooth Motion / DLSS FG), y cambiar entre ellos pasa de 4-5 s a ~0,5 s. `motor_reserva=0` lo quita (ocupa ~0,9 GB de memoria
-  gráfica).
+  (XeSS FG si juegas con Smooth Motion; Smooth Motion si juegas con XeSS FG o FSR 3 FG), y cambiar entre ellos pasa de 4-5 s a ~0,5 s.
+  `motor_reserva=0` lo quita (ocupa ~0,9 GB de memoria gráfica).
 - **No se cierra sola si la gráfica se para**: si la imagen deja de avanzar con la consola encendida (la gráfica atascada o reiniciada,
   el motor cambiando de ajustes), la app lo distingue de la consola apagada (el motor avisa, la capturadora le sigue mandando imágenes o
   la consola sigue sonando), espera y, si dura más de 8 s, vuelve a abrir solo la imagen (*Recuperando la imagen*). Con la consola
@@ -705,24 +675,15 @@ y contar en qué PC y con qué consola lo usas.
 - **VRR** (`vrr=auto`): se enciende solo si la pantalla tiene VRR (G-SYNC / G-SYNC Compatible / FreeSync / HDMI VRR) y Windows y el
   driver lo permiten; en AMD / Intel, actívalo en el asistente (`vrr=1`). También en bandeja > Imagen > VRR. Encendido, el motor propio
   presenta cada imagen en cuanto la acaba (sin esperar al refresco) y, con la generación, sincroniza solo donde haría falta
-  (`motor_vrr_fg_vsync=-1`); solo si la pantalla dice tener VRR, para no dar cortes en una que no lo tenga. En el modo 60 con DLSS FG y
-  una pantalla de 120 Hz con G-SYNC, el motor va con **refresco fijo** (G-SYNC apagado solo en el perfil de NVIDIA de su exe mientras
+  (`motor_vrr_fg_vsync=-1`); solo si la pantalla dice tener VRR, para no dar cortes en una que no lo tenga. En el modo 60 con XeSS FG o
+  FSR 3 FG y una pantalla de 120 Hz con G-SYNC, el motor va con **refresco fijo** (G-SYNC apagado solo en el perfil de NVIDIA de su exe mientras
   juegas así; se quita al salir, y si la app se cae, al volver a abrirla): con G-SYNC, Reflex limita la salida a ~116 imágenes/s y se
   perdían ~2 imágenes de la consola por segundo; así salen todas y con menos retraso (`motor_60fg_refresco_fijo=auto`; con 144 Hz o
   más, a 119,88 Hz, sin VRR o sin NVIDIA no se toca nada).
 - **Selector de generación de fotogramas**: L3 jugando (o Ctrl+G con el teclado sobre la imagen, el menú de ajustes o la bandeja)
-  recorre los tipos que tiene tu gráfica y lo recuerda por juego. Solo se ofrece lo que llega a ritmo.
-- **Generación ×2 / ×3 / ×4** (DLSS FG y XeSS FG): la fila *Multiplicador* del menú de ajustes, la bandeja o Ctrl+X. ×3 / ×4 solo si
-  caben en tu pantalla (fps reales × multiplicador ≤ refresco: con una tele de 120 Hz, el modo 30 da 90 / 120 fps); si no, salen
-  bloqueados con el motivo. Se guarda por juego y modo; si no se llega a la salida, lo primero que baja es el multiplicador.
-  ×3 / ×4: DLSS FG ×3 / ×4 de NVIDIA van por el motor (RTX 50; RTX 40 con `engine\PrismaFg.dll` y tu `dlssg_sm86`) y XeSS FG ×3 / ×4
-  de Intel por el motor en gráficas Intel; en las demás gráficas XeSS FG ×3 / ×4 van por Magpie, como en la 1.2.3 (la generación propia
-  del motor emborronaba la interfaz y el texto con imagen real de la consola). La generación propia (**«x4 (FG propia)»**) solo se usa
-  cuando no hay otra (`motor_xefg_propia=1` la usa para XeSS FG ×3 / ×4). Por Magpie, DLSS 5 se deja al 35 % o más con ×3 / ×4, o se
-  quita con ese multiplicador si no cabe.
-- **Protección**: si una combinación no llega a las imágenes reales del modo, la app baja lo que menos se nota (escala y pasadas de
-  DLSS 5, multiplicador, modelo de DLSS SR...), lo dice y lo recuerda para ese juego y ajustes 7 días. Lo elegido a mano siempre se
-  prueba. `proteccion=0` la quita.
+  recorre los tipos que tiene tu gráfica (Smooth Motion, XeSS FG, FSR 3 FG) y lo recuerda por juego. Solo se ofrece lo que llega a
+  ritmo. La generación es siempre ×2: desde la 1.2.4 no hay DLSS Frame Generation ni ×3 / ×4 (no iban bien); los perfiles y ajustes que
+  los usaban pasan solos al tipo más parecido (en NVIDIA, Smooth Motion) y conservan todo lo demás.
 - **Modo 120 fps (esports)**: para los juegos de 120 Hz de la consola, captura a 120 sin generación de fotogramas y con el menor
   retraso. El botón de modo pasa 30 → 60 → 120 solo si la consola saca 120, la tele va a **120 Hz o más** y la captura de ahora es una
   que tu capturadora da a 120 (normalmente **1080p o 1440p**; el asistente lo lee de la capturadora, capturas_120). A 4K sigue 30 ↔ 60:
@@ -754,7 +715,7 @@ y contar en qué PC y con qué consola lo usas.
   30 / 60 / 120, captura 720p / 1080p / 1440p / 4K, DLSS 5 (sí / no, nivel, pasadas), escalador alternativo, filtro de tramado, *Ver lo
   que va puesto (en pantalla)* y el menú de ajustes; además las opciones de Imagen, de inicio y de apagado, el asistente, los
   componentes, Añadir / Quitar DLSS 5, Acerca de y licencias y el enlace de Ko-fi. Para cuando no hay mando conectado al PC.
-- **Atajos de teclado** sobre la imagen de la consola: Ctrl+F, Ctrl+G, Ctrl+X, Ctrl+M, Ctrl+1…4, Ctrl+R, Ctrl+D, Ctrl+I, Ctrl+O, Alt+F4 (ver
+- **Atajos de teclado** sobre la imagen de la consola: Ctrl+F, Ctrl+G, Ctrl+M, Ctrl+1…4, Ctrl+R, Ctrl+D, Ctrl+I, Ctrl+O, Alt+F4 (ver
   [Controles](#controles)). Siguen funcionando con Joyxoff y programas parecidos abiertos.
 - **Cerrar**: bandeja > Salir, Alt+F4, la X de la ventana o cerrarla desde la barra de tareas cierra la app entera (no se toma por un
   corte de la señal). La tecla Windows, el menú Inicio, la barra de tareas y Alt+Tab funcionan normal mientras juegas.
@@ -774,12 +735,13 @@ y contar en qué PC y con qué consola lo usas.
 - **`ConsoleEnhancer Settings.exe`** junto a `ConsoleEnhancer.exe` (sustituye a `Inicio y apagado.bat`): todo lo anterior más DLSS 5,
   componentes, registros, las pruebas del aviso y de la espera y desinstalar, en una ventana. Si la app está abierta, ofrece reiniciarla
   para aplicar los cambios.
-- **Componentes**: mpv y Magpie se bajan una vez de sus páginas oficiales comprobando su SHA-256 (sin internet, con los zip en
-  `downloads\`); bandeja > *Componentes: comprobar / volver a descargar* los repara.
+- **Componentes**: mpv, Intel XeSS y AMD FSR se bajan una vez de sus páginas oficiales comprobando su SHA-256 (sin internet, con los
+  zip en `downloads\`; si en la carpeta de la app queda un `magpie\` de una versión anterior, de ahí salen los archivos de Intel y AMD
+  sin bajar nada); bandeja > *Componentes: comprobar / volver a descargar* los repara.
 - **Al actualizar no pierdes nada**: la primera vez que se abre una versión nueva, copia los ajustes, los perfiles de cada juego y la
-  consola reconocida de la carpeta de la versión anterior (se apunta en `data\inherited.txt`), reutiliza mpv, Magpie y los shaders ya
-  compilados (primer arranque de ~1 min a ~11 s) y pone los ajustes generales nuevos sin tocar lo que eligió el asistente (copia en
-  `.antes-*`).
+  consola reconocida de la carpeta de la versión anterior (se apunta en `data\inherited.txt`), reutiliza los componentes ya bajados y
+  los shaders ya compilados (primer arranque de ~1 min a ~11 s) y pone los ajustes generales nuevos sin tocar lo que eligió el asistente
+  (copia en `.antes-*`).
 - **Portable**: con `portable.txt` junto al exe (viene en el zip), todo se guarda en `data\`; si lo borras, en
   `%LOCALAPPDATA%\ConsoleEnhancer`.
 - **Interfaz en español e inglés**, a elegir en el primer paso del asistente.
@@ -801,7 +763,7 @@ cambia en el asistente, en bandeja > *Al apagar la consola, el PC* (con *¿Cómo
 **No** es suspender ni apagar: el PC sigue encendido, así que no hace falta "encenderlo" otra vez. Al apagar la consola:
 
 1. Sin cuenta atrás: una cubierta negra sin cursor tapa todas las pantallas al momento (la barra de tareas se queda oculta), la
-   pantalla se apaga, ConsoleEnhancer se cierra (con mpv, Magpie y el motor) y Windows pasa a un plan de bajo consumo temporal
+   pantalla se apaga, ConsoleEnhancer se cierra (con mpv y el motor) y Windows pasa a un plan de bajo consumo temporal
    (*Economizador* con el procesador al 50 % y sin turbo, `espera_cpu_max`; se borra al despertar), así que la CPU y la gráfica bajan a
    lo mínimo (la gráfica queda en reposo, en P8; una RTX 4060 Ti midió 8,5-9 W con la pantalla apagada).
 2. Solo queda un vigilante muy pequeño, en su propio proceso (un 0,1 % de un núcleo, prioridad baja, EcoQoS, sin subir el temporizador
@@ -827,7 +789,7 @@ todo el día), pero es el único modo en el que basta con encender la consola pa
 
 ## DLSS 5 (opcional)
 
-"DLSS 5" es como la comunidad llama a un filtro neuronal de NVIDIA (DLSSNR, el de Magpie) que redibuja la imagen de la consola con más
+"DLSS 5" es como la comunidad llama a un filtro neuronal de NVIDIA (DLSSNR) que redibuja la imagen de la consola con más
 detalle, antes del escalado. **No es una función oficial de NVIDIA y no viene con ConsoleEnhancer**: necesita `nvngx_dlssnr.dll`, una
 DLL de NVIDIA modificada por la comunidad, sin firma ni licencia, que no se puede repartir. Por eso la app **no la incluye, no la
 descarga ni dice de dónde sacarla**. Todo lo demás (DLSS, generación de fotogramas, HDR, VRR...) funciona igual sin ella.
@@ -842,37 +804,37 @@ Si ya tienes tu propio archivo, añadirlo es un clic:
    primero el que vale para tu gráfica y eliges tú (o *Elegir otro archivo…*). No se descarga nada. Si al abrir la app falta DLSS 5,
    busca una vez y pregunta antes.
 3. La app comprueba que es una DLL de Windows de 64 bits con ese nombre, te dice si es la original de NVIDIA (firma válida) o la
-   modificada por la comunidad (sin firma) y la copia a `extras\` junto al exe. Si también tienes el paquete de la comunidad
-   `dlssg_sm86` (la app **no lo trae ni lo baja**), se puede copiar a `extras\runtimes\dlssg_sm86`: da DLSS FG ×3 / ×4 en el motor en
-   RTX 40 (y DLSS FG por Magpie); sin él, ×3 / ×4 van con la generación propia del motor.
+   modificada por la comunidad (sin firma) y la copia a `extras\` junto al exe.
 4. Dices si lo enciendes ya. Jugando se enciende y se apaga con el botón **A** del mando (X / Y / B: pasadas; L1 / L2 / R2 / R1: nivel).
 
 Para quitarlo: icono de la bandeja > **Quitar DLSS 5** (borra la copia de `extras\`; tu archivo original no se toca).
 
 Tus archivos de DLSS 5 se guardan también en `%LOCALAPPDATA%\ConsoleEnhancer\extras`, así que una versión nueva descomprimida en otra
 carpeta los recoge sola. Con tu archivo, DLSS 5 va dentro del motor propio (`engine\PrismaNr.dll`, que viene con la app desde la 1.2.4;
-1 a 3 pasadas): mucho menos retraso (4K, modo 30 + DLSS FG ×2: 43 ms en vez de ~72 la imagen real; 1080p → 4K con 2 pasadas: 37 en vez
-de ~52) y un ritmo más regular. No hay nada que elegir. `motor_dlss5_pasadas=1` manda las 2-3 pasadas a Magpie, como en la 1.2.3.
+1 a 3 pasadas, con cualquier tipo de generación): mucho menos retraso que por Magpie en la 1.2.3 (medido entonces a 4K, modo 30 +
+generación ×2: 43 ms en vez de ~72 la imagen real; 1080p → 4K con 2 pasadas: 37 en vez de ~52) y un ritmo más regular. No hay nada que
+elegir.
 
 ## DLSS 5 y la ley
 
 En corto y neutro (es lo que dicen las licencias; no es asesoramiento legal):
 
-- **Lo que reparte ConsoleEnhancer**: su propio código (GPL-3.0) y las DLL oficiales de NVIDIA de Streamline / DLSS SR / DLSS FG /
-  Reflex / Vibrancia RTX, sin cambios, que NVIDIA deja repartir dentro de una app. mpv y Magpie los baja de sus páginas oficiales.
-- **Desde la 1.2.4 el repositorio y el zip llevan también `PrismaNr` y `PrismaFg`**, las piezas nativas propias del motor (código
-  propio). Cargan los archivos que pones tú (`nvngx_dlssnr.dll`, el paquete `dlssg_sm86`) sin pasar por la comprobación de NVIDIA (NGX),
-  cosa que los términos de NVIDIA no permiten. El usuario decidió publicarlas sabiéndolo. Sin tus archivos no hacen nada. PrismaNr se
-  compila con las cabeceras públicas de NGX de NVIDIA, que solo se usan para compilar y no van en el repositorio.
-- **Lo que no reparte, no baja ni enlaza nunca**: `nvngx_dlssnr.dll` ("DLSS 5"), el paquete `dlssg_sm86` ni ningún archivo de NVIDIA
-  modificado. *Añadir DLSS 5* solo mira en tu propio PC. Cada uno pone el suyo, bajo su responsabilidad.
+- **Lo que reparte ConsoleEnhancer**: su propio código (GPL-3.0) y las DLL oficiales de NVIDIA de Streamline / DLSS SR / Reflex /
+  Vibrancia RTX, sin cambios, que NVIDIA deja repartir dentro de una app. mpv y los archivos de XeSS / FSR de Intel y AMD los baja de
+  sus páginas oficiales.
+- **Desde la 1.2.4 el repositorio y el zip llevan también `PrismaNr`**, la pieza nativa propia del motor (código propio). Carga el
+  archivo que pones tú (`nvngx_dlssnr.dll`) sin pasar por la comprobación de NVIDIA (NGX), cosa que los términos de NVIDIA no permiten.
+  El usuario decidió publicarla sabiéndolo. Sin tu archivo no hace nada. Se compila con las cabeceras públicas de NGX de NVIDIA, que
+  solo se usan para compilar y no van en el repositorio.
+- **Lo que no reparte, no baja ni enlaza nunca**: `nvngx_dlssnr.dll` ("DLSS 5") ni ningún archivo de NVIDIA modificado. *Añadir DLSS
+  5* solo mira en tu propio PC. Cada uno pone el suyo, bajo su responsabilidad.
 - **DLSS 5 legal hoy no existe fuera de los juegos de NVIDIA**: NVIDIA solo lo ha sacado dentro de los juegos que lo traen, solo en
   RTX 50, sin SDK ni plugin de Streamline para otras apps (comprobado el 22-11-2026: la vía pública de NGX responde "please update display
   driver" con el driver de ahora, y uno nuevo solo aceptaría la original firmada de NVIDIA, que solo funciona en RTX 50). La DLL que
   circula para RTX 20 / 30 / 40 es un binario de NVIDIA modificado.
-- Lo que tiene cualquier RTX de forma oficial en el motor: DLSS Super Resolution, DLSS Frame Generation (RTX 40 / 50; ×3 / ×4 en RTX 50),
-  Reflex y, si quieres, la Vibrancia RTX (no es DLSS 5: da color y claridad, no cambia la luz). La generación propia del motor (código
-  propio) da ×3 / ×4 en cualquier gráfica sin nada de NVIDIA, AMD ni Intel.
+- Lo que tiene cualquier RTX de forma oficial en el motor: DLSS Super Resolution, Reflex, el Smooth Motion del driver (RTX 40 / 50) y,
+  si quieres, la Vibrancia RTX (no es DLSS 5: da color y claridad, no cambia la luz).
+
 ## Preguntas frecuentes y problemas comunes
 
 **Windows o el antivirus no me deja abrirlo / Microsoft Defender ha borrado ConsoleEnhancer.exe.** Los exe aún no van firmados, así
@@ -888,10 +850,10 @@ copiada) y, si puedes, avisa a Microsoft del falso positivo en https://www.micro
 as malware/malicious"). Cada release publica el SHA-256 del zip y de cada fichero de dentro (`.files.sha256`), y puedes compilarlo tú
 (ver *Para desarrolladores*).
 
-**Se queda la imagen pero sin sonido y el mando no hace nada.** Microsoft Defender cerró la app mientras mpv y Magpie seguían
+**Se queda la imagen pero sin sonido y el mando no hace nada.** Microsoft Defender cerró la app mientras mpv y el motor seguían
 enseñando la imagen: mira la respuesta anterior (la app también lo explica la próxima vez que se abre).
 
-**La descarga de mpv / Magpie falla.** Hace falta internet una vez. Con proxy o sin conexión: baja los dos zip que enlaza la ventana
+**La descarga de mpv / XeSS / FSR falla.** Hace falta internet una vez. Con proxy o sin conexión: baja los zip que enlaza la ventana
 (también en `licenses\VERSIONS.txt`) en otro PC y ponlos en una carpeta `downloads\` junto a `ConsoleEnhancer.exe`; se comprueban
 igual. Si dice que no puede escribir, la carpeta es de solo lectura (Archivos de programa): muévela a una tuya.
 
@@ -924,7 +886,7 @@ dice el motivo ("NO es la consola apagada: ...").
 la carga (Windows lo apunta como el evento 153 de `nvlddmkm` en *Visor de eventos > Sistema*). Un **overclock de la memoria de la
 gráfica** (por ejemplo, subir el reloj de la memoria en MSI Afterburner) puede provocarlo con DLSS 5 y la generación de fotogramas aunque
 los juegos vayan bien: deja la memoria a su velocidad de serie y vuelve a probar. Desde la 1.2.4 la app deja la última imagen en pantalla
-mientras se recupera y, si pasa con XeSS FG o con la generación propia del motor, esa generación va por Magpie el resto de la sesión.
+mientras se recupera y, si pasa con XeSS FG, el resto de la sesión va con otro tipo de generación en el motor.
 
 **Se me ha quedado el escritorio en negro.** `ConsoleEnhancer.exe --restaurar-escritorio`.
 
@@ -935,7 +897,7 @@ tuyo que no quieras enseñar, como nombres de carpetas).
 **¿Y "DLSS 5"?** Es una DLL de NVIDIA modificada por la comunidad: **no viene, no se baja y no se recomienda**. La app funciona
 entera sin ella; si ya la tienes, mira [DLSS 5 (opcional)](#dlss-5-opcional).
 
-**¿Se ha estropeado mpv o Magpie?** Icono de la bandeja > **Componentes: comprobar / volver a descargar**: dice qué falta y los vuelve a
+**¿Se ha estropeado mpv, XeSS o FSR?** Icono de la bandeja > **Componentes: comprobar / volver a descargar**: dice qué falta y los vuelve a
 bajar de sus páginas oficiales.
 
 **"Apagar el PC al apagar la consola" me ha cerrado cosas.** En el modo *Apagar* apaga Windows de verdad tras la cuenta atrás: guarda
@@ -954,16 +916,15 @@ consumo en `ConsoleEnhancer Settings.exe` > *Probar el modo espera*.
 - **Licencia**: ConsoleEnhancer es software libre bajo la **GPL-3.0** (`LICENSE`), **sin ninguna garantía**, con un permiso adicional de
   la sección 7 para usarlo con las librerías oficiales de NVIDIA, AMD, Intel y Microsoft (`LICENSE-EXCEPTION.txt`). Código de terceros,
   versiones y licencias: [`THIRD-PARTY.md`](THIRD-PARTY.md) y `licenses\` en el zip.
-- **Lo que va en el zip**: la app (con `PrismaNr.dll` / `PrismaFg.dll` del motor, ver [DLSS 5 y la ley](#dlss-5-y-la-ley)) y las DLL
+- **Lo que va en el zip**: la app (con `PrismaNr.dll` del motor, ver [DLSS 5 y la ley](#dlss-5-y-la-ley)) y las DLL
   de NVIDIA Streamline / DLSS / Reflex / Vibrancia RTX, sin cambios y firmadas por NVIDIA, que
   NVIDIA deja repartir dentro de una aplicación; sus condiciones (no venderlas sueltas, no hacer ingeniería inversa...) están en
   `licenses\NVIDIA-NOTICE.txt` y valen también para ti.
-- **mpv y Magpie no los reparte ConsoleEnhancer**: los baja la app de sus releases oficiales, con sus licencias (GPL) y su código fuente
-  en sus páginas.
+- **mpv, Intel XeSS y AMD FSR no los reparte ConsoleEnhancer**: los baja la app de sus releases oficiales, con sus licencias (mpv: GPL,
+  con su código fuente en su página; XeSS: Intel Simplified Software License; FSR: MIT).
 - **"DLSS 5" no se incluye.** `nvngx_dlssnr.dll` es una DLL de NVIDIA modificada por la comunidad, sin firma ni licencia, y
   no está en el repositorio ni en el zip, la app no la baja, y su uso puede ir contra las condiciones de NVIDIA. Si ya la tienes, puedes
-  añadirla tú (bandeja > *Añadir DLSS 5*, que la copia a `extras\`) bajo tu responsabilidad: la app avisa de que no es oficial. El paquete
-  `dlssg_sm86` que necesita el DLSS FG de Magpie no va en el zip y, desde la 1.2.4, la app tampoco lo baja. Mira
+  añadirla tú (bandeja > *Añadir DLSS 5*, que la copia a `extras\`) bajo tu responsabilidad: la app avisa de que no es oficial. Mira
   [DLSS 5 y la ley](#dlss-5-y-la-ley).
 - **Autor**: ConsoleEnhancer lo crea y mantiene **IanRog29** (con las aportaciones de sus colaboradores). Copyright (C) 2026 IanRog29 y
   colaboradores de ConsoleEnhancer.
@@ -971,7 +932,7 @@ consumo en `ConsoleEnhancer Settings.exe` > *Probar el modo espera*.
 - **Marcas**: NVIDIA, GeForce RTX, DLSS, Reflex, AMD, FSR, FidelityFX, Intel, XeSS, Nintendo, PlayStation, Xbox, Windows y demás son de
   sus dueños; se nombran solo para describir compatibilidad. ConsoleEnhancer no está afiliado, patrocinado ni respaldado por ninguno.
   Usa NVIDIA DLSS, NVIDIA Reflex y NVIDIA Streamline.
-- **Privacidad**: la app no manda nada a ningún sitio. Solo se conecta a internet para bajar mpv y Magpie de GitHub la primera vez.
+- **Privacidad**: la app no manda nada a ningún sitio. Solo se conecta a internet para bajar mpv, XeSS y FSR de GitHub la primera vez.
 - **Contenido**: muestra en tu pantalla la imagen de tu consola; no graba, no emite y no quita el HDCP.
 
 ## Para desarrolladores
@@ -984,24 +945,23 @@ para abrir. `preparar.bat paquete` además monta el zip de la release en `dist\`
 Paso a paso:
 
 ```bat
-powershell -ExecutionPolicy Bypass -File scripts\descargar_dependencias.ps1   :: terceros\mpv, terceros\magpie, terceros\streamline
-build.bat                       :: bin\ConsoleEnhancer.exe (src\Lanzador + src\Deteccion) y bin\ listo (mpv y magpie enlazados a terceros\)
+powershell -ExecutionPolicy Bypass -File scripts\descargar_dependencias.ps1   :: terceros\mpv, terceros\xess, terceros\fsr, terceros\streamline
+build.bat                       :: bin\ConsoleEnhancer.exe (src\Lanzador + src\Deteccion) y bin\ listo (mpv, xess y fsr enlazados a terceros\)
 build_motor.bat                 :: bin\engine\ConsoleEnhancerEngine.exe (src\Motor) + DLL de Streamline
 powershell -ExecutionPolicy Bypass -File scripts\descargar_cabeceras_ngx.ps1   :: terceros\dlss_sdk (2 cabeceras de NGX / NGX headers)
 build_prismanr.bat              :: bin\engine\PrismaNr.dll (C++, Visual Studio)
-build_prismafg.bat              :: bin\engine\PrismaFg.dll (C++, Visual Studio)
 tests\build_deteccion.bat       :: tests\bin\DeteccionTest.exe
 tests\bin\DeteccionTest.exe --simula=todo --sin-d3d12 --salida=deteccion.txt   :: 23 PCs simulados
 powershell -ExecutionPolicy Bypass -File scripts\empaquetar.ps1 -Zip -Version v1.2.4   :: dist\ConsoleEnhancer\ y dist\ConsoleEnhancer-v1.2.4.zip
 ```
 
-- **Las piezas nativas propias del motor** (`src\PrismaNr`, `src\PrismaFg`, C++): necesitan Visual Studio 2022 (o sus Build Tools) con
-  C++, y PrismaNr además las dos cabeceras públicas de NGX de NVIDIA (`scripts\descargar_cabeceras_ngx.ps1`, versión fija y SHA-256; no
-  van a git). La app va sin ellas; el paquete las necesita (`preparar.bat` las compila si está Visual Studio).
+- **La pieza nativa propia del motor** (`src\PrismaNr`, C++): necesita Visual Studio 2022 (o sus Build Tools) con C++ y las dos
+  cabeceras públicas de NGX de NVIDIA (`scripts\descargar_cabeceras_ngx.ps1`, versión fija y SHA-256; no van a git). La app va sin
+  ella; el paquete la necesita (`preparar.bat` la compila si está Visual Studio).
 - **Dependencias**: la tabla `scripts\components.json` (versión, URL, SHA-256 y qué se coge de cada zip) la usan
   `descargar_dependencias.ps1` y la propia app. Para cambiar de versión, se cambia ahí.
 - **Paquete** (`scripts\empaquetar.ps1`): lista blanca. Lleva la app, el motor con Streamline / DLSS, scripts, languages, resources y
-  licencias; **no** lleva mpv ni Magpie (los baja la app) ni nada no redistribuible, y comprueba que no hay datos del PC donde se monta
+  licencias; **no** lleva mpv, XeSS ni FSR (los baja la app) ni nada no redistribuible, y comprueba que no hay datos del PC donde se monta
   (tu usuario, el nombre del equipo y lo que pongas en `scripts\privado.txt`, que no va a git).
 - **GitHub Actions** (`.github/workflows/compilar.yml`): compila y pasa las pruebas en cada push; con una etiqueta `v*` monta el zip y
   crea la Release con él y su `.sha256`.
@@ -1012,9 +972,9 @@ powershell -ExecutionPolicy Bypass -File scripts\empaquetar.ps1 -Zip -Version v1
 | `--datos=<carpeta>` | Otra carpeta de datos (ini, log, juegos): no toca los de verdad |
 | `--asistente-auto` | Escribe el ini con el plan de la detección (escalas estimadas, imagen, mando), sin preguntar |
 | `--simula=<caso>` | Con `--asistente-auto`: el plan de otro PC (`amd-rx7800xt`, `intel-arc-b580`, `rtx3060`, `sin-nvidia`...) |
-| `--dry-run` | Prepara la copia de Magpie y apunta en el log la cadena y la línea de mpv, sin lanzar nada |
-| `--componentes=<carpeta>` | Baja e instala mpv y Magpie en esa carpeta sin preguntar (o con los zip de `<carpeta>\downloads`) e informa en `componentes.log` |
-| `--componentes-reparar` | Vuelve a bajar mpv y Magpie aunque estén bien (lo que hace bandeja > *Componentes: comprobar / volver a descargar*) |
+| `--dry-run` | Apunta en el log la cadena y las líneas de órdenes, sin lanzar nada |
+| `--componentes=<carpeta>` | Baja e instala mpv, XeSS y FSR en esa carpeta sin preguntar (o con los zip de `<carpeta>\downloads`) e informa en `componentes.log` |
+| `--componentes-reparar` | Vuelve a bajar mpv, XeSS y FSR aunque estén bien (lo que hace bandeja > *Componentes: comprobar / volver a descargar*) |
 | `--ui-preview=asistente;<carpeta>` | Imágenes de los 9 pasos del asistente (es / en), sin abrir nada |
 | `--ui-preview=apagado;<carpeta>` | Imágenes del aviso de apagado |
 | `--prueba-apagado[=<s>[;fuera]]` | La cuenta atrás de verdad; al acabar solo apunta "SIMULADO" en el log |
@@ -1028,14 +988,14 @@ powershell -ExecutionPolicy Bypass -File scripts\empaquetar.ps1 -Zip -Version v1
 **Estructura**
 
 ```
-src\Lanzador\   la app de bandeja (C# 5, WinForms): mpv, Magpie, el motor, mandos, telón, asistente, componentes, inicio y apagado,
+src\Lanzador\   la app de bandeja (C# 5, WinForms): mpv, el motor, mandos, telón, asistente, componentes, inicio y apagado,
                 extras del usuario (Añadir / Quitar DLSS 5) y el enlace de apoyo (Extras.cs)
 src\Deteccion\  detección de gráfica, pantallas, capturadoras, audio y mandos; el plan de imagen; PCs simulados
 src\Motor\      el motor de imagen D3D12 (captura, DLSS / XeSS / FSR, generación, Reflex, OSD)
 scripts\        components.json, descargar_dependencias.ps1, empaquetar.ps1
 resources\       base.ini (ajustes de partida), icono
 languages\        en.txt (textos de pantalla en inglés)
-parches\        cambios de código fuente para Magpie (GPL-3.0), opcionales
+parches\        parches de código fuente para código de terceros, opcionales (parches\LEEME.txt)
 tests\          DeteccionTest
 DISENO.md       diseño y decisiones; LEEME.txt: estado, lo probado y lo que falta
 ```

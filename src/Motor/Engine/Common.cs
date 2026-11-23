@@ -94,7 +94,7 @@ namespace ConsoleEnhancer.Motor
         public bool NrBlendDirect = true;           // 20-11 (LATENCIA7) dlss5_mezcla_directa=0: la mezcla a una textura aparte y su copia a inColor (como antes)
         public int NrStyle = 2, NrPreset = 2;
         public bool NrMask = true, NrUi = true;
-        public string NrDir = "";   // ConsoleEnhancer: la carpeta magpie de la app (el lanzador la pasa con dlss5_dir)
+        public string NrDir = "";   // ConsoleEnhancer: la carpeta de nvngx_dlssnr.dll (extras de la app; el lanzador la pasa con dlss5_dir)
         public int Reflex = 1;                      // 0 off, 1 baja latencia, 2 + boost
         public int Mode = 60;                       // 60 | 30 | 120 (30: solo imagenes nuevas; 120: esports, captura a 120, sin generacion, minimo proceso)
         public bool Is120 { get { return Mode >= 120; } }   // 20-11 (HZ120): modo 120 fps de baja latencia
@@ -227,6 +227,8 @@ namespace ConsoleEnhancer.Motor
         public bool FgVecSmooth = false;            // 17-11 15:10 fg_vectores_suave=1: fg_vectores=2 con interpolacion bilineal entre bloques (sin escalones de 8 px)
         public double FgVecGate = 0;                // 17-11 15:10 fg_vectores_puerta=px: fg_vectores=2, las muestras pesan menos cuanto mas se separan del vector del punto (0 = sin puerta)
         public int FgVecRad = 4;                    // 17-11 13:40 (REJAS) fg_vectores_radio=R: fg_vectores=2, (2R+1)^2 muestras cada 8 px
+        // (1.2.4 ronda 6, QUITAFG: fg_vectores_completos, fg_relleno* y fg_borde* eran solo de DLSS-G: ya no hacen nada -EngineFgRelleno.cs y
+        // EngineFgBorde.cs fuera-; se siguen leyendo para no dar "Ajuste desconocido")
         public int FgVecFull = 0;                   // 20-11 (FGFALLOS) fg_vectores_completos=1: DLSS-G con los vectores completos por punto del motor donde DLSS 5 ya los hace (modo 30, entrada >= mv_ligero); 2: tambien donde haya mvpx (EngineMotion.cs FgVecFullNow)
         public bool FgFill = true;                  // 21-11 (FG21) fg_relleno=1: con fg_vectores_completos, lo liso con vector 0 sigue a lo de alrededor (solo DLSS-G; EngineFgRelleno.cs)
         public double FgFillFlat = 3, FgFillTie = 2;   // fg_relleno_liso (desviacion media de la luma del bloque, niveles), fg_relleno_empate (niveles)
@@ -234,21 +236,8 @@ namespace ConsoleEnhancer.Motor
         public bool FgGuard = false;                // 21-11 (BORDE) fg_borde=1 (de serie 0: no quitaba todos los halos en GTA; se usa fg_vectores=3): la generacion con 0 en los bordes entre movimientos distintos (los halos; EngineFgBorde.cs)
         public int FgGuardRad = 6; public double FgGuardDif = 6, FgGuardRel = 0.25;   // fg_borde_radio (bloques de 8), fg_borde_dif (px), fg_borde_rel
         public int FgFillRad = 48;                  // fg_relleno_radio (bloques de 8 px)
-        // fgui=1: la generacion no deforma lo quieto con borde (UIAlpha); 2 UIColorAndAlpha; 3 NoWarpMask
-        // (1.2.4 DLSSFG: 4 = la imagen sin la interfaz quieta como HUDLess, EngineFgHud.cs; 5 = y UIColorAndAlpha; 0 = como antes.)
-        // 1.2.4 ronda 5 (FGCAL; el usuario: "el x2 tambien tiene sus fallitos"): DE SERIE 0 en todos los modos (como la 1.2.3). Medido con
-        // imagen real (test=real*, RealPrueba.cs: capturas de la PS5 con un personaje que sigue a la camara, su interfaz real, avance de
-        // camara, DLSS 5) en la tele, DLSS-G x2 a 4K en el modo 30: con fgui=4 el texto mejora poco (0,42 -> 0,29 niveles) pero el error de
-        // toda la imagen sube en todas las escenas (+5 a +55 %: el fondo 0,12 -> 0,44) y salen INVENTADAS MALAS sueltas (error 3-4,6 frente
-        // a <= 1,3 sin ella, ~1 cada 2-3 s: la busqueda por bloques que fgui enciende -con fgui=0 fg_solo_camara=0 tambien salen-). En la
-        // escena del minimapa de DLSSFG gana en la interfaz (1,65 -> 0,74) y pierde en todo lo demas (todo 2,58 -> 3,09). fgui=4 en
-        // motor_extra la vuelve a poner (con fgui_pegada=1 de serie: algo mejor, no quita las inventadas malas).
-        int fgUiVal = -1;
-        public int FgUi { get { return fgUiVal >= 0 ? fgUiVal : 0; } set { fgUiVal = value; } }
-        public bool FgMenus = false;                // fg_menus=1: DLSS-G with eEnableFullscreenMenuDetection (no generated frames over a fullscreen menu)
-        public bool FgUiRecomp = true;              // fgui_recomp=1: recomposicion de la interfaz de DLSS-G (1.2.4: de serie 1, con fgui=4)
-        public int FgUiFrames = 4;                  // fgui_quieto: imagenes quieto
-        public double FgUiMov = 0.3, FgUiEdge = 0.08;   // fgui_mov: fraccion de la escena que se mueve; fgui_borde: contraste del borde
+        // (1.2.4 ronda 6, QUITAFG: fuera fgui* -la interfaz quieta para DLSS-G, UIAlpha / UIColorAndAlpha / NoWarpMask / HUDLess,
+        // EngineFgHud.cs- y fg_menus: eran solo de DLSS-G. Sus claves se aceptan sin hacer nada: EngineFgXe.cs ApplyFgXe)
         // 18-11 (LATENCIA, EngineLatencia.cs): medida y ritmo de los modos 30x2
         public string LatCsv = "";                  // lat_csv=<fichero>: una linea por imagen real (llegada, cogida, envio, Present, estadisticas de DXGI)
         public string Probe = "";                   // sonda=<fichero>: la fuente de prueba lleva el numero de imagen (banda de scripts\latencia.exe) y apunta n;g;qpc
@@ -462,9 +451,6 @@ namespace ConsoleEnhancer.Motor
                 case "fg_profundidad_cerca": FgDepthNear = D(val); break;
                 case "fg_profundidad_lejos": FgDepthFar = D(val); break;
                 case "fg_vectores_puerta": FgVecGate = Math.Max(0, D(val)); break;
-                case "fgui": FgUi = I(val); break;
-                case "fgui_recomp": FgUiRecomp = B(val); break;
-                case "fg_menus": FgMenus = B(val); break;
                 case "fg_vectores_completos": FgVecFull = Math.Max(0, Math.Min(2, I(val))); break;   // 20-11 (FGFALLOS)
                 case "fg_relleno": FgFill = B(val); break;   // 21-11 (FG21)
                 case "croma": Chroma = Math.Max(0, Math.Min(2, I(val))); break;   // 21-11 (Shaders.cs Unpack)
@@ -475,9 +461,6 @@ namespace ConsoleEnhancer.Motor
                 case "fg_relleno_liso": FgFillFlat = Math.Max(0, D(val)); break;
                 case "fg_relleno_empate": FgFillTie = Math.Max(0, D(val)); break;
                 case "fg_relleno_radio": FgFillRad = Math.Max(1, Math.Min(128, I(val))); break;
-                case "fgui_quieto": FgUiFrames = I(val); break;
-                case "fgui_mov": FgUiMov = D(val); break;
-                case "fgui_borde": FgUiEdge = D(val); break;
                 case "lat_csv": LatCsv = val.Trim(); break;           // 18-11 (LATENCIA)
                 case "sonda": Probe = val.Trim(); break;
                 case "sonda_banda": ProbeBand = Math.Max(4, I(val)); break;
@@ -495,7 +478,7 @@ namespace ConsoleEnhancer.Motor
                 case "vrr_fg_vsync": VrrFgVsync = I(val); break;
                 case "copia_hilos": Engine.CopyThreadsSet = Math.Max(0, Math.Min(16, I(val))); break;   // 20-11 (LATENCIA4)
                 case "refresco_fijo": RefreshFixed = B(val); break;   // 20-11 (LATENCIA5)
-                default: return ApplyCierres(key.Trim().ToLowerInvariant(), val) || ApplyCe(key, val) || ApplyLatencia(key.Trim().ToLowerInvariant(), val) || ApplyEnvio(key.Trim().ToLowerInvariant(), val) || ApplyFgGlobal(key, val) || ApplyFgMulti(key, val) || ApplyDvc(key, val) || ApplyArchivo(key.Trim().ToLowerInvariant(), val) || ApplyD5q(key, val);   // (1.2.4 arreglos, RELEVO: test_archivo_*, FileSource.cs; DLSS5Q: dlss5_*, EngineDlss5Q.cs)   // (1.2.4 MOTORFG: fg_mult, xefg_*: EngineFgMulti.cs; LATENCIA: cola_tirar_fg, cpu_pasos: EngineEnvio.cs; DLSS5LEGAL: vibrancia*: EngineDvc.cs) 20-11 (CIERRES: EngineCuelgue.cs) (ConsoleEnhancer: adapta=...; false = desconocida) (21-11, 1.2.1: EngineLatencia.cs; fg_global, fg_quieto: EngineFgGlobal.cs)
+                default: return ApplyCierres(key.Trim().ToLowerInvariant(), val) || ApplyCe(key, val) || ApplyLatencia(key.Trim().ToLowerInvariant(), val) || ApplyEnvio(key.Trim().ToLowerInvariant(), val) || ApplyFgGlobal(key, val) || ApplyFgXe(key, val) || ApplyDvc(key, val) || ApplyArchivo(key.Trim().ToLowerInvariant(), val) || ApplyD5q(key, val);   // (1.2.4 arreglos, RELEVO: test_archivo_*, FileSource.cs; DLSS5Q: dlss5_*, EngineDlss5Q.cs)   // (1.2.4 MOTORFG: xefg_*, y las claves quitadas en la ronda 6: EngineFgXe.cs ApplyFgXe; LATENCIA: cola_tirar_fg, cpu_pasos: EngineEnvio.cs; DLSS5LEGAL: vibrancia*: EngineDvc.cs) 20-11 (CIERRES: EngineCuelgue.cs) (ConsoleEnhancer: adapta=...; false = desconocida) (21-11, 1.2.1: EngineLatencia.cs; fg_global, fg_quieto: EngineFgGlobal.cs)
             }
             return true;
         }
@@ -518,7 +501,7 @@ namespace ConsoleEnhancer.Motor
                 "captura {0}x{1}@{2}/{3} {4}{5} -> {6}x{7} {8}{9} nitidez {10:0.00}, modo {11}{12}, FG {13}, Reflex {14}",
                 CapW, CapH, FpsNum, FpsDen, CapFormat, Test.Length > 0 ? " (prueba: " + Test + ")" : "", OutW, OutH,
                 Upscaler, Upscaler == "dlss" || Upscaler == "auto" ? " " + Preset : "", Sharp, Mode, Dedupe == 1 ? " sin repetidas" : Dedupe == 0 ? " con repetidas" : "",
-                Fg ? "si" + (FgMult > 2 ? " x" + FgMult : "") + (FgTipo.Length > 0 ? " " + FgTipo : "") : "no", Reflex) + (SmoothMode > 0 ? ", Smooth Motion " + (SmoothMode == 2 ? "cada 2 refrescos" : "") + (QueueDropMs > 0 ? " (cola de la tele <= " + QueueDropMs.ToString("0", CultureInfo.InvariantCulture) + " ms)" : "") : "") + (Vrr > 0 ? ", VRR" : "") + QualityText();
+                Fg ? (FgTipo == "xess" || FgTipo == "xefg" || FgTipo == "fsr3" ? "si " + FgTipo : "no (sin fg_tipo)") : "no", Reflex) + (SmoothMode > 0 ? ", Smooth Motion " + (SmoothMode == 2 ? "cada 2 refrescos" : "") + (QueueDropMs > 0 ? " (cola de la tele <= " + QueueDropMs.ToString("0", CultureInfo.InvariantCulture) + " ms)" : "") : "") + (Vrr > 0 ? ", VRR" : "") + QualityText();
         }
 
         // 16-11 (calidad): lo encendido de EngineMotion.cs ("" si nada)
@@ -534,8 +517,6 @@ namespace ConsoleEnhancer.Motor
             if (FlatDenoise > 0) r += string.Format(CultureInfo.InvariantCulture, " liso={0:0.0}", FlatDenoise);
             if (FgVec != 1) r += " fg_vectores=" + FgVec;
             if (FgDepth > 0) r += " fg_profundidad=" + FgDepth;
-            if (FgUi > 0) r += " fgui=" + FgUi + (FgUiRecomp ? "+recomp" : "");
-            if (FgMenus) r += " fg_menus";
             if (FgVecFull > 0) r += " fg_vectores_completos=" + FgVecFull + (FgFill ? " fg_relleno" : "");
             if (FgGuard) r += string.Format(CultureInfo.InvariantCulture, " fg_borde={0}/{1:0.#}/{2:0.##}", FgGuardRad, FgGuardDif, FgGuardRel);   // 21-11 (BORDE)   // 20-11 (FGFALLOS) (21-11 FG21: fg_relleno)
             if (MvTemporal) r += " mvtemporal";   // 17-11 (REJAS)
