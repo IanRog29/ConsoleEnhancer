@@ -148,7 +148,7 @@ jobs:
           $notas = New-Object System.Collections.Generic.List[string]
           $dentro = $false
           foreach ($l in $lineas) {
-            if ($l -match '^## ' -or $l -match '^\[[^\]]+\]: ') { if ($dentro) { break }; if ($l -match ('^## \[?v?' + [regex]::Escape($v) + '\]?')) { $dentro = $true; continue } }
+            if ($l -match '^## ' -or $l -match '^\[[^\]]+\]: ') { if ($dentro) { break }; if ($l -match ('^## \[?v?' + [regex]::Escape($v) + '(\]|\s|$)')) { $dentro = $true; continue } }
             if ($dentro) { $notas.Add($l) }
           }
           if ($notas.Count -eq 0) { $notas.Add("ConsoleEnhancer $tag") }

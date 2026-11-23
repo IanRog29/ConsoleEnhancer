@@ -31,7 +31,7 @@ Created and maintained by **IanRog29** · [Source and downloads](https://github.
 
 ## Quick start
 
-1. Download the latest **`ConsoleEnhancer-v1.3.zip`** (or newer) from
+1. Download the latest **`ConsoleEnhancer-v1.3.1.zip`** (or newer) from
    **[Releases](https://github.com/IanRog29/ConsoleEnhancer/releases)** (not the green "Code" button: that is the source code).
 2. **Unzip** it into one of your own folders: Documents, the Desktop, `D:\Juegos`... (not in *Program Files*).
 3. Open **`ConsoleEnhancer.exe`** and follow the wizard. Done: turn the console on.
@@ -163,8 +163,9 @@ with help a lot too.
     exactly one refresh; first new image 14 ms and real frame 40 ms after it arrives (Smooth Motion ×2: 20 / 37 ms). Smooth Motion alone is ×2 in every driver; there is no
     good ×3 (90 frames/s can't be even on a 120 Hz screen). Also with DLSS 5: the engine lowers DLSS 5's scale (down to 25 %) until ×4
     keeps the 30 real frames and says the % (4K, DLSS 5 level 4: 30 real frames at 35 %); if it can't, ×2 for the session, saying so
-    (`smooth_x4_dlss5=0` = ×2 with DLSS 5). With a 1440p capture (+ DLSS M) and DLSS 5 an RTX 4060 Ti doesn't fit it even at 25 % and it
-    goes ×2 after 20-25 s; Enhanced FG ×4 does fit there. On real gameplay video its generated frames at 1/4 and 2/4 are about as good as ×2's and the one at
+    (`smooth_x4_dlss5=0` = ×2 with DLSS 5). With a 1440p capture (+ DLSS M) and DLSS 5 (1.3.1) the frame-rate ladder also takes a
+    lighter DLSS model before the multiplier: measured on an RTX 4060 Ti with real gameplay video, ×4 with DLSS 5 at 25 % and DLSS K (in
+    1.3 it went ×2 after 20-25 s). On real gameplay video its generated frames at 1/4 and 2/4 are about as good as ×2's and the one at
     3/4 worse; with 3 of every 4 frames generated, artifacts show more often than with ×2.
   - **Enhanced FG ×2 / ×3 / ×4** (below).
   - Interpolating always waits for the next real frame: ×4 shows the real frame ~8 ms later than ×2. Smooth Motion ×3 / ×4 on its own and
@@ -181,6 +182,11 @@ with help a lot too.
   ×3 / ×4 also with DLSS 5 (measured with real GTA V video at 4K, DLSS 5 level 4: ×4 with all 30 real frames, 120 fps, every frame for one
   refresh, DLSS 5 at 80 %); if ×4 can't keep 30, DLSS 5 is lowered and, as a last resort, ×2 for the session (`efg_multi_dlss5=0` = ×2 with
   DLSS 5). If the GPU fails with it, it stays in the menu with the reason and picking it again retries.
+  **1.3.1**: ×2 stays smooth when the console game doesn't hold a steady 30 fps (each frame is timed by when its content arrived and the
+  generated frames fill the real gap: on the TV, what is seen strays from its time 8.2 → 1.3 ms, 95th percentile); ×4 **low latency**
+  shows the real frame one output frame later, so the first generated frame of each group is interpolated and the others are predicted
+  1/4 less far ahead (about 22 % fewer errors when turning the camera, +5 ms; not with DLSS 5, where it wouldn't fit; ×2 and ×3 as
+  before; `efg_retraso_lat4=-1` in `motor_extra` = as before); low latency has its own forward pass (fewer loose specks along edges).
 - **Sharper upscaling in motion** (DLSS SR K / L / M and E, XeSS, FSR 3.1-4): each 8×8 tile of the engine's motion vectors is refined
   to a fraction of a pixel for the upscaler, so it no longer blends a misaligned history (measured against the true picture, 1440p → 4K
   in motion: K 1.32 → 0.82, M 0.92 → 0.44, L 0.79 → 0.44, E 1.05 → 0.72; on a video of real console captures K 1.29 → 0.78). Without
@@ -205,19 +211,24 @@ with help a lot too.
   wizard's picture / sound tests. The **console sound** is the engine too, in a separate sound-only process
   (`ConsoleEnhancerEngine.exe --audio`): same capture pin, format and 20 ms blocks, Windows audio output (WASAPI), the same 7.1 →
   stereo mix with a limiter, and clock-drift correction inside it. `audio_motor_extra=` passes it `audio_cola_ms=30` (its queue),
-  `audio_salida_ms=10`, `audio_deriva=0|1`; its log is `data\logs\audio.log`. MJPEG capture cards (USB 2.0, e.g. MS2109) are decoded
+  `audio_salida_ms=10`, `audio_deriva=0|1`; its log is `settings\logs\audio.log`. MJPEG capture cards (USB 2.0, e.g. MS2109) are decoded
   in the engine up to 720p; H.264 / HEVC capture is no longer supported (pick an uncompressed format).
 - **Scaling that adapts to your PC** (`escalas_adaptables=1`, on by default): the wizard estimates the DLSS model and percentages for
   your GPU and display; while you play, the engine measures GPU time every second and lowers quality if it can't keep up (within 2 s)
-  or raises it little by little if there is headroom (after 20 s), and remembers it for next time (`data\scales_engine.txt`). Tray >
+  or raises it little by little if there is headroom (after 20 s), and remembers it for next time (`settings\scales_engine.txt`). Tray >
   Picture > *Self-adjusting scales* / *Forget the learned scales*. With the "DLSS 5" extra there is also an **emergency brake**: if
   the GPU is far over budget, it drops a pass or cuts the % at once (so the GPU doesn't choke) and keeps that as the learned value.
-- **Checks that your frame rate is reached** (built-in engine): if the mode's frame rate (or the output with frame
-  generation) is missed because of the PC (not the console game), it acts within seconds: first the DLSS 5 scale, then one pass less,
-  a lighter DLSS model, a cheaper frame generation type, and only then DLSS 5 off, 120 → 60, a lower capture, 60 → 30 with frame
-  generation. A notice says what changed ("60 fps not reached (52): DLSS 5 scale 50% -> 40%"). With GPU to spare for a few minutes, the
+- **Checks that your frame rate is reached** (built-in engine): every quarter of a second the engine counts the console frames it had
+  to drop (and, with Enhanced FG, the generated frames it skipped); a single hitch, a slow game on the console, waking up, the engine
+  hand-over, the settings menu or losing focus don't count. When the PC misses the target it is seen in 1-2 s (1.3.1) and the engine
+  lowers, one step at a time and without reopening anything: DLSS 5 (big steps first, down to 25 % and one pass), then the DLSS
+  upscaler (a lighter model, and as a last resort FSR 1 instead of DLSS for that session), and only then the multiplier (Smooth Motion
+  ×4 / Enhanced FG ×3-×4 → ×2) **for that session only**: what you picked stays in the game profile. Without a multiplier to lower (×2
+  or no frame generation) the app goes on as before: DLSS 5 off, 120 → 60, a lower capture, 60 → 30 with frame generation (saved in the
+  game profile). A notice says what was lowered ("Enhanced FG x4 · DLSS 5 at 25 % and DLSS K so it fits"); `escalera=0` in
+  `motor_extra` = the 1.3 checks. With GPU to spare for a few minutes, the
   DLSS 5 scale goes back up the next time you enter the game, never to a value that already failed. Remembered per game and GPU
-  (`data\scales_auto.txt`).
+  (`settings\scales_auto.txt`).
 - **Backup engine** (`motor_reserva=1`): while you play, an engine with the mode's other frame generation type waits ready in the
   background (XeSS FG while you play with Smooth Motion; Smooth Motion while you play with XeSS FG or FSR 3 FG), so switching between
   them takes ~0.5 s instead of 4-5 s. `motor_reserva=0` removes it (it uses ~0.9 GB of video memory).
@@ -246,8 +257,8 @@ with help a lot too.
 - **Frame generation selector**: L3 while playing (or Ctrl+G on the keyboard over the picture, the settings menu or the tray) cycles
   through the types your GPU has (Smooth Motion, and Enhanced FG last; XeSS FG / FSR 3 FG only with `generacion_xess=1` /
   `generacion_fsr3=1`) and remembers the choice per game. Only what can keep pace is offered. Smooth Motion is ×2 (×4 as an option, see above);
-  Enhanced FG (and FSR 3 FG, if brought back) has ×2 / ×3 / ×4 in the settings menu's *Multiplier* row. If the real frames can't be held, the first step down is the multiplier
-  (×4 → ×3 → ×2). Since 1.3 there is no DLSS Frame Generation and no old ×3 / ×4 (they didn't work well); game profiles and settings
+  Enhanced FG (and FSR 3 FG, if brought back) has ×2 / ×3 / ×4 in the settings menu's *Multiplier* row. If the real frames can't be held, the multiplier is the last step,
+  for that session only (×3 / ×4 → ×2; see *Checks that your frame rate is reached*). Since 1.3 there is no DLSS Frame Generation and no old ×3 / ×4 (they didn't work well); game profiles and settings
   that used them switch by themselves to the closest type (on NVIDIA, Smooth Motion) and keep everything else. If a frame generation
   type loses the GPU in the engine, the rest of the session uses another one (FSR 3 FG ×3 / ×4: ×2), still in the engine.
 - **120 fps mode (esports)**: for the console's 120 Hz games, it captures at 120 with no frame generation and the lowest latency. The
@@ -446,7 +457,7 @@ only shows with a truly black picture and a silent console for 20 s in a row (`h
 scene or a fade no longer triggers it.
 
 **No sound.** Since 1.3 the console sound goes through the engine (`ConsoleEnhancerEngine.exe --audio`). Look at
-`data\logs\audio.log`: when it works it says which capture device, pin and format it opened (for example *48000 Hz 16 bits 8
+`settings\logs\audio.log`: when it works it says which capture device, pin and format it opened (for example *48000 Hz 16 bits 8
 channels, 20 ms blocks*); when it can't open it, it lists the pins and formats the capture card offers. In the wizard's sound step, try
 another input with *Test sound* (some capture cards provide audio through the video device itself, others as a separate microphone),
 or pass the engine other values with `audio_motor_extra=` (e.g. `audio_canales=2`).
@@ -546,7 +557,7 @@ build_prismanr.bat              :: bin\engine\PrismaNr.dll (C++, Visual Studio)
 build_fsrfg.bat                 :: bin\engine\CeFsrFg.dll (C++, Visual Studio, git; AMD FidelityFX SDK v1.1.4 + parches\fidelityfx-fi-multi.patch)
 tests\build_deteccion.bat       :: tests\bin\DeteccionTest.exe
 tests\bin\DeteccionTest.exe --simula=todo --sin-d3d12 --salida=deteccion.txt   :: 23 PCs simulados
-powershell -ExecutionPolicy Bypass -File scripts\empaquetar.ps1 -Zip -Version v1.3   :: dist\ConsoleEnhancer\ y dist\ConsoleEnhancer-v1.3.zip
+powershell -ExecutionPolicy Bypass -File scripts\empaquetar.ps1 -Zip -Version v1.3.1   :: dist\ConsoleEnhancer\ y dist\ConsoleEnhancer-v1.3.1.zip
 ```
 
 - **The engine's own native pieces** (C++; Visual Studio 2022 or its Build Tools with C++). `src\PrismaNr` needs NVIDIA's two public
@@ -635,7 +646,7 @@ Creado y mantenido por **IanRog29** · [Código y descargas](https://github.com/
 
 ## Inicio rápido
 
-1. Baja el último **`ConsoleEnhancer-v1.3.zip`** (o uno más nuevo) de
+1. Baja el último **`ConsoleEnhancer-v1.3.1.zip`** (o uno más nuevo) de
    **[Releases](https://github.com/IanRog29/ConsoleEnhancer/releases)** (no el botón verde "Code": eso es el código fuente).
 2. **Descomprímelo** en una carpeta tuya: Documentos, el Escritorio, `D:\Juegos`... (no en *Archivos de programa*).
 3. Abre **`ConsoleEnhancer.exe`** y sigue el asistente. Ya está: enciende la consola.
@@ -767,8 +778,9 @@ y contar en qué PC y con qué consola lo usas.
     justo; la primera imagen nueva a 14 ms y la real a 40 ms de llegar (Smooth Motion ×2: 20 / 37 ms). Smooth Motion solo es ×2 en todos los drivers; ×3 bueno no
     hay (90 imágenes/s no salen parejas en una pantalla de 120 Hz). También con DLSS 5: el motor baja la escala de DLSS 5 (hasta el 25 %) hasta que ×4
     mantiene las 30 reales y dice el % (4K, DLSS 5 nivel 4: 30 reales al 35 %); si no llega, ×2 esa sesión y lo dice
-    (`smooth_x4_dlss5=0` = ×2 con DLSS 5). Con captura a 1440p (+ DLSS M) y DLSS 5 una RTX 4060 Ti no llega ni al 25 % y pasa a ×2 a
-    los 20-25 s; Enhanced FG ×4 sí cabe ahí. Con
+    (`smooth_x4_dlss5=0` = ×2 con DLSS 5). Con captura a 1440p (+ DLSS M) y DLSS 5 (1.3.1) la escalera de fps baja también el modelo
+    de DLSS antes que el multiplicador: medido en una RTX 4060 Ti con vídeo real de juego, ×4 con DLSS 5 al 25 % y DLSS K (en la 1.3
+    pasaba a ×2 a los 20-25 s). Con
     vídeo real de juego sus inventadas a 1/4 y 2/4 salen como la de ×2 y la de 3/4 peor; con 3 de cada 4 imágenes inventadas, los fallos
     se ven más que con ×2.
   - **Enhanced FG ×2 / ×3 / ×4** (abajo).
@@ -786,6 +798,12 @@ y contar en qué PC y con qué consola lo usas.
   también con DLSS 5 (medido con vídeo real de GTA V a 4K y DLSS 5 nivel 4: ×4 con las 30 reales, 120 imágenes/s, todas a un refresco y
   DLSS 5 al 80 %); si ×4 no llega a 30, baja DLSS 5 y, si ni así, ×2 esa sesión (`efg_multi_dlss5=0` = ×2 con DLSS 5). Si la gráfica se
   cae con él, sigue en el menú con el motivo y elegirlo otra vez es reintentar.
+  **1.3.1**: ×2 va fluido aunque el juego de la consola no mantenga los 30 fps (cada imagen va por la hora en que llegó su contenido y las
+  inventadas rellenan el hueco de verdad: en la tele, lo que se ve se aparta de su hora 8,2 → 1,3 ms, percentil 95); ×4 en **baja
+  latencia** enseña la real una imagen de salida más tarde, así que la primera inventada de cada grupo se interpola y las demás se
+  predicen 1/4 menos lejos (un 22 % menos de errores al girar la cámara, +5 ms; no con DLSS 5, donde no cabría; ×2 y ×3 como antes;
+  `efg_retraso_lat4=-1` en `motor_extra` = como antes); la baja latencia tiene su propia pasada hacia delante (menos puntos sueltos en
+  los bordes).
 - **Reescalado más nítido en movimiento** (DLSS SR K / L / M y E, XeSS, FSR 3.1-4): los vectores de movimiento del motor se afinan a
   fracciones de píxel por casilla de 8×8 solo para el escalador, que ya no mezcla una historia desalineada (medido contra la imagen de
   verdad, 1440p → 4K en movimiento: K 1,32 → 0,82, M 0,92 → 0,44, L 0,79 → 0,44, E 1,05 → 0,72; con un vídeo de capturas reales de la
@@ -810,20 +828,24 @@ y contar en qué PC y con qué consola lo usas.
   consumo y las pruebas de imagen y sonido del asistente. El **sonido de la consola** también es del motor, en un proceso aparte solo
   de sonido (`ConsoleEnhancerEngine.exe --audio`): el mismo pin de la capturadora, formato y trozos de 20 ms, la salida de sonido de
   Windows (WASAPI), la misma mezcla de 7.1 a estéreo con limitador y la corrección de la deriva del reloj dentro. `audio_motor_extra=`
-  le pasa `audio_cola_ms=30` (su cola), `audio_salida_ms=10`, `audio_deriva=0|1`; su registro es `data\logs\audio.log`. Las
+  le pasa `audio_cola_ms=30` (su cola), `audio_salida_ms=10`, `audio_deriva=0|1`; su registro es `settings\logs\audio.log`. Las
   capturadoras MJPEG (USB 2.0, p. ej. MS2109) las descomprime el motor hasta 720p; la captura en H.264 / HEVC ya no vale (elige un
   formato sin comprimir).
 - **Escalas que se adaptan a tu PC** (`escalas_adaptables=1`, de serie): el asistente estima el modelo de DLSS y los porcentajes para tu
   gráfica y tu pantalla; jugando, el motor mide el tiempo de gráfica cada segundo y baja la calidad si no llega (en 2 s) o la sube poco
-  a poco si sobra (tras 20 s), y lo recuerda para la próxima vez (`data\scales_engine.txt`). Bandeja > Imagen > *Escalas que se
+  a poco si sobra (tras 20 s), y lo recuerda para la próxima vez (`settings\scales_engine.txt`). Bandeja > Imagen > *Escalas que se
   adaptan solas* / *Olvidar las escalas aprendidas*. Con el extra "DLSS 5" hay además un **freno de emergencia**: si la gráfica va muy
   por encima de lo que cabe, quita una pasada o baja el % de golpe (para no atascar la gráfica) y eso queda como lo aprendido.
-- **Comprueba que se llegan los fps** (motor propio): si no se llega a los fps del modo (o a los de salida con la
-  generación) por culpa del PC (no del juego de la consola), actúa en segundos: primero la escala de DLSS 5, luego una pasada menos, un
-  modelo de DLSS más ligero, una generación más barata y solo después DLSS 5 fuera, 120 → 60, captura más baja, 60 → 30 con generación.
-  Un aviso dice qué ha cambiado ("No se llega a 60 fps (52) · DLSS 5 al 50 % → 40 %"). Si sobra gráfica unos minutos, la escala de
+- **Comprueba que se llegan los fps** (motor propio): cada cuarto de segundo el motor cuenta las imágenes de la consola que ha tenido que
+  tirar (y, con Enhanced FG, las inventadas que se ha saltado); un tirón suelto, un juego lento en la consola, despertar, el relevo entre
+  motores, el menú de ajustes o perder el foco no cuentan. Si el PC no llega se ve en 1-2 s (1.3.1) y el motor baja, de uno en uno y sin
+  reabrir nada: DLSS 5 (primero a pasos grandes, hasta el 25 % y una pasada), luego el reescalado DLSS (un modelo más ligero y, como
+  último recurso, FSR 1 en vez de DLSS esa sesión) y solo al final el multiplicador (Smooth Motion ×4 / Enhanced FG ×3-×4 → ×2) **solo
+  esa sesión**: lo elegido sigue en el perfil del juego. Sin multiplicador que bajar (×2 o sin generación) la app sigue como antes:
+  DLSS 5 fuera, 120 → 60, captura más baja, 60 → 30 con generación (eso sí se guarda en el perfil). Un aviso dice lo que se ha bajado
+  ("Enhanced FG x4 · DLSS 5 al 25 % y DLSS K para que quepa"); `escalera=0` en `motor_extra` = lo de la 1.3. Si sobra gráfica unos minutos, la escala de
   DLSS 5 vuelve a subir la próxima vez que entres al juego, nunca a un valor que ya falló. Se recuerda por juego y gráfica
-  (`data\scales_auto.txt`).
+  (`settings\scales_auto.txt`).
 - **Motor de reserva** (`motor_reserva=1`): jugando, queda preparado en segundo plano un motor con el otro tipo de generación del modo
   (XeSS FG si juegas con Smooth Motion; Smooth Motion si juegas con XeSS FG o FSR 3 FG), y cambiar entre ellos pasa de 4-5 s a ~0,5 s.
   `motor_reserva=0` lo quita (ocupa ~0,9 GB de memoria gráfica).
@@ -851,8 +873,8 @@ y contar en qué PC y con qué consola lo usas.
 - **Selector de generación de fotogramas**: L3 jugando (o Ctrl+G con el teclado sobre la imagen, el menú de ajustes o la bandeja)
   recorre los tipos que tiene tu gráfica (Smooth Motion y, la última, Enhanced FG; XeSS FG / FSR 3 FG solo con `generacion_xess=1` /
   `generacion_fsr3=1`) y lo recuerda por juego. Solo se ofrece lo que llega a ritmo. Smooth Motion va ×2 (×4 como opción, ver arriba);
-  Enhanced FG (y FSR 3 FG, si se vuelve a poner) tiene ×2 / ×3 / ×4 en la fila *Multiplicador* del menú de ajustes. Si no se llega a las reales, lo primero que baja es el multiplicador
-  (×4 → ×3 → ×2). Desde la 1.3 no hay DLSS Frame Generation ni los ×3 / ×4 de antes (no iban bien); los perfiles y ajustes que los
+  Enhanced FG (y FSR 3 FG, si se vuelve a poner) tiene ×2 / ×3 / ×4 en la fila *Multiplicador* del menú de ajustes. Si no se llega a las reales, el multiplicador es lo último que baja,
+  solo esa sesión (×3 / ×4 → ×2; ver *Comprueba que se llegan los fps*). Desde la 1.3 no hay DLSS Frame Generation ni los ×3 / ×4 de antes (no iban bien); los perfiles y ajustes que los
   usaban pasan solos al tipo más parecido (en NVIDIA, Smooth Motion) y conservan todo lo demás. Si un tipo de generación pierde la
   gráfica en el motor, el resto de la sesión va otro (FSR 3 FG ×3 / ×4: ×2), también en el motor.
 - **Modo 120 fps (esports)**: para los juegos de 120 Hz de la consola, captura a 120 sin generación de fotogramas y con el menor
@@ -1053,7 +1075,7 @@ El aviso de HDCP solo sale con la imagen negra de verdad y la consola en silenci
 quita): una escena oscura o un fundido ya no lo hacen saltar.
 
 **No hay sonido.** Desde la 1.3 el sonido de la consola va por el motor (`ConsoleEnhancerEngine.exe --audio`). Mira
-`data\logs\audio.log`: cuando va, dice qué capturadora, pin y formato ha abierto (por ejemplo *48000 Hz 16 bits 8 canales, trozos de
+`settings\logs\audio.log`: cuando va, dice qué capturadora, pin y formato ha abierto (por ejemplo *48000 Hz 16 bits 8 canales, trozos de
 20 ms*); cuando no puede abrirla, enseña los pines y formatos que da la capturadora. En el asistente, paso del sonido: prueba otra
 entrada con *Probar sonido* (algunas capturadoras dan el audio por el propio dispositivo de vídeo y otras como un micrófono aparte), o
 pásale al motor otros valores con `audio_motor_extra=` (p. ej. `audio_canales=2`).
@@ -1153,7 +1175,7 @@ build_prismanr.bat              :: bin\engine\PrismaNr.dll (C++, Visual Studio)
 build_fsrfg.bat                 :: bin\engine\CeFsrFg.dll (C++, Visual Studio, git; AMD FidelityFX SDK v1.1.4 + parches\fidelityfx-fi-multi.patch)
 tests\build_deteccion.bat       :: tests\bin\DeteccionTest.exe
 tests\bin\DeteccionTest.exe --simula=todo --sin-d3d12 --salida=deteccion.txt   :: 23 PCs simulados
-powershell -ExecutionPolicy Bypass -File scripts\empaquetar.ps1 -Zip -Version v1.3   :: dist\ConsoleEnhancer\ y dist\ConsoleEnhancer-v1.3.zip
+powershell -ExecutionPolicy Bypass -File scripts\empaquetar.ps1 -Zip -Version v1.3.1   :: dist\ConsoleEnhancer\ y dist\ConsoleEnhancer-v1.3.1.zip
 ```
 
 - **Las piezas nativas propias del motor** (C++; Visual Studio 2022 o sus Build Tools con C++). `src\PrismaNr` necesita las dos

@@ -5,6 +5,169 @@ publicada es una etiqueta `vX.Y.Z` de git; GitHub Actions monta su zip y copia a
 
 ## [Sin publicar]
 
+## [1.3.1] - 2026-11-24
+
+**Your settings kept on the PC across versions, a frame-rate ladder that keeps the multiplier, a smoother Enhanced FG and the Switch 2
+after the PS5 fixed.** Measured without the console on an RTX 4060 Ti with a 4K 120 Hz VRR TV, with real gameplay video played through
+the engine like the capture card and the settings of the person who tests it with the console (DLSS 5 level 4, 4K and 1440p + DLSS M,
+30 fps mode, 120 Hz VRR). Compared with 1.3. *En castellano, más abajo.*
+
+### English
+
+#### Changed
+- **Your settings now live on this PC, not in the app folder**: `%LOCALAPPDATA%\ConsoleEnhancer\settings` keeps the settings, game
+  profiles, console, language, learned scales and logs for every version, written on every change. A new version unzipped anywhere
+  (Downloads, Desktop, another drive, with no older version next to it) uses them as they are from the first start. The first time,
+  they are brought over once from the most recently used data folder (the previous version's `data\` or the backup), noted in
+  `settings\inherited.txt` and said once on screen. The zip no longer ships `portable.txt`; create an empty one next to the exe to keep
+  everything in `data\` there. An older version opened later works on a copy (`settings-older\<version>`) and never rewrites a newer
+  one's settings. Start from scratch: close the app and delete that folder. The logs are now in `settings\logs`.
+- **XeSS FG removed for now** from the settings menu, L3, the lists and every automatic fallback. Profiles and choices that had it (or
+  FSR 3 FG, removed in 1.3) switch to the closest one on this PC (Smooth Motion on RTX 40 / 50, the same ×2), noted in the log and said
+  once on screen. Smooth Motion ×4 still uses the engine's XeSS FG ×2 underneath. `generacion_xess=1` in the ini brings it back.
+- **Missing the target frame rate is seen in 1-2 s, and frame generation keeps its multiplier as long as it can.** Every quarter of a
+  second the engine counts the console frames it had to drop (and, with Enhanced FG, the generated frames it skipped); a single hitch, a
+  slow game on the console, waking up, the hand-over between engines, the settings menu or losing focus don't count. When it doesn't fit
+  it lowers, in this order and without reopening anything: DLSS 5 (big steps first, down to 25 % and one pass), then the DLSS upscaler
+  (a lighter model and, as a last resort, FSR 1 instead of DLSS for that session), and only then the multiplier (Smooth Motion ×4 /
+  Enhanced FG ×3-×4 → ×2) **for this session only**: what you picked stays in the game profile. What fits is learned for next time and
+  raised again slowly when there is room. A short notice says what was lowered ("Enhanced FG x4 · DLSS 5 at 25 % and DLSS K so it
+  fits"). Before, the multiplier dropped after 5-21 s, often while DLSS 5 was still being lowered and without touching the upscaler.
+  Measured in the whole app with real gameplay video: Smooth Motion ×4 + DLSS 5 at 1440p (+ DLSS M) now stays ×4 with DLSS 5 at 25 %
+  and DLSS K (in 1.3 it went ×2 after 21 s); Enhanced FG ×4 low latency + DLSS 5 at 1440p fits in 21 s with no skipped frames (in 1.3
+  DLSS 5 went down 90 → 50 % over 37 s while skipping 30 generated frames per second).
+- **Enhanced FG ×2 is smooth when the console game doesn't keep a steady 30 fps.** A console game at 30 fps doesn't always hand over a
+  new frame every two refreshes: when it dips, a frame lasts three refreshes and the next one one. Enhanced FG used to place its
+  generated frame at a fixed time and halfway in motion, so after a long frame what you saw no longer matched its time (a stop and a
+  jump). Now the real frames are timed by when their content first arrived and the generated frames fill the actual gap, each one with
+  the motion of its own moment; in low-latency mode a generated frame gives way when the next real one is already there. Measured on
+  the TV with real gameplay video at an irregular game cadence (4K, 120 Hz VRR): what is seen strays from its time 8.2 → 1.3 ms (95th
+  percentile) in quality mode, 7.8 → 1.2 ms in low-latency mode and 5.5 → 2.3 ms in quality mode with DLSS 5; latency unchanged
+  (quality ~32 ms, low latency ~9.5 ms). With a steady game nothing changes.
+- **Enhanced FG ×4 low latency predicts less far ahead**: the real frame is shown one output frame later, so the first generated frame
+  of each group is interpolated between the two real frames and the others go 1/4 less far: about 22 % less error when turning the
+  camera (27 % fewer badly wrong pixels) against the true frames of real gameplay video, for +5 ms (measured on the TV: 23 → 28 ms, the
+  same pacing, every frame for one refresh). Not with DLSS 5 (there it would not fit and the ladder would drop to ×2) and not in ×3
+  (there it cost +18 ms and uneven pacing): those stay as in 1.3.
+- **Enhanced FG low latency has its own forward pass**: the generated frame no longer picks pixel by pixel (fewer loose dark / bright
+  specks along object edges), what gets uncovered behind the weapon or the character is filled from the background instead of smearing
+  its dark edge, and what enters through the screen edges keeps moving with the picture instead of a still strip. The overall error
+  against real gameplay video stays the same (within 1 %): most of what still shows when turning comes from predicting the next camera
+  move.
+
+#### Fixed
+- **Switch 2 after the PS5**: the first game no longer starts as "Game 1" with the PS5 settings. The launch animation of the selected
+  tile (and a dimmed HOME with a notice on top) is never taken for another game: the selected game's name is only looked for in its row
+  above the tiles (a blue logo inside a tile was read as an unknown game), and the last recognised game is kept while leaving the HOME.
+  On start-up, the "Game N" created that way (23-11 20:22:52) is removed with its icon.
+- **A new game starts with the settings of its own console** (the Switch 2: its last game; PS5 / Xbox: their console profile; otherwise
+  the defaults), never with the ones of the console used before. The console profile now also carries its frame generation type.
+  Garbled PS5 menu reads no longer create a profile.
+
+#### Settings to go back
+Engine settings go at the end of the `motor_extra=` line of `consoleenhancer.ini`; the others, as their own line at the end of the file.
+- In `motor_extra`: `escalera=0` (the 1.3 frame-rate checks) · `escalera_modelo=0` / `escalera_fsr1=0` (the ladder without the DLSS model
+  / FSR 1 steps) · `escalera_pasos=10` (DLSS 5 in steps of 10 %) · `efg_ritmo=0 repetidas_30_efg=0` (Enhanced FG pacing as in 1.3) ·
+  `efg_retraso_lat4=-1` (×4 low latency all forward, as in 1.3) · `efg_lat=0` (the 1.3 low-latency forward pass).
+- To try, in `motor_extra`: `efg_colchon_ms=17` (Enhanced FG quality ×2 perfectly even with an irregular game, +17 ms) · `efg_ritmo=2`
+  (the new pacing also for ×3 / ×4 quality: smoother ×3, but ×4 less even on a 120 Hz TV) · `efg_retraso_lat3=0.25` /
+  `efg_retraso_dlss5=1` (the later real frame also in ×3 / with DLSS 5).
+- In the ini: `generacion_xess=1` (XeSS FG back). An empty `portable.txt` next to the exe: settings in `data\` there.
+
+#### Known issues
+- Enhanced FG: the **picture quality of the generated frames barely changes** in this version. Measured against the true in-between
+  frames of real gameplay video, nothing tried gave a clear gain (the new test options `efg_nitido`, `efg_sel_vecinos`, `efg_sel_local`
+  are off by default).
+- Enhanced FG **low latency still has errors when turning the camera**, fewer at ×4 (without DLSS 5): most come from predicting the next
+  camera move, and they grow with how far ahead the last generated frame is. For ×3 / ×4 with DLSS 5, the quality mode looks better.
+- Enhanced FG ×4 low latency + DLSS 5 at 4K capture doesn't fit on an RTX 4060 Ti even at 25 %: after ~16 s it goes ×2 for the session
+  with a notice (the profile keeps ×4).
+- Smooth Motion ×4 + DLSS 5 at 1440p fits only with DLSS 5 at 25 % and DLSS K on an RTX 4060 Ti.
+- The Xbox shares the "Console" profile with the PS5 (one profile for every console without a HOME).
+- Everything in this version was measured with real gameplay video through the engine, not yet with the console.
+
+### Castellano
+
+**Tus ajustes se guardan en el PC entre versiones, una escalera de fps que conserva el multiplicador, Enhanced FG más fluida y la
+Switch 2 tras la PS5 arreglada.** Medido sin la consola en una RTX 4060 Ti con una tele 4K de 120 Hz con VRR, con vídeo real de juego
+por el motor como si fuera la capturadora y los ajustes de quien la prueba con la consola (DLSS 5 nivel 4, 4K y 1440p + DLSS M, modo
+30, 120 Hz VRR). Comparado con la 1.3.
+
+#### Cambiado
+- **Tus ajustes viven ahora en este PC, no en la carpeta de la app**: `%LOCALAPPDATA%\ConsoleEnhancer\settings` guarda los ajustes, los
+  perfiles de juegos, la consola, el idioma, las escalas aprendidas y los registros de todas las versiones, y se escribe en cada cambio.
+  Una versión nueva descomprimida donde sea (Descargas, Escritorio, otra unidad, sin ninguna anterior al lado) los usa tal cual desde el
+  primer arranque. La primera vez se traen una vez de la carpeta de datos usada más recientemente (el `data\` de la versión anterior o la
+  copia de seguridad); se apunta en `settings\inherited.txt` y se dice una vez en pantalla. El zip ya no trae `portable.txt`; crea uno
+  vacío junto al exe para guardarlo todo en su `data\`. Una versión más antigua abierta después trabaja en una copia
+  (`settings-older\<versión>`) y nunca reescribe los ajustes de una más nueva. Empezar de cero: cierra la app y borra esa carpeta. Los
+  registros están ahora en `settings\logs`.
+- **XeSS FG quitada de momento** del menú de ajustes, L3, las listas y cualquier salida automática. Los perfiles y lo elegido con ella (o
+  con FSR 3 FG, quitada en la 1.3) pasan a lo más parecido de este PC (Smooth Motion en RTX 40 / 50, el mismo ×2); se apunta en el
+  registro y se dice una vez en pantalla. Smooth Motion ×4 sigue usando por dentro XeSS FG ×2 del motor. `generacion_xess=1` en el ini
+  la vuelve a poner.
+- **No llegar a los fps objetivo se ve en 1-2 s, y la generación conserva su multiplicador mientras puede.** Cada cuarto de segundo el
+  motor cuenta las imágenes de la consola que ha tenido que tirar (y, con Enhanced FG, las inventadas que se ha saltado); un tirón
+  suelto, un juego lento en la consola, despertar, el relevo entre motores, el menú de ajustes o perder el foco no cuentan. Si no cabe
+  baja, por este orden y sin reabrir nada: DLSS 5 (primero a pasos grandes, hasta el 25 % y una pasada), luego el reescalado DLSS (un
+  modelo más ligero y, como último recurso, FSR 1 en vez de DLSS esa sesión) y solo al final el multiplicador (Smooth Motion ×4 /
+  Enhanced FG ×3-×4 → ×2) **solo esta sesión**: lo elegido sigue en el perfil del juego. Lo que cabe se aprende para la próxima vez y se
+  vuelve a subir despacio cuando sobra. Un aviso corto dice lo que se ha bajado ("Enhanced FG x4 · DLSS 5 al 25 % y DLSS K para que
+  quepa"). Antes el multiplicador caía a los 5-21 s, muchas veces mientras DLSS 5 aún bajaba y sin tocar el reescalado. Medido en la app
+  entera con vídeo real de juego: Smooth Motion ×4 + DLSS 5 a 1440p (+ DLSS M) sigue ahora en ×4 con DLSS 5 al 25 % y DLSS K (en la 1.3
+  pasaba a ×2 a los 21 s); Enhanced FG ×4 baja latencia + DLSS 5 a 1440p cabe a los 21 s sin inventadas saltadas (en la 1.3 DLSS 5
+  bajaba 90 → 50 % en 37 s saltándose 30 inventadas por segundo).
+- **Enhanced FG ×2 va fluido aunque el juego de la consola no mantenga los 30 fps.** Un juego de consola a 30 no siempre entrega una
+  imagen nueva cada dos refrescos: cuando baja, una imagen dura tres refrescos y la siguiente uno. Enhanced FG ponía su inventada a una
+  hora fija y a mitad de movimiento, así que tras una imagen larga lo que se veía no casaba con su hora (se paraba y saltaba). Ahora las
+  reales van por la hora en que llegó su contenido y las inventadas rellenan el hueco de verdad, cada una con el movimiento de su
+  instante; en baja latencia una inventada cede el sitio si la siguiente real ya está. Medido en la tele con vídeo real de juego con una
+  cadencia irregular (4K, 120 Hz VRR): lo que se ve se aparta de su hora 8,2 → 1,3 ms (percentil 95) en el modo calidad, 7,8 → 1,2 ms en
+  baja latencia y 5,5 → 2,3 ms en calidad con DLSS 5; la latencia no cambia (calidad ~32 ms, baja latencia ~9,5 ms). Con un juego
+  estable no cambia nada.
+- **Enhanced FG ×4 en baja latencia predice menos lejos**: la real se enseña una imagen de salida más tarde, así que la primera
+  inventada de cada grupo se interpola entre las dos reales y las demás van 1/4 menos lejos: un 22 % menos de error al girar la cámara
+  (un 27 % menos de puntos muy errados) contra las imágenes de verdad de vídeo real de juego, por +5 ms (medido en la tele: 23 → 28 ms,
+  el mismo ritmo, todas a un refresco). No con DLSS 5 (ahí no cabría y la escalera bajaría a ×2) ni en ×3 (ahí costaba +18 ms y un ritmo
+  irregular): esos siguen como en la 1.3.
+- **Enhanced FG baja latencia tiene su propia pasada hacia delante**: la inventada ya no elige punto a punto (menos puntos sueltos
+  claros / oscuros en los bordes de las cosas), lo que se destapa detrás del arma o del personaje se rellena con el fondo en vez de
+  estirar su borde oscuro, y lo que entra por los bordes de la pantalla sigue moviéndose con la imagen en vez de quedarse en una franja
+  quieta. El error total contra vídeo real de juego queda igual (menos de un 1 % arriba o abajo): casi todo lo que aún se ve al girar
+  viene de adivinar el siguiente movimiento de la cámara.
+
+#### Arreglado
+- **La Switch 2 tras la PS5**: el primer juego ya no empieza como "Juego 1" con los ajustes de la PS5. La animación de arranque de la
+  casilla elegida (y el HOME atenuado con un aviso encima) nunca cuenta como otro juego: el nombre del juego seleccionado solo se busca
+  en su fila, encima de las casillas (un logo azul dentro de una casilla se leía como un juego desconocido), y al salir del HOME se
+  mantiene el último juego reconocido. Al abrir, se quita el "Juego N" creado así (23-11 20:22:52) con su icono.
+- **Un juego nuevo empieza con los ajustes de su propia consola** (la Switch 2: los de su último juego; PS5 / Xbox: su perfil de
+  consola; si no, los de serie), nunca con los de la consola de antes. El perfil de la consola lleva también su tipo de generación. Las
+  lecturas malas del menú de la PS5 ya no crean perfil.
+
+#### Ajustes para volver atrás
+Las claves del motor van al final de la línea `motor_extra=` de `consoleenhancer.ini`; las demás, en una línea propia al final.
+- En `motor_extra`: `escalera=0` (las comprobaciones de fps de la 1.3) · `escalera_modelo=0` / `escalera_fsr1=0` (la escalera sin el
+  paso del modelo de DLSS / de FSR 1) · `escalera_pasos=10` (DLSS 5 de 10 en 10 %) · `efg_ritmo=0 repetidas_30_efg=0` (el ritmo de
+  Enhanced FG de la 1.3) · `efg_retraso_lat4=-1` (×4 baja latencia todo hacia delante, como en la 1.3) · `efg_lat=0` (la pasada hacia
+  delante de la 1.3).
+- Para probar, en `motor_extra`: `efg_colchon_ms=17` (Enhanced FG calidad ×2 del todo parejo con un juego irregular, +17 ms) ·
+  `efg_ritmo=2` (el ritmo nuevo también en ×3 / ×4 calidad: ×3 más fluido, pero ×4 menos parejo en una tele de 120 Hz) ·
+  `efg_retraso_lat3=0.25` / `efg_retraso_dlss5=1` (la real más tarde también en ×3 / con DLSS 5).
+- En el ini: `generacion_xess=1` (vuelve XeSS FG). Un `portable.txt` vacío junto al exe: los ajustes en su `data\`.
+
+#### Problemas conocidos
+- Enhanced FG: la **calidad de imagen de las inventadas casi no cambia** en esta versión. Medido contra las imágenes de en medio de
+  verdad de vídeo real de juego, nada de lo probado dio una mejora clara (las opciones nuevas de prueba `efg_nitido`, `efg_sel_vecinos`,
+  `efg_sel_local` van apagadas de serie).
+- Enhanced FG **baja latencia sigue teniendo errores al girar la cámara**, menos en ×4 (sin DLSS 5): casi todos vienen de adivinar el
+  siguiente movimiento de la cámara y crecen con lo lejos que va la última inventada. Para ×3 / ×4 con DLSS 5 se ve mejor el modo calidad.
+- Enhanced FG ×4 baja latencia + DLSS 5 con captura 4K no cabe en una RTX 4060 Ti ni al 25 %: a los ~16 s pasa a ×2 esa sesión con un
+  aviso (el perfil sigue con ×4).
+- Smooth Motion ×4 + DLSS 5 a 1440p solo cabe con DLSS 5 al 25 % y DLSS K en una RTX 4060 Ti.
+- La Xbox comparte con la PS5 el perfil "Consola" (uno para todas las consolas sin HOME).
+- Todo lo de esta versión se ha medido con vídeo real de juego por el motor, aún no con la consola.
+
 ## [1.3] - 2026-11-23
 
 **Everything in ConsoleEnhancer's own engine, without Magpie, mpv or NVIDIA DLSS Frame Generation**, with a new frame generation of
