@@ -152,6 +152,26 @@ namespace ConsoleEnhancer
         }
     }
 
+    static partial class GameProfiles
+    {
+        // (23-11, SWITCH2) Quita un "Juego N" sin nombre seguro (y sus iconos). false si no esta o ya tiene nombre
+        internal static bool QuitaSinNombre(string generico)
+        {
+            if (!GameNames.IsGeneric(generico)) return false;
+            lock (sync)
+            {
+                Load();
+                GameProfile g = null;
+                foreach (GameProfile q in list) if (q.Name == generico) g = q;
+                if (g == null || g.NameSure) return false;
+                Backup();
+                list.Remove(g);
+                SaveAll();
+                return true;
+            }
+        }
+    }
+
     static class Switch2Datos
     {
         public const string MarcaImportado = "imported_switch2.txt";
@@ -198,7 +218,81 @@ namespace ConsoleEnhancer
             catch (Exception ex) { Log.Error("Switch 2: nombres de los \"Juego N\"", ex); }
             try { QuitaPortadasMalas(gamesDir, logs); }
             catch (Exception ex) { Log.Error("Switch 2: portadas de la PS5 sacadas del HOME de la Switch 2", ex); }
+            try { foreach (string q in QuitaJuegosDeOtraConsola(gamesDir, logs)) renombres.Add(new KeyValuePair<string, string>(q, null)); }
+            catch (Exception ex) { Log.Error("Switch 2: \"Juego N\" creados con la imagen de otra consola", ex); }
             return renombres;
+        }
+
+        // 23-11 18:56:30 (su log): la app abrio con la Switch 2 de console.txt y la PS5 delante; la logica del HOME de la Switch 2 tomo la
+        // imagen de la PS5 por su HOME y creo "Juego 1" con un "icono" de la PS5; a las 18:57:21 cambio a la PS5. Se quitan (perfil e iconos)
+        // los "Juego N" creados asi: en una sesion que empezo con la ultima consola vista, antes de ver de verdad su HOME y antes del primer
+        // cambio de consola, con ese cambio a otra consola en los 3 minutos siguientes sin ver el HOME entre medias, y que siguen sin nombre.
+        // Una vez (games\name_fixes.txt)
+        static readonly Regex ReSesionUltima = new Regex("^Consola: (.+?) \\(consola=auto, la ultima vista");
+        static readonly Regex ReAhora = new Regex("^Consola: ahora (.+?) \\(antes ");
+        static List<string> QuitaJuegosDeOtraConsola(string gamesDir, IEnumerable<string> logs)
+        {
+            List<string> quitados = new List<string>();
+            string marca = Path.Combine(gamesDir, MarcaNombres);
+            HashSet<string> ya = new HashSet<string>(StringComparer.Ordinal);
+            if (File.Exists(marca)) foreach (string l in File.ReadAllLines(marca, Encoding.UTF8)) ya.Add(l.Trim());
+            List<string[]> malos = new List<string[]>();   // hora, "Juego N", consola de la sesion, consola a la que cambio
+            foreach (string lf in logs)
+            {
+                if (lf == null || !File.Exists(lf) || new FileInfo(lf).Length > 64L << 20) continue;
+                string consolaSesion = null, creadoHora = null, creado = null;
+                bool desdeUltima = false, cambiada = false, homeVisto = false;
+                DateTime creadoAt = DateTime.MinValue;
+                using (FileStream fs = new FileStream(lf, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+                using (StreamReader sr = new StreamReader(fs, Encoding.UTF8))
+                {
+                    string l;
+                    while ((l = sr.ReadLine()) != null)
+                    {
+                        Match m = ReLinea.Match(l);
+                        if (!m.Success) continue;
+                        string t = m.Groups[2].Value;
+                        DateTime at;
+                        DateTime.TryParseExact(m.Groups[1].Value, "yyyy-MM-dd HH:mm:ss.fff", CultureInfo.InvariantCulture, DateTimeStyles.None, out at);
+                        Match q;
+                        if (t.StartsWith("===== Inicio", StringComparison.Ordinal))
+                        { consolaSesion = null; desdeUltima = cambiada = homeVisto = false; creado = null; }
+                        else if ((q = ReSesionUltima.Match(t)).Success) { consolaSesion = q.Groups[1].Value; desdeUltima = true; }
+                        else if (t.StartsWith("HOME visto en capturas seguidas", StringComparison.Ordinal) || t.StartsWith("Consola: el HOME de la Switch 2", StringComparison.Ordinal))
+                        { homeVisto = true; creado = null; }
+                        else if ((q = ReNuevo.Match(t)).Success)
+                        {
+                            if (desdeUltima && !cambiada && !homeVisto) { creado = q.Groups[1].Value; creadoHora = m.Groups[1].Value; creadoAt = at; }
+                        }
+                        else if ((q = ReRenombrado.Match(t)).Success)
+                        {
+                            if (creado == q.Groups[1].Value) creado = null;
+                            for (int i = malos.Count - 1; i >= 0; i--) if (malos[i][1] == q.Groups[1].Value) malos.RemoveAt(i);
+                        }
+                        else if ((q = ReAhora.Match(t)).Success)
+                        {
+                            if (!cambiada && creado != null && consolaSesion != null && q.Groups[1].Value != consolaSesion && (at - creadoAt).TotalSeconds <= 180)
+                                malos.Add(new[] { creadoHora, creado, consolaSesion, q.Groups[1].Value });
+                            cambiada = true;
+                            creado = null;
+                        }
+                    }
+                }
+            }
+            StringBuilder sb = new StringBuilder();
+            foreach (string[] b in malos)
+            {
+                string id = "otra_consola|" + b[0] + "|" + b[1];
+                if (ya.Contains(id)) continue;
+                ya.Add(id);
+                sb.Append(id).Append("\r\n");
+                if (!GameProfiles.QuitaSinNombre(b[1])) continue;
+                quitados.Add(b[1]);
+                Log.Write("Switch 2: \"" + b[1] + "\" (creado el " + b[0] + " con " + b[2] + " puesta por ser la ultima vista, y era la imagen de " + b[3] +
+                          "): quitado con sus iconos");
+            }
+            if (sb.Length > 0) File.AppendAllText(marca, sb.ToString(), new UTF8Encoding(false));
+            return quitados;
         }
 
         // 23-11 18:08:18 (su log): con la PS5 puesta y la Switch 2 ya delante, el HOME de la Switch 2 se memorizo como la portada de
@@ -438,7 +532,13 @@ namespace ConsoleEnhancer
             string ultimo = LoadText(Paths.LastGameFile);
             foreach (KeyValuePair<string, string> kv in ren)
             {
-                if (ultimo == kv.Key) { SaveText(Paths.LastGameFile, kv.Value); ultimo = kv.Value; }
+                // (kv.Value null: quitado, 23-11 SWITCH2)
+                if (ultimo == kv.Key)
+                {
+                    if (kv.Value != null) SaveText(Paths.LastGameFile, kv.Value);
+                    else try { File.Delete(Paths.LastGameFile); } catch { }
+                    ultimo = kv.Value;
+                }
                 lock (profileSync) { if (curGame == kv.Key) curGame = kv.Value; }
             }
         }
@@ -447,6 +547,7 @@ namespace ConsoleEnhancer
         // Sin consola ni grafica: la deteccion de la Switch 2 con la PS5 puesta (reloj falso), sus capturas reales (HOME con el nombre cian
         // y la hora con la bateria; menus de la PS5 que no lo son), las lecturas del HOME que siguen entre selecciones, y la importacion y
         // el arreglo de "Juego 1" sobre COPIAS de los datos del usuario
+        const string MarcaImportadoPrueba = Switch2Datos.MarcaImportado;
         internal static int Switch2Prueba(string arg)
         {
             string[] pa = (arg ?? "").Split(';');
@@ -583,8 +684,10 @@ namespace ConsoleEnhancer
                         // 18:10:19 apareciendo sobre Ocarina of Time-; las demas de debug\ps5 son de la PS5; las de diag_home, de la biblioteca
                         // o del HOME de la Switch 2 sin la hora a la vista: solo se listan)
                         string fn = Path.GetFileName(f);
+                        // (23-11 19:05: games\debug\ps5 guarda solo las 8 mas nuevas: las de 18:08 y 18:10 ya no estan; la de 18:55:16 es el HOME de la
+                        // Switch 2 con la PS5 puesta, con el que la app de las 18:55 cambio a la Switch 2 en 0,5 s)
                         bool esSwitch = fn.StartsWith("20261123-180816", StringComparison.Ordinal) || fn.StartsWith("20261123-180818", StringComparison.Ordinal) ||
-                                        fn.StartsWith("20261123-181019", StringComparison.Ordinal);
+                                        fn.StartsWith("20261123-181019", StringComparison.Ordinal) || fn.StartsWith("20261123-185516", StringComparison.Ordinal);
                         bool esPs5 = f.IndexOf(@"debug\ps5", StringComparison.OrdinalIgnoreCase) >= 0 && !esSwitch;
                         if (esSwitch) { sw++; if (reloj) swHome++; else sinHora++; }
                         else if (esPs5) { otras++; if (reloj) otrasMal++; }
@@ -595,11 +698,18 @@ namespace ConsoleEnhancer
                 }
                 check("2. Menus de la Xbox (" + xboxN + ", dibujados: no hay capturas reales suyas): ninguno da la hora del HOME de Nintendo", xboxN > 0 && xboxMal == 0);
                 check("2. Capturas de la PS5 (" + otras + ", suyas y de la version de antes): ninguna da la hora del HOME de Nintendo (ni el HOME de la Switch 2)", otras > 0 && otrasMal == 0);
-                check("2. Las del usuario del 23-11 con la Switch 2 delante y la PS5 puesta (18:08:16, 18:08:18, 18:10:19): su hora con la bateria en las 3 (" + swHome + " de " + sw + ")",
-                      sw == 3 && swHome == 3);
-                check("2. ...y el HOME entero (nombre cian + hora: concluyente) en las de 18:08:16 y 18:08:18 (la de 18:10:19, el HOME apareciendo: la hora sola, prueba propia)",
-                      ReconoceHome(imgs.Find(delegate (string f) { return Path.GetFileName(f).StartsWith("20261123-180816", StringComparison.Ordinal); })) &&
-                      ReconoceHome(imgs.Find(delegate (string f) { return Path.GetFileName(f).StartsWith("20261123-180818", StringComparison.Ordinal); })));
+                check("2. Las del usuario del 23-11 con la Switch 2 delante y la PS5 puesta (las que quedan de 18:08:16, 18:08:18, 18:10:19, 18:55:16): su hora con la bateria en todas (" +
+                      swHome + " de " + sw + ")", sw > 0 && swHome == sw);
+                int enteros = 0, conCian = 0;
+                foreach (string f in imgs)
+                {
+                    string fn = Path.GetFileName(f);
+                    if (!fn.StartsWith("20261123-180816", StringComparison.Ordinal) && !fn.StartsWith("20261123-180818", StringComparison.Ordinal) && !fn.StartsWith("20261123-185516", StringComparison.Ordinal)) continue;
+                    conCian++;
+                    if (ReconoceHome(f)) enteros++;
+                }
+                check("2. ...y el HOME entero (nombre cian + hora: concluyente) en las del HOME quieto (" + enteros + " de " + conCian + "; la de 18:10:19, el HOME apareciendo: la hora sola)",
+                      conCian > 0 && enteros == conCian);
 
                 // ---- 3. Las lecturas del HOME siguen entre selecciones (el caso de las 18:10:34-46) ----
                 TrayApp t = new TrayApp(new Config(), true);
@@ -631,15 +741,26 @@ namespace ConsoleEnhancer
                 {
                     string g = Path.Combine(tmp, "games");
                     Directory.CreateDirectory(g);
+                    // (sus datos de antes de la primera apertura con esto, el 23-11 a las 18:46:54: los .bak de esa apertura -File.Copy guarda la
+                    // fecha- y el log hasta entonces)
                     foreach (string n in new[] { "profiles.txt", "game_icons.txt", "last_game.txt", "home_ref.txt" })
                     {
                         string s = Path.Combine(datosUsuario, @"games\" + n);
+                        if (File.Exists(s + ".bak") && File.GetLastWriteTime(s + ".bak") < new DateTime(2026, 11, 23, 18, 46, 54)) s = s + ".bak";
                         if (File.Exists(s)) File.Copy(s, Path.Combine(g, n), true);
                     }
+                    if (File.Exists(Path.Combine(g, "last_game.txt")) && File.GetLastWriteTime(Path.Combine(datosUsuario, @"games\last_game.txt")) > new DateTime(2026, 11, 23, 18, 46, 54))
+                        File.WriteAllText(Path.Combine(g, "last_game.txt"), "Juego 1");
                     string logCopia = Path.Combine(tmp, "consoleenhancer.log");
                     string logU = Path.Combine(datosUsuario, @"logs\consoleenhancer.log");
+                    List<string> hasta = new List<string>();
                     using (FileStream fs = new FileStream(logU, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
-                    using (FileStream fo = new FileStream(logCopia, FileMode.Create)) fs.CopyTo(fo);
+                    using (StreamReader sr = new StreamReader(fs, Encoding.UTF8))
+                    {
+                        string l;
+                        while ((l = sr.ReadLine()) != null) { if (l.Length >= 23 && string.CompareOrdinal(l.Substring(0, 23), "2026-11-23 18:46:54.000") >= 0) break; hasta.Add(l); }
+                    }
+                    File.WriteAllLines(logCopia, hasta.ToArray(), new UTF8Encoding(false));
                     // (las portadas de la PS5 van en games\ de --datos: una copia de las del usuario, nunca las suyas)
                     bool fueraCovers = false;
                     string coverAntes = null;
@@ -690,8 +811,9 @@ namespace ConsoleEnhancer
                                     pDespues = PortadasConsola.Busca(PortadasConsola.Firma(full), out dDespues);
                                 }
                             pAntes = coverAntes; dAntes = coverAntesD;
-                            check("5. La portada mala (el HOME de la Switch 2 como \"PS5: Grand Theft Auto VI\"): antes casaba (" + (pAntes ?? "nada") + " a " + dAntes.ToString("0.0", CultureInfo.InvariantCulture) +
-                                  "), ahora no (" + (pDespues ?? "nada") + ")", pAntes != null && pDespues == null);
+                            if (pAntes == null) sb.Append("      5. (la portada mala ya no esta en sus datos: la quito la apertura del 23-11 a las 18:46:55; ahora casa con " + (pDespues ?? "nada") + ")\r\n");
+                            check("5. La portada mala (el HOME de la Switch 2 como \"PS5: Grand Theft Auto VI\"): " + (pAntes != null ? "antes casaba (" + pAntes + " a " +
+                                  dAntes.ToString("0.0", CultureInfo.InvariantCulture) + "), " : "") + "ahora no (" + (pDespues ?? "nada") + ")", pDespues == null);
                             List<string> quedan = PortadasConsola.Nombres();
                             check("5. Las demas portadas de la PS5 siguen (" + string.Join(", ", quedan.ToArray()) + ")", quedan.Count > 0);
                         }
@@ -703,6 +825,105 @@ namespace ConsoleEnhancer
                     finally { GameProfiles.CarpetaDePrueba(antesP); }
                 }
                 else sb.Append("      (sin datos del usuario: la parte 4 no se ha probado)\r\n");
+
+                // ---- 6. Al reves (23-11 18:56): la Switch 2 de console.txt y la PS5 delante: "Juego 1" con la imagen de la PS5, quitado ----
+                if (datosUsuario != null && Directory.Exists(Path.Combine(datosUsuario, "games")))
+                {
+                    string g2 = Path.Combine(tmp, "games6");
+                    Directory.CreateDirectory(g2);
+                    foreach (string n in new[] { "profiles.txt", "game_icons.txt", "last_game.txt", "home_ref.txt", MarcaImportadoPrueba, Switch2Datos.MarcaNombres })
+                    {
+                        string s = Path.Combine(datosUsuario, @"games\" + n);
+                        if (File.Exists(s)) File.Copy(s, Path.Combine(g2, n), true);
+                    }
+                    string logTodo = Path.Combine(tmp, "consoleenhancer6.log");
+                    using (FileStream fs = new FileStream(Path.Combine(datosUsuario, @"logs\consoleenhancer.log"), FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+                    using (FileStream fo = new FileStream(logTodo, FileMode.Create)) fs.CopyTo(fo);
+                    string antesP6 = GameProfiles.CarpetaDePrueba(g2);
+                    try
+                    {
+                        GameProfile j1 = GameProfiles.Find("Juego 1");
+                        double[] icJ1 = j1 != null ? j1.Icon : null;
+                        int antesN = GameProfiles.Nombres().Count;
+                        bool hayJ1 = j1 != null && !j1.NameSure;
+                        sb.Append("      6. en sus datos de ahora: " + (hayJ1 ? "\"Juego 1\" (creado a las 18:56:30 con la imagen de la PS5)" : "sin \"Juego 1\"") + ", " + antesN + " perfiles\r\n");
+                        List<KeyValuePair<string, string>> r6 = Switch2Datos.AlAbrir(g2, null, viejo, new[] { logTodo }, new DateTime(2026, 11, 23, 19, 30, 0));
+                        bool quitado = r6.Exists(delegate (KeyValuePair<string, string> kv) { return kv.Key == "Juego 1" && kv.Value == null; });
+                        check("6. \"Juego 1\" creado con la imagen de la PS5 (Switch 2 de console.txt, cambio a la PS5 51 s despues): quitado con sus iconos" +
+                              (hayJ1 ? "" : " (no estaba)"),
+                              !hayJ1 || (quitado && GameProfiles.Find("Juego 1") == null && (icJ1 == null || GameProfiles.FindByIcon(icJ1) == null)));
+                        check("6. Los demas perfiles siguen (" + GameProfiles.Nombres().Count + " de " + antesN + "): Ocarina, Arceus, \"Consola\", los de la PS5",
+                              GameProfiles.Nombres().Count == antesN - (hayJ1 ? 1 : 0) && GameProfiles.Find("The Legend of Zelda: Ocarina of Time") != null &&
+                              GameProfiles.Find("Leyendas Pokémon: Arceus") != null && GameProfiles.Find("Consola") != null && GameProfiles.Find("PS5: Grand Theft Auto VI") != null);
+                        List<KeyValuePair<string, string>> r6b = Switch2Datos.AlAbrir(g2, null, viejo, new[] { logTodo }, new DateTime(2026, 11, 23, 19, 31, 0));
+                        check("6. Al abrir otra vez: nada mas", r6b.Count == 0 && GameProfiles.Nombres().Count == antesN - (hayJ1 ? 1 : 0));
+                    }
+                    finally { GameProfiles.CarpetaDePrueba(antesP6); }
+                }
+
+                // ---- 7. Al reves en vivo (reloj falso): la Switch 2 de console.txt, sin confirmar, y la PS5 delante ----
+                {
+                    DateTime t7 = new DateTime(2026, 11, 23, 18, 56, 20);
+                    DateTime ahora7 = t7;
+                    Consolas.Reloj = delegate { return ahora7; };
+                    string pq;
+                    File.WriteAllText(Path.Combine(tmp, "console.txt"), "switch2");
+                    Consolas.Reiniciar("auto");
+                    check("7. Al abrir con la Switch 2 de console.txt: aun no crea juegos (" + (Consolas.PuedeCrearJuegos(out pq) ? "si" : pq) + ")",
+                          Consolas.Actual == Consolas.Switch2 && !Consolas.PuedeCrearJuegos(out pq));
+                    Consolas.VistoMenuPs5Concluyente("pestañas");
+                    check("7. El menu de la PS5 (sus pestañas) en una captura: apunta a la PS5, nada se crea", Consolas.Actual == Consolas.Switch2 &&
+                          Consolas.ApuntaAOtra() == Consolas.Ps5 && !Consolas.PuedeCrearJuegos(out pq));
+                    ahora7 = t7.AddSeconds(0.5);
+                    ConsolaPerfil r7 = Consolas.VistoMenuPs5Concluyente("18:56");
+                    check("7. ...y en la siguiente (0,5 s): PS5 (antes 76 s), confirmada: ya puede crear sus juegos", r7 == Consolas.Ps5 && Consolas.PuedeCrearJuegos(out pq));
+                    // La Switch 2 de verdad al abrir: su HOME la confirma
+                    File.WriteAllText(Path.Combine(tmp, "console.txt"), "switch2");
+                    Consolas.Reiniciar("auto");
+                    ahora7 = t7;
+                    Consolas.VistoHomeNintendo(true, 0);
+                    check("7. Switch 2 de console.txt y su HOME (con su referencia) a la vista: confirmada, crea juegos", Consolas.Actual == Consolas.Switch2 && Consolas.PuedeCrearJuegos(out pq));
+                    // La PS5 de console.txt: su menu la confirma
+                    File.WriteAllText(Path.Combine(tmp, "console.txt"), "ps5");
+                    Consolas.Reiniciar("auto");
+                    bool antes7 = Consolas.PuedeCrearJuegos(out pq);
+                    Consolas.VistoMenuPropio(Consolas.Ps5, "18:56");
+                    check("7. PS5 de console.txt: sin confirmar no crea; su menu visto la confirma", !antes7 && Consolas.PuedeCrearJuegos(out pq));
+                    // Con consola=switch2 fija en el ini: siempre
+                    Consolas.Reiniciar("switch2");
+                    check("7. consola=switch2 fija en el ini: crea juegos sin esperar a la imagen", Consolas.PuedeCrearJuegos(out pq));
+                    Consolas.Reloj = relojAntes;
+                }
+
+                // ---- 8. Capturas reales: el menu de la PS5 se ve (concluyente) y el HOME de la Switch 2 no lo da ----
+                {
+                    int ps5Si = 0, ps5N = 0, swMal = 0, swN = 0;
+                    List<string> bancoPs5 = new List<string>();
+                    foreach (string dir in new[] { viejo != null ? Path.Combine(viejo, "test_deteccion") : null, Environment.GetEnvironmentVariable("CE_BANCO_DETECCION") })
+                        if (dir != null && Directory.Exists(dir)) bancoPs5.AddRange(Directory.GetFiles(dir, "*.png"));
+                    if (datosUsuario != null)
+                        foreach (string n in new[] { "20261123-180816_1280x720.png", "20261123-180818_1280x720.png", "20261123-181019_1280x720.png" })
+                            if (File.Exists(Path.Combine(datosUsuario, @"games\debug\ps5\" + n))) bancoPs5.Add(Path.Combine(datosUsuario, @"games\debug\ps5\" + n));
+                    foreach (string f in bancoPs5)
+                    {
+                        string fn = Path.GetFileNameWithoutExtension(f);
+                        bool menuPs5 = fn.StartsWith("menu_ce-gta-pestanas", StringComparison.Ordinal) || fn.StartsWith("ps5inicio_", StringComparison.Ordinal);
+                        bool otraC = fn.StartsWith("sw2home", StringComparison.Ordinal) || fn.StartsWith("20261123-18", StringComparison.Ordinal) || fn.StartsWith("juego_sw2", StringComparison.Ordinal) ||
+                                  fn.StartsWith("xbox", StringComparison.Ordinal);
+                        if (!menuPs5 && !otraC) continue;
+                        DateTime cuando;
+                        if (fn.StartsWith("2026", StringComparison.Ordinal)) { if (!Switch2Datos.HoraDeNombre(fn + ".png", out cuando)) continue; }
+                        else if (!DateTime.TryParseExact("20261122-" + fn.Substring(fn.Length - 6), "yyyyMMdd-HHmmss", CultureInfo.InvariantCulture, DateTimeStyles.None, out cuando)) continue;
+                        string h;
+                        bool visto;
+                        using (Bitmap full = Switch2Datos.Cargar32(f)) { DetectorMenu.OlvidaZonas(); visto = MenuPs5Visto(full, cuando, out h); }
+                        if (menuPs5) { ps5N++; if (visto) ps5Si++; }
+                        else { swN++; if (visto) swMal++; }
+                        sb.Append("      ").Append(visto ? "MENU PS5 (" + h + ") " : "-              ").Append(menuPs5 ? "[ps5]  " : "[otra] ").Append(f).Append("\r\n");
+                    }
+                    check("8. Menus de la PS5 de verdad (" + ps5N + "): se ven como su menu (hora o pestañas) en " + ps5Si, ps5N > 0 && ps5Si == ps5N);
+                    check("8. HOME y juegos de la Switch 2 y menus de la Xbox (" + swN + "): ninguno da el menu de la PS5", swN > 0 && swMal == 0);
+                }
             }
             catch (Exception ex) { check("Excepcion: " + ex, false); }
             finally

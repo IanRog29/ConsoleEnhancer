@@ -8097,12 +8097,19 @@ namespace ConsoleEnhancer
                         if (Consolas.Actual.MenuPropio) MenuPs5Captura(full, small, noSignal);
                         return;
                     }
-                    // (23-11, SWITCH2: el HOME de la Switch 2 con otra consola puesta, en cada captura y antes que lo de la PS5)
-                    if (!conHome) ObservaHomeSwitch(full, small, noSignal);
+                    // (23-11, SWITCH2: el HOME de la Switch 2 con otra consola puesta -o con ella, hasta que la imagen la confirme- y el menu de
+                    // la PS5 con otra puesta, en cada captura y antes que lo de cada consola)
+                    ObservaHomeSwitch(full, small, noSignal);
+                    ObservaMenuPs5(full, noSignal);
+                    // (con la Switch 2 puesta, su HOME igual a games\home_ref.txt la confirma: ya puede crear juegos)
+                    if (conHome && !noSignal && homeRef != null && !Consolas.ConfirmadaPorImagen && HomeLabel.HomeDiff(strips, homeRef) <= HomeLabel.IsHome)
+                        Consolas.VistoHomeNintendo(true, 0);
                     if (!conHome) ObservaConsola(full, small, strips, noSignal, homeRef);
                     // 19-11: el menu de la PS5 (src\MenuPs5.cs): con ella puesta, su menu a 4K nativo; con otra y consola=auto, pista a su favor
+                    // (23-11, SWITCH2: "el HOME de la Switch 2" para no mirarlo solo si de verdad lo es -sus franjas-; un texto azul cualquiera, como el
+                    // de la PS5 el 23-11 a las 18:56, ya no lo tapa. Sin games\home_ref.txt, como antes)
                     if (Consolas.Actual.MenuPropio) MenuPs5Captura(full, small, noSignal);
-                    else if (!noSignal) MenuPs5Pista(full, lab != null || (homeRef != null && HomeLabel.HomeDiff(strips, homeRef) <= HomeLabel.IsHome));
+                    else if (!noSignal) MenuPs5Pista(full, homeRef != null ? HomeLabel.HomeDiff(strips, homeRef) <= HomeLabel.IsHome : lab != null);
                     // 16-11: la biblioteca (Programas): el nombre es el de su pastilla gris (o ninguno si no se ve), sin icono ni "en uso" por
                     // pixeles (HomeLabel.IsLibrary); cuenta como el HOME (no es salir de el)
                     library = conHome && !noSignal && inHomeNow && !inGame && HomeLabel.IsLibrary(small);
@@ -8852,6 +8859,8 @@ namespace ConsoleEnhancer
         // 16-11: firm = NameReads.Firm (una lectura suelta no cambia el nombre de un perfil)
         void ImproveProfile(GameProfile p, string name, bool sure, string why, bool firm)
         {
+            string noCrear;   // (23-11, SWITCH2: con la imagen de otra consola o sin confirmar la puesta, ningun nombre cambia)
+            if (!Consolas.PuedeCrearJuegos(out noCrear)) return;
             bool wasSure = p.NameSure;
             string merged;
             List<string> gone = GameProfiles.Improve(p, name, sure, sure || firm, out merged);
@@ -9011,22 +9020,40 @@ namespace ConsoleEnhancer
             bool confirmed = sure && enterConfirmed;
             enterSure = false;
             enterConfirmed = false;
+            // 23-11 (SWITCH2, el usuario: "he encendido ps5 ... en los juegos ponia juego 1 y juego 2"): con la imagen de otra consola (la app
+            // abierta con la Switch 2 de console.txt y la PS5 delante, 18:56:30) no se crea nada: ni juego nuevo, ni "Juego N", ni iconos, ni
+            // nombres. Apuntando a otra consola, nada de nada (lo ultimo elegido, sin nombre); sin confirmar aun, solo los juegos ya guardados
+            // (el icono del HOME solo con la consola del HOME: con la PS5 / Xbox ya puestas, uno que quedara de su logica no vale; "Consola", el
+            // perfil de toda la consola, siempre)
+            if (!Consolas.Actual.TieneHome) icon = null;
+            string noCrear;
+            bool crear = Consolas.PuedeCrearJuegos(out noCrear) || name == ConsolaPerfil.NombrePerfilConsola;
+            if (!crear && Consolas.Actual.TieneHome && Consolas.ApuntaAOtra() != null)
+            {
+                Log.Write("Al entrar: " + (name.Length > 0 ? "\"" + name + "\"" : "un juego sin nombre") + " sin perfil ni nada guardado (" + noCrear + ")");
+                return CurrentProfile(null);
+            }
             // (16-11: el icono gana: reconocido por el, el nombre leido solo lo mejora si es firme, ImproveProfile)
             GameProfile p = GameProfiles.FindByIcon(icon);
-            if (p != null && name.Length > 0 && name != p.Name) ImproveProfile(p, name, confirmed, "al entrar", sure);
+            if (p != null && name.Length > 0 && name != p.Name && crear) ImproveProfile(p, name, confirmed, "al entrar", sure);
             if (p == null && name.Length > 0)
             {
                 p = GameProfiles.Find(name);
                 if (p != null)
                 {
                     // (16-11: su icono solo con el nombre firme: con una lectura suelta podria ser el de otro juego)
-                    if (icon != null && sure)
+                    if (icon != null && sure && crear)
                     {
                         GameProfiles.AddIcon(p, icon);
                         Log.Write("Icono de \"" + p.Name + "\" guardado: la proxima vez se le reconoce por el");
                     }
-                    if (name != p.Name) ImproveProfile(p, name, confirmed, "al entrar", sure);
+                    if (name != p.Name && crear) ImproveProfile(p, name, confirmed, "al entrar", sure);
                 }
+            }
+            if (p == null && !crear)
+            {
+                Log.Write("Al entrar: " + (name.Length > 0 ? "\"" + name + "\"" : "un juego sin nombre") + " no esta guardado y no se crea (" + noCrear + ")");
+                return CurrentProfile(null);
             }
             // 16-11: un juego nuevo solo con su nombre firme (NameReads.Firm); si no ("LLó" a las 00:45:56, una lectura del arte de Fall Guys),
             // como sin nombre: "Juego N" con su icono del HOME (se le reconocera por el y su nombre se leera en el HOME), y sin icono (elegido

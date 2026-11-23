@@ -137,6 +137,7 @@ namespace ConsoleEnhancer
                 noLabel = 0;
                 enterSure = true;
                 enterConfirmed = true;
+                enterIcon = null;   // (23-11, SWITCH2: un icono del HOME de la consola de antes no es de esta)
             }
             EnterGame(nueva.PerfilConsola);
         }
@@ -240,7 +241,9 @@ namespace ConsoleEnhancer
         DateTime obsSwLog = DateTime.MinValue, obsSwRelojAt = DateTime.MinValue;
         void ObservaHomeSwitch(Bitmap full, Bitmap small, bool noSignal)
         {
-            if (noSignal || Consolas.Fija || Consolas.Actual.TieneHome || full == null || small == null) return;
+            // (con la Switch 2 puesta, solo hasta que la imagen la confirme: la de console.txt al abrir)
+            if (noSignal || Consolas.Fija || full == null || small == null) return;
+            if (Consolas.Actual.TieneHome && Consolas.ConfirmadaPorImagen) return;
             try
             {
                 Rectangle box;
@@ -264,6 +267,43 @@ namespace ConsoleEnhancer
                 else Consolas.VistoRelojSwitch(rh);
             }
             catch (Exception ex) { Log.Error("Consola: buscando el HOME de la Switch 2", ex); }
+        }
+
+        // 23-11 (SWITCH2, al reves: "la he apagado, he encendido ps5 ... ponia juego 1 y juego 2"): con la Switch 2 puesta (console.txt) y la
+        // PS5 delante, su menu solo contaba cada 5 s y nunca si el lector del HOME veia algo azul (MenuPs5Pista con switchHome): 76 s. Ahora,
+        // en CADA captura con otra consola puesta (no una PlayStation), la hora de la PS5 en su sitio exacto (su lector, el de MenuPs5Captura,
+        // que no vuelve a leer una zona que no ha cambiado) o, si arriba parece haber algo, las pestañas de su inicio: prueba concluyente
+        void ObservaMenuPs5(Bitmap full, bool noSignal)
+        {
+            if (noSignal || Consolas.Fija || full == null || Consolas.Actual.Familia == "playstation") return;
+            try
+            {
+                DateTime now = DateTime.Now;
+                string h;
+                if (!MenuPs5Visto(full, now, out h)) return;
+                if ((now - obsPs5Log).TotalSeconds >= 30 || now < obsPs5Log)
+                {
+                    obsPs5Log = now;
+                    Log.Write("Consola: el menu de la PS5 a la vista con " + Consolas.Actual.Corto + " puesta (" + (h != "pestañas" ? "la hora \"" + h + "\" en su sitio" : "las pestañas de su inicio") +
+                              "): prueba concluyente");
+                }
+                Consolas.VistoMenuPs5Concluyente(h);
+            }
+            catch (Exception ex) { Log.Error("Consola: buscando el menu de la PS5", ex); }
+        }
+        DateTime obsPs5Log = DateTime.MinValue;
+
+        // ¿El menu de la PS5? (su hora en su sitio exacto, o las pestañas de su inicio si arriba parece haber algo). hora = la leida o "pestañas"
+        internal static bool MenuPs5Visto(Bitmap full, DateTime now, out string hora)
+        {
+            string ocr, porque;
+            bool fuerte, parecio;
+            if (DetectorMenu.BuscaReloj(full, now, Consolas.Ps5, out hora, out ocr, out fuerte, out porque, out parecio)) return true;
+            string leido;
+            hora = null;
+            if ((parecio || (porque != null && porque.StartsWith("algo a la derecha", StringComparison.Ordinal))) && JuegoConsola.PestanasInicio(full, out leido))
+            { hora = "pestañas"; return true; }
+            return false;
         }
 
         // ChooseLook (cada 0,5 s): un juego a 40 (la consola a 120 Hz, la captura a 60: a tirones), al log una vez y como pista

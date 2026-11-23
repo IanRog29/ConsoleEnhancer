@@ -790,13 +790,14 @@ namespace ConsoleEnhancer
         bool RecoJuegosActivo(ConsolaPerfil c)
         {
             if (!JuegoConsola.Activo(c, cfg)) return false;
-            ConsolaPerfil otra = Consolas.ApuntaAOtra();
-            if (otra == null) return true;
+            // (23-11, SWITCH2: y la puesta confirmada por la imagen en esta sesion -no solo la ultima vista de console.txt-: Consolas.PuedeCrearJuegos)
+            string porque;
+            if (Consolas.PuedeCrearJuegos(out porque)) return true;
             DateTime now = DateTime.Now;
             if ((now - recoOtraLog).TotalSeconds >= 30 || now < recoOtraLog)
             {
                 recoOtraLog = now;
-                Log.Write("Consola: la imagen apunta a " + otra.Corto + ": nada de portadas, iconos ni nombres de juegos de la " + c.Corto + " hasta que se aclare");
+                Log.Write("Consola: " + porque + ": nada de portadas, iconos ni nombres de juegos de la " + c.Corto + " hasta que se aclare");
             }
             return false;
         }
@@ -918,6 +919,8 @@ namespace ConsoleEnhancer
             // En el menu: la pantalla entera cada segundo aunque se vea la hora (el menu de apagado); sin la hora, siempre
             bool leer = inMenu && (now - ps5TextoAt).TotalSeconds >= 1.0;
             LecturaMenu l = DetectorMenu.Clasifica(full, now, c, inMenu, leer);
+            // (23-11, SWITCH2: su menu de verdad confirma la puesta ya, antes de leer nada de esta captura; PistasMenu lo repite cada 5 s)
+            if (l.Vista == VistaMenu.Menu && !Consolas.ConfirmadaPorImagen) Consolas.VistoMenuPropio(c, l.Hora);
             // 1.2.2: la Bienvenida / elegir usuario no es el menu de verdad (con la hora arriba contaba como el: sus particulas oscuras de
             // despues sacaban del menu al perfil de la consola, 22-11 04:07:32)
             if (inMenu) BienvenidaObserva(l, now);

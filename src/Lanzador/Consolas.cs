@@ -339,6 +339,7 @@ namespace ConsoleEnhancer
         {
             iniciada = true;
             guardada = null;
+            confirmadaImagen = false;   // (23-11, SWITCH2: la de console.txt aun no la ha confirmado la imagen)
             if (elegida != Auto) { actual = Buscar(elegida) ?? Switch2; origen = "switch2.ini"; return; }
             ConsolaPerfil last = null;
             try { if (File.Exists(ArchivoUltima)) { string g = File.ReadAllText(ArchivoUltima).Trim(); last = Buscar(g); guardada = g; } }
@@ -505,6 +506,7 @@ namespace ConsoleEnhancer
                 Olvidar(now);
                 if (propia) ApuntaPropia(p.Clave, now);
                 if (propia && peso >= PuntosCambio) ApuntaConcluyente(p.Clave, now);   // (23-11, SWITCH2)
+                if (propia && p == actual) confirmadaImagen = true;                   // (23-11, SWITCH2: la puesta vista de verdad)
                 double top = Math.Max(peso, p2 != null ? peso2 : 0);
                 foreach (ConsolaPerfil q in Todas)
                 {
@@ -590,6 +592,28 @@ namespace ConsoleEnhancer
             }
         }
 
+        // 23-11 (SWITCH2, el usuario: "la he apagado, he encendido ps5 ... en los juegos ponia juego 1 y juego 2"): la app abrio con la Switch 2
+        // (console.txt) y la PS5 delante; su logica del HOME tomo la imagen de la PS5 por su HOME y creo "Juego 1" (18:56:30) antes de cambiar
+        // a la PS5 (18:57:21). Ahora la puesta solo vale para CREAR juegos (perfiles nuevos, "Juego N", iconos, portadas, nombres) cuando la
+        // imagen la ha confirmado en esta sesion (una prueba propia suya: su HOME, su menu) y nada apunta a otra consola. Con consola=<una>
+        // fija en el ini, siempre
+        static bool confirmadaImagen;
+        public static bool ConfirmadaPorImagen { get { lock (sync) { if (!iniciada) IniciarLocked(); return elegida != Auto || confirmadaImagen; } } }
+
+        public static bool PuedeCrearJuegos(out string porque)
+        {
+            porque = null;
+            lock (sync)
+            {
+                if (!iniciada) IniciarLocked();
+                if (elegida != Auto) return true;
+                if (!confirmadaImagen) { porque = actual.Corto + " es la ultima vista (" + origen + ") y la imagen aun no la ha confirmado"; return false; }
+            }
+            ConsolaPerfil o = ApuntaAOtra();
+            if (o != null) { porque = "la imagen apunta a " + o.Corto; return false; }
+            return true;
+        }
+
         // Con sync: ¿esta consola esta confirmada por sus pruebas propias, repetidas en el tiempo? (falta = lo que le falta, para el log)
         static bool ConfirmadaLocked(ConsolaPerfil c, DateTime now, out string falta)
         {
@@ -658,6 +682,7 @@ namespace ConsoleEnhancer
             }
             antes = actual;
             actual = cand;
+            confirmadaImagen = true;   // (cambiada por lo que se ve)
             origen = "vista en la imagen: " + porque;
             try { File.WriteAllText(ArchivoUltima, actual.Clave, new UTF8Encoding(false)); guardada = actual.Clave; } catch { }
             return actual;
@@ -699,6 +724,7 @@ namespace ConsoleEnhancer
             lock (sync)
             {
                 puntos.Clear(); propias.Clear(); concluyentes.Clear(); rechazoLog.Clear(); puntosAt = DateTime.MinValue; ultimaPistaLog = null;
+                confirmadaImagen = false;
                 iniciada = false; actual = null; elegida = Auto;
             }
             Configurar(ini);
@@ -733,6 +759,14 @@ namespace ConsoleEnhancer
         public static ConsolaPerfil VistoHomeSwitch2(string hora)
         {
             return Pista("el HOME de la Switch 2 (el nombre del juego en cian y la hora \"" + hora + "\" con la bateria)", true, "switch2", PuntosCambio);
+        }
+
+        // (23-11, SWITCH2) El menu de la PS5 con otra consola puesta, en cada captura (TrayApp.ObservaMenuPs5): su hora en su sitio exacto o las
+        // pestañas de su inicio ("Juegos", "Contenido multimedia"). Concluyente: a la segunda captura, PS5 (antes, con la Switch 2 puesta,
+        // solo cada 5 s y nunca si su lector del HOME veia algo azul: 76 s el 23-11 a las 18:56)
+        public static ConsolaPerfil VistoMenuPs5Concluyente(string hora)
+        {
+            return Pista("el menu de la PS5 (" + (hora == "pestañas" ? "las pestañas de su inicio" : "la hora \"" + hora + "\" en su sitio") + ")", true, "ps5", PuntosCambio);
         }
 
         // (23-11, SWITCH2) Solo la hora del HOME de Nintendo con la bateria (sin el nombre cian: el HOME apareciendo sobre el juego, el
