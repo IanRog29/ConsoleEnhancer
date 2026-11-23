@@ -141,6 +141,7 @@ namespace ConsoleEnhancer.Motor
             {
                 // (escBajo: si se empieza por debajo de lo pedido -lo aprendido, x4d5_inicio-, tambien se dice cuando ya cabe)
                 escClave = clave; escPasosHechos = 0; escDicho = ""; escBajo = true; escBajadaAt = now; escLimpioDesde = now; escNrEspera = 0;
+                escD5Inutil = false; escUltPaso = ""; escUltMal = escUltP95 = 0;
                 EscCalma(3000);
                 return;
             }
@@ -197,8 +198,21 @@ namespace ConsoleEnhancer.Motor
             double reales = v.Segs > 0 ? v.Pres / v.Segs : 0;
             string por = string.Format(CultureInfo.InvariantCulture, "en {0:0.0} s: faltan {1:0} de {2:0} reales ({3:0.0}/s de {4:0.00}), {5} tiradas en {6} cuartos{7}; grafica del motor p95 {8:0.0} ms",
                 v.Segs, v.Falta, v.Esperadas, reales, obj, v.Tarde, v.CuartosTarde, efg ? ", inventadas saltadas " + v.Salt + " de " + (v.Salt + v.Inv) : "", stats.LastGpuP95);
+            // (lo que no ayuda: si el paso de DLSS 5 de antes bajo la grafica del motor un 25 % o mas y lo que se pierde por segundo no bajo ni
+            // un 10 %, no es DLSS 5 lo que no cabe -la tele, la cola de la generacion...-: no se baja mas DLSS 5 y se pasa a lo siguiente)
+            double malS = v.Segs > 0 ? (v.Falta + (efg ? v.Salt : 0)) / v.Segs : 0, p95 = stats.LastGpuP95;
+            if (escUltPaso == "d5" && escUltMal > 0 && escUltP95 > 0 && p95 > 0 && p95 <= escUltP95 * 0.75 && malS >= escUltMal * 0.9 && !escD5Inutil)
+            {
+                escD5Inutil = true;
+                Log.Write(string.Format(CultureInfo.InvariantCulture, "Escalera: bajar DLSS 5 no ha ayudado (grafica del motor {0:0.0} -> {1:0.0} ms, perdidas {2:0.0} -> {3:0.0}/s): no se baja mas DLSS 5 con esta clave",
+                    escUltP95, p95, escUltMal, malS));
+            }
+            escUltMal = malS; escUltP95 = p95;
             EscBajar(por, reales);
         }
+        bool escD5Inutil;
+        string escUltPaso = "";
+        double escUltMal, escUltP95;
 
         struct EscVentana { public double Segs, Esperadas, Falta; public int Pres, Tarde, CuartosTarde, Tramo, Salt, Inv, CuartosSalt, TramoSalt; }
 
@@ -243,7 +257,7 @@ namespace ConsoleEnhancer.Motor
                     Log.Write("Escalera: lo subido no cabe (" + por + "): DLSS 5 al " + s.NrPct + " % -> " + adSubidaDe + " % (lo de antes)");
                     s.NrPct = adSubidaDe;
                     adCambioAt = now; AdaptaGuardarFila();
-                    escNrEspera = 1; escNrPedidoAt = now; escBajadaAt = now; escBajo = true; escDicho = "";
+                    escNrEspera = 1; escNrPedidoAt = now; escBajadaAt = now; escBajo = true; escDicho = ""; escUltPaso = "";
                     return;
                 }
                 if (adSubida == "preset" && adSubidaDePreset.Length > 0 && AdRango(adSubidaDePreset) < AdRango(s.Preset))
@@ -252,7 +266,7 @@ namespace ConsoleEnhancer.Motor
                     Log.Write("Escalera: lo subido no cabe (" + por + "): DLSS " + s.Preset + " -> " + adSubidaDePreset + " (lo de antes)");
                     s.Preset = adSubidaDePreset; presetCap[CapKey] = adSubidaDePreset; adVistoPreset = adSubidaDePreset;
                     adCambioAt = now; AdaptaGuardarFila();
-                    EscCalma(3000); escBajadaAt = now; escBajo = true; escDicho = "";
+                    EscCalma(3000); escBajadaAt = now; escBajo = true; escDicho = ""; escUltPaso = "";
                     return;
                 }
             }
@@ -264,8 +278,9 @@ namespace ConsoleEnhancer.Motor
                 return;
             }
             // (1) DLSS 5
-            if (AdNrActivo && (s.NrPct > 25 || s.NrPasses > 1))
+            if (AdNrActivo && (s.NrPct > 25 || s.NrPasses > 1) && !escD5Inutil)
             {
+                escUltPaso = "d5";
                 if (s.NrPct > 25)
                 {
                     int antes = Math.Min(100, s.NrPct);
@@ -292,6 +307,7 @@ namespace ConsoleEnhancer.Motor
             string sigP = EscPrevio(s.Preset);
             if (s.EscModelo && EscSrActivo && sigP != null)
             {
+                escUltPaso = "sr";
                 string antes = s.Preset;
                 Log.Write("Escalera: no se llega (" + por + ")" + (AdNrActivo ? " con DLSS 5 en su suelo (25 %, " + s.NrPasses + " pasada)" : "") + ": DLSS " + antes + " -> " + sigP + " (mas ligero)");
                 s.Preset = sigP; presetCap[CapKey] = sigP; adVistoPreset = sigP;
@@ -304,6 +320,7 @@ namespace ConsoleEnhancer.Motor
             // frente a 6,8 con FSR 1; de M a E solo 0,4-2,2). Solo en el motor y esta sesion: lo elegido sigue siendo DLSS
             if (s.EscFsr1 && EscSrActivo && !escFsr1)
             {
+                escUltPaso = "fsr1";
                 Log.Write("Escalera: no se llega (" + por + ") ni con DLSS " + s.Preset + (AdNrActivo ? " y DLSS 5 al 25 %" : "") + ": FSR 1 en vez de DLSS esta sesion del motor (antes de bajar el multiplicador)");
                 escFsr1De = s.Upscaler; s.Upscaler = "fsr1"; escFsr1 = true; escFsr1At = now;
                 overSecs = 0;
@@ -312,7 +329,7 @@ namespace ConsoleEnhancer.Motor
             }
             // (3) ya no queda nada en el motor: al lanzador (30 s como poco entre avisos, como EngineFps: casi siempre cambia de motor antes)
             if (escAgotadoAt != 0 && Clock.SinceMs(escAgotadoAt) < 30000) { EscCalma(2000); return; }
-            escAgotadoAt = now;
+            escAgotadoAt = now; escUltPaso = "";
             string r = reales.ToString("0.0", IC), o = EscObjetivo.ToString("0.00", IC), g = stats.LastGpuP95.ToString("0.0", IC);
             string d5 = AdNrActivo ? s.NrPct.ToString(IC) : "-", m = escFsr1 ? "F" : EscSrActivo ? s.Preset : "-";
             Log.Write("Escalera: no se llega (" + por + ") y en el motor ya no queda nada que bajar (DLSS 5 " + (AdNrActivo ? "al " + d5 + " %" : "no") +
