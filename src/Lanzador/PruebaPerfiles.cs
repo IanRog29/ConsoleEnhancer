@@ -12,7 +12,7 @@ using System.Text;
 
 namespace ConsoleEnhancer
 {
-    static class PruebaPerfiles
+    static partial class PruebaPerfiles
     {
         static int fallos;
         static StringBuilder sb;
@@ -32,6 +32,7 @@ namespace ConsoleEnhancer
             sb.Append("\r\n== 1.2.2 (PERFILES): nombres de consenso, migracion y vuelta o arranque al salir del menu ==\r\n");
             Nombres();
             Nombres124();
+            Ronda6();
             Migracion();
             Vuelta(carpetaCapturas);
             if (migrar == "migrar") { MigraDatos(); SalidaApp(carpetaCapturas); }

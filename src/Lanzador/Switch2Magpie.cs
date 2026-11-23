@@ -980,7 +980,11 @@ namespace ConsoleEnhancer
         // pierde el ritmo: 59,94 en 120 Hz, medido 22,3 ms frente a 17,7 y saltos de 1 y 3 refrescos)
         public bool EngineFixed60Fg = true;
         public bool EngineReserve = true;   // 21-11 (1.0.9) motor_reserva=0|1: motor de reserva con la otra generacion del modo (MaybeReserveEngine)
-        public bool EngineFixedWanted { get { return EngineFixed60Fg && CeRefrescoFijoAhora() && (!CapMode || MotorFgFactorRefresco() == 4) && !FgOff && !EngineSmoothFor(false) && !NvProfiles.EngineFixedBroken; } } // (ConsoleEnhancer: CeRefrescoFijoAhora, motor_60fg_refresco_fijo=auto, ImagenCe.cs)
+        // (23-11, 1.2.4 ronda 6 PERFILES: nunca en el modo 120. Alli no hay generacion -EngineLive fg=0, EngineSmoothMode 0- y la cuenta de
+        // CeRefrescoFijoAhora salia con los numeros del 60 -Framerate 59,94 x 2-: log del usuario 23-11 02:49:16 y 03:14:23, Rocket League a 120
+        // "Refresco fijo ... si (... frente a 2 x 59.94)" -> "Refresco del motor: fijo (modo 60 con DLSS FG...)": el motor se volvia a abrir
+        // -7-10 s con el de antes- y jugaba con G-SYNC apagado y Present(0, ALLOW_TEARING) -sin generacion- en vez de VRR)
+        public bool EngineFixedWanted { get { return EngineFixed60Fg && !Mode120 && CeRefrescoFijoAhora() && (!CapMode || MotorFgFactorRefresco() == 4) && !FgOff && !EngineSmoothFor(false) && !NvProfiles.EngineFixedBroken; } } // (ConsoleEnhancer: CeRefrescoFijoAhora, motor_60fg_refresco_fijo=auto, ImagenCe.cs)
         public static volatile int EngineFixedLaunched = -1;    // el refresco fijo del ultimo motor lanzado (EngineArgs): -1 ninguno, 0 no, 1 si
         static readonly Dictionary<int, int> engineFixedByPid = new Dictionary<int, int>();
         // (justo tras Process.Start de un motor: con que refresco se abrio ese proceso)
