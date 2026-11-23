@@ -139,12 +139,12 @@ namespace ConsoleEnhancer
             if (st != "roto") return true;
             bool usado = cfg.EngineDlss5Now && Config.EngineActive;
             Config.MotorDlss5Roto = true;
-            Log.Write("Motor: su DLSS 5 no va (" + det + ")" + (usado ? ": DLSS 5 por Magpie en esta sesion (se cambia de camino)" : ": en esta sesion DLSS 5 ira por Magpie"));
+            Log.Write("Motor: su DLSS 5 no va (" + det + ")" + (usado ? ": en esta sesion sin DLSS 5 (se vuelve a abrir el motor)" : ": en esta sesion sin DLSS 5"));   // (1.2.4 ronda 6: sin Magpie)
             if (usado && !cfg.Dlss5Off)
                 System.Threading.ThreadPool.QueueUserWorkItem(delegate
                 {
                     try { System.Threading.Thread.Sleep(300); RestartLs("DLSS 5", Tx.T("el motor no pudo con DLSS 5: sin el", "the engine could not run DLSS 5: without it")); }
-                    catch (Exception ex) { Log.Error("DLSS 5 del motor roto: a Magpie", ex); }
+                    catch (Exception ex) { Log.Error("DLSS 5 del motor roto: sin DLSS 5", ex); }
                 });
             return true;
         }
