@@ -128,6 +128,7 @@ namespace ConsoleEnhancer.Motor
                 // misma grafica de 8 GB (al despertar ya se creaban otra vez: inColor es otro)
                 ReleaseDlss5("en espera");
                 ReleaseDvc("en espera");   // 22-11 (1.2.4, DLSS5LEGAL: EngineDvc.cs)
+                FmRelease("en espera");    // 23-11 (1.2.4 ronda 6, FGMULTI: FSR FG x2 / x3 / x4, ~0,4 GB a 4K; EngineFsrMulti.cs)
             }
             catch (Exception ex) { Log.Error("En espera: imagen negra", ex); }
             bool hidden = Program.HideWindow();

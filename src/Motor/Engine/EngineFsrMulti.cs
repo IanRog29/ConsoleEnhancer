@@ -472,6 +472,31 @@ void main(uint3 id : SV_DispatchThreadID)
             if (mpvIpc.Event("switch2-fsrmulti", "rota", s.FsrMulti.ToString(IC)) > 0) { fmBrokenSaid = true; Log.Write("FSR FG multiple: rota, avisado el lanzador"); }
         }
 
+        // En espera (EngineStandby.cs): el contexto de AMD y las texturas fuera (al despertar se rehacen con la 1a real)
+        void FmRelease(string why)
+        {
+            if (fmCtx == IntPtr.Zero && fmSrc[0] == null) return;
+            try
+            {
+                FmhDrain(); FmWaitCompute(fmCVal, 2000); WaitIdle();
+                if (fmCtx != IntPtr.Zero) fmDestroy(fmCtx);
+                fmCtx = IntPtr.Zero; fmFrameId = 0; fmPreparedId = 0;
+                for (int b = 0; b < 2; b++)
+                {
+                    if (fmSrc[b] != null) Bury(fmSrc[b]);
+                    if (fmReal[b] != null) Bury(fmReal[b]);
+                    fmSrc[b] = fmReal[b] = null;
+                    for (int j = 0; j < 3; j++) { if (fmOut[b, j] != null) Bury(fmOut[b, j]); fmOut[b, j] = null; }
+                    if (fmHalfD[b] != null) Bury(fmHalfD[b]);
+                    if (fmHalfM[b] != null) Bury(fmHalfM[b]);
+                    fmHalfD[b] = fmHalfM[b] = null;
+                }
+                fmTexW = fmTexH = 0; fmHalfW = fmHalfH = 0;
+                Log.Write("FSR FG: soltada (" + why + ")");
+            }
+            catch (Exception ex) { Log.Write("FSR FG: al soltarla: " + ex.Message); }
+        }
+
         string FmBench() { return s.FsrMulti >= 2 ? "\tfsrfg_multi=x" + s.FsrMulti + " inventadas=" + fmGens + " reales=" + fmFrames + (fmBroken ? " rota" : "") + FmhBench() : ""; }
     }
 }
