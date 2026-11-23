@@ -172,8 +172,8 @@ namespace ConsoleEnhancer.Motor
             // (del primero al ultimo 0,75 s en la rapida, 1,5 s en la lenta): un tiron suelto, aunque sea largo, no cuenta
             EscVentana v6 = EscSuma(6, obj), v16 = EscSuma(16, obj);
             double f = s.EscPerdidas / 2.0;
-            bool rapida = escN >= 6 && v6.Falta >= Math.Max(2, Math.Ceiling(obj * 1.5 * 0.05 * f)) && v6.Tarde >= 2 && v6.CuartosTarde >= 3 && v6.Tramo >= 3;
-            bool lenta = escN >= 8 && v16.Falta >= Math.Max(2, Math.Ceiling(obj * v16.Segs * 0.015 * f)) && v16.Tarde >= 2 && v16.CuartosTarde >= 3 && v16.Tramo >= 6;
+            bool rapida = escN >= 6 && v6.Falta >= Math.Max(2, Math.Ceiling(obj * 1.5 * 0.07 * f)) && v6.Tarde >= 2 && v6.CuartosTarde >= 3 && v6.Tramo >= 3;
+            bool lenta = escN >= 8 && v16.Falta >= Math.Max(3, Math.Ceiling(obj * v16.Segs * 0.02 * f)) && v16.Tarde >= 2 && v16.CuartosTarde >= 3 && v16.Tramo >= 6;
             bool saltaMal6 = efg && escN >= 6 && v6.Salt > Math.Max(3, (v6.Salt + v6.Inv) * 0.04) && v6.CuartosSalt >= 3 && v6.TramoSalt >= 3;
             bool saltaMal16 = efg && escN >= 8 && v16.Salt > Math.Max(4, (v16.Salt + v16.Inv) * 0.03) && v16.CuartosSalt >= 3 && v16.TramoSalt >= 6;
             bool mal = rapida || lenta || saltaMal6 || saltaMal16;
@@ -208,9 +208,11 @@ namespace ConsoleEnhancer.Motor
                     escUltP95, p95, escUltMal, malS));
             }
             escUltMal = malS; escUltP95 = p95;
+            escVistas = efg && v.Segs > 0 ? (v.Pres + v.Inv) / v.Segs : 0;   // (las que se ven: con Enhanced FG, reales + inventadas no saltadas)
             EscBajar(por, reales);
         }
         bool escD5Inutil;
+        double escVistas;
         string escUltPaso = "";
         double escUltMal, escUltP95;
 
@@ -334,7 +336,7 @@ namespace ConsoleEnhancer.Motor
             string d5 = AdNrActivo ? s.NrPct.ToString(IC) : "-", m = escFsr1 ? "F" : EscSrActivo ? s.Preset : "-";
             Log.Write("Escalera: no se llega (" + por + ") y en el motor ya no queda nada que bajar (DLSS 5 " + (AdNrActivo ? "al " + d5 + " %" : "no") +
                       ", " + (m == "F" ? "FSR 1" : "DLSS SR " + (m == "-" ? "no" : m)) + "): aviso al lanzador");
-            Ev("switch2-fps", "bajo", r, o, g, "agotado", d5, m);
+            Ev("switch2-fps", "bajo", r, o, g, "agotado", d5, m, escVistas.ToString("0.0", IC));
             EscCalma(4000);
         }
 

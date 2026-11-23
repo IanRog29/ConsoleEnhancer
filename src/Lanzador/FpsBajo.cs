@@ -38,7 +38,7 @@ namespace ConsoleEnhancer
         bool FpsEvent(string line)
         {
             if (!line.Contains("\"args\":[\"switch2-fps\"")) return false;
-            Match m = Regex.Match(line, "\"switch2-fps\",\"bajo\",\"([0-9.]+)\",\"([0-9.]+)\",\"([0-9.]+)\"(?:,\"agotado\",\"([0-9]+|-)\",\"([A-Z]|-)\")?");
+            Match m = Regex.Match(line, "\"switch2-fps\",\"bajo\",\"([0-9.]+)\",\"([0-9.]+)\",\"([0-9.]+)\"(?:,\"agotado\",\"([0-9]+|-)\",\"([A-Z]|-)\"(?:,\"([0-9.]+)\")?)?");
             if (!m.Success) return true;
             if (readerMpv != null && readerMpv != mpv) return true;   // (de un motor que ya no es el de ahora)
             double real = double.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture);
@@ -53,6 +53,8 @@ namespace ConsoleEnhancer
             fpsAgotado = m.Groups[4].Success;
             fpsAgD5 = m.Groups[4].Success && m.Groups[4].Value != "-" ? int.Parse(m.Groups[4].Value, CultureInfo.InvariantCulture) : -1;
             fpsAgSr = m.Groups[5].Success && m.Groups[5].Value != "-" ? m.Groups[5].Value : "";
+            // (las que se ven, si el motor las sabe -Enhanced FG: reales + inventadas no saltadas-; si no, reales x multiplicador)
+            fpsAgVistas = m.Groups[6].Success ? double.Parse(m.Groups[6].Value, CultureInfo.InvariantCulture) : 0;
             FpsLanza(real, obj, gpu, "el motor");
             return true;
         }
@@ -61,7 +63,7 @@ namespace ConsoleEnhancer
         //  - "ok" <%>: cabe con DLSS 5 bajado a ese % -> aviso "x4 con DLSS 5: DLSS 5 al N % para que quepa" (una vez por %);
         //  - "no": no llega ni con DLSS 5 al 25 % -> x2 esta sesion con esta captura y DLSS 5, diciendolo (lo elegido -x4- se queda guardado)
         int x4d5Dicho = -1;
-        volatile bool fpsAgotado; volatile int fpsAgD5 = -1; volatile string fpsAgSr = "";
+        volatile bool fpsAgotado; volatile int fpsAgD5 = -1; volatile string fpsAgSr = ""; double fpsAgVistas;
 
         // (1.3.1, FPS) "switch2-escalera" <pct|-> <modelo|-> <pct pedido|-> <modelo pedido|-> <pasadas>: lo que el motor bajo ya cabe -> aviso
         string escDicho = "";
@@ -179,7 +181,7 @@ namespace ConsoleEnhancer
             PrepareCfg();
             int modo = cfg.Mode120 ? 120 : cfg.CapMode ? 30 : 60;
             int salida = cfg.Mode120 || cfg.FgOff ? modo : modo * cfg.FgMultNow;
-            string vista = Math.Round(real * (cfg.Mode120 || cfg.FgOff ? 1 : cfg.FgMultNow)).ToString(CultureInfo.InvariantCulture);
+            string vista = Math.Round(fpsAgotado && fpsAgVistas > 0 ? fpsAgVistas : real * (cfg.Mode120 || cfg.FgOff ? 1 : cfg.FgMultNow)).ToString(CultureInfo.InvariantCulture);
             // (1.2.1: el aviso en el idioma elegido; antes solo en espanol)
             string falta = Tx.T("No se llega a " + salida + " fps (" + vista + ")", salida + " fps not reached (" + vista + ")");
             // (1.3.1, FPS) el motor ya bajo lo suyo: se dice ("ni con DLSS 5 al 25 % y DLSS E") y lo de despues es solo de esta sesion si es el
