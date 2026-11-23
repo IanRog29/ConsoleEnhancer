@@ -289,7 +289,8 @@ namespace ConsoleEnhancer.Motor
         readonly ulong[] dRbFence = new ulong[DRing];
         readonly long[] dRbSeq = new long[DRing];
         readonly bool[] dRbUsed = new bool[DRing];
-        D3D12_PLACED_SUBRESOURCE_FOOTPRINT dFpOut, dFpMv, dFpIn;
+        D3D12_PLACED_SUBRESOURCE_FOOTPRINT dFpOut, dFpMv, dFpIn, dFpTruth;
+        bool dTruth;   // (23-11 ronda 7, SRBLUR: volcado_verdad=1, el recorte de la captura 4K = la verdad, t_<seq>.raw)
         int dX, dY, dW, dH, dMx, dMy, dMw, dMh;
         int dumpSeen, dumpTaken;
         bool dumpReady, dumpOff;
@@ -324,6 +325,12 @@ namespace ConsoleEnhancer.Motor
                 dFpMv = Foot(Align512(dFpOut.Offset + (ulong)dFpOut.Footprint.RowPitch * (ulong)dH), DXGI_FORMAT.R16G16_FLOAT, dMw, dMh, 4);
                 dFpIn = Foot(Align512(dFpMv.Offset + (ulong)dFpMv.Footprint.RowPitch * (ulong)dMh), ColorFmt, dMw, dMh, 4);
                 long total = (long)(dFpIn.Offset + (ulong)dFpIn.Footprint.RowPitch * (ulong)dMh);
+                dTruth = s.DumpTruth && capW == outW && capH == outH && rawColor != null;
+                if (dTruth)
+                {
+                    dFpTruth = Foot(Align512((ulong)total), ColorFmt, dW, dH, 4);
+                    total = (long)(dFpTruth.Offset + (ulong)dFpTruth.Footprint.RowPitch * (ulong)dH);
+                }
                 for (int i = 0; i < DRing; i++)
                 {
                     dRb[i] = MakeBuffer(D3D12_HEAP_TYPE.READBACK, total, D3D12_RESOURCE_STATES.COPY_DEST, "volcado " + i);
@@ -369,6 +376,14 @@ namespace ConsoleEnhancer.Motor
             src = D3D12_TEXTURE_COPY_LOCATION.FromSubresource(inColor, 0);
             list.CopyTextureRegion(ref dst, 0, 0, 0, ref src, &mbox);
             Barrier(inColor, D3D12_RESOURCE_STATES.COPY_SOURCE, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE);
+            if (dTruth && capW == outW && capH == outH)
+            {
+                Barrier(rawColor, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.COPY_SOURCE);
+                dst = D3D12_TEXTURE_COPY_LOCATION.FromFootprint(dRb[e], dFpTruth);
+                src = D3D12_TEXTURE_COPY_LOCATION.FromSubresource(rawColor, 0);
+                list.CopyTextureRegion(ref dst, 0, 0, 0, ref src, &box);
+                Barrier(rawColor, D3D12_RESOURCE_STATES.COPY_SOURCE, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE);
+            }
             dRbUsed[e] = true;
             dRbFence[e] = fenceValue + 1;   // la valla de esta imagen (se senala al enviarla)
             dRbSeq[e] = slotSeq[slot];
@@ -387,6 +402,7 @@ namespace ConsoleEnhancer.Motor
                 Take(i, dFpOut, dW, dH, 4, "o_" + tag);
                 Take(i, dFpMv, dMw, dMh, 4, "m_" + tag);
                 Take(i, dFpIn, dMw, dMh, 4, "i_" + tag);
+                if (dTruth) Take(i, dFpTruth, dW, dH, 4, "t_" + tag);
                 lock (dInfo) dInfo.Add("imagen " + dRbSeq[i]);
                 dRbUsed[i] = false;
             }

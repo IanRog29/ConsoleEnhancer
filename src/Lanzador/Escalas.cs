@@ -81,7 +81,7 @@ namespace ConsoleEnhancer
         static readonly string[][] RefModelo =
         {
             new[] { "60_fg", "5,5,5,5" }, new[] { "60", "11,5,5,5" }, new[] { "30_fg", "12,12,12,12" }, new[] { "30", "12,12,12,12" },
-            new[] { "30_fg_1440", "12,11,11,11" }, new[] { "30_fg_1080", "12,11,11,11" }, new[] { "30_fg_720", "12,11,11,11" },
+            new[] { "30_fg_1440", "12,13,13,13" }, new[] { "30_fg_1080", "12,13,13,13" }, new[] { "30_fg_720", "12,13,13,13" },   // (23-11 ronda 7, SRBLUR: con DLSS 5 M y no K; ver Config.ModelTable)
             new[] { "30_xess", "12,5,5,5" }, new[] { "30_fsr3", "12,5,5,5" },
         };
         // DLSS 5 en el motor propio, modo 30 (1, 2, 3 pasadas): captura 1080p/1440p y 4K (motor_dlss5_entrada_30 / _30_4k)

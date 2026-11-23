@@ -61,6 +61,7 @@ namespace ConsoleEnhancer.Motor
         {
             public string Preset = "", NoPreset = "";
             public string Pedido = "";   // (23-11 DLSSSR) el modelo que se pedia cuando se guardo (vacio en las filas de antes)
+            public bool Bajada;          // (23-11 ronda 7, SRBLUR) bajada=1: el modelo de la fila es una bajada de verdad (ver AdModeloAprendidoVale)
             public int Pct, Pasadas, NoPct;
             public string Fecha = "";
         }
@@ -245,6 +246,9 @@ namespace ConsoleEnhancer.Motor
             if (s.AdaptaSobrePedido) return true;
             string pedido = adPedidoPreset.Length > 0 ? adPedidoPreset : s.Preset;
             if (f.Pedido.Length == 0) return false;
+            // 23-11 (1.2.4 ronda 7, SRBLUR): y solo las filas con bajada=1 (las de antes de AutoPresetEspera podian llevar una bajada falsa,
+            // por el pico de rehacer DLSS 5: "preset=K pct=80 pedido=M" del 23-11 12:10-12:11; EngineSrBlur.cs)
+            if (!f.Bajada) return false;
             return AdRango(f.Preset) < AdRango(f.Pedido) && AdRango(f.Pedido) <= AdRango(pedido);
         }
 
@@ -389,6 +393,7 @@ namespace ConsoleEnhancer.Motor
             AdaptaFila f = Fila();
             f.Preset = s.Preset;
             f.Pedido = adPedidoPreset.Length > 0 ? adPedidoPreset : s.Preset;   // (23-11 DLSSSR)
+            f.Bajada = AdRango(f.Preset) < AdRango(f.Pedido);   // (23-11 ronda 7, SRBLUR)
             f.Pct = s.Nr ? s.NrPct : f.Pct;
             f.Pasadas = s.Nr ? s.NrPasses : f.Pasadas;
             f.Fecha = DateTime.Now.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
@@ -423,6 +428,7 @@ namespace ConsoleEnhancer.Motor
                             case "pasadas": f.Pasadas = n; break;
                             case "no_preset": f.NoPreset = v; break;
                             case "pedido": f.Pedido = v; break;   // (23-11 DLSSSR)
+                            case "bajada": f.Bajada = n == 1; break;   // (23-11 ronda 7, SRBLUR)
                             case "no_pct": f.NoPct = n; break;
                             case "fecha": f.Fecha = v; break;
                         }
@@ -449,6 +455,7 @@ namespace ConsoleEnhancer.Motor
                     if (f.Pasadas > 0) sb.Append("\tpasadas=").Append(f.Pasadas.ToString(CultureInfo.InvariantCulture));
                     if (f.NoPreset.Length > 0) sb.Append("\tno_preset=").Append(f.NoPreset);
                     if (f.Pedido.Length > 0) sb.Append("\tpedido=").Append(f.Pedido);   // (23-11 DLSSSR)
+                    if (f.Bajada) sb.Append("\tbajada=1");   // (23-11 ronda 7, SRBLUR)
                     if (f.NoPct > 0) sb.Append("\tno_pct=").Append(f.NoPct.ToString(CultureInfo.InvariantCulture));
                     sb.Append("\tfecha=").Append(f.Fecha).AppendLine();
                 }

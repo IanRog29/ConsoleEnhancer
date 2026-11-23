@@ -53,7 +53,7 @@ namespace ConsoleEnhancer.Motor
         double tsFreq;
 
         // Tablas de 4 descriptores [t0 t1 u0 u1]
-        const int TUnpack = 0, TScale = 3, TCasOut = 4, TCasIn = 5, TOsd = 6, TLuma = 7, TSearch = 15, TExpand = 23, TAa = 24, TDown = TQBase + TQCount, TablesCount = TQBase + TQCount + 1 + TRCount + 13;   // (23-11 DLSSSR: + TSrVec x2 y TSrBlur x2, EngineSrVec.cs) (22-11 DLSS5Q: + TD5qMed, TD5qHold, EngineDlss5Q.cs) (20-11: + TLinIn, TLinOut, EngineLinear.cs) (16-11: TQ* = las de calidad, EngineMotion.cs; 17-11: TR* = las de las rejas, EngineRejas.cs; 20-11: + TNr, TNrDown, TNrPrep, TNrAf0/1, EngineDlss5.cs)
+        const int TUnpack = 0, TScale = 3, TCasOut = 4, TCasIn = 5, TOsd = 6, TLuma = 7, TSearch = 15, TExpand = 23, TAa = 24, TDown = TQBase + TQCount, TablesCount = TQBase + TQCount + 1 + TRCount + 14;   // (23-11 DLSSSR: + TSrVec x2 y TSrBlur x2, EngineSrVec.cs; ronda 7 SRBLUR: + TSrJit, EngineSrBanco.cs) (22-11 DLSS5Q: + TD5qMed, TD5qHold, EngineDlss5Q.cs) (20-11: + TLinIn, TLinOut, EngineLinear.cs) (16-11: TQ* = las de calidad, EngineMotion.cs; 17-11: TR* = las de las rejas, EngineRejas.cs; 20-11: + TNr, TNrDown, TNrPrep, TNrAf0/1, EngineDlss5.cs)
         const int U0 = Shaders.SlotU0;
 
         // ---- Recursos
@@ -439,7 +439,7 @@ namespace ConsoleEnhancer.Motor
             // 16-11 noche (entrada=WxH): la captura reducida a WxH antes de todo lo demas (bordes, vectores, DLSS) si es mayor y no es la
             // de salida: DLSS 4.5 (M) a 60 con generacion no cabe con 1440p de entrada (51,6 reales) y si con 1080p (8,8 ms)
             int iw = w, ih = h;
-            if (s.InW > 0 && s.InH > 0 && w > s.InW && h > s.InH && !(w >= s.OutW && h >= s.OutH)) { iw = s.InW; ih = s.InH; }
+            if (s.InW > 0 && s.InH > 0 && w > s.InW && h > s.InH && (s.EntradaPrueba || !(w >= s.OutW && h >= s.OutH))) { iw = s.InW; ih = s.InH; }
             if (w == capW && h == capH && iw == inW && ih == inH) return;
             WaitIdle();
             if (inColor != null)
@@ -927,7 +927,7 @@ namespace ConsoleEnhancer.Motor
                     Barrier(rawSmall, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.UNORDERED_ACCESS);
                     c[0] = (uint)inW; c[1] = (uint)inH; c[2] = 0; c[3] = 0;
                     c[4] = F(1f / capW); c[5] = F(1f / capH); c[6] = F(capW); c[7] = F(capH);
-                    BindCompute(psoScale, TDown, c, 8);
+                    BindCompute(DownPso(), TDown, c, 8);   // (23-11 ronda 7, SRBLUR: entrada_filtro=1, EngineSrBanco.cs)
                     list.Dispatch(Groups(inW, 16), Groups(inH, 8), 1);
                     Barrier(rawSmall, D3D12_RESOURCE_STATES.UNORDERED_ACCESS, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE);
                 }
@@ -964,7 +964,8 @@ namespace ConsoleEnhancer.Motor
                 SlExtent outExt = new SlExtent(); outExt.width = (uint)outW; outExt.height = (uint)outH;
                 bool lin = s.DlssLinear && EnsureLinear();   // (20-11: dlss_lineal, EngineLinear.cs)
                 if (lin) RecordToLinear();
-                tags.Add(SlBufferType.ScalingInputColor, Com.BorrowPtr(lin ? inLinear : inColor, typeof(ID3D12Resource)), (uint)D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, SlResourceLifecycle.eValidUntilEvaluate, inExt);
+                ID3D12Resource jin = lin ? null : SrJitterInput(c);   // (23-11 ronda 7, SRBLUR: sr_jitter, prueba)
+                tags.Add(SlBufferType.ScalingInputColor, Com.BorrowPtr(lin ? inLinear : jin ?? inColor, typeof(ID3D12Resource)), (uint)D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, SlResourceLifecycle.eValidUntilEvaluate, inExt);
                 tags.Add(SlBufferType.ScalingOutputColor, Com.BorrowPtr(lin ? outLinear : outColor, typeof(ID3D12Resource)), (uint)D3D12_RESOURCE_STATES.UNORDERED_ACCESS, SlResourceLifecycle.eValidUntilEvaluate, outExt);
                 tags.Add(SlBufferType.Depth, Com.BorrowPtr(FgDepthTex, typeof(ID3D12Resource)), (uint)D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, SlResourceLifecycle.eValidUntilPresent, inExt);
                 tags.Add(SlBufferType.MotionVectors, Com.BorrowPtr(FgMvec, typeof(ID3D12Resource)), (uint)D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, SlResourceLifecycle.eValidUntilPresent, inExt);
@@ -1002,8 +1003,9 @@ namespace ConsoleEnhancer.Motor
             if (!native) Barrier(outColor, D3D12_RESOURCE_STATES.UNORDERED_ACCESS, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE);
             Barrier(final, D3D12_RESOURCE_STATES.COPY_SOURCE, D3D12_RESOURCE_STATES.UNORDERED_ACCESS);
             c[0] = (uint)outW; c[1] = (uint)outH; c[2] = 0; c[3] = 0;
-            c[4] = F((float)Math.Max(0, Math.Min(1, s.Sharp))); c[5] = F(s.Sharp <= 0.001 ? 1f : 0f); c[6] = F(noSignalScreen ? 1f : 0f); c[7] = F(RcasNow ? 1f : 0f);   // (18-11: c[7] = RCAS)
-            BindCompute(psoCas, native ? TCasIn : TCasOut, c, 8);
+            c[4] = F((float)Math.Max(0, Math.Min(1, s.Sharp))); c[5] = F(s.Sharp <= 0.001 ? 1f : 0f); c[6] = F(noSignalScreen ? 1f : 0f); c[7] = F(RcasNow ? (s.Sharpen == "rcasl" ? 2f : 1f) : 0f);   // (18-11: c[7] = RCAS; 23-11 ronda 7: 2 = RCAS lineal, enfoque=rcasl)
+            uint casN; ID3D12PipelineState casPso = CasPso(native, c, out casN);   // (23-11 ronda 7, SRBLUR: sr_nitidez_mov, EngineSrBlur.cs)
+            BindCompute(casPso, native ? TCasIn : TCasOut, c, casN);
             list.Dispatch(Groups(outW, 16), Groups(outH, 8), 1);
             Barrier(final, D3D12_RESOURCE_STATES.UNORDERED_ACCESS, D3D12_RESOURCE_STATES.COPY_SOURCE);
             if (!native) Barrier(outColor, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.UNORDERED_ACCESS);
@@ -1160,6 +1162,7 @@ namespace ConsoleEnhancer.Motor
                 if (slOn && token != IntPtr.Zero)
                 {
                     SlConstants k = SlConstants.CreateVideo((uint)inW, (uint)inH, (uint)outW, (uint)outH, resetHistory);
+                    SrJitterConstants(ref k, slot);   // (23-11 ronda 7, SRBLUR: sr_jitter, prueba; EngineSrBanco.cs)
                     Sl.SetConstants(ref k, token, vp);
                 }
                 frameReset = resetHistory;
@@ -1292,6 +1295,7 @@ namespace ConsoleEnhancer.Motor
             // 16-11 noche: recien puesto el modelo (o cambiado el tamaño) se pierden imagenes unos segundos aunque quepa (M a 1080p con
             // generacion: 4 perdidas/s a los 2 s con la grafica en 9,8 ms de 11): no se juzga hasta los 5 s
             if (Clock.SinceMs(presetSetAt) < 5000) { overSecs = 0; return; }
+            if (AutoPresetEspera()) { overSecs = 0; return; }   // (23-11 ronda 7, SRBLUR: con DLSS 5 baja antes Adapta, y nada tras rehacer DLSS 5; EngineSrBlur.cs)
             double limit = TopeGpu(); // 20-11 (HZ120): a 120 el hueco por fotograma es ~8,3 ms. (1.2.2, UNIVERSAL: el 85 %, EngineMargen.cs; antes 26/31/8,0/11,0/15,5 fijos)
             TopeGpuLog();
             // 16-11 (tirones): con la generacion lo de NVIDIA no se ve en lo medido: si ademas se pierden imagenes de la captura (3 o mas

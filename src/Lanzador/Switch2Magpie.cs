@@ -349,7 +349,11 @@ namespace ConsoleEnhancer
             // lanczos con la imagen quieta) y en movimiento borra la textura y el grano (detalle movido/quieto 0,60; K 0,90). L con el flujo
             // de NVIDIA rompe el HUD (letras partidas, ya visto el 15-11); E sin flujo deja escalones y bloques en rejas y hojas. K ademas
             // cuesta menos (mas margen para DLSS 5 en la Ti con OC). Medidas: LEEME.txt (GTA-1440-1080). ini tabla_modelo_30_fg_1440= etc.
-            { "30_fg_1440", new[] { 12, 11, 11, 11 } }, { "30_fg_1080", new[] { 12, 11, 11, 11 } }, { "30_fg_720", new[] { 12, 11, 11, 11 } },
+            // 23-11 (1.2.4 ronda 7, SRBLUR): con DLSS 5, M y no K. Lo de arriba era con DLSS SR SIN vectores (Magpie); en el motor van con los
+            // suyos y, medido con video real 4K -> 1440p -> 4K (BF1 y Battlefront) contra DLSS 5 a 4K nativo, M queda mas cerca que K en todo:
+            // quieto error 2,82 / 2,99, en marcha 1,87 / 2,04, casi quieto 2,31 / 2,75; nitidez 0,80 / 0,79, 0,76 / 0,68, 0,73 / 0,65. Sin DLSS 5,
+            // K es el mas borroso en movimiento (0,67; M 0,75, L 0,79). Si M no cabe, el motor baja antes el % de DLSS 5 y luego el modelo
+            { "30_fg_1440", new[] { 12, 13, 13, 13 } }, { "30_fg_1080", new[] { 12, 13, 13, 13 } }, { "30_fg_720", new[] { 12, 13, 13, 13 } },
         };
         // Resolucion de entrada de DLSS 5 (DLSSNR) en % { 1, 2, 3 pasadas }: la mayor que cabe. 0 = adaptativa. ini tabla_dlss5_<clave>=a,b,c
         public Dictionary<string, int[]> Dlss5PctTable = new Dictionary<string, int[]>
