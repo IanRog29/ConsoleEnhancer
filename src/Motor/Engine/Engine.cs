@@ -197,7 +197,7 @@ namespace ConsoleEnhancer.Motor
             }
             D3D12_COMMAND_QUEUE_DESC qd = new D3D12_COMMAND_QUEUE_DESC();
             qd.Type = D3D12_COMMAND_LIST_TYPE.DIRECT;
-            qd.Priority = FgXe && !s.XeHighPrio ? 0 : 100; // HIGH (1.2.4 MOTORFG: con XeSS FG la normal, como la que espera XeSS FG; xefg_prioridad=1 = alta)
+            qd.Priority = EfgMainQueuePriority(FgXe && !s.XeHighPrio ? 0 : 100); // HIGH (1.2.4 ronda 6, ENHANCED: con la cola propia de Enhanced FG, normal) (1.2.4 MOTORFG: con XeSS FG la normal, como la que espera XeSS FG; xefg_prioridad=1 = alta)
             iid = typeof(ID3D12CommandQueue).GUID;
             Hr.Check(dev.CreateCommandQueue(ref qd, ref iid, out o), "CreateCommandQueue");
             queue = (ID3D12CommandQueue)o;
@@ -235,7 +235,7 @@ namespace ConsoleEnhancer.Motor
             // 21-11 (EngineFgFfx.cs): con fg_tipo=fsr3 la cadena la crea FidelityFX (intercala las imagenes generadas)
             // 22-11 (1.2.4 MOTORFG, EngineFgXe.cs): con fg_tipo=xess la crea XeSS FG
             if (!((FgFfx && FfxFgCreateSwapChain(ref scd, out sc1)) || (FgXe && XeFgCreateSwapChain(ref scd, out sc1))))
-                Hr.Check(factory.CreateSwapChainForHwnd(queue, hwnd, ref scd, null, null, out sc1), "CreateSwapChainForHwnd");
+                Hr.Check(factory.CreateSwapChainForHwnd(EfgSwapQueue(), hwnd, ref scd, null, null, out sc1), "CreateSwapChainForHwnd");   // (1.2.4 ronda 6, ENHANCED: con efg, en la cola propia de presentacion; EngineFgEnhanced.cs)
             factory.MakeWindowAssociation(hwnd, DXGI_MWA.NO_ALT_ENTER | DXGI_MWA.NO_WINDOW_CHANGES);
             swap = (IDXGISwapChain3)sc1;
             LatQueueInit();
@@ -475,6 +475,7 @@ namespace ConsoleEnhancer.Motor
         {
             if (queue == null) return;
             FphDrain();   // (1.2.4 ronda 5, XEFGM: el hilo de presentacion de la generacion propia acaba lo suyo; EngineFgPropiaHilo.cs)
+            EfgDrain();   // (1.2.4 ronda 6, ENHANCED: el de Enhanced FG, EngineFgEnhancedHilo.cs)
             fenceValue++;
             queue.Signal(fence, fenceValue);
             WaitFence(fenceValue);
@@ -1074,7 +1075,7 @@ namespace ConsoleEnhancer.Motor
             XeFgRecord();    // 22-11 (1.2.4 MOTORFG, EngineFgXe.cs): XeSS FG, sus entradas
 
             // 5. A la pantalla (22-11, 1.2.4 DLSS5LEGAL: con la generacion propia la copia la hace FpPresent tras las inventadas, EngineFgPropia.cs)
-            if (!FpTakeReal(show, slot))
+            if (!EfgTakeReal(show, slot) && !FpTakeReal(show, slot))   // (1.2.4 ronda 6, ENHANCED: Enhanced FG, EngineFgEnhanced.cs)
             {
                 uint bi = ScIndex();
                 ID3D12Resource bb = backbuf[bi];
@@ -1235,7 +1236,7 @@ namespace ConsoleEnhancer.Motor
                 long submitAt = Clock.Now;
                 XeFgBeforePresent();
                 // (22-11, 1.2.4 DLSS5LEGAL: FpPresent = las inventadas propias y la real; sin ellas, ScPresent = la cadena de XeSS FG o la de siempre)
-                int hr = s.NoPresent ? 0 : fpHold ? FpPresent(syncNow, flagsNow) : ScPresent(syncNow, flagsNow);   // (17-11 REJAS: presentar=0, pruebas con la tele apagada)
+                int hr = s.NoPresent ? 0 : efgHold ? EfgPresent(syncNow, flagsNow) : fpHold ? FpPresent(syncNow, flagsNow) : ScPresent(syncNow, flagsNow);   // (1.2.4 ronda 6, ENHANCED: EfgPresent)   // (17-11 REJAS: presentar=0, pruebas con la tele apagada)
                 if (pclOk && token != IntPtr.Zero) Sl.PCLSetMarker(SlPCLMarker.ePresentEnd, token);
                 XeFgAfterPresent();
                 if (!s.NoPresent) LatQueuePresent();   // 21-11 (1.2.1, cola_cuenta=1: EngineLatencia.cs)
@@ -1262,7 +1263,7 @@ namespace ConsoleEnhancer.Motor
             double t = Clock.SinceMs(benchStart) / 1000.0;
             if (!benchRecording && t >= s.BenchWarm) { benchRecording = true; stats.StartRecording(); }
             if (t < s.BenchWarm + s.BenchSecs && !(s.DumpDir.Length > 0 && dumpTaken >= s.DumpN && t >= s.BenchWarm + 1)) return false;   // (17-11 REJAS: con volcado, al acabarlo)
-            string line = stats.Summary(s.BenchLabel, s) + "\tdlss=" + (dlssOk && scalerNow == "dlss") + "\tfg=" + fgApplied + "\treflex=" + reflexApplied + "\tfallos_dlss=" + evalFails + "\t" + FgState() + QualityBench() + PassesBench() + LatBench() + UniversalBench() + FpBench();
+            string line = stats.Summary(s.BenchLabel, s) + "\tdlss=" + (dlssOk && scalerNow == "dlss") + "\tfg=" + fgApplied + "\treflex=" + reflexApplied + "\tfallos_dlss=" + evalFails + "\t" + FgState() + QualityBench() + PassesBench() + LatBench() + UniversalBench() + FpBench() + EfgBench();
             Log.Write("BANCO " + line);
             if (s.BenchOut.Length > 0) try { File.AppendAllText(Program.DataPath(s.BenchOut), line + "\r\n"); } catch (Exception ex) { Log.Error("Banco", ex); }   // (18-11: relativo a datos=)
             Program.Quit = true;
