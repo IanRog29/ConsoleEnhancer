@@ -80,7 +80,7 @@ namespace ConsoleEnhancer
             escDicho = clave;
             string t = EscaleraTexto(quien, pct, sr);
             if (t == null) return true;
-            Log.Write("Escalera: " + quien + " cabe con lo que bajo el motor (" + (pct > 0 ? "DLSS 5 al " + pct + " %" : "") + (pct > 0 && sr.Length > 0 ? ", " : "") + (sr.Length > 0 ? "DLSS " + sr : "") + "): aviso");
+            Log.Write("Escalera: " + quien + " cabe con lo que bajo el motor (" + (pct > 0 ? "DLSS 5 al " + pct + " %" : "") + (pct > 0 && sr.Length > 0 ? ", " : "") + (sr == "F" ? "FSR 1 en vez de DLSS" : sr.Length > 0 ? "DLSS " + sr : "") + "): aviso");
             OnUi(delegate { Osd(t); });
             return true;
         }
@@ -103,7 +103,9 @@ namespace ConsoleEnhancer
         {
             string es = "", en = "";
             if (pct > 0) { es = "DLSS 5 al " + pct + " %"; en = "DLSS 5 at " + pct + " %"; }
-            if (!string.IsNullOrEmpty(sr)) { es += (es.Length > 0 ? " y " : "") + "DLSS " + sr; en += (en.Length > 0 ? " and " : "") + "DLSS " + sr; }
+            // ("F" = FSR 1 en vez de DLSS esta sesion del motor)
+            if (sr == "F") { es += (es.Length > 0 ? " y " : "") + "FSR 1 en vez de DLSS"; en += (en.Length > 0 ? " and " : "") + "FSR 1 instead of DLSS"; }
+            else if (!string.IsNullOrEmpty(sr)) { es += (es.Length > 0 ? " y " : "") + "DLSS " + sr; en += (en.Length > 0 ? " and " : "") + "DLSS " + sr; }
             if (es.Length == 0) return null;
             return Tx.T(quien + " · " + es + " para que quepa", quien + " · " + en + " so it fits");
         }
@@ -113,7 +115,8 @@ namespace ConsoleEnhancer
         {
             string es = "", en = "";
             if (pct > 0) { es = "DLSS 5 al " + pct + " %"; en = "DLSS 5 at " + pct + " %"; }
-            if (!string.IsNullOrEmpty(sr)) { es += (es.Length > 0 ? " y " : "") + "DLSS " + sr; en += (en.Length > 0 ? " and " : "") + "DLSS " + sr; }
+            string srN = sr == "F" ? "FSR 1" : "DLSS " + sr;
+            if (!string.IsNullOrEmpty(sr)) { es += (es.Length > 0 ? " y " : "") + srN; en += (en.Length > 0 ? " and " : "") + srN; }
             if (es.Length == 0) return "";
             return Tx.T(" ni con " + es, " even with " + en);
         }
@@ -249,7 +252,7 @@ namespace ConsoleEnhancer
             }
             Log.Write("Fps: " + quien + " no llega al modo " + modo + " (" + real.ToString("0.0", CultureInfo.InvariantCulture) + " de " +
                       obj.ToString("0.00", CultureInfo.InvariantCulture) + " imagenes reales/s, grafica p95 " + gpu.ToString("0.0", CultureInfo.InvariantCulture) +
-                      " ms" + (agotado ? "; el motor ya bajo lo suyo: DLSS 5 " + (fpsAgD5 > 0 ? "al " + fpsAgD5 + " %" : "no") + ", DLSS SR " + (fpsAgSr.Length > 0 ? fpsAgSr : "no") : "") + "): " +
+                      " ms" + (agotado ? "; el motor ya bajo lo suyo: DLSS 5 " + (fpsAgD5 > 0 ? "al " + fpsAgD5 + " %" : "no") + ", " + (fpsAgSr == "F" ? "FSR 1 en vez de DLSS" : "DLSS SR " + (fpsAgSr.Length > 0 ? fpsAgSr : "no")) : "") + "): " +
                       (hecho != null ? "se pasa a " + hecho + (sesion ? " (solo esta sesion: lo elegido sigue en el perfil del juego)" : " (guardado en el perfil del juego)") : "ya no queda nada que bajar, solo el aviso"));
             string texto = FpsBajaTexto(falta, hecho, hechoEn, sesion);
             OnUi(delegate { OsdWarn(texto, "7000"); });

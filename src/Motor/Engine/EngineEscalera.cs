@@ -39,6 +39,7 @@ namespace ConsoleEnhancer.Motor
         public bool Escalera = true;
         public int[] EscPasos = { 30, 20, 10 };
         public bool EscModelo = true;
+        public bool EscFsr1 = true;
         public int EscPerdidas = 2;
         public int EscSubirS = 30;
         public bool EscLog = false;
@@ -50,6 +51,7 @@ namespace ConsoleEnhancer.Motor
             {
                 case "escalera": Escalera = val.Trim() != "0"; return true;
                 case "escalera_modelo": EscModelo = val.Trim() != "0"; return true;
+                case "escalera_fsr1": EscFsr1 = val.Trim() != "0"; return true;
                 case "escalera_log": EscLog = val.Trim() == "1"; return true;
                 case "escalera_perdidas": if (int.TryParse(val.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out n)) EscPerdidas = Math.Max(1, Math.Min(10, n)); return true;
                 case "escalera_subir_s": if (int.TryParse(val.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out n)) EscSubirS = Math.Max(5, Math.Min(600, n)); return true;
@@ -80,6 +82,9 @@ namespace ConsoleEnhancer.Motor
         long escBajadaAt, escLimpioDesde, escAgotadoAt, escNrPedidoAt;
         int escNrEspera;                                       // 1 = esperando a que DLSS 5 se rehaga con lo bajado
         string escDicho = "";
+        bool escFsr1, escFsr1NoVolver;                         // (2b) FSR 1 en vez de DLSS SR esta sesion del motor
+        string escFsr1De = "";
+        long escFsr1At, escFsr1VueltaAt;
         bool escBajo;                                          // hay algo bajado de lo pedido por la escalera (para el aviso)
 
         bool EscActiva { get { return s.Escalera; } }
@@ -138,6 +143,7 @@ namespace ConsoleEnhancer.Motor
                 EscCalma(3000);
                 return;
             }
+            if (escFsr1 && s.Upscaler != "fsr1") { escFsr1 = false; escFsr1VueltaAt = 0; }   // (el lanzador ha mandado otro escalador)
             // tras rehacer DLSS 5 con lo bajado: hasta que este hecho y 1,5 s mas (como mucho 4 s)
             if (escNrEspera == 1)
             {
@@ -174,6 +180,14 @@ namespace ConsoleEnhancer.Motor
 
             if (!mal)
             {
+                // (2b) con FSR 1 puesto por la escalera: 60 s sin perdidas y la grafica del motor holgada -> otra vez DLSS (una vez por sesion)
+                if (escFsr1 && !escFsr1NoVolver && Clock.SinceMs(escFsr1At) > 60000 && Clock.SinceMs(escLimpioDesde) > 60000 && stats.LastGpuP95 > 0 && stats.LastGpuP95 < TopeGpu() * 0.55)
+                {
+                    Log.Write(string.Format(CultureInfo.InvariantCulture, "Escalera: sobra (60 s sin perdidas, grafica del motor p95 {0:0.0} ms): otra vez DLSS {1} en vez de FSR 1", stats.LastGpuP95, s.Preset));
+                    s.Upscaler = escFsr1De.Length > 0 ? escFsr1De : "dlss"; escFsr1 = false; escFsr1VueltaAt = now; escDicho = "";
+                    EscCalma(3000);
+                    return;
+                }
                 // lo bajado ya cabe: el aviso (6 s sin perdidas desde la ultima bajada)
                 if (escBajo && escBajadaAt != 0 && Clock.SinceMs(escBajadaAt) > 6000 && Clock.SinceMs(escLimpioDesde) > 6000) EscAvisoCabe();
                 return;
@@ -239,6 +253,13 @@ namespace ConsoleEnhancer.Motor
                     return;
                 }
             }
+            if (escFsr1VueltaAt != 0 && Clock.SinceMs(escFsr1VueltaAt) < 40000 && EscSrActivo)
+            {
+                Log.Write("Escalera: la vuelta a DLSS no cabe (" + por + "): FSR 1 el resto de esta sesion del motor");
+                s.Upscaler = "fsr1"; escFsr1 = true; escFsr1NoVolver = true; escFsr1At = now; escFsr1VueltaAt = 0;
+                EscCalma(3000); escBajadaAt = now; escBajo = true; escDicho = "";
+                return;
+            }
             // (1) DLSS 5
             if (AdNrActivo && (s.NrPct > 25 || s.NrPasses > 1))
             {
@@ -276,13 +297,23 @@ namespace ConsoleEnhancer.Motor
                 EscCalma(3000); escBajadaAt = now; escBajo = true; escDicho = "";
                 return;
             }
+            // (2b) sin DLSS SR esta sesion: FSR 1 (lo que mas libera del reescalado: medido 1440p -> 4K, DLSS M 11,4 ms de grafica del motor
+            // frente a 6,8 con FSR 1; de M a E solo 0,4-2,2). Solo en el motor y esta sesion: lo elegido sigue siendo DLSS
+            if (s.EscFsr1 && EscSrActivo && !escFsr1)
+            {
+                Log.Write("Escalera: no se llega (" + por + ") ni con DLSS " + s.Preset + (AdNrActivo ? " y DLSS 5 al 25 %" : "") + ": FSR 1 en vez de DLSS esta sesion del motor (antes de bajar el multiplicador)");
+                escFsr1De = s.Upscaler; s.Upscaler = "fsr1"; escFsr1 = true; escFsr1At = now;
+                overSecs = 0;
+                EscCalma(3000); escBajadaAt = now; escBajo = true; escDicho = "";
+                return;
+            }
             // (3) ya no queda nada en el motor: al lanzador (30 s como poco entre avisos, como EngineFps: casi siempre cambia de motor antes)
             if (escAgotadoAt != 0 && Clock.SinceMs(escAgotadoAt) < 30000) { EscCalma(2000); return; }
             escAgotadoAt = now;
             string r = reales.ToString("0.0", IC), o = EscObjetivo.ToString("0.00", IC), g = stats.LastGpuP95.ToString("0.0", IC);
-            string d5 = AdNrActivo ? s.NrPct.ToString(IC) : "-", m = EscSrActivo ? s.Preset : "-";
+            string d5 = AdNrActivo ? s.NrPct.ToString(IC) : "-", m = escFsr1 ? "F" : EscSrActivo ? s.Preset : "-";
             Log.Write("Escalera: no se llega (" + por + ") y en el motor ya no queda nada que bajar (DLSS 5 " + (AdNrActivo ? "al " + d5 + " %" : "no") +
-                      ", DLSS SR " + (m == "-" ? "no" : m) + "): aviso al lanzador");
+                      ", " + (m == "F" ? "FSR 1" : "DLSS SR " + (m == "-" ? "no" : m)) + "): aviso al lanzador");
             Ev("switch2-fps", "bajo", r, o, g, "agotado", d5, m);
             EscCalma(4000);
         }
@@ -293,14 +324,15 @@ namespace ConsoleEnhancer.Motor
             string pedP = adPedidoPreset.Length > 0 ? adPedidoPreset : "";
             int pedPct = adPedidoPct > 0 ? adPedidoPct : -1;
             bool d5Bajo = AdNrActivo && pedPct > 0 && s.NrPct < pedPct;
-            bool srBajo = EscSrActivo && pedP.Length > 0 && AdRango(s.Preset) < AdRango(pedP);
+            bool srBajo = escFsr1 || (EscSrActivo && pedP.Length > 0 && AdRango(s.Preset) < AdRango(pedP));
             if (!d5Bajo && !srBajo) { escBajo = false; return; }
-            string estado = (d5Bajo ? s.NrPct.ToString(IC) : "-") + "|" + (srBajo ? s.Preset : "-") + "|" + s.NrPasses;
+            string sr = escFsr1 ? "F" : s.Preset;
+            string estado = (d5Bajo ? s.NrPct.ToString(IC) : "-") + "|" + (srBajo ? sr : "-") + "|" + s.NrPasses;
             if (estado == escDicho) return;
             escDicho = estado;
             Log.Write("Escalera: cabe con " + (d5Bajo ? "DLSS 5 al " + s.NrPct + " % (pedido " + pedPct + " %)" : "") + (d5Bajo && srBajo ? " y " : "") +
-                      (srBajo ? "DLSS " + s.Preset + " (pedido " + pedP + ")" : "") + ": aviso al lanzador");
-            Ev("switch2-escalera", d5Bajo ? s.NrPct.ToString(IC) : "-", srBajo ? s.Preset : "-", pedPct > 0 ? pedPct.ToString(IC) : "-", pedP.Length > 0 ? pedP : "-", s.NrPasses.ToString(IC));
+                      (srBajo ? (escFsr1 ? "FSR 1 (pedido DLSS " + pedP + ")" : "DLSS " + s.Preset + " (pedido " + pedP + ")") : "") + ": aviso al lanzador");
+            Ev("switch2-escalera", d5Bajo ? s.NrPct.ToString(IC) : "-", srBajo ? sr : "-", pedPct > 0 ? pedPct.ToString(IC) : "-", pedP.Length > 0 ? pedP : "-", s.NrPasses.ToString(IC));
         }
 
         // EngineAdapta (AdaptaTick, "sobra"): con generacion la grafica del motor no ve la de la generacion; solo se sube tras escalera_subir_s

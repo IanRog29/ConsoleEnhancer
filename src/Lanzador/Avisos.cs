@@ -996,7 +996,7 @@ namespace ConsoleEnhancer
             sb.AppendLine("== la escalera de fps (lo bajado por el motor; el multiplicador esta sesion)");
             string[] quienes = { "Smooth Motion x4", "Smooth Motion x2", "Enhanced FG x4", "Enhanced FG x3", "Enhanced FG x2", "XeSS FG", "FSR 3 FG x4", "30 fps", "60 fps", "120 fps" };
             int[] pcts = { -1, 25, 35, 100 };
-            string[] srs = { "", "L", "K", "E" };
+            string[] srs = { "", "L", "K", "E", "F" };
             foreach (bool en in new[] { false, true })
             {
                 Idioma.Poner(en ? "en" : "es");
