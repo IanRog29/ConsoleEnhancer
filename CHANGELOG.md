@@ -134,8 +134,9 @@ retiró tras probarla con la consola; esta se ha rehecho con esa prueba, la sigu
   curtain goes up at once instead of after the engine finishes closing (3.5 s in the user's session).
 - **×4 can be picked with DLSS 5** (Smooth Motion ×4 and Enhanced FG ×3 / ×4). The engine watches the real frames (its own GPU time
   doesn't see XeSS FG or the driver's Smooth Motion) and lowers DLSS 5 10 points at a time, down to 25 %, until ×4 keeps 30; the notice says
-  the %. If it can't, ×2 for the session with that capture and DLSS 5, and the menu says why. Smooth Motion ×4 also runs the engine's GPU
-  queue at high priority (measured with DLSS 5 at 45 %: 27.6 → 29.6 real frames) and starts DLSS 5 at 35 % the first time.
+  the %. If it can't, ×2 for the session with that capture and DLSS 5, and the menu says why. With DLSS 5, Smooth Motion ×4 also runs the engine's GPU
+  queue at high priority (measured with DLSS 5 at 45 %: 27.6 → 29.6 real frames) and starts DLSS 5 at 35 % the first time (in the whole app
+  at 4K: 30 real frames, 119 frames/s seen, 92 % for one refresh).
 - **Smooth Motion ×4 showed as chosen but ran ×2, and then looked locked.** Picking "Smooth Motion, ×4, DLSS 5 On" in one go saved ×4
   (its lock looked at DLSS 5 as it was, off) and the engine ran ×2 because of DLSS 5 without saying so; after picking ×2, ×4 showed a
   lock. The Multiplier row now follows the DLSS 5 and capture chosen in the same menu, shows what will really run (×2 with the reason)
@@ -340,8 +341,9 @@ Engine settings go at the end of the `motor_extra=` line of `consoleenhancer.ini
   congelada sale enseguida, sin esperar a que el motor acabe de cerrarse (3,5 s en la sesión del usuario).
 - **×4 se puede elegir con DLSS 5** (Smooth Motion ×4 y Enhanced FG ×3 / ×4). El motor mira las reales (su tiempo de gráfica no ve XeSS
   FG ni el Smooth Motion del driver) y baja DLSS 5 de 10 en 10 puntos, hasta el 25 %, hasta que ×4 mantiene las 30; el aviso dice el %.
-  Si ni así, ×2 esa sesión con esa captura y DLSS 5, y el menú dice por qué. Smooth Motion ×4 lleva además la cola de la gráfica del motor
-  en prioridad alta (medido con DLSS 5 al 45 %: de 27,6 a 29,6 reales) y la primera vez empieza con DLSS 5 al 35 %.
+  Si ni así, ×2 esa sesión con esa captura y DLSS 5, y el menú dice por qué. Con DLSS 5, Smooth Motion ×4 lleva además la cola de la gráfica del
+  motor en prioridad alta (medido con DLSS 5 al 45 %: de 27,6 a 29,6 reales) y la primera vez empieza con DLSS 5 al 35 % (en la app entera a
+  4K: 30 reales, 119 imágenes/s vistas, el 92 % a un refresco).
 - **Smooth Motion ×4 salía elegido pero iba ×2, y luego parecía bloqueado.** Elegir a la vez «Smooth Motion, ×4, DLSS 5 Sí» guardaba ×4
   (el candado miraba el DLSS 5 de antes, apagado) y el motor iba ×2 por DLSS 5 sin decirlo; al elegir ×2, ×4 salía con candado. La fila
   Multiplicador sigue ahora el DLSS 5 y la captura elegidos en el mismo menú, enseña lo que va a ir de verdad (×2 con el motivo) y guarda
