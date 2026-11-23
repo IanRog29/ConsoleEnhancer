@@ -57,6 +57,7 @@ namespace ConsoleEnhancer.Motor
         public int EfgStillN = 3, EfgRadius = 8;
         public int EfgLevels = 5;               // (EFG2) niveles de la piramide del flujo (4-6; antes 4)
         public bool EfgPropAll = true;          // (EFG2) la pasada de apoyo entre vecinos tambien en los niveles gruesos (antes solo en L0)
+        public int EfgSearch = 2;               // (EFG2) busqueda alrededor del mejor en los niveles gruesos (+-N; antes 1)
         public bool EfgStamps = true;           // efg_tiempos=0: sin las marcas de tiempo de la grafica (prueba)
 
         bool ApplyEfg(string key, string val)
@@ -84,6 +85,7 @@ namespace ConsoleEnhancer.Motor
                 case "efg_radio": EfgRadius = Math.Max(2, Math.Min(16, I(val))); return true;
                 case "efg_niveles": EfgLevels = Math.Max(4, Math.Min(6, I(val))); return true;
                 case "efg_apoyo_niveles": EfgPropAll = B(val); return true;
+                case "efg_busqueda": EfgSearch = Math.Max(1, Math.Min(4, I(val))); return true;
                 case "efg_tiempos": EfgStamps = B(val); return true;
             }
             return false;

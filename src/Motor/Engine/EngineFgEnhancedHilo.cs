@@ -172,6 +172,7 @@ namespace ConsoleEnhancer.Motor
                         k[5] = (l < top ? 1u : 0u) | (l == 0 && tmp ? 2u : 0u) | (l == 0 ? 8u : 0u);
                         k[6] = l < top ? (uint)efgBx[l + 1] : 1u; k[7] = l < top ? (uint)efgBy[l + 1] : 1u;
                         k[8] = F(s.EfgLambda); k[9] = F(0.002f); k[10] = F(d == 0 ? 1f : -1f);
+                        k[12] = l == 0 ? 1u : (uint)s.EfgSearch;
                         EfgRun(psoEfgFlow, c, EfgTabFlow(d, l), k, Groups(efgBx[l], 8), Groups(efgBy[l], 8), l == 0 ? efgFRaw[c, d] : efgPropAll ? efgFRawL[d, l] : efgF[c, d, l]);
                         if (efgPropAll && l > 0)
                         {

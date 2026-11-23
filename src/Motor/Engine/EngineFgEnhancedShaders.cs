@@ -38,10 +38,11 @@ void main(uint3 id : SV_DispatchThreadID)
 
         // ---- Flujo de un nivel (de lo grueso a lo fino), por bloques de 8x8 de A buscados en B. Candidatos: en el nivel mas grueso busqueda
         // entera de +-R; en los demas el vector del bloque padre y de sus 4 vecinos (x2), el 0 y el de la pareja anterior (temporal, solo L0);
-        // despues +-1 alrededor del mejor y, en L0, medio y cuarto de punto. Coste = diferencia media + Lambda x lo que se aparta del padre.
+        // despues +-SR alrededor del mejor (EFG2: +-2 en los niveles gruesos, +-1 en L0) y, en L0, medio y cuarto de punto. Coste = diferencia
+        // media + Lambda x lo que se aparta del padre.
         // Flags: 1 = hay padre, 2 = hay temporal, 8 = subpunto
         public const string Flow = @"
-cbuffer C : register(b0) { uint LW, LH, BX, BY; uint R, Flags, PBX, PBY; float Lambda, ZeroBias, TmpSign, Pad0; uint4 Pad1; }
+cbuffer C : register(b0) { uint LW, LH, BX, BY; uint R, Flags, PBX, PBY; float Lambda, ZeroBias, TmpSign, Pad0; uint SR, Pad1, Pad2, Pad3; }
 Texture2D<float> A : register(t0);
 Texture2D<float> B : register(t1);
 Texture2D<float4> Par : register(t2);
@@ -111,8 +112,9 @@ void main(uint3 id : SV_DispatchThreadID)
     float2 c0 = round(bd);
     if (Flags & 1)
     {
-        [unroll] for (int dy = -1; dy <= 1; dy++)
-            [unroll] for (int dx = -1; dx <= 1; dx++)
+        int sr = max(1, (int)SR);
+        for (int dy = -sr; dy <= sr; dy++)
+            for (int dx = -sr; dx <= sr; dx++)
                 if (dx != 0 || dy != 0) Try(c0 + float2(dx, dy));
     }
     if (Flags & 8)
