@@ -198,6 +198,9 @@ namespace ConsoleEnhancer
                 }
                 else obsHomeHits = 0;
                 double every = (now - obsStart).TotalMinutes < 3 ? 5 : 30;
+                // (23-11, SWITCH2 / XBOX: la imagen apunta a otra consola -una prueba propia suya hace menos de 20 s-: la pantalla cada
+                // segundo, para confirmarla o descartarla enseguida; con la PS5 o la Xbox delante se lee "PS5", "Xbox Series"...)
+                if (Consolas.ApuntaAOtra() != null) every = 1;
                 if ((now - obsTextAt).TotalSeconds >= every)
                 {
                     obsTextAt = now;

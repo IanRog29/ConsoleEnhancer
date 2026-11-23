@@ -506,6 +506,41 @@ namespace ConsoleEnhancer
                 Consolas.Reiniciar("ps5");
                 ahora = t0; Consolas.VistoHomeSwitch2("18:10"); ahora = t0.AddSeconds(1); Consolas.VistoHomeSwitch2("18:10");
                 check("1. Con consola=ps5 en el ini: el HOME de la Switch 2 no cambia nada", Consolas.Actual == Consolas.Ps5 && Consolas.ApuntaAOtra() == null);
+
+                // ---- 1b. La Xbox (SIN PROBAR con la consola: sin capturas reales suyas) ----
+                // PS5 puesta y la Xbox delante: su marca leida (OCR cada segundo mientras apunta a otra) -> apunta a la Xbox desde la
+                // primera (nada de la PS5 sobre su imagen) y cambia con 3 pruebas en 20 s (la regla de las SIN PROBAR, 20-11)
+                File.WriteAllText(Path.Combine(tmp, "console.txt"), "ps5");
+                Consolas.Reiniciar("auto");
+                ahora = t0;
+                Consolas.VistoTexto("Xbox Series X  Mis juegos y aplicaciones");
+                check("1b. PS5 puesta, \"Xbox Series\" leido una vez: sigue la PS5 pero la imagen apunta a la Xbox (sin portadas ni iconos de la PS5)",
+                      Consolas.Actual == Consolas.Ps5 && Consolas.ApuntaAOtra() == Consolas.XboxSeries);
+                double xCuando = -1;
+                for (int i = 1; i <= 40 && xCuando < 0; i++)
+                {
+                    ahora = t0.AddSeconds(i);
+                    if (Consolas.VistoTexto(i % 2 == 0 ? "Xbox Series X" : "Mis juegos y aplicaciones") == Consolas.XboxSeries) xCuando = i;
+                }
+                check("1b. ...leyendo sus pantallas cada segundo: Xbox Series a los " + xCuando + " s (3 pruebas en 20 s: SIN PROBAR)", xCuando >= Consolas.SeparacionSinProbarS && xCuando <= 21 && Consolas.Actual == Consolas.XboxSeries);
+                // Xbox puesta (console.txt = xboxseries) y la Switch 2 delante: su HOME 2 veces -> Switch 2 en 0,5 s
+                File.WriteAllText(Path.Combine(tmp, "console.txt"), "xboxseries");
+                Consolas.Reiniciar("auto");
+                ahora = t0; Consolas.VistoHomeSwitch2("18:10");
+                ahora = t0.AddSeconds(0.5);
+                check("1b. Xbox puesta y el HOME de la Switch 2 en 2 capturas: Switch 2 al momento", Consolas.VistoHomeSwitch2("18:10") == Consolas.Switch2);
+                // Xbox puesta y la PS5 delante: su menu (la hora en su sitio exacto) cada 5 s -> PS5 (probada: 2 en 5 s)
+                File.WriteAllText(Path.Combine(tmp, "console.txt"), "xboxseries");
+                Consolas.Reiniciar("auto");
+                double pCuando = -1;
+                for (int i = 0; i < 12 && pCuando < 0; i++) { ahora = t0.AddSeconds(5 * i); if (Consolas.VistoMenuPs5("18:10") == Consolas.Ps5) pCuando = 5 * i; }
+                check("1b. Xbox puesta y el menu de la PS5 cada 5 s: PS5 a los " + pCuando + " s", pCuando >= 0 && pCuando <= 10 && Consolas.Actual == Consolas.Ps5);
+                // Xbox puesta y su propia hora (apoyo) 2 min: sigue la Xbox; nada apunta a otra
+                File.WriteAllText(Path.Combine(tmp, "console.txt"), "xboxseries");
+                Consolas.Reiniciar("auto");
+                bool xok = true;
+                for (int i = 0; i < 24; i++) { ahora = t0.AddSeconds(5 * i); Consolas.VistoMenuXbox("18:10"); if (Consolas.ApuntaAOtra() != null) xok = false; }
+                check("1b. Xbox puesta y su hora cada 5 s durante 2 min: sigue la Xbox y nada apunta a otra", xok && Consolas.Actual == Consolas.XboxSeries);
                 Consolas.Reloj = relojAntes;
 
                 // ---- 2. Capturas reales: el HOME de la Switch 2 (nombre cian + hora con la bateria) y pantallas que no lo son ----
@@ -521,11 +556,18 @@ namespace ConsoleEnhancer
                         if (!f.EndsWith("_nombre.png", StringComparison.OrdinalIgnoreCase)) imgs.Add(f);
                 }
                 imgs.Sort(StringComparer.OrdinalIgnoreCase);
-                int sw = 0, swHome = 0, otras = 0, otrasMal = 0, sinHora = 0;
+                int sw = 0, swHome = 0, otras = 0, otrasMal = 0, sinHora = 0, xboxN = 0, xboxMal = 0;
                 foreach (string f in imgs)
                 {
                     DateTime cuando;
-                    if (!Switch2Datos.HoraDeNombre(Path.GetFileName(f), out cuando)) continue;
+                    // (las de la Xbox, dibujadas: xbox*_HHmmss.png, la hora al final)
+                    bool esXbox = Path.GetFileName(f).StartsWith("xbox", StringComparison.OrdinalIgnoreCase);
+                    if (esXbox)
+                    {
+                        string bn = Path.GetFileNameWithoutExtension(f);
+                        if (!DateTime.TryParseExact("20261119-" + bn.Substring(bn.Length - 6), "yyyyMMdd-HHmmss", CultureInfo.InvariantCulture, DateTimeStyles.None, out cuando)) continue;
+                    }
+                    else if (!Switch2Datos.HoraDeNombre(Path.GetFileName(f), out cuando)) continue;
                     using (Bitmap full = Switch2Datos.Cargar32(f))
                     using (Bitmap small = HomeLabel.Small(full))
                     {
@@ -546,10 +588,12 @@ namespace ConsoleEnhancer
                         bool esPs5 = f.IndexOf(@"debug\ps5", StringComparison.OrdinalIgnoreCase) >= 0 && !esSwitch;
                         if (esSwitch) { sw++; if (reloj) swHome++; else sinHora++; }
                         else if (esPs5) { otras++; if (reloj) otrasMal++; }
-                        sb.Append("      ").Append(home ? "HOME S2 " : "-       ").Append(esSwitch ? "[switch] " : esPs5 ? "[ps5]    " : "[?]      ")
+                        else if (esXbox) { xboxN++; if (reloj || home) xboxMal++; }
+                        sb.Append("      ").Append(home ? "HOME S2 " : "-       ").Append(esSwitch ? "[switch] " : esPs5 ? "[ps5]    " : esXbox ? "[xbox]   " : "[?]      ")
                           .Append("cian ").Append(cian ? "si" : "no").Append(", hora ").Append(reloj ? "\"" + rh + "\"" : "no (" + rp + ")").Append("  ").Append(f).Append("\r\n");
                     }
                 }
+                check("2. Menus de la Xbox (" + xboxN + ", dibujados: no hay capturas reales suyas): ninguno da la hora del HOME de Nintendo", xboxN > 0 && xboxMal == 0);
                 check("2. Capturas de la PS5 (" + otras + ", suyas y de la version de antes): ninguna da la hora del HOME de Nintendo (ni el HOME de la Switch 2)", otras > 0 && otrasMal == 0);
                 check("2. Las del usuario del 23-11 con la Switch 2 delante y la PS5 puesta (18:08:16, 18:08:18, 18:10:19): su hora con la bateria en las 3 (" + swHome + " de " + sw + ")",
                       sw == 3 && swHome == 3);
