@@ -110,6 +110,36 @@ namespace ConsoleEnhancer
             return 0;
         }
 
+        // (1.2.4 ronda 6, QUITAFG) Sin Magpie, las DLL de Intel XeSS y AMD FidelityFX que usa el motor van en xess\ y fsr\ (de sus releases
+        // oficiales: componentes xess y fsr). Una carpeta de la app de antes las tiene en magpie\ (las mismas versiones; libxell 1.3.0.5 en vez
+        // de 1.3.2.10): se copian ahi una vez y no hace falta bajarlas. Lo demas de magpie\ no se toca (es de la version anterior)
+        static void RecogerDeMagpie()
+        {
+            try
+            {
+                string[][] grupos = { new[] { Paths.XessDir, "libxess.dll", "libxess_fg.dll", "libxell.dll", "INTEL-XESS-LICENSE.txt", "INTEL-XESS-THIRD-PARTY.txt" },
+                                      new[] { Paths.FsrDir, "amd_fidelityfx_loader_dx12.dll", "amd_fidelityfx_upscaler_dx12.dll", "amd_fidelityfx_framegeneration_dx12.dll", "AMD-FSR-SDK-LICENSE.md" } };
+                foreach (string[] g in grupos)
+                {
+                    if (File.Exists(Path.Combine(g[0], g[2]))) continue;
+                    bool todas = true;
+                    for (int i = 1; i <= 3; i++) if (!File.Exists(Path.Combine(Paths.MagpieDir, g[i]))) todas = false;
+                    if (!todas) continue;
+                    Directory.CreateDirectory(g[0]);
+                    int n = 0;
+                    for (int i = 1; i < g.Length; i++)
+                    {
+                        string de = Path.Combine(Paths.MagpieDir, g[i]);
+                        if (!File.Exists(de)) continue;
+                        File.Copy(de, Path.Combine(g[0], g[i]), true);
+                        n++;
+                    }
+                    Log.Write("Componentes: " + n + " ficheros de " + Paths.MagpieDir + " (la instalacion de antes) copiados a " + g[0] + " para el motor (sin volver a bajarlos)");
+                }
+            }
+            catch (Exception ex) { Log.Error("Componentes: recogiendo las DLL de magpie\\", ex); }
+        }
+
         // ---- al abrir la app (Main, antes del asistente): -1 = seguir, otro = salir con ese codigo ----
         public static int Asegurar(string[] args, bool dryRun)
         {
@@ -129,6 +159,7 @@ namespace ConsoleEnhancer
                 todos = Leer(Tabla);
             }
             catch (Exception ex) { Log.Error("Componentes: " + Tabla, ex); return -1; }
+            if (!reparar) RecogerDeMagpie();   // (1.2.4 ronda 6, QUITAFG: las DLL de Intel / AMD de una instalacion de antes, sin volver a bajarlas)
             List<Componente> faltan = new List<Componente>();
             bool alguno = false;
             foreach (Componente c in todos)

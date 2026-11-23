@@ -57,17 +57,12 @@ namespace ConsoleEnhancer
 
         // ¿Hace el motor DLSS 5 con lo pedido ahora? (las pasadas PEDIDAS, no las que caben: va dentro de la cuenta de Dlss5PassesNow, de la
         // escala automatica de Magpie y de DlssFgPorMagpieSinRuntime; lo de la generacion que solo hace Magpie con su guarda)
-        [ThreadStatic] static bool md5Dentro;
         public bool MotorDlss5Pedido
         {
             get
             {
-                if (!EngineDlss5 || MotorDlss5Roto || !MotorDlss5Disponible) return false;
-                if (Math.Max(1, Math.Min(3, Passes30)) > Math.Max(1, Math.Min(3, EngineDlss5MaxPasses))) return false;
-                if (md5Dentro) return true;
-                md5Dentro = true;
-                try { return !FgMagpieOnly && !ScalerMagpieOnly; }
-                finally { md5Dentro = false; }
+                // (1.2.4 ronda 6, QUITAFG, fase 2: sin Magpie, DLSS 5 siempre en el motor, con las 1-3 pasadas)
+                return EngineDlss5 && !MotorDlss5Roto && MotorDlss5Disponible;
             }
         }
 
@@ -129,8 +124,6 @@ namespace ConsoleEnhancer
         public string MotorDlss5PorQueMagpie(bool ingles)
         {
             if (!EngineDlss5 || !MotorDlss5Disponible || Dlss5Off) return "";
-            if (Math.Max(1, Math.Min(3, Passes30)) > Math.Max(1, Math.Min(3, EngineDlss5MaxPasses)))
-                return ingles ? Passes30 + " passes: through Magpie" : Passes30 + " pasadas: por Magpie";
             if (FgMagpieOnly) { string t = FgTypeNow; string n = t == "xess" ? "XeSS FG" : t == "fsr3" ? "FSR 3 FG" : t; return ingles ? n + ": through Magpie" : n + ": por Magpie"; }
             return "";
         }

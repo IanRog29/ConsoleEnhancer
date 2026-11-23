@@ -1,7 +1,7 @@
 // MotorFg.cs - 22-11-2026 (1.2.4, agente MOTORFG). La generacion que el motor propio sabe hacer ademas de Smooth Motion y lo que se le pasa.
 // (1.2.4 ronda 6, QUITAFG: fuera DLSS FG -DLSS-G de Streamline-, los multiplicadores x3 / x4, la generacion propia del motor y la pieza
 // PrismaFg.dll. Queda:)
-//  - XeSS FG x2: libxess_fg.dll + libxell.dll de magpie\ (de Intel, redistribuibles), con los vectores del motor (src\Motor\Engine\EngineFgXe.cs).
+//  - XeSS FG x2: libxess_fg.dll + libxell.dll de xess\ (de la release oficial de Intel, redistribuibles), con los vectores del motor (src\Motor\Engine\EngineFgXe.cs).
 //    Con XeSS FG el motor lleva la cadena de presentacion de XeSS FG; con DLSS de escalador, Streamline solo para DLSS SR (sin sus ganchos de
 //    DXGI, fg_dlss_sr=1 en el motor).
 //  - FSR 3 FG x2: la cadena de FidelityFX (EngineFgFfx.cs; con DLSS de escalador va por Magpie, Config.FgMagpieOnly).
@@ -36,7 +36,7 @@ namespace ConsoleEnhancer
             {
                 case "xess":
                     if (!MotorFgMulti) return false;
-                    return File.Exists(Path.Combine(Paths.MagpieDir, "libxess_fg.dll")) && File.Exists(Path.Combine(Paths.MagpieDir, "libxell.dll"));
+                    return Paths.HayLib("libxess_fg.dll") && Paths.HayLib("libxell.dll");   // (1.2.4 ronda 6: en xess\, de la release de Intel)
             }
             return false;
         }

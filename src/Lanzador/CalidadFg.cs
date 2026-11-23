@@ -77,7 +77,7 @@ namespace ConsoleEnhancer
             "motor_generacion_60", "motor_generacion_30", "generacion_60", "modo30_generacion", "generacion_multiplicador", "dlssg_solo_magpie",
             "xess_fg_x4", "xess_fg_multi_cabe", "xess_fg_fijo", "xess_fg_multi_uso", "escala_coste_xess_compat", "generacion_dlss5_minimo",
             "escala_coste_dlss_fg", "escala_coste_dlss_fg_mas", "escala_credito_fijo_dlss",
-            "motor_fg_multi", "motor_fg_propia", "motor_xefg_propia", "motor_propia_dlss5", "prueba_multiplicador_hz" };
+            "motor_fg_propia", "motor_xefg_propia", "motor_propia_dlss5", "prueba_multiplicador_hz", "motor_dlss5_pasadas" };
         public static bool ClaveRetirada(string key) { return Array.IndexOf(ClavesRetiradas, (key ?? "").Trim().ToLowerInvariant()) >= 0; }
     }
 }

@@ -48,17 +48,11 @@ namespace ConsoleEnhancer
         {
             return MotorGenAMagpiePorQue(tipo).Length > 0;
         }
-        public string MotorGenAMagpiePorQue(string tipo)
-        {
-            try
-            {
-                if (Engine != "propio" || tipo != "xess" || !MotorFgSabe("xess")) return "";
-                if (motorGenCaida.Contains(" xess")) return "XeSS FG: la grafica se perdio con el en el motor en esta sesion";
-                if (MotorD5Simple && !MotorXefgDlss5) return "XeSS FG con DLSS 5: por Magpie como en la 1.2.3 (motor_xefg_dlss5=1 = por el motor)";
-            }
-            catch { }
-            return "";
-        }
+        // (1.2.4 ronda 6, QUITAFG, fase 2: sin Magpie nada va alli. XeSS FG + DLSS 5 vuelve al motor -los cuelgues de la prueba del usuario
+        // eran del OC de memoria de la grafica-; tras perder la grafica con XeSS FG en el motor, el resto de la sesion va otro tipo -XessCaido,
+        // Config.GenPuedeIr-)
+        public string MotorGenAMagpiePorQue(string tipo) { return ""; }
+        public static bool XessCaido { get { return motorGenCaida.Contains(" xess"); } }
 
         // El motor salio por la grafica perdida (3) o parado (5) con esta generacion: el resto de la sesion por Magpie
         public static void MotorGenCaidaAnota(string via)
@@ -82,7 +76,7 @@ namespace ConsoleEnhancer
                 if (!Config.ChainXess(Config.EngineFfxOf(p))) return;
                 Config.MotorGenCaidaAnota("xess");
                 Log.Write("Motor: la grafica se ha " + (code == 3 ? "perdido" : "parado") + " con XeSS FG en el motor (codigo " + code.ToString(CultureInfo.InvariantCulture) +
-                          "): el resto de la sesion XeSS FG va por Magpie, como en la 1.2.3");
+                          "): el resto de la sesion va otro tipo de generacion (el mas parecido)");
             }
             catch (Exception ex) { Log.Error("Motor: generacion tras la caida", ex); }
         }

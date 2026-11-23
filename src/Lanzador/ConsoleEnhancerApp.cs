@@ -98,7 +98,7 @@ namespace ConsoleEnhancer
             string luid = AdaptadorMotor.Luid(cfg.EngineAdapter);   // (22-11, 1.2.2: el LUID de AHORA de esa grafica; src\Lanzador\AdaptadorMotor.cs)
             if (luid.Length > 0) a.Add("adapter_luid=" + luid);
             a.Add("datos=" + EngineLogDir);
-            a.Add("dlls_sr=" + Paths.MagpieDir);   // 21-11 (1.0.9): libxess.dll / amd_fidelityfx_*.dll para XeSS y FSR 3/4 en el motor
+            a.Add("dlls_sr=" + Paths.SrDlls);   // 21-11 (1.0.9): libxess.dll / amd_fidelityfx_*.dll para XeSS y FSR 3/4 en el motor (1.2.4 ronda 6: de xess\ y fsr\, sin Magpie)
             Escalas.ArgsMotor(cfg, a);   // (20-11: adapta=1 adapta_clave=...: el motor ajusta las escalas solo, src\Escalas.cs)
             CeImagen.ArgsMotor(cfg, a);  // (20-11: vrr=1, src\ImagenCe.cs)
             return a.ToArray();

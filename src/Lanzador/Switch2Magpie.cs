@@ -80,7 +80,19 @@ namespace ConsoleEnhancer
         // cualquier texto azul del juego contaba como el HOME (02-11, TOTK)
         public static readonly string HomeRefFile = Datos + @"\games\home_ref.txt";
 
-        // ---- Magpie ----
+        // ---- (1.2.4 ronda 6, QUITAFG) las DLL de Intel XeSS y AMD FidelityFX que usa el motor (XeSS SR, XeSS FG + XeLL, FSR 3.1 / 4, FSR 3 FG) ----
+        // Las baja la app de las releases oficiales de Intel (XeSS SDK) y AMD (FSR SDK), scripts\components.json; antes venian con Magpie
+        public static readonly string XessDir = AppDir + @"\xess";
+        public static readonly string FsrDir = AppDir + @"\fsr";
+        // Lo que se le pasa al motor (dlls_sr=): las dos carpetas
+        public static string SrDlls { get { return XessDir + ";" + FsrDir; } }
+        // ¿Esta esa DLL de Intel / AMD para el motor?
+        public static bool HayLib(string name)
+        {
+            return File.Exists(Path.Combine(name.StartsWith("amd_", StringComparison.OrdinalIgnoreCase) ? FsrDir : XessDir, name));
+        }
+
+        // ---- Magpie (1.2.4 ronda 6, QUITAFG: ya no se usa; solo para recoger de una instalacion de antes las DLL de Intel / AMD, Componentes.cs) ----
         // El Magpie de la app, con ficheros propios (18-11, INTEGRADO: antes enlaces duros al Magpie instalado aparte; ver Integrado.cs)
         // y su propia configuracion portatil (config\v4e\config.json junto al exe). Asi el Magpie del usuario, si lo hay, con sus perfiles
         // y efectos, no se toca nunca
@@ -881,10 +893,11 @@ namespace ConsoleEnhancer
         // (22-11, 1.2.4 SOLOMOTOR: los tipos / multiplicadores que el motor sabe, en MotorSabeGeneracion de SoloMotor.cs -MOTORFG: XeSS FG y x3 / x4-)
         // (1.2.4 ronda 6, QUITAFG: sin DLSS FG ni x3 / x4, lo que va por Magpie es FSR 3 FG con DLSS de escalador y lo que el reparto manda alli:
         // XefgMotor.cs, MotorGenAMagpie)
-        public bool FgMagpieOnly { get { return !FgOff && !HomeNative && !Mode120 && ((FgTypeNow == "fsr3" && Ce.EngineUpscaler(this) == "dlss") || !MotorSabeGeneracion(FgTypeNow) ||
-                                                                         MotorGenAMagpie(FgTypeNow)); } }   // (1.2.4 ronda 5, XEFGM: lo que en el motor no es fiable o no llega, XefgMotor.cs)
+        // (1.2.4 ronda 6, QUITAFG, fase 2: sin Magpie, nada va por el; se queda el nombre para lo que lo pregunta)
+        public bool FgMagpieOnly { get { return false; } }
         // El motor con FSR 3 FG (fg_tipo=fsr3 al abrirlo: su cadena de presentacion es la de FidelityFX; no se cambia en marcha)
-        public bool EngineFfxWanted { get { return !FgOff && !HomeNative && !Mode120 && FgTypeNow == "fsr3" && Ce.EngineUpscaler(this) != "dlss"; } }
+        // (1.2.4 ronda 6, QUITAFG: tambien con DLSS de escalador -antes por Magpie-: el motor lleva DLSS SR por Streamline sin sus ganchos, como con XeSS FG)
+        public bool EngineFfxWanted { get { return !FgOff && !HomeNative && !Mode120 && FgTypeNow == "fsr3"; } }
         public static volatile int EngineFfxLaunched = -1;
         static readonly Dictionary<int, int> engineFfxByPid = new Dictionary<int, int>();
         public static void NoteEngineFfx(Process p) { if (p == null) return; try { lock (engineFfxByPid) engineFfxByPid[p.Id] = EngineFfxLaunched; } catch { } }
@@ -1333,9 +1346,10 @@ namespace ConsoleEnhancer
                         case "rtx_hdr_contraste": c.RtxHdrContrast = Math.Max(0, Math.Min(200, ParseInt(val))); break;
                         case "rtx_hdr_saturacion": c.RtxHdrSaturation = Math.Max(0, Math.Min(200, ParseInt(val))); break;
                         case "reflex": c.Reflex = ParseBool(val); break;
-                        case "motor": c.Engine = val.Trim().ToLowerInvariant(); break;
+                        // (1.2.4 ronda 6, QUITAFG: sin Magpie la imagen la hace siempre el motor propio; motor=magpie de un ini de antes no cuenta)
+                        case "motor": c.Engine = "propio"; if (val.Trim().ToLowerInvariant() != "propio") Log.Write("motor=" + val.Trim() + " del ini no cuenta: sin Magpie, siempre el motor propio"); break;
                         case "motor_dlss5": break;   // (1.2.3 MOTOR5: 0 / 1 / auto. 1.2.4 SOLOMOTOR: ya no se elige; la puesta al dia la quita)
-                        case "motor_dlss5_pasadas": c.EngineDlss5MaxPasses = Math.Max(1, Math.Min(3, ParseInt(val))); break;   // (1.2.3 MOTOR5)
+                        case "motor_dlss5_pasadas": break;   // (1.2.3 MOTOR5: hasta cuantas pasadas hacia el motor -las demas por Magpie-; 1.2.4 ronda 6: sin Magpie, las 1-3 siempre en el motor)
                         case "motor_dlss5_entrada": c.EngineDlss5PctAll = Math.Max(0, Math.Min(100, ParseInt(val))); break;
                         case "motor_dlss5_entrada_30": ParsePctList(val, c.EngineDlss5Pct30); break;
                         case "motor_dlss5_entrada_30_4k": ParsePctList(val, c.EngineDlss5Pct30_4k); break;
@@ -1494,13 +1508,14 @@ namespace ConsoleEnhancer
         static string ParseScaler(string v)
         {
             v = v.Trim().ToLowerInvariant();
-            if (v == "dlss" || v == "vsr" || v == "xess" || v == "fsr" || v == "ninguno") return v;
-            if (v == "rtx" || v == "rtxvideo") return "vsr";
-            // 15-11 (exploracion): los demas escaladores de Magpie (ver MagpieConfig.Chain)
-            if (v == "sgsr" || v == "nvvfx" || v == "fsr2" || v == "fsr3" || v == "fsr4" || v == "lanczos" || v == "bicubic" || v == "cas") return v;
+            if (v == "dlss" || v == "xess" || v == "fsr" || v == "fsr3" || v == "fsr4" || v == "ninguno") return v;
             if (v == "fsr1") return "fsr";
-            if (v == "vfx") return "nvvfx";
-            throw new FormatException("escalador: dlss, vsr, xess, fsr, sgsr, nvvfx, fsr2, fsr3, fsr4, lanczos, bicubic, cas o ninguno");
+            if (v == "fsr2") return "fsr3";
+            // (1.2.4 ronda 6, QUITAFG: los escaladores que solo tenia Magpie -RTX Video, NVIDIA VFX, SGSR, CAS, Lanczos, Bicubico- ya no estan:
+            // el motor hace FSR 1 -el de siempre sin DLSS- o, los que solo estiran, sin reescalado)
+            if (v == "vsr" || v == "rtx" || v == "rtxvideo" || v == "nvvfx" || v == "vfx" || v == "sgsr" || v == "cas") return "fsr";
+            if (v == "lanczos" || v == "bicubic") return "ninguno";
+            throw new FormatException("escalador: dlss, xess, fsr, fsr3, fsr4 o ninguno");
         }
 
         // (ParseFg, ParsePick y ParseGenList: src\Lanzador\TiposGeneracion.cs)
@@ -11913,7 +11928,7 @@ namespace ConsoleEnhancer
             if (!cfg.EngineDlss5Now || (cfg.HomeNative && !cfg.EngineDlss5Home)) return cfg.EngineDlss5 || cfg.MotorDlss5Disponible ? " dlss5=0" : "";
             double[] n = cfg.LevelNums(cfg.Level30);
             Func<double, string> f = x => Math.Min(2, x).ToString("0.###", CultureInfo.InvariantCulture);
-            int passes = Math.Max(1, Math.Min(3, cfg.Dlss5PassesNow));
+            int passes = Math.Max(1, Math.Min(3, cfg.Dlss5PassesNow));   // (1.2.4 ronda 6: las 1-3, siempre en el motor)
             return " dlss5=1 dlss5_nivel=" + f(n[0]) + "," + f(n[1]) + "," + f(n[2]) + "," + f(n[3]) +
                    // 20-11 03:40: las pasadas, su fuerza (dlss5_fuerza_pasadas) y el antiparpadeo del modo (lo mismo que a Magpie)
                    " dlss5_pasadas=" + passes.ToString(CultureInfo.InvariantCulture) +
@@ -11927,7 +11942,7 @@ namespace ConsoleEnhancer
                    " dlss5_estilo=" + cfg.Dlss5Style.ToString(CultureInfo.InvariantCulture) +
                    " dlss5_modelo=" + cfg.Dlss5Model.ToString(CultureInfo.InvariantCulture) +
                    " dlss5_mascara=" + (cfg.Dlss5AutoMask ? "1" : "0") + " dlss5_interfaz=" + (cfg.Dlss5UiFix ? "1" : "0") +
-                   " dlss5_dir=" + Paths.MagpieDir;
+                   " dlss5_dir=" + Integrado.Dlss5Dir;   // (1.2.4 ronda 6, QUITAFG: la DLL del usuario en extras\, sin copiarla a magpie\)
         }
 
         static string EngineArgs(Config cfg, string ipc) { return EngineArgs(cfg, ipc, -1, -1, -1); }

@@ -35,7 +35,8 @@ namespace ConsoleEnhancer
         // ¿Hace el motor la imagen con lo de ahora? (EngineNow = esto + motor=propio + el exe del motor). DLSS 5 encendido y que cabe: solo
         // si el motor hace DLSS 5 (PrismaNr.dll, las pasadas hasta motor_dlss5_pasadas, la generacion que sabe; MotorDlss5Pedido); DLSS 5
         // apagado o sin caber: el motor con lo demas, como siempre
-        public bool MotorSabeAhora { get { return !FgMagpieOnly && !ScalerMagpieOnly && (Dlss5Off || !Dlss5FitsNow || EngineDlss5Now); } }
+        // (1.2.4 ronda 6, QUITAFG, fase 2: sin Magpie, todo; si el motor no esta o se ha caido 3 veces, mpv sola -Engine-)
+        public bool MotorSabeAhora { get { return true; } }
 
         // Por que va por Magpie (para el log; "" = por el motor)
         public string PorQueReserva

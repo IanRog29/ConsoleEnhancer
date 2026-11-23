@@ -376,8 +376,19 @@ namespace ConsoleEnhancer
         {
             get
             {
-                if (dlss5State == 0) dlss5State = File.Exists(Path.Combine(Paths.MagpieDir, Dlss5Dll)) ? 1 : -1;
+                if (dlss5State == 0) dlss5State = File.Exists(Path.Combine(Dlss5Dir, Dlss5Dll)) ? 1 : -1;
                 return dlss5State > 0;
+            }
+        }
+        // (1.2.4 ronda 6, QUITAFG, fase 2) Donde esta la DLL del usuario para el motor (dlss5_dir=): extras\ (la pone "Añadir DLSS 5"); de
+        // una instalacion de antes, a mano en magpie\
+        public static string Dlss5Dir
+        {
+            get
+            {
+                string ex = Path.Combine(Paths.AppDir, "extras");
+                if (!File.Exists(Path.Combine(ex, Dlss5Dll)) && File.Exists(Path.Combine(Paths.MagpieDir, Dlss5Dll))) return Paths.MagpieDir;
+                return ex;
             }
         }
         // (20-11, PUBLICAR) el usuario ha puesto o quitado la DLL con el boton (Extras.cs): mirarlo otra vez

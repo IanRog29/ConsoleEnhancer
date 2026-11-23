@@ -7,8 +7,8 @@
 //     smooth = NVIDIA Smooth Motion, la del driver (perfil de NVIDIA del motor o de Magpie.exe). Solo donde se puede: RTX 40 / 50 con el driver
 //              que la da (Deteccion\Gpu.cs: f.SmoothMotion -> el plan la pone en generacion_lista_60 / _30) y nunca con la tele a 119,88 Hz ni si
 //              el driver no deja ponerla (NvProfiles.SmoothBroken / EngineSmoothBroken)
-//     xess   = XeSS FG (libxess_fg.dll + libxell.dll de magpie\): el motor sin DLSS 5, Magpie con DLSS 5 (XefgMotor.cs)
-//     fsr3   = FSR 3 FG (amd_fidelityfx_framegeneration_dx12.dll de magpie\): el motor (con DLSS de escalador, Magpie)
+//     xess   = XeSS FG (libxess_fg.dll + libxell.dll de xess\, la release oficial de Intel): el motor
+//     fsr3   = FSR 3 FG (amd_fidelityfx_framegeneration_dx12.dll de fsr\, la release oficial de AMD): el motor
 //   Y "sin generacion" (el boton de captura, la fila Generacion del menu de ajustes, la bandeja).
 // - De serie (Deteccion\Plan.cs): Smooth Motion en RTX 40 / 50 (lo que el usuario dice que va mejor); XeSS FG en Intel Arc; FSR 3 FG en lo demas.
 // - Lo guardado de antes con dlss (DLSS FG) o vfg (NVIDIA VFG) -ini generacion_tipo*, games\framegen_type.txt, la columna 10 de
@@ -46,8 +46,8 @@ namespace ConsoleEnhancer
             return CeParseProte(key, val);   // (1.2.4, XEFG: proteccion*, src\Lanzador\Proteccion.cs)
         }
 
-        static bool XessDll() { return File.Exists(Path.Combine(Paths.MagpieDir, "libxess_fg.dll")); }
-        static bool FsrFgDll() { return File.Exists(Path.Combine(Paths.MagpieDir, "amd_fidelityfx_framegeneration_dx12.dll")); }
+        static bool XessDll() { return Paths.HayLib("libxess_fg.dll"); }
+        static bool FsrFgDll() { return Paths.HayLib("amd_fidelityfx_framegeneration_dx12.dll"); }
 
         // ¿Puede ir este tipo aqui, ahora? (las DLL, el driver, la tele, la captura)
         public static bool GenPuedeIr(string t, string videoSize)
@@ -55,7 +55,7 @@ namespace ConsoleEnhancer
             switch (t ?? "")
             {
                 case "smooth": return !Ce.NoNvidia && !NvProfiles.SmoothBroken && !NvProfiles.EngineSmoothBroken && !Pantalla.Is119;
-                case "xess": return XessDll() && !XessNo1080(videoSize);
+                case "xess": return XessDll() && !XessNo1080(videoSize) && !XessCaido;   // (1.2.4 ronda 6: y no si la grafica se perdio con el en esta sesion)
                 case "fsr3": return FsrFgDll();
             }
             return false;
@@ -156,9 +156,9 @@ namespace ConsoleEnhancer
         // Por que t no va con esta captura ahora (null = si va)
         string GenNoVaPorque(string t, string capSel)
         {
-            if (t == "xess" && !File.Exists(Path.Combine(Paths.MagpieDir, "libxess_fg.dll"))) return Tx.T("falta libxess_fg.dll en magpie\\", "libxess_fg.dll is missing in magpie\\");
+            if (t == "xess" && !Paths.HayLib("libxess_fg.dll")) return Tx.T("falta libxess_fg.dll en xess\\", "libxess_fg.dll is missing in xess\\");
             if (t == "xess" && Config.XessNo1080(capSel)) return Tx.T("no va con la captura de 1080p", "doesn't run with the 1080p capture");
-            if (t == "fsr3" && !File.Exists(Path.Combine(Paths.MagpieDir, "amd_fidelityfx_framegeneration_dx12.dll"))) return Tx.T("falta su DLL en magpie\\", "its DLL is missing in magpie\\");
+            if (t == "fsr3" && !Paths.HayLib("amd_fidelityfx_framegeneration_dx12.dll")) return Tx.T("falta su DLL en fsr\\", "its DLL is missing in fsr\\");
             if (t == "smooth" && Ce.NoNvidia) return Tx.T("solo en NVIDIA RTX 40 / 50", "NVIDIA RTX 40 / 50 only");
             if (t == "smooth" && Pantalla.Is119) return Tx.T("no con la tele a 119,88 Hz", "not with the TV at 119.88 Hz");
             if (t == "smooth" && (NvProfiles.SmoothBroken || NvProfiles.EngineSmoothBroken)) return Tx.T("el driver no deja ponerlo", "the driver doesn't allow it");
