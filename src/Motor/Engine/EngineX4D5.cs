@@ -44,7 +44,7 @@ namespace ConsoleEnhancer.Motor
         int x4Hist, x4Hist6, x4OkN;
         long x4CalmaDesde, x4Sk0, x4Gn0, x4NoAt;
         string x4Clave = "";
-        int x4OkDicho = -1;
+        int x4OkDicho = -1, x4PctPedido = -1;
         bool x4Inicio;
 
         bool X4D5Activo { get { return s.X4D5 && s.Mode == 30 && AdNrActivo && (s.SmoothMode == 3 || (s.Efg >= 3 && EfgWanted())); } }
@@ -56,12 +56,14 @@ namespace ConsoleEnhancer.Motor
             {
                 if (!X4D5Activo) { x4Clave = ""; x4Hist = x4Hist6 = x4OkN = 0; return; }
                 string clave = s.SmoothMode + "|" + s.Efg + "|" + inW + "x" + inH + "|" + outW + "x" + outH;
-                if (clave != x4Clave) { x4Clave = clave; x4CalmaDesde = Clock.Now; x4Hist = x4Hist6 = x4OkN = 0; x4OkDicho = -1; }
+                if (clave != x4Clave) { x4Clave = clave; x4CalmaDesde = Clock.Now; x4Hist = x4Hist6 = x4OkN = 0; x4OkDicho = -1; x4PctPedido = adPedidoPct > 0 ? adPedidoPct : s.NrPct; }
                 X4D5Empezar();
                 long sk = efgSkipped, gn = efgGens;
                 long dSk = sk - x4Sk0, dGn = gn - x4Gn0;
                 x4Sk0 = sk; x4Gn0 = gn;
-                if (inStandby || noSignalScreen || lastCapture == 0 || Clock.SinceMs(lastCapture) > 1500 || Program.FocusHold) { x4Hist = x4Hist6 = x4OkN = 0; return; }
+                // (sin el foco tampoco: Smooth Motion del driver no genera sin el y las reales salen peor sin que sea la grafica -app entera a
+                // 4K del 23-11 19:03: otra ventana cogio el primer plano y x4 bajo DLSS 5 al 25 % por eso-)
+                if (inStandby || noSignalScreen || lastCapture == 0 || Clock.SinceMs(lastCapture) > 1500 || Program.FocusHold || !Program.HasFocus()) { x4Hist = x4Hist6 = x4OkN = 0; x4CalmaDesde = Clock.Now; return; }
                 if (Clock.SinceMs(x4CalmaDesde) < 8000 || Clock.SinceMs(adCambioAt) < 6000) { x4Hist = x4Hist6 = x4OkN = 0; return; }
                 double rate = stats.LastRate;
                 int late = stats.LastLate;
@@ -97,7 +99,8 @@ namespace ConsoleEnhancer.Motor
                     Ev("switch2-x4d5", "no", "25", rate.ToString("0.0", IC));
                     return;
                 }
-                if (x4OkN >= 12 && x4OkDicho != pct)
+                // (el aviso solo si se ha bajado de lo pedido: con lo pedido cabiendo no hay nada que decir)
+                if (x4OkN >= 12 && x4OkDicho != pct && x4PctPedido > 0 && pct < x4PctPedido)
                 {
                     x4OkDicho = pct;
                     Log.Write("x4 con DLSS 5: cabe con DLSS 5 al " + pct + " % (" + s.NrPasses + " pasada(s); reales " + rate.ToString("0.0", IC) + ")");

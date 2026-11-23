@@ -159,9 +159,8 @@ with help a lot too.
   - **Smooth Motion ×4** (RTX 40 / 50, a 120 Hz VRR screen; off by default): the engine runs XeSS FG ×2 underneath and the driver's
     Smooth Motion doubles it, 30 → 120: measured 118.7 frames/s, 97.7 % of them for exactly one refresh, all real frames, first new image
     14 ms and real frame 40 ms after it arrives (Smooth Motion ×2: 20 / 37 ms). Smooth Motion alone is ×2 in every driver; there is no
-    good ×3 (90 frames/s can't be even on a 120 Hz screen). Not with DLSS 5 (measured 25-27 real frames of 30 with it, even with DLSS 5
-    scaled down: the *Multiplier* row shows ×2 with the reason and keeps your ×4, which comes back by itself when DLSS 5 is off;
-    `smooth_x4_dlss5=1` lets you try). On real gameplay video its generated frames at 1/4 and 2/4 are about as good as ×2's and the one at
+    good ×3 (90 frames/s can't be even on a 120 Hz screen). Also with DLSS 5: the engine lowers DLSS 5's scale (down to 25 %) until ×4
+    keeps the 30 real frames and says the %; if it can't, ×2 for the session, saying so (`smooth_x4_dlss5=0` = ×2 with DLSS 5). On real gameplay video its generated frames at 1/4 and 2/4 are about as good as ×2's and the one at
     3/4 worse; with 3 of every 4 frames generated, artifacts show more often than with ×2.
   - **Enhanced FG ×2 / ×3 / ×4** (below).
   - Interpolating always waits for the next real frame: ×4 shows the real frame ~8 ms later than ×2. Smooth Motion ×3 / ×4 on its own and
@@ -173,9 +172,11 @@ with help a lot too.
   quality (interpolation) and **low latency** (the generated frames go forward from the latest real frame, which is shown as soon as it
   is ready: measured at 4K, 30 fps mode, ×2, 60 frames/s with every frame on screen for exactly 2 refreshes and the real frame 9-10 ms
   after it arrives, against ~35 ms with Smooth Motion ×2). An extra choice in *Frame generation type*, never the default; settings menu
-  rows *Multiplier* and *Enhanced FG: low latency*. Measured again in this build (4K, 30 fps mode, real PS5 captures): ×2 quality 60 fps evenly, real frame 33 ms / first new 16 ms; ×2 low latency real 9 ms (with DLSS 5: 33 ms, against 50 ms with Smooth Motion ×2); ×4 120 fps evenly but the real frame 62 ms after it arrives, and with DLSS 5 ×4 does not hold 120 (97 fps): ×2 is the one to try. It needs a screen at 100 Hz or more (at 60 Hz it was measured broken, so it is not offered there). The first time it is picked the engine compiles its shaders (~20 s; the picture you had stays meanwhile). On real gameplay video (GTA V driving) its generated frames are close
+  rows *Multiplier* and *Enhanced FG: low latency*. Measured again in this build (4K, 30 fps mode, real PS5 captures): ×2 quality 60 fps evenly, real frame 33 ms / first new 16 ms; ×2 low latency real 9 ms (with DLSS 5: 33 ms, against 50 ms with Smooth Motion ×2); ×4 120 fps evenly but the real frame 62 ms after it arrives. It needs a screen at 100 Hz or more (at 60 Hz it was measured broken, so it is not offered there). Its shaders are compiled in the background by the first engine that starts, so picking it doesn't wait for them. On real gameplay video (GTA V driving) its generated frames are close
   to a plain blend of the two real ones (in a first-person game, close to Smooth Motion), so it is shown as "Enhanced FG (experimental)".
-  With DLSS 5 it runs ×2 (×3 / ×4 don't keep up with it; the row keeps your choice for when DLSS 5 is off; `efg_multi_dlss5=1` = try).
+  ×3 / ×4 also with DLSS 5 (measured with real GTA V video at 4K, DLSS 5 level 4: ×4 with all 30 real frames, 120 fps, every frame for one
+  refresh, DLSS 5 at 80 %); if ×4 can't keep 30, DLSS 5 is lowered and, as a last resort, ×2 for the session (`efg_multi_dlss5=0` = ×2 with
+  DLSS 5). If the GPU fails with it, it stays in the menu with the reason and picking it again retries.
 - **Sharper upscaling in motion** (DLSS SR K / L / M and E, XeSS, FSR 3.1-4): each 8×8 tile of the engine's motion vectors is refined
   to a fraction of a pixel for the upscaler, so it no longer blends a misaligned history (measured against the true picture, 1440p → 4K
   in motion: K 1.32 → 0.82, M 0.92 → 0.44, L 0.79 → 0.44, E 1.05 → 0.72; on a video of real console captures K 1.29 → 0.78). Without
@@ -190,7 +191,7 @@ with help a lot too.
   `sr_nitidez_mov=0`, `sr_aa_dlss5=0` = as before).
 - **On-screen notices say what really runs** (taken from what the engine and the driver get, not from what was asked): "Apply" in the
   settings menu lists only what changed, with the real multiplier ("Smooth Motion x4 · 30 → 120 fps") and, if something asked can't
-  run, why ("x4 unavailable: with DLSS 5 the GPU can't keep up"); one notice per change (on the new engine when it is swapped), and every
+  run, why ("x4 unavailable: no VRR (G-SYNC) on the screen"); one notice per change (on the new engine when it is swapped), and every
   notice is written to the log.
 - **The character's head no longer vanishes when the camera turns** (XeSS FG / FSR 3 FG and FSR 3 FG ×3 / ×4): the engine tells the
   character and the HUD apart from the background, gives each its own motion and puts the character in front in the depth (with FSR 3
@@ -376,8 +377,8 @@ Your DLSS 5 files are also kept in `%LOCALAPPDATA%\ConsoleEnhancer\extras`, so a
 by itself. With your file, DLSS 5 always runs inside the app's own engine (`engine\PrismaNr.dll`, which ships with the app since
 1.2.4; 1 to 3 passes, with any frame generation type): much lower latency than through Magpie in 1.2.3 (measured at 4K, 30 fps mode +
 frame generation ×2: 43 ms instead of ~72 ms for the real frame; 1080p → 4K with 2 passes: 37 instead of ~52) and a steadier pace.
-There is nothing to choose. Without `engine\PrismaNr.dll` the engine runs without DLSS 5. With DLSS 5 on, Smooth Motion ×4 is not
-offered (Smooth Motion ×2 instead); FSR 3 FG, if brought back with `generacion_fsr3=1`, offers ×3 / ×4 too (`motor_fsr_multi_dlss5=0` =
+There is nothing to choose. Without `engine\PrismaNr.dll` the engine runs without DLSS 5. With DLSS 5 on, Smooth Motion ×4 and
+Enhanced FG ×3 / ×4 lower DLSS 5's scale until they keep 30 real frames (×2 for the session if they can't); FSR 3 FG, if brought back with `generacion_fsr3=1`, offers ×3 / ×4 too (`motor_fsr_multi_dlss5=0` =
 only ×2 with DLSS 5).
 
 ## DLSS 5 and the law
@@ -749,8 +750,8 @@ y contar en qué PC y con qué consola lo usas.
   - **Smooth Motion ×4** (RTX 40 / 50, una pantalla de 120 Hz con VRR; apagado de serie): el motor hace XeSS FG ×2 debajo y el Smooth
     Motion del driver lo dobla, de 30 a 120: medido 118,7 imágenes/s, el 97,7 % a un refresco justo, todas las reales, la primera imagen
     nueva a 14 ms y la real a 40 ms de llegar (Smooth Motion ×2: 20 / 37 ms). Smooth Motion solo es ×2 en todos los drivers; ×3 bueno no
-    hay (90 imágenes/s no salen parejas en una pantalla de 120 Hz). No con DLSS 5 (con él se midieron 25-27 reales de 30, aun bajando DLSS 5: la fila
-    *Multiplicador* enseña ×2 con el motivo y guarda tu ×4, que vuelve solo al apagar DLSS 5; `smooth_x4_dlss5=1` lo deja probar). Con
+    hay (90 imágenes/s no salen parejas en una pantalla de 120 Hz). También con DLSS 5: el motor baja la escala de DLSS 5 (hasta el 25 %) hasta que ×4
+    mantiene las 30 reales y dice el %; si no llega, ×2 esa sesión y lo dice (`smooth_x4_dlss5=0` = ×2 con DLSS 5). Con
     vídeo real de juego sus inventadas a 1/4 y 2/4 salen como la de ×2 y la de 3/4 peor; con 3 de cada 4 imágenes inventadas, los fallos
     se ven más que con ×2.
   - **Enhanced FG ×2 / ×3 / ×4** (abajo).
@@ -763,9 +764,11 @@ y contar en qué PC y con qué consola lo usas.
   ×2 / ×3 / ×4 y dos modos: calidad (interpolación) y **baja latencia** (las inventadas van hacia delante desde la última real, que se
   enseña en cuanto está: medido a 4K, modo 30, ×2, 60 imágenes/s, todas 2 refrescos, y la real a 9-10 ms de llegar, frente a ~35 ms con
   Smooth Motion ×2). Opción extra en *Tipo de generación*, nunca la de serie; filas del menú *Multiplicador* y *Enhanced FG: baja
-  latencia*. Medido otra vez en esta versión (4K, modo 30, capturas reales de la PS5): ×2 calidad 60 imágenes/s parejas, la real a 33 ms y la primera nueva a 16; ×2 baja latencia, la real a 9 ms (con DLSS 5: 33 ms, frente a 50 con Smooth Motion ×2); ×4, 120 parejas pero la real a 62 ms de llegar, y con DLSS 5 ×4 no llega a 120 (97): la que hay que probar es ×2. Necesita una pantalla de 100 Hz o más (a 60 Hz se midió rota y ahí no se ofrece). La primera vez que se elige el motor compila sus shaders (~20 s; mientras, sigue la imagen que había). Con vídeo real de juego (GTA V conduciendo) sus inventadas se parecen a
-  una mezcla de las dos reales (en uno en primera persona, cerca de Smooth Motion): por eso sale como «Enhanced FG (experimental)». Con
-  DLSS 5 va ×2 (×3 / ×4 no llegan con él; la fila guarda lo elegido para cuando quites DLSS 5; `efg_multi_dlss5=1` = probarlo).
+  latencia*. Medido otra vez en esta versión (4K, modo 30, capturas reales de la PS5): ×2 calidad 60 imágenes/s parejas, la real a 33 ms y la primera nueva a 16; ×2 baja latencia, la real a 9 ms (con DLSS 5: 33 ms, frente a 50 con Smooth Motion ×2); ×4, 120 parejas pero la real a 62 ms de llegar. Necesita una pantalla de 100 Hz o más (a 60 Hz se midió rota y ahí no se ofrece). Sus shaders los compila de fondo el primer motor que se abre, así que elegirla no espera a compilarlos. Con vídeo real de juego (GTA V conduciendo) sus inventadas se parecen a
+  una mezcla de las dos reales (en uno en primera persona, cerca de Smooth Motion): por eso sale como «Enhanced FG (experimental)». ×3 / ×4
+  también con DLSS 5 (medido con vídeo real de GTA V a 4K y DLSS 5 nivel 4: ×4 con las 30 reales, 120 imágenes/s, todas a un refresco y
+  DLSS 5 al 80 %); si ×4 no llega a 30, baja DLSS 5 y, si ni así, ×2 esa sesión (`efg_multi_dlss5=0` = ×2 con DLSS 5). Si la gráfica se
+  cae con él, sigue en el menú con el motivo y elegirlo otra vez es reintentar.
 - **Reescalado más nítido en movimiento** (DLSS SR K / L / M y E, XeSS, FSR 3.1-4): los vectores de movimiento del motor se afinan a
   fracciones de píxel por casilla de 8×8 solo para el escalador, que ya no mezcla una historia desalineada (medido contra la imagen de
   verdad, 1440p → 4K en movimiento: K 1,32 → 0,82, M 0,92 → 0,44, L 0,79 → 0,44, E 1,05 → 0,72; con un vídeo de capturas reales de la
@@ -780,7 +783,7 @@ y contar en qué PC y con qué consola lo usas.
   (`sr_vec_incert=0`, `sr_nitidez_mov=0`, `sr_aa_dlss5=0` = como antes).
 - **Los avisos en pantalla dicen lo que va de verdad** (sacado de lo que reciben el motor y el driver, no de lo pedido): el «Aplicar»
   del menú de ajustes dice solo lo que cambia, con el multiplicador de verdad («Smooth Motion x4 · 30 → 120 fps») y, si algo de lo
-  pedido no puede ir, por qué («x4 no: con DLSS 5 la gráfica no llega»); un aviso por cambio (en el motor nuevo si cambia de motor) y
+  pedido no puede ir, por qué («x4 no: sin VRR (G-SYNC) en la pantalla»); un aviso por cambio (en el motor nuevo si cambia de motor) y
   todos quedan en el log.
 - **La cabeza del personaje ya no desaparece al girar la cámara** (XeSS FG / FSR 3 FG y FSR 3 FG ×3 / ×4): el motor separa el
   personaje y la interfaz del fondo, da a cada uno su movimiento y pone el personaje delante en la profundidad (con FSR 3 FG: error de la
@@ -966,8 +969,8 @@ Tus archivos de DLSS 5 se guardan también en `%LOCALAPPDATA%\ConsoleEnhancer\ex
 carpeta los recoge sola. Con tu archivo, DLSS 5 va siempre dentro del motor propio (`engine\PrismaNr.dll`, que viene con la app desde
 la 1.2.4; 1 a 3 pasadas, con cualquier tipo de generación): mucho menos retraso que por Magpie en la 1.2.3 (medido a 4K, modo 30 +
 generación ×2: 43 ms en vez de ~72 la imagen real; 1080p → 4K con 2 pasadas: 37 en vez de ~52) y un ritmo más regular. No hay nada que
-elegir. Sin `engine\PrismaNr.dll` el motor va sin DLSS 5. Con DLSS 5 encendido no se ofrece Smooth
-Motion ×4 (va Smooth Motion ×2); FSR 3 FG, si se vuelve a poner con `generacion_fsr3=1`, ofrece también ×3 / ×4
+elegir. Sin `engine\PrismaNr.dll` el motor va sin DLSS 5. Con DLSS 5 encendido, Smooth Motion ×4 y
+Enhanced FG ×3 / ×4 bajan la escala de DLSS 5 hasta mantener las 30 reales (×2 esa sesión si no llegan); FSR 3 FG, si se vuelve a poner con `generacion_fsr3=1`, ofrece también ×3 / ×4
 (`motor_fsr_multi_dlss5=0` = solo ×2 con DLSS 5).
 
 ## DLSS 5 y la ley

@@ -225,9 +225,38 @@ namespace ConsoleEnhancer
         }
         readonly object crashSync = new object();
 
+        // (1.2.4 ronda 7, EFGFIX) Al perderse la grafica (switch2-gpu perdida) el telon con la imagen congelada YA, sin esperar a que el motor
+        // acabe de cerrarse: en la sesion del usuario del 23-11 (18:00:48) el motor tardo 3,5 s en salir tras "grafica perdida" y el telon
+        // salio a los 3,5 s (con lo que hubiera en la pantalla mientras). Espera a la copia de la pantalla (empieza con "colgada") hasta 3 s
+        int crashEarlyPid = -1;
+        void CrashCurtainEarly(Process owner)
+        {
+            if (owner == null || !cfg.CurtainFrozen || userExit) return;
+            int pid = owner.Id;
+            ThreadPool.QueueUserWorkItem(delegate
+            {
+                try
+                {
+                    Stopwatch sw = Stopwatch.StartNew();
+                    Bitmap b = null;
+                    while (sw.ElapsedMilliseconds < 3000)
+                    {
+                        lock (crashSync) { if (crashFrozen != null && crashFrozenPid == pid && crashFrozenBusy == 0) { b = (Bitmap)crashFrozen.Clone(); break; } }
+                        try { if (owner.HasExited) return; } catch { return; }
+                        Thread.Sleep(30);
+                    }
+                    if (b == null) return;
+                    try { if (owner.HasExited) { b.Dispose(); return; } } catch { b.Dispose(); return; }
+                    if (ShowFrozenCurtain(b, true)) { crashEarlyPid = pid; Log.Write("Telon de la caida con la imagen congelada ya al perderse la grafica (" + sw.ElapsedMilliseconds + " ms), sin esperar a que el motor se cierre"); }
+                }
+                catch (Exception ex) { Log.Error("Telon de la caida (al perderse la grafica)", ex); }
+            });
+        }
+
         // RunMpv, el motor se ha cerrado solo: el telon (la imagen congelada si la hay, reciente y de ese motor; si no, negro)
         void CrashCurtain(Process p)
         {
+            if (crashEarlyPid == p.Id && curtain != null) { crashEarlyPid = -1; Log.Write("Telon de la caida con la imagen congelada (puesto al perderse la grafica)"); return; }
             Bitmap b = null;
             lock (crashSync)
             {
