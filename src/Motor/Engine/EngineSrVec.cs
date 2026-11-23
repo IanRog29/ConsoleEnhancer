@@ -38,6 +38,7 @@ namespace ConsoleEnhancer.Motor
         // sr_vec_textura (niveles, de serie 0 = no): sin afinar la casilla si su menor autovalor por muestra no llega (arregla lo oscuro con 2,
         // pero quita lo que se gana en lo claro)
         public double SrVecTex = 0, SrVecIncert = 0.1;
+        public bool SrVecIncertAll = false;
         public bool SrVecEsm = true;
         // Los filtros de la entrada (Shaders.cs Aa: bordes -FXAA-, tramado y liso; con aa=0 la pasada es una copia y tampoco hay tramado ni
         // liso) con el escalador temporal que reescala y SIN DLSS 5 (con DLSS 5 son su entrada: no cambian). -1 = los de siempre (aa=,
@@ -76,6 +77,7 @@ namespace ConsoleEnhancer.Motor
                 case "sr_vec_suelo": SrVecFloor = Math.Max(0, D(val)); return true;
                 case "sr_vec_textura": SrVecTex = Math.Max(0, D(val)); return true;
                 case "sr_vec_incert": SrVecIncert = Math.Max(0, D(val)); return true;
+                case "sr_vec_incert_todos": SrVecIncertAll = B(val); return true;
                 case "sr_vec_esm": SrVecEsm = B(val); return true;
                 case "sr_vec_casilla": SrVecTile = I(val) >= 8 ? 8 : 4; return true;
                 case "sr_vec_120": SrVec120 = B(val); return true;
@@ -99,6 +101,10 @@ namespace ConsoleEnhancer.Motor
         ID3D12PipelineState psoSrVec, psoSrBlur;
 
         // (Engine.cs RenderFrame y EngineCopia.cs: la pasada de bordes / tramado / liso) con el escalador temporal que reescala y sin DLSS 5
+        // (23-11 ronda 7) sr_vec_incert solo con DLSS SR: XeSS con los vectores de la busqueda en lo oscuro sale peor que con los afinados
+        // de la ronda 6 (DbD oscuro: err 0,70 / 1,00, nitidez 0,66 / 0,58; con sr_vec_incert=0,1 como con los de la busqueda). sr_vec_incert_todos=1:
+        // tambien con XeSS / FSR
+        float SrVecIncertNow { get { return scalerNow == "dlss" || s.SrVecIncertAll ? (float)s.SrVecIncert : 0f; } }
         bool SrXessFfxFull { get { return s.SrXessFfxFull && (scalerNow == "xess" ? !xessBroken : scalerNow == "ffx" ? !ffxBroken : false); } }
         bool SrFiltroPropio { get { return (!s.Nr || s.SrAaNr) && (inW != outW || inH != outH) && (scalerNow == "dlss" || scalerNow == "xess" || scalerNow == "ffx"); } }
         bool AaNow { get { return SrFiltroPropio && s.SrAa >= 0 ? s.SrAa > 0 : s.Aa; } }
@@ -329,7 +335,7 @@ void main(uint3 id : SV_DispatchThreadID)
             c[0] = (uint)w; c[1] = (uint)h; c[2] = (uint)tw; c[3] = (uint)th;
             c[4] = F((float)s.SrVecMax); c[5] = F((float)s.SrVecGain); c[6] = F((float)s.SrVecLambda); c[7] = F((float)(s.SrVecFloor / 255.0 * s.SrVecFloor / 255.0));
             c[8] = (uint)s.SrVecIter; c[9] = (uint)s.SrVecRadius; c[10] = (uint)s.SrVecStep; c[11] = s.SrVecEsm ? 1u : 0u; c[12] = (uint)tile; c[13] = (suave ? 1u : 0u) | (s.SrVecBright ? 2u : 0u);
-            c[14] = F((float)(s.SrVecTex / 255.0 * s.SrVecTex / 255.0)); c[15] = F((float)s.SrVecIncert);   // (23-11 ronda 7: sr_vec_textura, sr_vec_incert)
+            c[14] = F((float)(s.SrVecTex / 255.0 * s.SrVecTex / 255.0)); c[15] = F(SrVecIncertNow);   // (23-11 ronda 7: sr_vec_textura, sr_vec_incert)
             BindCompute(psoSrVec, TSrVec + cur, c, 16);
             list.Dispatch(Groups(tw, 8), Groups(th, 8), 1);
             if (suave)
