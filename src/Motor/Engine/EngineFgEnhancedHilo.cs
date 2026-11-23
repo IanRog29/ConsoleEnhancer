@@ -33,7 +33,7 @@ namespace ConsoleEnhancer.Motor
         readonly bool[] efgFlowOk = new bool[EfgSets];
         readonly bool[] efgStillOk = new bool[EfgSets];
         long efgReals, efgGens, efgDups, efgLate, efgSkipped;
-        double efgLcur, efgFlowMs = 1.0, efgGenMs = 1.0, efgCopyMs = 0.3;
+        double efgLcur, efgCopyMs = 0.3;
         readonly double[] efgReadyWin = new double[32];
         int efgReadyN;
         long efgLastPresent, efgLastLog;
@@ -152,38 +152,45 @@ namespace ConsoleEnhancer.Motor
             EfgStamp(0);
             EB(efgRing[c], D3D12_RESOURCE_STATES.COMMON, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE);
             EfgZero(k); k[0] = (uint)efgLw[0]; k[1] = (uint)efgLh[0]; k[2] = (uint)outW; k[3] = (uint)outH;
-            EfgRun(psoEfgLuma, c, 0, k, Groups(efgLw[0], 16), Groups(efgLh[0], 8), efgL[c, 0]);
+            EfgRun(psoEfgLuma, c, EfgTabDown(0), k, Groups(efgLw[0], 16), Groups(efgLh[0], 8), efgL[c, 0]);
             EB(efgRing[c], D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.COMMON);
-            for (int l = 1; l < 4; l++)
+            for (int l = 1; l < efgLv; l++)
             {
                 EfgZero(k); k[0] = (uint)efgLw[l]; k[1] = (uint)efgLh[l]; k[2] = (uint)efgLw[l - 1]; k[3] = (uint)efgLh[l - 1];
-                EfgRun(psoEfgDown, c, l, k, Groups(efgLw[l], 16), Groups(efgLh[l], 8), efgL[c, l]);
+                EfgRun(psoEfgDown, c, EfgTabDown(l), k, Groups(efgLw[l], 16), Groups(efgLh[l], 8), efgL[c, l]);
             }
             if (flow)
             {
                 bool tmp = efgFlowOk[p];
-                for (int l = 3; l >= 0; l--)
+                int top = efgLv - 1;
+                for (int l = top; l >= 0; l--)
                     for (int d = 0; d < 2; d++)
                     {
                         EfgZero(k);
                         k[0] = (uint)efgLw[l]; k[1] = (uint)efgLh[l]; k[2] = (uint)efgBx[l]; k[3] = (uint)efgBy[l];
-                        k[4] = l == 3 ? (uint)s.EfgRadius : 1u;
-                        k[5] = (l < 3 ? 1u : 0u) | (l == 0 && tmp ? 2u : 0u) | (l == 0 ? 8u : 0u);
-                        k[6] = l < 3 ? (uint)efgBx[l + 1] : 1u; k[7] = l < 3 ? (uint)efgBy[l + 1] : 1u;
+                        k[4] = l == top ? (uint)s.EfgRadius : 1u;
+                        k[5] = (l < top ? 1u : 0u) | (l == 0 && tmp ? 2u : 0u) | (l == 0 ? 8u : 0u);
+                        k[6] = l < top ? (uint)efgBx[l + 1] : 1u; k[7] = l < top ? (uint)efgBy[l + 1] : 1u;
                         k[8] = F(s.EfgLambda); k[9] = F(0.002f); k[10] = F(d == 0 ? 1f : -1f);
-                        EfgRun(psoEfgFlow, c, 4 + d * 4 + l, k, Groups(efgBx[l], 8), Groups(efgBy[l], 8), l == 0 ? efgFRaw[c, d] : efgF[c, d, l]);
+                        EfgRun(psoEfgFlow, c, EfgTabFlow(d, l), k, Groups(efgBx[l], 8), Groups(efgBy[l], 8), l == 0 ? efgFRaw[c, d] : efgPropAll ? efgFRawL[d, l] : efgF[c, d, l]);
+                        if (efgPropAll && l > 0)
+                        {
+                            // (EFG2) apoyo entre vecinos tambien en los niveles gruesos: los vectores sueltos no bajan a los finos
+                            EfgZero(k); k[0] = (uint)efgLw[l]; k[1] = (uint)efgLh[l]; k[2] = (uint)efgBx[l]; k[3] = (uint)efgBy[l]; k[4] = F(s.EfgBeta);
+                            EfgRun(psoEfgProp, c, EfgTabPropL(d, l), k, Groups(efgBx[l], 8), Groups(efgBy[l], 8), efgF[c, d, l]);
+                        }
                     }
                 for (int d = 0; d < 2; d++)
                 {
                     EfgZero(k); k[0] = (uint)efgLw[0]; k[1] = (uint)efgLh[0]; k[2] = (uint)efgBx[0]; k[3] = (uint)efgBy[0]; k[4] = F(s.EfgBeta);
-                    EfgRun(psoEfgProp, c, 12 + d, k, Groups(efgBx[0], 8), Groups(efgBy[0], 8), efgF[c, d, 0]);
+                    EfgRun(psoEfgProp, c, EfgTabProp(d), k, Groups(efgBx[0], 8), Groups(efgBy[0], 8), efgF[c, d, 0]);
                 }
                 EfgZero(k); k[0] = (uint)efgBx[0]; k[1] = (uint)efgBy[0]; k[4] = F(0.06f); k[5] = F(0.02f);
-                EfgRun(psoEfgCut, c, 15, k, 1, 1, efgCut[c]);
+                EfgRun(psoEfgCut, c, EfgTabCut, k, 1, 1, efgCut[c]);
             }
             EfgZero(k); k[0] = (uint)efgLw[0]; k[1] = (uint)efgLh[0]; k[2] = flow && efgStillOk[p] ? 1u : 0u;
             k[4] = F(s.EfgStillDiff); k[5] = F(s.EfgStillGrad); k[6] = F(60f);
-            EfgRun(psoEfgStill, c, 14, k, Groups(efgLw[0], 16), Groups(efgLh[0], 8), efgSt[c]);
+            EfgRun(psoEfgStill, c, EfgTabStill, k, Groups(efgLw[0], 16), Groups(efgLh[0], 8), efgSt[c]);
             EfgStamp(1);
             efgFlowOk[c] = flow; efgStillOk[c] = true;
             ulong v = EfgSubmit();
@@ -210,14 +217,14 @@ namespace ConsoleEnhancer.Motor
                 k[4] = F(t); k[5] = F(s.EfgKappa); k[6] = F(s.EfgTau); k[7] = F(s.EfgStillN);
                 k[8] = (uint)efgLw[0]; k[9] = (uint)efgLh[0]; k[10] = extrap ? 1u : 0u;
                 k[12] = (uint)efgBx[1]; k[13] = (uint)efgBy[1]; k[14] = (uint)efgBx[3]; k[15] = (uint)efgBy[3];
-                EfgRun(psoEfgSel, c, 16, k, Groups(efgQw, 16), Groups(efgQh, 8), efgSel);
+                EfgRun(psoEfgSel, c, EfgTabSel, k, Groups(efgQw, 16), Groups(efgQh, 8), efgSel);
             }
             EfgZero(k);
             k[0] = (uint)outW; k[1] = (uint)outH; k[2] = (uint)efgQw; k[3] = (uint)efgQh;
             k[4] = F(hasPrev ? t : 1f); k[5] = F(s.EfgZeroPen); k[6] = F(s.EfgStillN); k[7] = F(s.EfgSigma);
             k[8] = extrap || !hasPrev ? 1u : 0u; k[9] = dup || cutCpu ? 1u : 0u; k[10] = (uint)efgLw[0]; k[11] = (uint)efgLh[0];
             k[12] = F(s.EfgCutThr); k[13] = F(s.EfgTau);
-            EfgRun(psoEfgFin, c, 17, k, Groups(outW, 16), Groups(outH, 8), null);
+            EfgRun(psoEfgFin, c, EfgTabFin, k, Groups(outW, 16), Groups(outH, 8), null);
             EB(efgRing[p], D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.COMMON);
             EB(efgRing[c], D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.COMMON);
             D3D12_RESOURCE_BARRIER u = D3D12_RESOURCE_BARRIER.CreateUav(efgGen);
@@ -454,7 +461,7 @@ namespace ConsoleEnhancer.Motor
             efgLastLog = Clock.Now;
             Log.Write("Enhanced FG x" + k + " (" + EfgModeName() + ", la real en la " + (nReal + 1) + "a de " + k + (vs ? ", con sincronizacion" : ", sin sincronizacion") + "): reales " + efgReals +
                       ", inventadas " + efgGens + ", repetidas " + efgDups + ", saltadas " + efgSkipped + ", tarde " + efgLate + "; L " + efgLcur.ToString("0.0", IC) +
-                      " ms (lista p90 " + EfgReadyP90().ToString("0.0", IC) + "), inventada " + efgGenMs.ToString("0.00", IC) + " ms, copia " + efgCopyMs.ToString("0.00", IC) + " ms");
+                      " ms (lista p90 " + EfgReadyP90().ToString("0.0", IC) + "), grafica: flujo " + efgFlowGpu.ToString("0.00", IC) + " ms, inventada " + efgGenGpu.ToString("0.00", IC) + " ms, copia " + efgCopyMs.ToString("0.00", IC) + " ms");
         }
     }
 }
