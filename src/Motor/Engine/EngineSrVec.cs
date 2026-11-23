@@ -24,7 +24,7 @@ namespace ConsoleEnhancer.Motor
     // sr_vec_ganancia, sr_vec_lambda, sr_vec_suelo (niveles: lo que ya casa por debajo no se toca), sr_vec_esm.
     partial class Settings
     {
-        public int SrVec = 0;
+        public int SrVec = 1;   // (de serie: 1; 0 = DLSS SR / XeSS / FSR con los vectores de la busqueda, como antes)
         public int SrVecRadius = 8, SrVecStep = 2, SrVecIter = 6;
         public double SrVecMax = 1.5, SrVecGain = 0.8, SrVecLambda = 5e-6, SrVecFloor = 0;
         public bool SrVecEsm = true;
@@ -93,16 +93,23 @@ void main(uint3 id : SV_DispatchThreadID)
         float ssd0 = 0, bestSsd = 1e9;
         int r = (int)WinR, st = (int)Step;
         int2 c = t0 + int2(2, 2);
+        uint2 skip = uint2(0, 0);   // (las muestras de otro movimiento, vistas en la primera vuelta: 64 como mucho)
         [loop] for (uint it = 0; it <= Iter; it++)
         {
             float bx = 0, by = 0, e = 0, hxx = 0, hxy = 0, hyy = 0, n = 0;
+            uint ti = 0;
             [loop] for (int y = -r; y < r; y += st)
                 [loop] for (int x = -r; x < r; x += st)
                 {
+                    uint bit = ti & 31, word = ti >> 5; ti++;
                     int2 q = c + int2(x, y);
                     if (q.x < 1 || q.y < 1 || q.x >= (int)W - 1 || q.y >= (int)H - 1) continue;
-                    float2 dq = MvAt(q) - v0;
-                    if (abs(dq.x) + abs(dq.y) > 0.5) continue;   // (otra cosa: otro movimiento)
+                    if (it == 0 || ti > 64)
+                    {
+                        float2 dq = MvAt(q) - v0;
+                        if (abs(dq.x) + abs(dq.y) > 0.5) { if (ti <= 64) { if (word == 0) skip.x |= 1u << bit; else skip.y |= 1u << bit; } continue; }   // (otra cosa: otro movimiento)
+                    }
+                    else if (((word == 0 ? skip.x : skip.y) >> bit) & 1) continue;
                     float cc = LdC(q);
                     float gx = 0.5 * (LdC(q + int2(1, 0)) - LdC(q - int2(1, 0)));
                     float gy = 0.5 * (LdC(q + int2(0, 1)) - LdC(q - int2(0, 1)));
@@ -125,6 +132,7 @@ void main(uint3 id : SV_DispatchThreadID)
             float l = Lambda * n, a = hxx + l, dd = hyy + l, det = a * dd - hxy * hxy;
             if (det <= 1e-14) break;
             float2 d = float2((dd * bx - hxy * by) / det, (a * by - hxy * bx) / det);
+            if (abs(d.x) + abs(d.y) < 0.01) break;   // (ya no se mueve: lo de esta vuelta es lo mejor)
             v += clamp(d, -1.0, 1.0);
             float2 dv = v - v0; float ld = length(dv);
             if (ld > MaxD) v = v0 + dv * (MaxD / ld);
