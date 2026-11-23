@@ -1239,6 +1239,7 @@ namespace ConsoleEnhancer.Motor
 
         void SecondTick()
         {
+            EscCuarto();    // (1.3.1, FPS: cada 250 ms, ver en 1-2 s que no se llega; EngineEscalera.cs)
             string t = stats.Tick();
             if (t == null) return;
             lastSecond = Clock.Now;

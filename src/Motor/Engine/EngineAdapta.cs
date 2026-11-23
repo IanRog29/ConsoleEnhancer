@@ -51,7 +51,7 @@ namespace ConsoleEnhancer.Motor
                 case "uso_grafica": case "gpu_indice": case "fg_reserva_ms": case "cadena_buffers": return ApplyMargen(key, val);   // (FGREAL: fg_reserva_ms, cadena_buffers)   // (1.2.2, UNIVERSAL: EngineMargen.cs)
                 // (vrr= y vrr_fg_vsync= ya los hace el motor: Settings.Apply de Common.cs y EngineLatencia.cs, de Prisma LATENCIA4, fusion 20-11)
             }
-            return ApplySrVec(key.Trim().ToLowerInvariant(), val) || ApplyX4D5(key, val);   // (1.2.4 ronda 6, DLSSSR: sr_vectores, sr_vec_*: EngineSrVec.cs) (ronda 7, EFGFIX: x4d5*, EngineX4D5.cs)
+            return ApplySrVec(key.Trim().ToLowerInvariant(), val) || ApplyX4D5(key, val) || ApplyEscalera(key, val);   // (1.3.1, FPS: escalera*, EngineEscalera.cs)   // (1.2.4 ronda 6, DLSSSR: sr_vectores, sr_vec_*: EngineSrVec.cs) (ronda 7, EFGFIX: x4d5*, EngineX4D5.cs)
         }
     }
 
@@ -171,7 +171,7 @@ namespace ConsoleEnhancer.Motor
                     if (AdGuardianDelante(p95, tope)) { }   // (muy por encima del tope: frena el guardian de DLSS 5, que baja mas de golpe; ver AdaptaFreno)
                     else if (AdaptaBajar(p95, tope)) overSecs = 0;   // (lo ha hecho esto: AutoPresetTick no baja ademas el modelo en este segundo)
                 }
-                else if (adBien >= (AdNrActivo && s.NrPct < 100 ? Math.Max(20, s.AdaptaNrSubeS) : 20))   // (22-11, 1.2.3 MOTOR5: ver AdaptaSubir)
+                else if (adBien >= (AdNrActivo && s.NrPct < 100 ? Math.Max(20, s.AdaptaNrSubeS) : 20) && EscDejaSubir())   // (22-11, 1.2.3 MOTOR5: ver AdaptaSubir) (1.3.1, FPS: con generacion, solo tras escalera_subir_s sin perdidas)
                 {
                     adBien = 0;
                     // 22-11 (1.2.4 DLSS5Q): subir el % de DLSS 5 la rehace (paron de 0,15-0,3 s y el efecto cambia de aspecto): no hay prisa
@@ -212,7 +212,9 @@ namespace ConsoleEnhancer.Motor
             if (!adTabla.TryGetValue(k, out f))
             {
                 if (nueva) Log.Write("Adapta: clave nueva " + k + " (se empieza por lo pedido: " + s.Preset + (s.Nr ? ", DLSS 5 al " + s.NrPct + " %" : "") + ")");
-                if (nueva) X4D5ClaveNueva();   // (1.2.4 ronda 7, EFGFIX: Smooth Motion x4 + DLSS 5 la primera vez, de x4d5_inicio; EngineX4D5.cs)
+                // (1.2.4 ronda 7, EFGFIX: Smooth Motion x4 + DLSS 5 la primera vez, de x4d5_inicio; EngineX4D5.cs). (1.3.1, FPS: tambien con la misma
+                // clave -el motor en espera que se despierta con lo de antes: recibia lo pedido, 65 %, y no el 35 % de x4d5_inicio-, y queda guardado)
+                X4D5ClaveNueva();
                 return;
             }
             List<string> hecho = new List<string>();

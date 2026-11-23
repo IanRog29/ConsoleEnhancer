@@ -11222,6 +11222,7 @@ namespace ConsoleEnhancer
                     else if (line.Contains("\"client-message\"") && CierresEvent(line)) { } // (20-11, CIERRES: switch2-gpu del motor)
                     else if (line.Contains("\"client-message\"") && FpsEvent(line)) { } // (21-11: switch2-fps del motor, src\Lanzador\FpsBajo.cs)
                     else if (line.Contains("\"client-message\"") && X4d5Event(line)) { } // (1.2.4 ronda 7, EFGFIX: switch2-x4d5 del motor, x4 con DLSS 5; FpsBajo.cs)
+                    else if (line.Contains("\"client-message\"") && EscaleraEvent(line)) { } // (1.3.1, FPS: switch2-escalera del motor, lo bajado ya cabe; FpsBajo.cs)
                     else if (line.Contains("\"client-message\"") && MotorDlss5Evento(line)) { }
                     else if (line.Contains("\"client-message\"") && FsrMulEvento(line)) { } // (1.2.4 ronda 6, FGMULTI: switch2-fsrmulti rota, MultiFsr.cs)
                     else if (line.Contains("\"client-message\"") && MotorFgEvento(line)) { } // (1.2.4 MOTORFG: switch2-fgmult no, MotorFg.cs) // (22-11, 1.2.3 MOTOR5: switch2-dlss5 roto del motor, MotorDlss5.cs)

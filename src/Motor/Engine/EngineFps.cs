@@ -17,6 +17,7 @@ namespace ConsoleEnhancer.Motor
 
         void FpsVigila()
         {
+            if (s.Escalera) return;   // (1.3.1, FPS: lo hace EngineEscalera.cs en 1-2 s y solo avisa con todo lo del motor ya bajado; escalera=0 = esto)
             string clave = s.Mode + "|" + (s.Fg ? 1 : 0) + "|" + inW + "x" + inH + "|" + s.Preset + "|" + s.FgTipo;   // (1.2.4 ronda 6, QUITAFG: el tipo de generacion -antes la propia x3 / x4, que ya no esta-)
             if (clave != fpsClave) { fpsClave = clave; fpsCalmaDesde = Clock.Now; fpsMalN = 0; fpsHist = 0; }
             if (inStandby || noSignalScreen || nosigSilencio || lastCapture == 0 || Clock.SinceMs(lastCapture) > 1500 || Clock.SinceMs(fpsCalmaDesde) < 10000)

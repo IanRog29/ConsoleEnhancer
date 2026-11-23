@@ -344,6 +344,7 @@ namespace ConsoleEnhancer
                 ajTimer.Start();
                 if (AjCambiando()) AjSobreElPuente(); // (22-11, 1.2.2: abierto mientras Magpie prepara, src\Lanzador\AjustesGuia.cs)
                 Log.Write("Menu de ajustes abierto (" + desde + ")");
+                lock (cmdQueue) cmdQueue.Add(JsonCmd("script-message", "switch2-vigila", "0"));   // (1.3.1, FPS: el motor no juzga los fps con el menu encima; EngineEscalera.cs)
                 RitmoDiag.Ventanal("el menu de ajustes encima de la imagen");   // (1.2.3 RITMO2: sus tirones no son del camino, Ritmo.cs)
             }
             catch (Exception ex) { Log.Error("Menu de ajustes: abrir", ex); AjustesCerrar(null); }
@@ -472,6 +473,7 @@ namespace ConsoleEnhancer
             if (ajVentana != null) { try { ajVentana.Dispose(); } catch { } ajVentana = null; }
             if (era && porque != null) Log.Write("Menu de ajustes cerrado (" + porque + ")");
             if (era) RitmoDiag.Ventanal("el menu de ajustes (al quitarse)");   // (1.2.3 RITMO2, src\Lanzador\Ritmo.cs)
+            if (era) lock (cmdQueue) cmdQueue.Add(JsonCmd("script-message", "switch2-vigila", "1"));   // (1.3.1, FPS: EngineEscalera.cs, 2 s de calma)
         }
 
         // ---------------- el modelo: lo de ahora ----------------
