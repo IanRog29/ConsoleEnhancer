@@ -154,7 +154,7 @@ namespace ConsoleEnhancer.Motor
 
         bool WantDlss { get { return s.Upscaler == "dlss" || s.Upscaler == "auto"; } }
         // RCAS (el enfoque de FSR 1) tras fsr1 de serie (enfoque=auto); enfoque=cas|rcas para elegir
-        bool RcasNow { get { return s.Sharpen == "rcas" || s.Sharpen == "rcasl" || (s.Sharpen != "cas" && scalerNow == "fsr1"); } }   // (23-11 ronda 7, SRBLUR: rcasl = RCAS con la fuerza lineal, Shaders.cs Cas)
+        bool RcasNow { get { return s.Sharpen == "rcas" || (s.Sharpen != "cas" && scalerNow == "fsr1"); } }
 
         // Antes de InitDevice: la grafica y si se carga Streamline. Con streamline=0 (o auto sin NVIDIA) no se carga sl.interposer.dll
         // nunca: ni slInit ni los CreateDXGIFactory2 / D3D12CreateDevice de Streamline (slOn = false: Reflex, PCL, DLSS y la generacion

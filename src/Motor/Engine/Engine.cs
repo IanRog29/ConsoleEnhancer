@@ -53,7 +53,7 @@ namespace ConsoleEnhancer.Motor
         double tsFreq;
 
         // Tablas de 4 descriptores [t0 t1 u0 u1]
-        const int TUnpack = 0, TScale = 3, TCasOut = 4, TCasIn = 5, TOsd = 6, TLuma = 7, TSearch = 15, TExpand = 23, TAa = 24, TDown = TQBase + TQCount, TablesCount = TQBase + TQCount + 1 + TRCount + 14;   // (23-11 DLSSSR: + TSrVec x2 y TSrBlur x2, EngineSrVec.cs; ronda 7 SRBLUR: + TSrJit, EngineSrBanco.cs) (22-11 DLSS5Q: + TD5qMed, TD5qHold, EngineDlss5Q.cs) (20-11: + TLinIn, TLinOut, EngineLinear.cs) (16-11: TQ* = las de calidad, EngineMotion.cs; 17-11: TR* = las de las rejas, EngineRejas.cs; 20-11: + TNr, TNrDown, TNrPrep, TNrAf0/1, EngineDlss5.cs)
+        const int TUnpack = 0, TScale = 3, TCasOut = 4, TCasIn = 5, TOsd = 6, TLuma = 7, TSearch = 15, TExpand = 23, TAa = 24, TDown = TQBase + TQCount, TablesCount = TQBase + TQCount + 1 + TRCount + 13;   // (23-11 DLSSSR: + TSrVec x2 y TSrBlur x2, EngineSrVec.cs) (22-11 DLSS5Q: + TD5qMed, TD5qHold, EngineDlss5Q.cs) (20-11: + TLinIn, TLinOut, EngineLinear.cs) (16-11: TQ* = las de calidad, EngineMotion.cs; 17-11: TR* = las de las rejas, EngineRejas.cs; 20-11: + TNr, TNrDown, TNrPrep, TNrAf0/1, EngineDlss5.cs)
         const int U0 = Shaders.SlotU0;
 
         // ---- Recursos
@@ -964,8 +964,7 @@ namespace ConsoleEnhancer.Motor
                 SlExtent outExt = new SlExtent(); outExt.width = (uint)outW; outExt.height = (uint)outH;
                 bool lin = s.DlssLinear && EnsureLinear();   // (20-11: dlss_lineal, EngineLinear.cs)
                 if (lin) RecordToLinear();
-                ID3D12Resource jin = lin ? null : SrJitterInput(c);   // (23-11 ronda 7, SRBLUR: sr_jitter, prueba)
-                tags.Add(SlBufferType.ScalingInputColor, Com.BorrowPtr(lin ? inLinear : jin ?? inColor, typeof(ID3D12Resource)), (uint)D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, SlResourceLifecycle.eValidUntilEvaluate, inExt);
+                tags.Add(SlBufferType.ScalingInputColor, Com.BorrowPtr(lin ? inLinear : inColor, typeof(ID3D12Resource)), (uint)D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, SlResourceLifecycle.eValidUntilEvaluate, inExt);
                 tags.Add(SlBufferType.ScalingOutputColor, Com.BorrowPtr(lin ? outLinear : outColor, typeof(ID3D12Resource)), (uint)D3D12_RESOURCE_STATES.UNORDERED_ACCESS, SlResourceLifecycle.eValidUntilEvaluate, outExt);
                 tags.Add(SlBufferType.Depth, Com.BorrowPtr(FgDepthTex, typeof(ID3D12Resource)), (uint)D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, SlResourceLifecycle.eValidUntilPresent, inExt);
                 tags.Add(SlBufferType.MotionVectors, Com.BorrowPtr(FgMvec, typeof(ID3D12Resource)), (uint)D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, SlResourceLifecycle.eValidUntilPresent, inExt);
@@ -1003,7 +1002,7 @@ namespace ConsoleEnhancer.Motor
             if (!native) Barrier(outColor, D3D12_RESOURCE_STATES.UNORDERED_ACCESS, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE);
             Barrier(final, D3D12_RESOURCE_STATES.COPY_SOURCE, D3D12_RESOURCE_STATES.UNORDERED_ACCESS);
             c[0] = (uint)outW; c[1] = (uint)outH; c[2] = 0; c[3] = 0;
-            c[4] = F((float)Math.Max(0, Math.Min(1, s.Sharp))); c[5] = F(s.Sharp <= 0.001 ? 1f : 0f); c[6] = F(noSignalScreen ? 1f : 0f); c[7] = F(RcasNow ? (s.Sharpen == "rcasl" ? 2f : 1f) : 0f);   // (18-11: c[7] = RCAS; 23-11 ronda 7: 2 = RCAS lineal, enfoque=rcasl)
+            c[4] = F((float)Math.Max(0, Math.Min(1, s.Sharp))); c[5] = F(s.Sharp <= 0.001 ? 1f : 0f); c[6] = F(noSignalScreen ? 1f : 0f); c[7] = F(RcasNow ? 1f : 0f);   // (18-11: c[7] = RCAS)
             uint casN; ID3D12PipelineState casPso = CasPso(native, c, out casN);   // (23-11 ronda 7, SRBLUR: sr_nitidez_mov, EngineSrBlur.cs)
             BindCompute(casPso, native ? TCasIn : TCasOut, c, casN);
             list.Dispatch(Groups(outW, 16), Groups(outH, 8), 1);
@@ -1162,7 +1161,6 @@ namespace ConsoleEnhancer.Motor
                 if (slOn && token != IntPtr.Zero)
                 {
                     SlConstants k = SlConstants.CreateVideo((uint)inW, (uint)inH, (uint)outW, (uint)outH, resetHistory);
-                    SrJitterConstants(ref k, slot);   // (23-11 ronda 7, SRBLUR: sr_jitter, prueba; EngineSrBanco.cs)
                     Sl.SetConstants(ref k, token, vp);
                 }
                 frameReset = resetHistory;

@@ -1168,7 +1168,6 @@ namespace ConsoleEnhancer
                 case "fsr2": return "FSR 2";
                 case "fsr3": return "FSR 3";
                 case "fsr4": return "FSR 4";
-                case "lanczos": return "Lanczos";
                 case "bicubic": return "Bicubico";
                 case "cas": return "CAS (escalado)";
                 default: return "sin reescalado";
