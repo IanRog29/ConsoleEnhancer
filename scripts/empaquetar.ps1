@@ -3,9 +3,9 @@
 # Lista BLANCA. Va: el lanzador, el motor y sus DLL de NVIDIA Streamline / DLSS / Reflex (redistribuibles dentro de una aplicacion,
 # con sus licencias), los scripts de mpv, idiomas, recursos, licencias y avisos.
 # NO va (y se comprueba al final):
-#  - mpv ni Magpie: no los reparte ConsoleEnhancer. La app los baja la primera vez que se abre de sus releases oficiales (con su
-#    SHA-256: scripts\components.json, src\Lanzador\Componentes.cs). Asi no hay que repartir el codigo fuente de mpv / FFmpeg ni los
-#    binarios de Magpie Experimental (que llevan DLL de NVIDIA, AMD e Intel que su autor pide no volver a repartir sin revisar)
+#  - mpv, Intel XeSS ni AMD FSR: no los reparte ConsoleEnhancer. La app los baja la primera vez que se abre de sus releases oficiales
+#    (con su SHA-256: scripts\components.json, src\Lanzador\Componentes.cs). Asi no hay que repartir el codigo fuente de mpv / FFmpeg
+#    (1.2.4 ronda 6: sin Magpie; las DLL de XeSS y FSR que traia salen ahora de los SDK oficiales de Intel y AMD)
 #  - nvngx_dlssnr.dll ("DLSS 5": DLL de NVIDIA modificada, sin firma), runtimes\dlssg_sm86 (autofirmado) ni ninguna otra DLL de NVIDIA que
 #    no sea de las redistribuibles. (1.2.4) SI va la pieza propia del motor engine\PrismaNr.dll (build_prismanr.bat): carga el archivo
 #    que pone el usuario saltandose la comprobacion de NGX (ver README). (1.2.4 ronda 6: sin DLSS FG, ni PrismaFg.dll ni las DLL de DLSS-G)
@@ -147,7 +147,7 @@ foreach ($c in $tabla) {
     $ver += "  codigo fuente / source: $($c.fuente)"
 }
 Texto "$lic\VERSIONS.txt" $ver
-$mpvC = $tabla | Where-Object { $_.nombre -eq 'mpv' }; $magC = $tabla | Where-Object { $_.nombre -eq 'magpie' }
+$mpvC = $tabla | Where-Object { $_.nombre -eq 'mpv' }; $xeC = $tabla | Where-Object { $_.nombre -eq 'xess' }; $fsC = $tabla | Where-Object { $_.nombre -eq 'fsr' }
 Texto "$lic\README.txt" @(
     "ConsoleEnhancer $verTxt - licencias y componentes de terceros / licenses and third-party components (detalle: THIRD-PARTY.md)",
     '',
@@ -165,14 +165,15 @@ Texto "$lic\README.txt" @(
     'Bajados por la app la primera vez (NO van en el paquete; cada uno con su licencia, dentro de su carpeta):',
     "Downloaded by the app on first start (NOT in the package; each one keeps its license inside its folder):",
     " - mpv $($mpvC.version) (mpv\): $($mpvC.licencia). Codigo fuente / source: $($mpvC.fuente)",
-    " - Magpie Experimental $($magC.version) (magpie\): $($magC.licencia). Codigo fuente / source: $($magC.fuente)",
+    " - Intel XeSS SDK $($xeC.version) (xess\): $($xeC.licencia). $($xeC.fuente)",
+    " - AMD FSR SDK $($fsC.version) (fsr\): $($fsC.licencia). $($fsC.fuente)",
     '',
     'Marcas (NVIDIA, DLSS, Reflex, GeForce RTX, AMD, FSR, FidelityFX, Intel, XeSS, Nintendo, Sony, PlayStation, Microsoft, Xbox...): de sus',
     'duenos; aqui solo describen compatibilidad. ConsoleEnhancer no esta afiliado a ninguno. / Trademarks belong to their owners.',
     'No incluido / not included: nvngx_dlssnr.dll (ver extras\README.txt). Si va / included: engine\PrismaNr.dll.')
 Texto "$Destino\extras\README.txt" @(
     'Extras NO OFICIALES (no vienen con ConsoleEnhancer y la app funciona entera sin ellos). Solo si ya los tienes:',
-    ' - nvngx_dlssnr.dll ("DLSS 5", filtro DLSSNR de Magpie): DLL de NVIDIA modificada por la comunidad, SIN FIRMA, sin licencia.',
+    ' - nvngx_dlssnr.dll ("DLSS 5"): DLL de NVIDIA modificada por la comunidad, SIN FIRMA, sin licencia.',
     '   Lo facil: icono de la bandeja > "Anadir DLSS 5 (tu propio archivo)..." (o el boton del ultimo paso del asistente): elige tu',
     '   archivo, la app comprueba que es una DLL de 64 bits, avisa y la copia aqui. "Quitar DLSS 5" la borra. Bajo tu responsabilidad.',
     'Anadir DLSS 5 la busca en ESTE PC si ya la tienes (Descargas, Escritorio, otras carpetas de la app...; solo local) y eliges tu.',
@@ -187,12 +188,12 @@ Texto "$Destino\extras\README.txt" @(
 Texto "$Destino\README.txt" @(
     "ConsoleEnhancer $verTxt - your console through a capture card, enhanced on your PC / tu consola por la capturadora, mejorada en el PC",
     '',
-    'GETTING STARTED: open ConsoleEnhancer.exe. The first time it downloads mpv and Magpie (free programs the app uses) from their official',
-    'pages (about 670 MB, once; offline: put their zips in a downloads\ folder next to the exe). Then a wizard detects your capture device,',
+    'GETTING STARTED: open ConsoleEnhancer.exe. The first time it downloads mpv, Intel XeSS and AMD FSR (free components the app uses) from',
+    'their official pages (about 270 MB, once; offline: put their zips in a downloads\ folder next to the exe). Then a wizard detects your capture device,',
     'GPU and display, tests picture and sound and picks the best chain for your PC. Run it again from the tray menu, where you can also make',
     'it start with Windows and choose what the PC does when the console is turned off.',
     'SETTINGS AND UNINSTALL: "ConsoleEnhancer Settings.exe" (next to it): how the PC is used, start with Windows, what the PC does',
-    'when the console is turned off, DLSS 5 (your own file, in extras\), download mpv/Magpie again, logs and uninstall.',
+    'when the console is turned off, DLSS 5 (your own file, in extras\), download the components again, logs and uninstall.',
     'Unzip it into one of your own folders, not Program Files.',
     "Help, issues and source code: $webTxt. Licenses: licenses\README.txt. No warranty (GPL-3.0).",
     'DLSS 5: not included and never downloaded. Legal DLSS 5 does not exist today outside NVIDIA''s own games on RTX 50;',
@@ -203,14 +204,14 @@ Texto "$Destino\README.txt" @(
     '--- ESPANOL ---',
     '',
     'EMPEZAR: abre ConsoleEnhancer.exe.',
-    ' 1. La primera vez baja mpv y Magpie (programas libres que usa la app) de sus paginas oficiales: unos 670 MB, una sola vez.',
+    ' 1. La primera vez baja mpv, Intel XeSS y AMD FSR (componentes libres que usa la app) de sus paginas oficiales: unos 270 MB, una vez.',
     '    Sin internet: pon sus zip (los enlaces salen en esa ventana y en licenses\VERSIONS.txt) en una carpeta downloads\ aqui al lado.',
     ' 2. Luego sale el asistente: detecta la capturadora, la grafica y la pantalla, prueba la imagen y el sonido y elige la mejor cadena',
     '    (DLSS / FSR 1, generacion de fotogramas segun la grafica). Otra vez: menu de la bandeja > Asistente de configuracion.',
     ' 3. En el ultimo paso (o en el menu de la bandeja): abrirse al iniciar Windows y apagar el PC al apagar la consola (con un aviso de',
     '    15 s que se cancela con el mando, una tecla o el raton).',
     'AJUSTES Y DESINSTALAR: "ConsoleEnhancer Settings.exe" (aqui al lado): como se usa el PC, abrirse con Windows, que hace el PC',
-    '    al apagar la consola, DLSS 5 (tu propio archivo, en extras\), volver a bajar mpv/Magpie, registros y desinstalar.',
+    '    al apagar la consola, DLSS 5 (tu propio archivo, en extras\), volver a bajar los componentes, registros y desinstalar.',
     'Descomprime en una carpeta tuya (Documentos, Escritorio, D:\Juegos...), no en Archivos de programa.',
     'Datos: data\ (con portable.txt) o %LOCALAPPDATA%\ConsoleEnhancer. Log: data\logs\consoleenhancer.log y engine.log.',
     'Requisitos: Windows 10 2004 o posterior (64 bits), .NET Framework 4.8, grafica con Direct3D 12, una capturadora.',
@@ -223,6 +224,7 @@ Texto "$Destino\README.txt" @(
 
 # ---- comprobaciones ----
 $noVan = @('nvngx_dlssnr.dll', 'DLSSNR-DLL-Options.zip', 'NGX_OTA_Switch.bat', 'switch2.ini', 'consoleenhancer.ini', 'hardware.txt', 'mpv.exe', 'Magpie.exe', 'PrismaNrTest.exe',
+            'libxess.dll', 'libxess_fg.dll', 'libxell.dll', 'amd_fidelityfx_loader_dx12.dll',   # (1.2.4 ronda 6: XeSS / FSR los baja la app)
             'PrismaFg.dll', 'sl.dlss_g.dll', 'nvngx_dlssg.dll')   # (1.2.4 ronda 6: sin DLSS FG)
 $malos = @(Get-ChildItem -LiteralPath $Destino -Recurse -File -Force | Where-Object { $_.Name -in $noVan -or $_.FullName -like '*dlssg_sm86*' -or $_.FullName -like '*\games\*' -or $_.FullName -like '*\data\*' -or $_.FullName -like "$Destino\magpie\*" -or $_.Extension -in @('.log', '.pdb', '.obj', '.zip') })
 if ($malos.Count -gt 0) { throw ("En el paquete hay lo que no debe: " + (($malos | ForEach-Object { $_.FullName }) -join ', ')) }
@@ -254,7 +256,7 @@ Write-Output ("Paquete: $Destino - $script:n ficheros, {0:N0} MB, {1:N1} s" -f (
 foreach ($d in Get-ChildItem -LiteralPath $Destino -Directory) { $s = (Get-ChildItem -LiteralPath $d.FullName -Recurse -File | Measure-Object Length -Sum).Sum; Write-Output ("  {0,-10} {1,8:N1} MB" -f $d.Name, ($s / 1MB)) }
 foreach ($k in ($firmas.Keys | Sort-Object)) { Write-Output ("  firma {0}: {1}" -f $k, (($firmas[$k] | Sort-Object) -join ', ')) }
 if ($avisos -gt 0) { throw "$avisos datos de este PC en el paquete (arriba): quitalos antes de publicarlo" }
-Write-Output 'Comprobado: nada no redistribuible, ni mpv ni Magpie, solo DLL firmadas por NVIDIA (y las dos propias del motor) y ningun dato de este PC'
+Write-Output 'Comprobado: nada no redistribuible, ni mpv ni XeSS / FSR (los baja la app), solo DLL firmadas por NVIDIA (y las propias del motor) y ningun dato de este PC'
 if ($Zip) {
     $z = "$(Split-Path $Destino)\ConsoleEnhancer$(if ($Version) { '-' + $Version }).zip"
     if (Test-Path $z) { Remove-Item -LiteralPath $z -Force }

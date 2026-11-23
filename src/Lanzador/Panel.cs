@@ -124,7 +124,7 @@ namespace ConsoleEnhancer
             });
             bQuitarD5 = Boton(Tx.T("Quitar DLSS 5", "Remove DLSS 5"), false, delegate
             {
-                if (!CerrarSiAbierta(Tx.T("Para quitarlo, la app tiene que estar cerrada (Magpie lo tiene cargado).", "To remove it, the app has to be closed (Magpie has it loaded)."))) return;
+                if (!CerrarSiAbierta(Tx.T("Para quitarlo, la app tiene que estar cerrada (el motor lo tiene cargado).", "To remove it, the app has to be closed (the engine has it loaded)."))) return;
                 if (!Extras.Quitar(this)) return;
                 Ce.PrepararExtras();
                 Integrado.Dlss5Rever();
@@ -141,7 +141,7 @@ namespace ConsoleEnhancer
             // ---- mantenimiento
             Seccion(Tx.T("Mantenimiento", "Maintenance"));
             FlowLayoutPanel fm = Fila();
-            fm.Controls.Add(Boton(Tx.T("Comprobar / volver a descargar mpv y Magpie", "Check / download mpv and Magpie again"), false, delegate
+            fm.Controls.Add(Boton(Tx.T("Comprobar / volver a descargar mpv, XeSS y FSR", "Check / download mpv, XeSS and FSR again"), false, delegate
             {
                 if (!CerrarSiAbierta(Tx.T("Para volver a descargarlos, la app tiene que estar cerrada.", "To download them again, the app has to be closed."))) return;
                 AbrirApp("--componentes-reparar");

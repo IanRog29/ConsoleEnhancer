@@ -75,8 +75,8 @@ namespace ConsoleEnhancer
                                           "RTX HDR: the console's SDR picture in HDR (the app turns Windows HDR on while it is open)"), y, o.RtxHdr);
                 c.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
                 c.CheckedChanged += delegate { o.RtxHdr = c.Checked; };
-                Etiqueta(Tx.T("Lo hace el driver de NVIDIA (como la NVIDIA App) en el motor, y en Magpie / mpv si su ventana cubre la pantalla; se quita al salir. Brillo: el del driver (~1000 nits; con rtx_hdr_calidad=app, " + p.RtxHdrNits + " nits por el overlay de la NVIDIA App). Cuesta algo de gráfica: las escalas se ajustan solas.",
-                              "Done by the NVIDIA driver (as in the NVIDIA App) for the engine, and for Magpie / mpv when their window covers the screen; removed on exit. Brightness: the driver's (~1000 nits; with rtx_hdr_calidad=app, " + p.RtxHdrNits + " nits through the NVIDIA App overlay). It costs some GPU: scales adapt."), y + 34, 66).ForeColor = Suave;
+                Etiqueta(Tx.T("Lo hace el driver de NVIDIA (como la NVIDIA App) en el motor, y en mpv si su ventana cubre la pantalla; se quita al salir. Brillo: el del driver (~1000 nits; con rtx_hdr_calidad=app, " + p.RtxHdrNits + " nits por el overlay de la NVIDIA App). Cuesta algo de gráfica: las escalas se ajustan solas.",
+                              "Done by the NVIDIA driver (as in the NVIDIA App) for the engine, and for mpv when its window covers the screen; removed on exit. Brightness: the driver's (~1000 nits; with rtx_hdr_calidad=app, " + p.RtxHdrNits + " nits through the NVIDIA App overlay). It costs some GPU: scales adapt."), y + 34, 66).ForeColor = Suave;
                 y += 106;
             }
             else

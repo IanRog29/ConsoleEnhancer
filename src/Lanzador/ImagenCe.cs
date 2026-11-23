@@ -63,7 +63,7 @@ namespace ConsoleEnhancer
             switch (key)
             {
                 case "rtx_hdr": CeRtxHdr = si; return true;
-                case "rtx_hdr_metodo": CeRtxHdrMetodo = v == "magpie" ? "magpie" : "driver"; return true;
+                case "rtx_hdr_metodo": CeRtxHdrMetodo = "driver"; return true;   // (1.2.4 ronda 6, QUITAFG: sin Magpie, "magpie" ya no; siempre el del driver)
                 case "rtx_hdr_calidad": CeRtxHdrCalidad = v == "media" || v == "sin_debanding" || v == "app" ? v : "alta"; return true;
                 case "rtx_hdr_nits":
                     {
@@ -156,8 +156,7 @@ namespace ConsoleEnhancer
                 if (cfg.EngineVrr > 0 && !vrrMotor) Log.Write("motor_vrr=1 del ini no cuenta: en ConsoleEnhancer lo decide vrr= (" + VrrPorque + ")");
                 cfg.EngineVrr = vrrMotor ? 1 : 0;
                 Log.Write("VRR " + (VrrAhora ? "encendido" : "apagado") + " (" + VrrPorque + "): motor vrr=" + (vrrMotor ? "1" + (cfg.EngineVrrFgVsync >= 0 ? " vrr_fg_vsync=" + cfg.EngineVrrFgVsync : "") : "0") +
-                          (VrrAhora && !vrrMotor ? " (la pantalla no dice tener VRR o DXGI no deja presentar sin sincronizar: el motor sin VRR, para no dar cortes)" : "") +
-                          ", Magpie con generacion " + (VrrAhora ? "si" : "no"));   // (1.2.3 RITMO2; 1.2.4 ronda 6: sin DLSS FG)
+                          (VrrAhora && !vrrMotor ? " (la pantalla no dice tener VRR o DXGI no deja presentar sin sincronizar: el motor sin VRR, para no dar cortes)" : ""));   // (1.2.4 ronda 6: sin Magpie)
                 // ---- HDR
                 bool hdrPant = pantalla != null && (pantalla.HdrPosible || pantalla.HdrActivo);
                 double nits = pantalla != null ? pantalla.NitsMax : 0;
@@ -418,7 +417,7 @@ namespace ConsoleEnhancer
                           "; RTX HDR " + (p.RtxHdrPosible ? "posible" : "no (" + p.RtxHdrMotivo + ")"));
             sb.AppendLine("#  VRR: " + (p.VrrPosible ? "posible" : "no") + (p.VrrMotivo.Length > 0 ? " (" + p.VrrMotivo + ")" : ""));
             sb.AppendLine("#  rtx_hdr_calidad: alta (el driver solo, sin la NVIDIA App; pico ~1000 nits) | media | sin_debanding | app (el overlay de la");
-            sb.AppendLine("#  NVIDIA App, con brillo / gris / contraste / saturacion de aqui). rtx_hdr_metodo=magpie: el efecto de Magpie (solo mpv + Magpie)");
+            sb.AppendLine("#  NVIDIA App, con brillo / gris / contraste / saturacion de aqui).");
             sb.AppendLine("rtx_hdr_posible=" + (p.RtxHdrPosible ? "1" : "0"));
             sb.AppendLine("vrr_posible=" + (p.VrrPosible ? "1" : "0"));
             sb.AppendLine("rtx_hdr=" + (o != null && o.RtxHdr && p.RtxHdrPosible ? "1" : "0"));

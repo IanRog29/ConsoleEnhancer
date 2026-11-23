@@ -770,26 +770,6 @@ namespace ConsoleEnhancer
             Guardar(true);
         }
 
-        // MagpieConfig.Patch con escritura (Magpie se abre o se reabre): las subidas pendientes pasan a valer y se recalcula todo
-        public static void AlAbrirMagpie()
-        {
-            List<string> hechas = new List<string>();
-            lock (sync)
-            {
-                Cargar();
-                foreach (KeyValuePair<string, Fila> kv in filas)
-                    if (kv.Key.StartsWith("x|") && !double.IsNaN(kv.Value.Pend))
-                    {
-                        hechas.Add(kv.Key.Substring(2) + ": extra " + kv.Value.Extra.ToString("0.##", CultureInfo.InvariantCulture) + " -> " + kv.Value.Pend.ToString("0.##", CultureInfo.InvariantCulture));
-                        kv.Value.Extra = kv.Value.Pend; kv.Value.Pend = double.NaN;
-                        if (!double.IsNaN(kv.Value.PendK)) { kv.Value.K = kv.Value.PendK; kv.Value.PendK = double.NaN; }
-                        sucio = true;
-                    }
-                congelado.Clear();
-                if (hechas.Count > 0) topeSesion.Clear();   // (la subida pedida manda sobre lo bajado antes en la sesion)
-            }
-            if (hechas.Count > 0) { Log.Write("Escala de DLSS 5: subida(s) pendiente(s) puesta(s) al abrir Magpie: " + string.Join("; ", hechas.ToArray())); Guardar(true); }
-        }
 
         // El % de DLSS 5 para esta cadena y pasadas (congelado mientras Magpie siga abierto): el modelo con lo aprendido de la cadena (su
         // extra y su k) o, sin nada aprendido, con el k de la grafica; nunca el % que ya no llego (7 dias) ni mas de lo bajado en la sesion
@@ -988,7 +968,9 @@ namespace ConsoleEnhancer
 
         // (no con DLSS 5 en el motor propio, motor_dlss5=1: su coste es otro y lo ajusta el motor, EngineAdapta.cs)
         // (22-11, 1.2.3 MOTOR5: solo si DLSS 5 lo hace de verdad el motor; con x3 / x4, 2-3 pasadas o XeSS FG va por Magpie y con esto)
-        public bool Dlss5AutoAhora { get { return Dlss5AutoOn && Dlss5InputPct == 0 && !MotorDlss5Pedido; } }
+        // (1.2.4 ronda 6, QUITAFG, fase 2: la escala automatica era la de DLSS 5 por Magpie -su hilo-; sin Magpie, DLSS 5 lo escala el motor
+        // -EngineAdapta, Escalas.ArgsMotor-: nunca)
+        public bool Dlss5AutoAhora { get { return false; } }
 
         // El modelo de DLSS SR de Magpie con DLSS 5 y estas pasadas (lo de DlssModelNow sin pasar por Dlss5PassesNow), con el tope de la vigilancia
         int ModeloPara(int pasadas, string clave)
@@ -1080,8 +1062,7 @@ namespace ConsoleEnhancer
             if (autoDentro == 0)
             {
                 autoDentro++;
-                try { int pt = ProteModeloTope(); if (pt > 0 && CosteModelo(m) > CosteModelo(pt)) m = pt; }
-                finally { autoDentro--; }
+                autoDentro--;   // (1.2.4 ronda 6: sin la proteccion de Magpie, Proteccion.cs)
             }
             if (!Dlss5AutoAhora || autoDentro > 0 || Dlss5Off || !UpscaleOn || ScalerNow != "dlss" || EngineDlss5Now || !Dlss5FitsNow) return m;
             autoDentro++;
@@ -1101,7 +1082,6 @@ namespace ConsoleEnhancer
     {
         readonly EscalaAuto.Seguimiento escSeg = new EscalaAuto.Seguimiento();
         DateTime escCambioAt = DateTime.MinValue, escVistaAt = DateTime.MinValue, escNotaAt = DateTime.MinValue;
-        int escBusy;
         double mpvDiagFps;
         DateTime mpvDiagAt = DateTime.MinValue;
 
@@ -1122,150 +1102,12 @@ namespace ConsoleEnhancer
         // Las imagenes que da mpv (tras el filtro de repetidas): su script cada 0,5 s o, si es mas, su recuento de 20 s (reciente)
         double FuenteFps() { return Math.Max(vfFps, (DateTime.Now - mpvDiagAt).TotalSeconds < 30 ? mpvDiagFps : 0); }
 
-        // CheckLsPacing (cada 5 s con Magpie): true = DLSS 5 por Magpie con la escala automatica (lo vigila esto; FpsMagpieVigila no)
-        bool EscalaVigila(LsStats st)
-        {
-            DateTime now = DateTime.Now;
-            double dt = escVistaAt == DateTime.MinValue ? 5 : Math.Max(1, Math.Min(15, (now - escVistaAt).TotalSeconds));
-            escVistaAt = now;
-            PrepareCfg();
-            bool nuestro = cfg.Dlss5AutoAhora && cfg.D5Tuned && !cfg.EngineDlss5Now && !Config.EngineActive && !cfg.HomeNative && MagpieLive.Pid() > 0;
-            EscalaAuto.Muestreo(nuestro);
-            if (!nuestro) return false;
-            try
-            {
-                if (st.CapN == 0) return true;   // (sin resumen nuevo de Magpie en estos 5 s: en el modo 30 sale uno cada ~4 s; se sigue la cuenta)
-                double uso = EscalaAuto.UsoMedio();
-                bool juzgar = !InHome && !homeBusy && !passesBusy && relaunchSize == null && !relaunchEngine && !userExit && lsReady && !applying &&
-                              MagpieLive.RunningFor() > 25 && (now - escCambioAt).TotalSeconds >= 20 && Interlocked.CompareExchange(ref escBusy, 0, 0) == 0;
-                if (!juzgar) { escSeg.Mal = escSeg.Grave = 0; escSeg.SegBien = 0; return true; }
-                int n = Math.Max(1, cfg.Dlss5PassesNow), pct = cfg.Dlss5PctNow;
-                CadenaEscala c = cfg.CadenaEscalaPara(n);
-                EscalaAuto.Medida m = new EscalaAuto.Medida();
-                m.Real = st.CapTime > 0 ? st.NewSum / st.CapTime : st.Captured;
-                m.RealMin = st.CapMin;
-                m.Fuente = FuenteFps();
-                m.Objetivo = c.Objetivo;
-                bool fgMagpie = c.Gen.Length > 0 && c.Gen != "smooth";
-                if (fgMagpie && st.CapTime > 0 && st.GenSum > 0)
-                {
-                    m.Salida = (st.NewSum + st.GenSum) / st.CapTime;
-                    int hz = Pantalla.Hz();
-                    m.SalidaObjetivo = Math.Min(c.Objetivo * c.Mult, hz >= 60 ? hz - 0.2 : c.Objetivo * c.Mult);
-                }
-                m.Uso = uso;
-                m.Huecos = st.Gaps;
-                m.Segundos = dt;
-                double k = EscalaAuto.K, kn = EscalaAuto.NuevoK(c, m, pct, n, k);
-                if (Math.Abs(kn - k) > 0.001) EscalaAuto.K = kn;
-                EscalaAuto.Opciones o = new EscalaAuto.Opciones();
-                o.Pct = pct; o.Pasadas = n; o.K = EscalaAuto.KDe(c.Juego, c.Clave);   // (el de lo aprendido de esta cadena; sin nada, el de la grafica)
-                o.Extra = EscalaAuto.Extra(c.Juego, c.Clave);
-                o.NoPct = EscalaAuto.NoPct(c.Juego, c.ClaveCompleta(n));
-                o.GenBarata = EscalaGenBarata(c.Gen);
-                if (escSubida == c.ClaveCompleta(n) + "|" + pct) o.SegSubir = 1e9;   // (ya pedida una subida de esto: hasta la proxima apertura, nada mas)
-                EscalaAuto.Decision d = EscalaAuto.Decidir(c, m, escSeg, o);
-                // 60 s llegando con lo de ahora y sin nada aprendido de esta cadena en este juego: lo de ahora queda aprendido (un k de la
-                // grafica nuevo, medido en otra cadena, ya no lo cambia en la proxima apertura)
-                if (d.Fijar && d.Tipo == "nada" && !EscalaAuto.Aprendida(c.Juego, c.Clave))
-                {
-                    EscalaAuto.AnotarExtra(c.Juego, c.Clave, EscalaAuto.ExtraPara(c, pct, n, o.K), o.K);
-                    Log.Write("Escala de DLSS 5: " + n + " pasada(s) al " + pct + " % llega a los fps del modo (60 s): aprendido para " +
-                              (string.IsNullOrEmpty(c.Juego) ? "cualquier juego" : "\"" + c.Juego + "\"") + " (" + c.Clave + ")");
-                }
-                // (al log, como mucho cada 60 s: lo que se ve)
-                if ((now - escNotaAt).TotalSeconds >= 60)
-                {
-                    escNotaAt = now;
-                    Log.Write("Escala de DLSS 5: " + n + " pasada(s) al " + pct + " %" + (c.Esc == "dlss" && c.Escala ? ", DLSS " + EscalaAuto.Letra(c.Modelo) : "") + ", " +
-                              F1(m.Real) + " de " + F1(m.Objetivo) + " reales (mpv " + F1(m.Fuente) + ")" + (m.Salida > 0 ? ", salida " + F1(m.Salida) + " de " + F1(m.SalidaObjetivo) : "") +
-                              (uso >= 0 ? ", grafica " + Math.Round(uso) + " %" : "") + ", k " + kn.ToString("0.00", CultureInfo.InvariantCulture) + ", previsto " +
-                              F1(EscalaAuto.Prevision(c, pct, n, kn, o.Extra)) + " de " + F1(EscalaAuto.Presupuesto(c)) + " ms: " + d.Motivo + " (" + c.Clave + ")");
-                }
-                if (d.Tipo == "bajar") EscalaBajar(c, d, pct, n, m);
-                else if (d.Tipo == "escalera")
-                {
-                    escCambioAt = now;
-                    EscalaAuto.AnotarExtra(c.Juego, c.Clave, d.Extra, d.K);   // (la proxima vez con DLSS 5 en esta cadena, mas prudente)
-                    Log.Write("Escala de DLSS 5: " + d.Motivo);
-                    FpsLanza(m.Real, Math.Min(m.Objetivo, m.Fuente), uso >= 0 ? uso / 100.0 * 1000.0 / Math.Max(1, m.Real) : 0, "Magpie");
-                }
-                else if (d.Tipo == "subir") EscalaSubir(c, d, pct);
-            }
-            catch (Exception ex) { Log.Error("Escala de DLSS 5 (vigilancia)", ex); }
-            return true;
-        }
 
-        // La generacion de la lista del modo mas barata que la de ahora (la mas cercana); "" = ninguna
-        string EscalaGenBarata(string g)
-        {
-            if (g.Length == 0) return "";
-            try
-            {
-                string best = "";
-                foreach (string t in GenOptions())
-                    if (EscalaAuto.RangoGen(t) > 0 && EscalaAuto.RangoGen(t) < EscalaAuto.RangoGen(g) && (best.Length == 0 || EscalaAuto.RangoGen(t) > EscalaAuto.RangoGen(best))) best = t;
-                return best;
-            }
-            catch { return ""; }
-        }
 
         static string Fps0(double v) { return Math.Round(v).ToString(CultureInfo.InvariantCulture); }
 
-        // No llega: lo nuevo ya (aprendido para la proxima vez y, de una vez, en Magpie con el puente) y el aviso
-        void EscalaBajar(CadenaEscala c, EscalaAuto.Decision d, int pctAntes, int pasAntes, EscalaAuto.Medida m)
-        {
-            if (Interlocked.CompareExchange(ref escBusy, 1, 0) != 0) return;
-            escCambioAt = DateTime.Now;
-            ThreadPool.QueueUserWorkItem(delegate
-            {
-                try
-                {
-                    CadenaEscala nueva = c.Copia();
-                    nueva.Modelo = d.Modelo; nueva.Gen = d.Gen;
-                    if (d.Gen == "smooth") nueva.Mult = 2;
-                    EscalaAuto.AnotarBajada(c.Juego, nueva.Clave, c.ClaveCompleta(pasAntes), pctAntes, d.Extra, d.K, d.Pasos.Contains("modelo") ? d.Modelo : 0, Config.DlssPick,
-                                            nueva.ClaveCompleta(d.Pasadas), d.Pct);
-                    List<string> es = new List<string>(), en = new List<string>();
-                    if (d.Pct != pctAntes) { es.Add("DLSS 5 al " + pctAntes + " % → " + d.Pct + " %"); en.Add("DLSS 5 scale " + pctAntes + "% -> " + d.Pct + "%"); }
-                    if (d.Pasos.Contains("pasadas"))
-                    {
-                        es.Add(Pasadas(pasAntes) + " → " + Pasadas(d.Pasadas)); en.Add(pasAntes + " -> " + d.Pasadas + (d.Pasadas > 1 ? " passes" : " pass"));
-                        PasadasOnPasses(pasAntes, d.Pasadas);
-                        dlss5Passes = d.Pasadas;
-                        SaveText(Paths.Dlss5PassesFile, d.Pasadas.ToString(CultureInfo.InvariantCulture));
-                    }
-                    if (d.Pasos.Contains("modelo")) { es.Add("DLSS " + EscalaAuto.Letra(c.Modelo) + " → " + EscalaAuto.Letra(d.Modelo)); en.Add("DLSS " + EscalaAuto.Letra(c.Modelo) + " -> " + EscalaAuto.Letra(d.Modelo)); }
-                    if (d.Pasos.Contains("gen"))
-                    {
-                        es.Add(GenLabel(c.Gen, false) + " → " + GenLabel(d.Gen, false)); en.Add(GenLabel(c.Gen, false) + " -> " + GenLabel(d.Gen, false));
-                        if (cfg.CapMode) SetPicks(cfg.FgPick60, d.Gen); else SetPicks(d.Gen, cfg.FgPick30);
-                    }
-                    string obj = Fps0(d.PorSalida ? d.SalidaObjetivo : d.Objetivo), real = Fps0(d.PorSalida ? d.Salida : d.Real);
-                    string texto = Tx.T("No se llega a " + obj + " fps (" + real + ") · " + string.Join(" · ", es.ToArray()),
-                                        obj + " fps not reached (" + real + "): " + string.Join(", ", en.ToArray()));
-                    Log.Write("Escala de DLSS 5: " + d.Motivo + ": " + string.Join(", ", es.ToArray()) + " (ya, reabriendo Magpie; guardado para la proxima vez en " + EscalaAuto.Fichero + ")");
-                    SaveCurProfile();
-                    lastPadAction = DateTime.Now;   // (el puente / telon de la reapertura lleva el aviso, como con un boton)
-                    RestartLs(Tx.T("No se llega a " + obj + " fps", obj + " fps not reached"), Tx.T(string.Join(" · ", es.ToArray()), string.Join(", ", en.ToArray())));
-                    // el aviso cuando Magpie vuelve a escalar (la reapertura dura unos segundos)
-                    for (int i = 0; i < 80 && (passesBusy || !lsReady) && !userExit; i++) Thread.Sleep(250);
-                    OnUi(delegate { OsdWarn(texto, "7000"); });
-                }
-                catch (Exception ex) { Log.Error("Escala de DLSS 5 (bajando)", ex); }
-                finally { escCambioAt = DateTime.Now; Interlocked.Exchange(ref escBusy, 0); }
-            });
-        }
 
         // Sobra: la subida queda para la proxima apertura de Magpie (no se reabre por ella)
         string escSubida = "";
-        void EscalaSubir(CadenaEscala c, EscalaAuto.Decision d, int pctAntes)
-        {
-            escSubida = c.ClaveCompleta(d.Pasadas) + "|" + pctAntes;
-            EscalaAuto.AnotarSubida(c.Juego, c.Clave, d.Extra, d.K);
-            Log.Write("Escala de DLSS 5: " + d.Motivo + ": la proxima vez que se abra Magpie (al volver a entrar en el juego) DLSS 5 al " + d.Pct + " % (ahora " + pctAntes + " %)");
-            Osd(Tx.T("Sobra gráfica · DLSS 5 al " + pctAntes + " % → " + d.Pct + " % al volver a entrar en el juego",
-                     "GPU headroom: DLSS 5 scale " + pctAntes + "% -> " + d.Pct + "% next time you start the game"));
-        }
     }
 }

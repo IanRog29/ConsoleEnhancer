@@ -259,7 +259,7 @@ namespace ConsoleEnhancer.Deteccion
                 p.Escalador = "ninguno";
                 p.Latencia = "ninguna";
                 p.Avisos.Add(g == null || g.Software ? Tx.T("Sin gráfica útil (solo la de software de Windows): se enseña la captura tal cual con mpv; instala el driver de tu gráfica", "No usable GPU: plain mpv; install your GPU driver")
-                                                     : Tx.T("La gráfica no tiene Direct3D 12 nivel 12_0: mpv + Magpie, sin el motor propio", "No D3D12 FL 12_0: mpv + Magpie"));
+                                                     : Tx.T("La gráfica no tiene Direct3D 12 nivel 12_0: solo mpv, sin el motor propio", "No D3D12 FL 12_0: mpv only"));
             }
             else
             {
@@ -289,12 +289,12 @@ namespace ConsoleEnhancer.Deteccion
                 else if (g.F.Fsr4.Si)
                 {
                     p.Escalador = "fsr4"; p.EscaladorAlternativo = g.F.XessSr.Si ? "xess" : "fsr1";
-                    p.Motivos.Add(Tx.T("Escalado: FSR 4 (AMD RX 9000, por Magpie)", "Scaling: FSR 4 (AMD RX 9000, via Magpie)"));
+                    p.Motivos.Add(Tx.T("Escalado: FSR 4 (AMD RX 9000, motor propio)", "Scaling: FSR 4 (AMD RX 9000, own engine)"));
                 }
                 else if (g.F.XessSr.Si && g.Familia != FamiliaGpu.IntelXe && g.Familia != FamiliaGpu.IntelAntigua && g.Familia != FamiliaGpu.Software)
                 {
                     p.Escalador = "xess"; p.EscaladorAlternativo = "fsr1";
-                    p.Motivos.Add(Tx.T("Escalado: XeSS (sin DLSS en esta gráfica, por Magpie)", "Scaling: XeSS (no DLSS on this GPU, via Magpie)"));
+                    p.Motivos.Add(Tx.T("Escalado: XeSS (sin DLSS en esta gráfica, motor propio)", "Scaling: XeSS (no DLSS on this GPU, own engine)"));
                 }
                 else { p.Escalador = "fsr1"; p.EscaladorAlternativo = "catrom"; }
                 p.Enfoque = p.CapH <= 720 ? 0.6 : p.CapH <= 1080 ? 0.5 : 0.3;
@@ -327,7 +327,7 @@ namespace ConsoleEnhancer.Deteccion
                 // (1.2.2, UNIVERSAL) XeSS / FSR 4 que no caben, generacion imposible, capturas a 120 y VRAM (PlanMargen.cs)
                 AjustarMargenes(hw, p, g, pref.Calibracion);
                 p.MotorEnEspera = gb >= 8 && p.Motor == "propio";
-                if (!p.MotorEnEspera && gb < 8) p.Motivos.Add(Tx.T("Menos de 8 GB de VRAM: el motor no se queda en espera (libera la memoria para Magpie)", "Under 8 GB VRAM: no engine standby"));
+                if (!p.MotorEnEspera && gb < 8) p.Motivos.Add(Tx.T("Menos de 8 GB de VRAM: el motor no se queda en espera", "Under 8 GB VRAM: no engine standby"));
             }
 
             // ---- DLSS 5 (extra no oficial)
@@ -335,7 +335,7 @@ namespace ConsoleEnhancer.Deteccion
             {
                 p.Dlss5Disponible = true;
                 p.Dlss5PasadasMax = gb >= 8 ? 3 : 1;
-                p.Dlss5Nota = Tx.T("DLL del usuario, no oficial: va por mpv + Magpie; escala de entrada medida por el banco", "user DLL, unofficial: via mpv + Magpie");
+                p.Dlss5Nota = Tx.T("DLL del usuario, no oficial: la carga el motor (engine\\PrismaNr.dll)", "user DLL, unofficial: loaded by the engine (engine\\PrismaNr.dll)");
             }
             else if (g != null && g.EsRtx) p.Dlss5Nota = g.F.DlssNr.Motivo;
 

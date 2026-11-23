@@ -1455,7 +1455,6 @@ namespace ConsoleEnhancer
                             if (c.ParseCapturaSegura(key, val)) break; // (21-11, 1.2.1: captura_segura, src\Lanzador\CapturaSegura.cs)
                             if (MarcoMpv.Parse(key, val)) break; // (22-11, 1.2.1: mpv_sin_marco, src\Lanzador\MarcoMpv.cs)
                             if (c.ParseTiempos(key, val)) break; // (22-11, 1.2.2: motor_en_espera_al_abrir_ms, magpie_dlss_sr_solo_cadena; src\Lanzador\TiemposCarga.cs)
-                            if (c.ParseCalidadFg(key, val)) break; // (22-11, 1.2.2 CALIDAD: flujo optico de DLSS FG / XeSS FG, src\Lanzador\CalidadFg.cs)
                             if (key.StartsWith("mando_") && PadOptions.Parse(key, val)) break; // (18-11, MANDOS: modo PC, src\Mandos.cs)
                             Log.Write("Aviso: clave desconocida en ini: " + key); break;
                     }
@@ -1557,610 +1556,8 @@ namespace ConsoleEnhancer
         }
     }
 
-    // ------------------------------------------------------------------
-    // Configuracion de la copia de Magpie (config\v4e\config.json portatil). Un grupo de efectos "Switch2App" hecho con lo
-    // elegido (DLSSNR = DLSS 5, escalado, enfoque, generacion) y un perfil "Switch2App" para la ventana de mpv con escalado
-    // automatico. Magpie lee su config al arrancar y la guarda al salir: se escribe solo con Magpie cerrado (la app lo cierra
-    // a la fuerza, asi no guarda nada encima)
-    // ------------------------------------------------------------------
-    static class MagpieConfig
-    {
-        public const string ModeName = "ConsoleEnhancer";
-        public const string ProfileName = "ConsoleEnhancer";
-
-        static JavaScriptSerializer Js()
-        {
-            JavaScriptSerializer js = new JavaScriptSerializer();
-            js.MaxJsonLength = int.MaxValue;
-            return js;
-        }
-
-        static Dictionary<string, object> ReadJson(string path)
-        {
-            string text = File.ReadAllText(path, Encoding.UTF8);
-            return Js().DeserializeObject(text) as Dictionary<string, object>;
-        }
-
-        // La config de la copia; la primera vez, la del Magpie del usuario (sus atajos, refresco, barra...)
-        static Dictionary<string, object> LoadRoot(out string from)
-        {
-            from = Paths.MagpieConfig;
-            try { if (File.Exists(Paths.MagpieConfig)) { Dictionary<string, object> r = ReadJson(Paths.MagpieConfig); if (r != null) return r; } }
-            catch (Exception ex) { Log.Error("Leyendo " + Paths.MagpieConfig + " (se rehace)", ex); }
-            // (ConsoleEnhancer: nunca la config del Magpie del usuario, %LOCALAPPDATA%\Magpie: la de la app empieza nueva)
-            from = "(nueva)";
-            Dictionary<string, object> root = new Dictionary<string, object>();
-            // (18-11, INTEGRADO: sin Magpie del usuario de donde copiarla, el atajo de escalar el que espera ScaleShortcut: Alt+Mayus+W)
-            Dictionary<string, object> sc = new Dictionary<string, object>();
-            sc["scale"] = 0xC57;
-            root["shortcuts"] = sc;
-            root["scalingModes"] = new List<object>();
-            Dictionary<string, object> def = new Dictionary<string, object>();
-            def["scalingMode"] = 0;
-            def["captureMethod"] = 0;
-            root["profiles"] = new List<object> { def };
-            return root;
-        }
-
-        // Numero de parametro de efecto: siempre con decimales (como los guarda Magpie: 2.0)
-        static decimal F(double v)
-        {
-            decimal d = (decimal)Math.Round(v, 6);
-            if (d == decimal.Truncate(d)) d = decimal.Parse(decimal.Truncate(d).ToString(CultureInfo.InvariantCulture) + ".0", CultureInfo.InvariantCulture);
-            return d;
-        }
-
-        static Dictionary<string, object> Effect(string name, bool fit, Dictionary<string, object> pars)
-        {
-            Dictionary<string, object> e = new Dictionary<string, object>();
-            e["name"] = name;
-            if (fit)
-            {
-                e["scalingType"] = 1; // ajustar a la pantalla (con la proporcion)
-                Dictionary<string, object> s = new Dictionary<string, object>();
-                s["x"] = F(1); s["y"] = F(1);
-                e["scale"] = s;
-            }
-            if (pars != null && pars.Count > 0) e["parameters"] = pars;
-            return e;
-        }
-
-        static Dictionary<string, object> Pars(params object[] kv)
-        {
-            Dictionary<string, object> d = new Dictionary<string, object>();
-            for (int i = 0; i + 1 < kv.Length; i += 2) d[(string)kv[i]] = F(Convert.ToDouble(kv[i + 1], CultureInfo.InvariantCulture));
-            return d;
-        }
-
-        // Sin nada que hacer (4K, sin DLSS 5 y sin generacion): Magpie no hace falta
-        public static bool Needed(Config cfg)
-        {
-            if (cfg.EngineNow || Config.EngineActive) return false; // (la imagen la hace el motor propio)
-            return !cfg.HomeNative && (cfg.UpscaleOn || !cfg.Dlss5Off || !cfg.FgOff);
-        }
-
-        // La cadena de efectos de lo elegido ahora. sharpen: el enfoque (NaN = el de la captura)
-        public static List<object> Chain(Config cfg, double sharpen)
-        {
-            List<object> fx = new List<object>();
-            int flowNv = cfg.FlowQualityNvNow, flowAmd = cfg.FlowQualityAmd;
-            // 1) DLSS 5: DLSSNR a la resolucion de la captura (antes de escalar: menos pixeles)
-            if (!cfg.Dlss5Off && cfg.Dlss5FitsNow)
-            {
-                double[] n = cfg.LevelNums(cfg.Level30);
-                int every = cfg.Dlss5EveryNow;
-                int passes = cfg.Dlss5PassesNow;
-                // 19-11 (DLSS5): la fuerza de cada pasada con 2-3 (con 1, la del nivel tal cual; ver Config.Dlss5PassStrength)
-                bool multi = passes >= 2;
-                double k1 = multi ? cfg.Dlss5PassStrength[0] : 1;
-                Dictionary<string, object> p = Pars(
-                    "modelPreset", cfg.Dlss5Model,
-                    "enableInputResolutionScaling", 1,
-                    "resolutionControl", cfg.Dlss5PctNow > 0 ? 1 : 0,
-                    "inputResolutionPercent", cfg.Dlss5PctNow > 0 ? cfg.Dlss5PctNow : 100,
-                    "residualMultiplier", n[4],
-                    "processingMode", every > 1 ? 1 : 0,
-                    "sparseUpdateInterval", Math.Max(2, every),
-                    "residualTransfer", cfg.Dlss5FlowNow > 0 ? 1 : 0,
-                    "opticalFlowMethod", cfg.Dlss5FlowNow,
-                    "amdOpticalFlowMode", flowAmd,
-                    "nvidiaOpticalFlowQuality", flowNv,
-                    "style", cfg.Dlss5Style,
-                    "intensity", Math.Min(2, n[0] * k1),
-                    "localToneStrength", Math.Min(2, n[1] * k1),
-                    "localStructureStrength", Math.Min(2, n[2] * k1),
-                    "skinStructureStrength", Math.Min(2, n[3] * k1),
-                    "useAutoMask", cfg.Dlss5MaskNow ? 1 : 0,
-                    "uiCorrection", cfg.Dlss5UiFixNow ? 1 : 0,
-                    "multiPass", passes,
-                    "antiFlicker", cfg.AntiFlickerNow,
-                    "antiFlickerTimeMs", cfg.Dlss5AntiFlickerMs,
-                    "__dlssnrModeVersion", 2);
-                double rv;
-                if (cfg.D5Num(cfg.D5DetailTable, out rv)) p["residualDetailGain"] = F(Math.Max(0, Math.Min(2, rv)));
-                if (cfg.D5Num(cfg.D5CompressTable, out rv)) p["residualLocalCompression"] = F(Math.Max(0, Math.Min(1, rv)));
-                else if (multi && cfg.Dlss5MultiContain > 0) p["residualLocalCompression"] = F(cfg.Dlss5MultiContain); // (19-11, DLSS5: el halo oscuro de 2-3 pasadas)
-                // (19-11, DLSS5: el color lavado de 2-3 pasadas; 22-11, 1.2.2 REESCALADO: con la captura 4K su propio valor, Reescalado.cs)
-                if (multi && Math.Abs(cfg.Dlss5MultiChromaNow - 1) > 0.001) p["residualSaturation"] = F(cfg.Dlss5MultiChromaNow);
-                if (cfg.D5Num(cfg.D5DarkTable, out rv)) p["residualDarkProtection"] = F(Math.Max(0, Math.Min(1, rv)));
-                // Las pasadas 2 y 3 con el mismo nivel que la 1 (Magpie las pone a sus valores de serie si no estan). 19-11 (DLSS5): cada una
-                // con su fuerza (dlss5_fuerza_pasadas): con la misma que la 1a el efecto se acumulaba (halo oscuro, rayado, color lavado)
-                for (int pi = 2; pi <= 3; pi++)
-                {
-                    string pre = "pass" + pi + "_";
-                    double k = cfg.Dlss5PassStrength[pi - 1];
-                    p[pre + "style"] = F(cfg.Dlss5Style);
-                    p[pre + "intensity"] = F(Math.Min(2, n[0] * k));
-                    p[pre + "localToneStrength"] = F(Math.Min(2, n[1] * k));
-                    p[pre + "localStructureStrength"] = F(Math.Min(2, n[2] * k));
-                    p[pre + "skinStructureStrength"] = F(Math.Min(2, n[3] * k));
-                    p[pre + "useAutoMask"] = F(cfg.Dlss5MaskNow ? 1 : 0);
-                    p[pre + "uiCorrection"] = F(cfg.Dlss5UiFixNow ? 1 : 0);
-                }
-                fx.Add(Effect("DLSSNR\\DLSSNR_AI_Filter", false, p));
-            }
-            if (cfg.RtxHdr && cfg.RtxHdrBefore) fx.Add(Effect("RTXVideo\\RTXVideo_HDR", false, Pars("contrast", cfg.RtxHdrContrast, "saturation", cfg.RtxHdrSaturation, "middleGray", cfg.RtxHdrGray, "peakNits", cfg.RtxHdrNits, "debanding", 1)));
-            // 2) Escalado de la ventana de mpv a la pantalla
-            if (cfg.UpscaleOn)
-            {
-                switch (cfg.ScalerNow)
-                {
-                    case "vsr":
-                        fx.Add(Effect("RTXVideo\\RTXVideo_VSR", true, Pars("category", cfg.VsrCategory, "strength", cfg.VsrQuality)));
-                        break;
-                    case "xess":
-                        fx.Add(Effect("XeSS\\XeSS_SR", true, Pars("opticalFlowMethod", cfg.DlssFlow, "amdOpticalFlowMode", flowAmd, "nvidiaOpticalFlowQuality", flowNv)));
-                        break;
-                    case "fsr":
-                        fx.Add(Effect("FSR\\FSR_EASU", true, null));
-                        break;
-                    // 15-11 (exploracion): los demas escaladores de Magpie. Espaciales: SGSR, NVIDIA VFX Upscale, Lanczos, bicubico, CAS con
-                    // escalado (el enfoque va dentro). Temporales con flujo optico: FSR 2/3/4
-                    case "sgsr":
-                        fx.Add(Effect("SGSR", true, null));
-                        break;
-                    case "nvvfx":
-                        fx.Add(Effect("NvidiaVFX\\Upscale", true, Pars("sharpness", 0.4)));
-                        break;
-                    case "lanczos":
-                        fx.Add(Effect("Lanczos", true, Pars("ARStrength", 0.6)));
-                        break;
-                    case "bicubic":
-                    case "ninguno":   // (1.2.02: sin reescalado = estirado simple, sin enfoque)
-                        fx.Add(Effect("Bicubic", true, null));
-                        break;
-                    case "cas":
-                        {
-                            double shc = double.IsNaN(sharpen) ? cfg.SharpenNow : sharpen;
-                            fx.Add(Effect("CAS\\CAS_Scaling", true, Pars("sharpness", Math.Max(0, shc))));
-                        }
-                        break;
-                    case "fsr2":
-                    case "fsr3":
-                    case "fsr4":
-                        fx.Add(Effect(cfg.ScalerNow.ToUpperInvariant() + "\\" + cfg.ScalerNow.ToUpperInvariant() + "_SR", true,
-                                      Pars("opticalFlowMethod", cfg.DlssFlow, "amdOpticalFlowMode", flowAmd, "nvidiaOpticalFlowQuality", flowNv)));
-                        break;
-                    default:
-                        // (22-11, 1.2.2 REESCALADO: DlssFlowSrNow = con L/M, el flujo de DLSS 5 aunque el modo diga ninguno: Reescalado.cs)
-                        fx.Add(Effect("DLSS\\DLSS_SR", true, Pars("renderPreset", cfg.DlssModelNow, "opticalFlowMethod", cfg.DlssFlowSrNow,
-                                                                  "amdOpticalFlowMode", flowAmd, "nvidiaOpticalFlowQuality", flowNv)));
-                        break;
-                }
-                // 3) Enfoque (CAS; con FSR 3 FG o FSR 1, RCAS: lo unico que FSR 3 FG admite en la cadena)
-                // (22-11, 1.2.2 REESCALADO: con DLSS SR J/K/L/M, x magpie_nitidez_transformer: src\Lanzador\Reescalado.cs)
-                double sh = double.IsNaN(sharpen) ? cfg.SharpenMagpieNow : sharpen; // (16-11: o el del modo / pasadas: enfoque_<modo>[_pN]_dlss5)
-                if (sh > 0.001 && cfg.ScalerNow != "cas" && cfg.ScalerNow != "ninguno") // (CAS con escalado ya enfoca)
-                {
-                    if ((!cfg.FgOff && cfg.FgTypeNow == "fsr3") || cfg.ScalerNow == "fsr") fx.Add(Effect("FSR\\FSR_RCAS", false, Pars("sharpness", sh)));
-                    else fx.Add(Effect("CAS\\CAS", false, Pars("sharpness", sh)));
-                }
-            }
-            // 3b) RTX HDR, sobre la imagen ya escalada y antes de la generacion
-            if (cfg.RtxHdr && !cfg.RtxHdrBefore) fx.Add(Effect("RTXVideo\\RTXVideo_HDR", false, Pars("contrast", cfg.RtxHdrContrast, "saturation", cfg.RtxHdrSaturation, "middleGray", cfg.RtxHdrGray, "peakNits", cfg.RtxHdrNits, "debanding", 1)));
-            // 4) Generacion de fotogramas, lo ultimo (sobre la imagen final). Smooth Motion: ninguna en Magpie (la hace el driver).
-            // 20-11 (HZ120): a 120 nunca hay generacion (imagenes reales a 120, baja latencia), tambien por el camino de Magpie
-            if (!cfg.FgOff && !cfg.Mode120 && cfg.FgTypeNow != "smooth")
-            {
-                switch (cfg.FgTypeNow)
-                {
-                    case "fsr3":
-                        fx.Add(Effect("FSR3FG\\FSR3_FrameGeneration", false, Pars("opticalFlowMethod", cfg.DlssFlow == 1 ? 1 : 2,
-                                                                                  "amdOpticalFlowMode", flowAmd, "nvidiaOpticalFlowQuality", flowNv)));
-                        break;
-                    case "xess":
-                        // 22-11 (1.2.2 CALIDAD): sus vectores por fg_xess_flujo / fg_xess_flujo_calidad (src\Lanzador\CalidadFg.cs; vacio = como antes)
-                        // (1.2.4 ronda 6, QUITAFG: siempre x2)
-                        fx.Add(Effect("XeSSFG\\XeSS_FrameGeneration", false, Pars("multiplier", 2, "opticalFlowMethod", cfg.XessFgFlowNow,
-                                                                                  "amdOpticalFlowMode", flowAmd, "nvidiaOpticalFlowQuality", cfg.XessFgFlowQNow)));
-                        break;
-                    // (1.2.4 ronda 6, QUITAFG: DLSS FG -DLSSFG\DLSS_FrameGeneration- y NVIDIA VFG ya no estan)
-                }
-            }
-            // magpie.efecto.<efecto>.<parametro>=valor del ini (efecto: DLSSNR, DLSS_SR, CAS... = el final de su nombre)
-            foreach (string[] o in cfg.MagpieOverrides)
-            {
-                if (o[0] != "efecto") continue;
-                int dot = o[1].LastIndexOf('.');
-                if (dot <= 0) continue;
-                string who = o[1].Substring(0, dot), par = o[1].Substring(dot + 1);
-                foreach (object e in fx)
-                {
-                    Dictionary<string, object> d = (Dictionary<string, object>)e;
-                    string nm = (string)d["name"];
-                    if (!nm.EndsWith(who, StringComparison.OrdinalIgnoreCase) && !nm.StartsWith(who + "\\", StringComparison.OrdinalIgnoreCase)) continue;
-                    if (!d.ContainsKey("parameters")) d["parameters"] = new Dictionary<string, object>();
-                    double v;
-                    if (double.TryParse(o[2], NumberStyles.Float, CultureInfo.InvariantCulture, out v))
-                        ((Dictionary<string, object>)d["parameters"])[par] = F(v);
-                }
-            }
-            return fx;
-        }
-
-        // El enfoque escrito ahora en el grupo de efectos (NaN = ninguno o no se sabe)
-        public static double WrittenSharpen()
-        {
-            try
-            {
-                if (!File.Exists(Paths.MagpieConfig)) return double.NaN;
-                Dictionary<string, object> root = ReadJson(Paths.MagpieConfig);
-                foreach (object m in AsList(root, "scalingModes"))
-                {
-                    Dictionary<string, object> d = m as Dictionary<string, object>;
-                    if (d == null || !(d.ContainsKey("name") && (d["name"] as string) == ModeName)) continue;
-                    foreach (object e in AsList(d, "effects"))
-                    {
-                        Dictionary<string, object> ed = e as Dictionary<string, object>;
-                        string n = ed != null && ed.ContainsKey("name") ? ed["name"] as string : null;
-                        if ((n == "CAS\\CAS" || n == "FSR\\FSR_RCAS" || n == "CAS\\CAS_Scaling") && ed.ContainsKey("parameters"))
-                        {
-                            Dictionary<string, object> p = ed["parameters"] as Dictionary<string, object>;
-                            if (p != null && p.ContainsKey("sharpness")) return Convert.ToDouble(p["sharpness"], CultureInfo.InvariantCulture);
-                        }
-                    }
-                }
-            }
-            catch { }
-            return double.NaN;
-        }
-
-        static List<object> AsList(Dictionary<string, object> d, string key)
-        {
-            object o;
-            if (!d.TryGetValue(key, out o) || o == null) { List<object> n = new List<object>(); d[key] = n; return n; }
-            List<object> l = o as List<object>;
-            if (l != null) return l;
-            l = new List<object>();
-            IEnumerable e = o as IEnumerable;
-            if (e != null) foreach (object x in e) l.Add(x);
-            d[key] = l;
-            return l;
-        }
-
-        // Valor del ini para la config: true/false, numero entero, numero con decimales o texto
-        static object IniValue(string v)
-        {
-            string l = v.ToLowerInvariant();
-            if (l == "true" || l == "false") return l == "true";
-            int i;
-            if (int.TryParse(v, NumberStyles.Integer, CultureInfo.InvariantCulture, out i)) return i;
-            decimal m;
-            if (decimal.TryParse(v, NumberStyles.Float, CultureInfo.InvariantCulture, out m)) return m;
-            return v;
-        }
-
-        // Forma comparable (los numeros como double: 2 = 2.0)
-        static string Canon(object o)
-        {
-            if (o == null) return "null";
-            if (o is bool) return (bool)o ? "true" : "false";
-            if (o is string) return "\"" + o + "\"";
-            if (o is int || o is long || o is decimal || o is double || o is float)
-                return ((float)Convert.ToDouble(o, CultureInfo.InvariantCulture)).ToString("R", CultureInfo.InvariantCulture); // (Magpie los guarda como float: 0.6 -> 0.6000000238)
-            IDictionary<string, object> d = o as IDictionary<string, object>;
-            if (d != null)
-            {
-                List<string> keys = new List<string>(d.Keys);
-                keys.Sort(StringComparer.Ordinal);
-                StringBuilder sb = new StringBuilder("{");
-                foreach (string k in keys) sb.Append(k).Append(':').Append(Canon(d[k])).Append(',');
-                return sb.Append('}').ToString();
-            }
-            IEnumerable e = o as IEnumerable;
-            if (e != null)
-            {
-                StringBuilder sb = new StringBuilder("[");
-                foreach (object x in e) sb.Append(Canon(x)).Append(',');
-                return sb.Append(']').ToString();
-            }
-            return o.ToString();
-        }
-
-        static void Set(Dictionary<string, object> d, string key, object value, string where, List<string> changes)
-        {
-            object old;
-            bool had = d.TryGetValue(key, out old);
-            if (had && Canon(old) == Canon(value)) return;
-            d[key] = value;
-            string ov = had ? Canon(old) : "(no existia)";
-            changes.Add("Magpie " + where + "." + key + ": " + (ov.Length > 80 ? ov.Substring(0, 80) + "..." : ov) + " -> " +
-                        (Canon(value).Length > 120 ? "(" + Canon(value).Length + " caracteres)" : Canon(value)));
-        }
-
-        // Lo que haria falta cambiar (write = escribirlo). keepSharpen: el enfoque que ya esta escrito no cuenta como cambio (al
-        // cambiar de captura sin cerrar mpv: se pone en la proxima reapertura de Magpie, no por si solo)
-        public static List<string> Patch(Config cfg, bool write, bool keepSharpen = false)
-        {
-            List<string> changes = new List<string>();
-            if (write) EscalaAuto.AlAbrirMagpie(); // (1.2.1: Magpie se (re)abre: las subidas pendientes de la escala de DLSS 5 valen ya, EscalaAuto.cs)
-            string from;
-            Dictionary<string, object> root = LoadRoot(out from);
-            if (from != Paths.MagpieConfig) changes.Add("Magpie: config nueva a partir de " + from);
-            // 15-11: NVIDIA Smooth Motion (perfil del driver para Magpie.exe, NvProfiles.SetSmooth): Magpie lo coge al arrancar, asi que cuenta
-            // como su config (cambiarlo = reabrir Magpie). Se pone con Magpie cerrado (write) y antes de la cadena: si el driver no deja, la
-            // generacion pasa a DLSS FG (NvProfiles.SmoothBroken -> Config.FgTypeNow)
-            // 16-11 (G1): en el modo 30 con la sincronizacion de cada 2 refrescos (NvProfiles.VerticalSyncHalf: cada imagen 2 refrescos)
-            // 16-11 04:20 (G1): y sin generacion en el modo 60, solo la sincronizacion vertical forzada (3: Magpie por DXGI, Config.VsyncNoFgNow)
-            // (16-11 10:10: y el modo 30 con DLSS FG, solo la sincronizacion cada 2 refrescos: 4, Config.VsyncHalfFgNow)
-            // (22-11, 1.2.2 RITMO: x3 / x4 sin VRR, con la sincronizacion vertical forzada: Config.RitmoFijo1Now)
-            int smWant = cfg.SmoothNow ? (cfg.CapMode && Pantalla.Hz() >= 100 ? 2 : 1) : cfg.VsyncNoFgNow || cfg.VrrDxgiNow || cfg.RitmoFijo1Now ? 3 : cfg.VsyncHalfFgNow || cfg.RitmoFijo30SinFgNow ? 4 : 0;   // (1.2.3 RITMO2: magpie_fijo_30)
-            if (NvProfiles.SmoothState != smWant)
-            {
-                if (write) NvProfiles.SetSmooth(smWant);
-                changes.Add("NVIDIA Smooth Motion para Magpie.exe: " + (smWant == 4 ? "apagar, solo la sincronizacion cada 2 refrescos (el modo 30 por DXGI)" :
-                                                                       smWant == 3 ? "apagar, solo la sincronizacion vertical forzada (60 sin generacion por DXGI)" :
-                                                                       smWant == 2 ? "encender (sincronizacion cada 2 refrescos)" : smWant == 1 ? "encender" : "apagar"));
-            }
-
-            // ---- Generales: la copia va sin permisos de administrador (igual que esta app: asi se puede cerrar), sin reiniciarse sola
-            // al acabar de escalar (Smooth Motion), sin buscar actualizaciones y sin parar al cambiar de ventana
-            Set(root, "alwaysRunAsAdmin", false, "global", changes);
-            // 21-11: el Magpie experimental 0.6.12, con una config sin las marcas de sus valores por defecto de administrador, "migra":
-            // pone alwaysRunAsAdmin=true y se reabre elevado (UAC al pasar a XeSS FG con la config nueva). Con las marcas ya puestas no migra.
-            foreach (string marca in new[] { "adminStartupDefaultsVersion", "adminAutoStartDefaultsVersion" })
-            {
-                object mv; long mn = 0;
-                bool hay = root.TryGetValue(marca, out mv) && mv != null && long.TryParse(Convert.ToString(mv, System.Globalization.CultureInfo.InvariantCulture), out mn);
-                if (!hay || mn < 1) Set(root, marca, 1, "global", changes);
-            }
-            Set(root, "smoothMotionCompatibilityMode", false, "global", changes);
-            Set(root, "autoCheckForUpdates", false, "global", changes);
-            Set(root, "checkForPreviewUpdates", false, "global", changes);
-            Set(root, "showNotifyIcon", true, "global", changes);
-            Set(root, "stopEffectsOnTaskSwitch", false, "global", changes);
-            Set(root, "duplicateFrameDetectionMode", cfg.MagpieDuplicates == 1 ? 1 : cfg.MagpieDuplicates == 2 ? 0 : 2, "global", changes); // (Magpie: 0 siempre, 1 dinamica, 2 nunca; ini: 0 nunca, 1 dinamica, 2 siempre)
-            Set(root, "vrr", cfg.MagpieVrrNow, "global", changes);
-            // Reflex: el refresco avanzado (el simple ignora el ritmo elegido) y, con el, las repetidas a mano: 2 = nunca (las quita mpv)
-            Set(root, "simpleFrameRefresh", !cfg.ReflexNow, "global", changes);
-            Set(root, "debugMode", false, "global", changes);
-            // Sin la barra de Magpie al empezar a escalar (0 = apagada): en la tele no se usa (todo va con el mando)
-            object ov;
-            if (!root.TryGetValue("overlay", out ov) || !(ov is Dictionary<string, object>)) { ov = new Dictionary<string, object>(); root["overlay"] = ov; }
-            Set((Dictionary<string, object>)ov, "fullscreenInitialToolbarState", 0, "overlay", changes);
-            foreach (string[] o in cfg.MagpieOverrides)
-                if (o[0] == "global") Set(root, o[1], IniValue(o[2]), "global", changes);
-
-            // ---- El grupo de efectos
-            List<object> modes = AsList(root, "scalingModes");
-            int modeIdx = -1;
-            for (int i = 0; i < modes.Count; i++)
-            {
-                Dictionary<string, object> m = modes[i] as Dictionary<string, object>;
-                if (m != null && m.ContainsKey("name") && (m["name"] as string) == ModeName) { modeIdx = i; break; }
-            }
-            if (modeIdx < 0)
-            {
-                Dictionary<string, object> m = new Dictionary<string, object>();
-                m["name"] = ModeName;
-                modes.Add(m);
-                modeIdx = modes.Count - 1;
-            }
-            double sharpen = keepSharpen ? WrittenSharpen() : double.NaN;
-            Set((Dictionary<string, object>)modes[modeIdx], "effects", Chain(cfg, keepSharpen && double.IsNaN(sharpen) ? 0 : sharpen),
-                "grupo " + ModeName, changes);
-
-            // ---- El perfil de la ventana de mpv
-            List<object> profiles = AsList(root, "profiles");
-            if (profiles.Count == 0) profiles.Add(new Dictionary<string, object>());
-            Dictionary<string, object> mine = null, template = null;
-            string mpvExe = Path.GetFileName(cfg.MpvPath);
-            for (int i = profiles.Count - 1; i >= 1; i--)
-            {
-                Dictionary<string, object> p = profiles[i] as Dictionary<string, object>;
-                if (p == null) continue;
-                string name = p.ContainsKey("name") ? p["name"] as string : null;
-                string rule = p.ContainsKey("pathRule") ? p["pathRule"] as string : null;
-                if (name == ProfileName) { mine = p; continue; }
-                // Otro perfil para mpv (el del usuario): fuera de esta copia, si no mandaria el (de el se copia el refresco)
-                if (rule != null && Path.GetFileName(rule).Equals(mpvExe, StringComparison.OrdinalIgnoreCase))
-                {
-                    if (template == null) template = p;
-                    profiles.RemoveAt(i);
-                    changes.Add("Magpie: quitado el perfil \"" + name + "\" de mpv en la copia (manda el de la app)");
-                }
-            }
-            if (mine == null)
-            {
-                Dictionary<string, object> src = template ?? (profiles[0] as Dictionary<string, object>) ?? new Dictionary<string, object>();
-                mine = Js().DeserializeObject(JsonWriter.Serialize(src)) as Dictionary<string, object>; // copia
-                profiles.Add(mine);
-                changes.Add("Magpie: perfil " + ProfileName + " creado" + (template != null ? " (refresco y opciones del perfil de mpv del usuario)" : ""));
-            }
-            const string w = "perfil " + ProfileName;
-            Set(mine, "name", ProfileName, w, changes);
-            Set(mine, "packaged", false, w, changes);
-            Set(mine, "pathRule", RutaReal.De(cfg.MpvPath), w, changes); // (1.2.2: con las uniones resueltas, como la ve Magpie; src\RutaReal.cs)
-            Set(mine, "classNameRule", "mpv", w, changes);
-            Set(mine, "launcherPath", "", w, changes);
-            Set(mine, "autoScale", 1, w, changes);           // escala en cuanto mpv pasa delante
-            Set(mine, "launchParameters", "", w, changes);
-            Set(mine, "scalingMode", modeIdx, w, changes);
-            Set(mine, "captureMethod", cfg.MagpieCaptureMethod, w, changes);
-            Set(mine, "multiMonitorUsage", 0, w, changes);
-            // Sin el "modo juego 3D": con el, Magpie no deja escalar en ventana (MP-003, visto el 14-11) y retiene el raton
-            Set(mine, "3DGameMode", false, w, changes);
-            Set(mine, "captureTitleBar", false, w, changes);
-            Set(mine, "croppingEnabled", false, w, changes);
-            Set(mine, "autoHideCursorEnabled", true, w, changes);
-            Set(mine, "autoHideCursorDelay", F(1), w, changes);
-            Set(mine, "parameterFocusSwitching", false, w, changes);
-            Set(mine, "destAlignment", 4, w, changes);
-            // 15-11: presentacion por DXGI (la de Magpie con DirectFlip) solo donde hace falta: Smooth Motion (el driver solo envuelve cadenas de
-            // DXGI: con DirectComposition no genera nada) y Reflex. Si no, DirectComposition: lo compone Windows y no corta aunque la
-            // sincronizacion vertical global este forzada a desactivada (por DXGI, en pantalla completa, PresentMon ve cambios inmediatos con
-            // cortes: ALLOW_TEARING en el 68-100 % con DLSS FG). Era lo que habia desde la exploracion del 15-11 (13:55, quedo puesto)
-            // (16-11 04:20, G1: y el 60 sin generacion, con la sincronizacion vertical forzada en el perfil: Config.VsyncNoFgNow)
-            Set(mine, "disableDirectFlip", !(cfg.SmoothNow || cfg.ReflexNow || cfg.VsyncNoFgNow || cfg.VsyncHalfFgNow || cfg.VrrDxgiNow || cfg.RitmoFijo1Now || cfg.RitmoFijo30SinFgNow), w, changes);
-            object fr;
-            if (!mine.TryGetValue("frameRefresh", out fr) || !(fr is Dictionary<string, object>)) { fr = new Dictionary<string, object>(); mine["frameRefresh"] = fr; }
-                Set((Dictionary<string, object>)fr, "vrrEnabled", cfg.MagpieVrrNow, w + ".frameRefresh", changes);
-            {
-                // Ritmo de las imagenes reales = el del modo (60, o 30 en el modo 30): con 120 la resolucion adaptativa de DLSSNR perseguia
-                // 120 y bajaba al 25 % (medido el 14-11) y la generacion pedia 240 en una tele de 120 Hz
-                // (16-11, G1: 1 = siguiendo a la fuente en el 60 sin generacion por DXGI si magpie_sigue_fuente_60, ver Config.Follow60NoFgNow)
-                // (22-11, 1.2.2 RITMO: y el modo 30 con generacion si magpie_sigue_fuente_30_fg=1, Config.RitmoSigueNow)
-                Set((Dictionary<string, object>)fr, "contentMode", cfg.FollowNow || cfg.RitmoSigueNow ? 1 : 2, w + ".frameRefresh", changes);
-                // (16-11 13:40, G1: al ritmo de la capturadora, 59,94 / 29,97, si magpie_ritmo_ntsc: ver Config.NtscRate)
-                // 20-11 (HZ120): a 120 el ritmo real es 120 (sin generacion: no pide 240; el 120 esports va mejor por el motor propio, este es
-                // el camino de respaldo de Magpie). Con el aviso de arriba: la generacion esta apagada a 120 (no pide 240)
-                // (22-11, 1.2.2 RITMO: con generacion, un margen por encima si magpie_ritmo_margen_fg=N %: Config.RitmoRate)
-                Set((Dictionary<string, object>)fr, "contentRate", F(cfg.RitmoRate(cfg.Mode120 ? (cfg.NtscRate ? 119.88 : 120) : cfg.CapMode ? (cfg.NtscRate ? 29.97 : 30) : (cfg.NtscRate ? 59.94 : 60))), w + ".frameRefresh", changes);
-                // 0 Front Edge (espera para cuadrar la imagen), 1 Async (sin esa espera: menos latencia), 2 NVIDIA Reflex. 15-11: Reflex no funciona aqui (con la
-                // generacion "Reflex call failed: D3D12 async generation marker" y Magpie pasa solo a Async; sin ella el driver no lo activa, actualOn=false)
-                Set((Dictionary<string, object>)fr, "pacing", cfg.ReflexNow ? 2 : 0, w + ".frameRefresh", changes);
-            }
-            foreach (string[] o in cfg.MagpieOverrides)
-            {
-                if (o[0] != "perfil") continue;
-                string[] k = o[1].Split('.');
-                Dictionary<string, object> t = mine;
-                for (int i = 0; i < k.Length - 1 && t != null; i++)
-                {
-                    object sub;
-                    if (!t.TryGetValue(k[i], out sub) || !(sub is Dictionary<string, object>)) { sub = new Dictionary<string, object>(); t[k[i]] = sub; }
-                    t = (Dictionary<string, object>)sub;
-                }
-                if (t != null) Set(t, k[k.Length - 1], IniValue(o[2]), w, changes);
-            }
-
-            if (changes.Count > 0 && write)
-            {
-                Directory.CreateDirectory(Path.GetDirectoryName(Paths.MagpieConfig));
-                string tmp = Paths.MagpieConfig + ".tmp";
-                File.WriteAllText(tmp, JsonWriter.Serialize(root), new UTF8Encoding(false));
-                if (File.Exists(Paths.MagpieConfig)) File.Replace(tmp, Paths.MagpieConfig, null);
-                else File.Move(tmp, Paths.MagpieConfig);
-                Log.Write("Escrito " + Paths.MagpieConfig);
-            }
-            return changes;
-        }
-
-        // El atajo "escalar" de la config (Magpie: tecla | Win 0x100 | Ctrl 0x200 | Alt 0x400 | Mayus 0x800). Por defecto Alt+Mayus+A
-        public static int ScaleShortcut()
-        {
-            try
-            {
-                Dictionary<string, object> root = ReadJson(Paths.MagpieConfig);
-                Dictionary<string, object> s = root["shortcuts"] as Dictionary<string, object>;
-                return Convert.ToInt32(s["scale"], CultureInfo.InvariantCulture);
-            }
-            catch { return 0xC57; } // (Alt+Mayus+W: el de escalar de la config del usuario; 0xC41 es el de modo ventana)
-        }
-    }
-
-    // ------------------------------------------------------------------
-    // Escritor JSON con sangria de 2 espacios (mismo formato que el original),
-    // conservando el orden de claves y los tipos (bool, string, numero).
-    // ------------------------------------------------------------------
-    static class JsonWriter
-    {
-        public static string Serialize(object o)
-        {
-            StringBuilder sb = new StringBuilder();
-            Write(sb, o, 0);
-            return sb.ToString();
-        }
-
-        static void Write(StringBuilder sb, object o, int level)
-        {
-            if (o == null) { sb.Append("null"); return; }
-            if (o is bool) { sb.Append((bool)o ? "true" : "false"); return; }
-            if (o is string) { WriteString(sb, (string)o); return; }
-            if (o is int || o is long || o is decimal || o is double || o is float)
-            {
-                sb.Append(Convert.ToString(o, CultureInfo.InvariantCulture));
-                return;
-            }
-
-            IDictionary<string, object> dict = o as IDictionary<string, object>;
-            if (dict != null)
-            {
-                if (dict.Count == 0) { sb.Append("{}"); return; }
-                sb.Append("{\n");
-                int i = 0;
-                foreach (KeyValuePair<string, object> kv in dict)
-                {
-                    Indent(sb, level + 1);
-                    WriteString(sb, kv.Key);
-                    sb.Append(": ");
-                    Write(sb, kv.Value, level + 1);
-                    if (++i < dict.Count) sb.Append(',');
-                    sb.Append('\n');
-                }
-                Indent(sb, level);
-                sb.Append('}');
-                return;
-            }
-
-            IList list = o as IList;
-            if (list != null)
-            {
-                if (list.Count == 0) { sb.Append("[]"); return; }
-                sb.Append("[\n");
-                for (int i = 0; i < list.Count; i++)
-                {
-                    Indent(sb, level + 1);
-                    Write(sb, list[i], level + 1);
-                    if (i < list.Count - 1) sb.Append(',');
-                    sb.Append('\n');
-                }
-                Indent(sb, level);
-                sb.Append(']');
-                return;
-            }
-
-            throw new InvalidDataException("Tipo JSON no soportado: " + o.GetType().Name);
-        }
-
-        static void Indent(StringBuilder sb, int level)
-        {
-            sb.Append(' ', level * 2);
-        }
-
-        static void WriteString(StringBuilder sb, string s)
-        {
-            sb.Append('"');
-            foreach (char c in s)
-            {
-                switch (c)
-                {
-                    case '"': sb.Append("\\\""); break;
-                    case '\\': sb.Append("\\\\"); break;
-                    case '\n': sb.Append("\\n"); break;
-                    case '\r': sb.Append("\\r"); break;
-                    case '\t': sb.Append("\\t"); break;
-                    case '\b': sb.Append("\\b"); break;
-                    case '\f': sb.Append("\\f"); break;
-                    default:
-                        if (c < 0x20 || c > 0x7E) sb.Append("\\u").Append(((int)c).ToString("x4"));
-                        else sb.Append(c);
-                        break;
-                }
-            }
-            sb.Append('"');
-        }
-    }
+    // (1.2.4 ronda 6, QUITAFG, fase 2: aqui iban MagpieConfig -la config de Magpie: su cadena de efectos, el perfil, el atajo- y JsonWriter;
+    // sin Magpie, fuera)
 
     // ===================================================================
     //  Ventanas ajenas (ocultar las de Streaming Center)
@@ -2203,691 +1600,7 @@ namespace ConsoleEnhancer
         }
     }
 
-    // ===================================================================
-    //  El proceso de Magpie: el de la app (magpie\, Integrado.cs), abrirlo, cerrarlo y saber si escala.
-    //  Magpie no cambia ajustes en caliente desde fuera: cada cambio (nivel, pasadas, generacion...) es config nueva y Magpie
-    //  reabierto, con el telon puesto (como los reinicios de LS de antes)
-    // ===================================================================
-    static class MagpieLive
-    {
-        // 20-11 (MAGPIE PROPIO): Magpie compilado a mano con parches\magpie-dlssfg-vsync-pacing.patch (Renderer.cpp) con MAGPIE_DLSSFG_VSYNC_PACING=1: DLSS FG por DXGI sin VRR
-        // sale al ritmo de la sincronizacion de la tele y no al reloj de Magpie (modo 30: ~70 -> ~16 tirones/min, ~10 ms menos). El Magpie
-        // oficial ignora la variable. ini magpie_dlssfg_ritmo_vsync=0 = no pasarla
-        public static bool DlssFgVsyncPacing = true;
-        // 20-11: MAGPIE_DLSSFG_LITE=1 = "Lite Candidate Blending" de DLSS FG 310.9.x (DLSSFrameGenerator.cpp del Magpie
-        // compilado): mezcla mas ligera del fotograma generado. ini magpie_dlssfg_lite=1
-        public static bool DlssFgLite = false;
-        // La ventana de escalado de Magpie (existe mientras escala)
-        public const string ScalingClass = "Window_Magpie_967EB565-6F73-4E94-AE53-00CC42592A22";
-        public const string ProcName = "Magpie";
-
-        // El Magpie de la app en Paths.MagpieDir, listo. 18-11 (INTEGRADO): ya no enlaces duros a la instalacion del usuario sino ficheros
-        // propios; source (magpie_origen) es opcional y solo para actualizar. Ver Integrado.PrepareMagpie
-        public static bool EnsureCopy(string source, out string detail)
-        {
-            return Integrado.PrepareMagpie(source, out detail);
-        }
-
-        static HashSet<uint> Pids()
-        {
-            HashSet<uint> pids = new HashSet<uint>();
-            foreach (Process p in Process.GetProcessesByName(ProcName)) pids.Add((uint)p.Id);
-            return pids;
-        }
-
-        // 17-11 (VELOCIDAD): ¿es un Magpie.exe el proceso de esta ventana? Por su pid (OpenProcess + QueryFullProcessImageName, con el
-        // permiso minimo: 0,05 ms) y recordado 1 s, en vez de Pids() (Process.GetProcessesByName mira TODOS los procesos: 3,9 ms y
-        // ~0,3 MB de basura por llamada, medido con scratchpad\velocidad\bench\pidbench.exe). Lo usaban cada 25 ms LsFocusGuard
-        // (IsMainWindow) y cada 30 ms el repaso de los avisos de Magpie: la app gastaba el 20,7 % de un nucleo con Magpie abierto (banco
-        // de SM60, 03:19, 10 s). Si no deja mirarlo (de administrador, o saliendo), como antes por el nombre del proceso. fresh = sin lo
-        // recordado (Windows reusa los pid enseguida: las esperas de arranque y la ventana de escalado miran siempre, cuesta 0,05 ms)
-        static readonly Dictionary<uint, KeyValuePair<bool, long>> magpiePidCache = new Dictionary<uint, KeyValuePair<bool, long>>();
-        public static bool IsMagpiePid(uint pid) { return IsMagpiePid(pid, false); }
-        public static bool IsMagpiePid(uint pid, bool fresh)
-        {
-            if (pid == 0) return false;
-            long now = Environment.TickCount;
-            if (!fresh)
-                lock (magpiePidCache)
-                {
-                    KeyValuePair<bool, long> c;
-                    if (magpiePidCache.TryGetValue(pid, out c) && now - c.Value >= 0 && now - c.Value < 1000) return c.Key;
-                }
-            bool yes = false;
-            IntPtr h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, (int)pid);
-            if (h != IntPtr.Zero)
-            {
-                try
-                {
-                    StringBuilder sb = new StringBuilder(1024);
-                    uint n = (uint)sb.Capacity;
-                    if (QueryFullProcessImageNameW(h, 0, sb, ref n))
-                        yes = string.Equals(Path.GetFileNameWithoutExtension(sb.ToString(0, (int)Math.Min(n, (uint)sb.Length))), ProcName, StringComparison.OrdinalIgnoreCase);
-                }
-                catch { }
-                finally { CloseHandle(h); }
-            }
-            else
-            {
-                try { using (Process p = Process.GetProcessById((int)pid)) yes = string.Equals(p.ProcessName, ProcName, StringComparison.OrdinalIgnoreCase); }
-                catch { }
-            }
-            lock (magpiePidCache)
-            {
-                if (magpiePidCache.Count > 256) magpiePidCache.Clear();
-                magpiePidCache[pid] = new KeyValuePair<bool, long>(yes, now);
-            }
-            return yes;
-        }
-
-        // Un Magpie de verdad abierto: no la copia de uno que ha fallado (informe de errores de Windows) ni uno que ya ha salido
-        public static bool Running { get { foreach (Proc p in Snapshot()) if (p.Live) return true; return false; } }
-
-        // ---- 15-11: los Magpie.exe por la lista de procesos de Windows (padre, hilos), mirados con el permiso minimo ----
-        // Al fallar nuestro Magpie (19:18:50 y 19:19:06: 0xc0000005 en Magpie.exe+0x413d29, ~0,5-0,7 s despues del boton de captura
-        // del mando), el informe de errores de Windows saca una copia del proceso para volcarla: otro "Magpie.exe", hijo del que ha
-        // fallado, que no deja mirarlo ni cerrarlo y que se va al acabar el informe (eventos 1001 de WER a las 19:18:54.390 y
-        // 19:19:09.271). Close lo tomaba por "el del usuario" (ERROR "Acceso denegado") y lo esperaba: 2,0-2,4 s mas de telon. Y uno
-        // nuestro ya matado que aun salia (19:24:53) no dejaba leer su MainModule: 349 ms y tambien "el del usuario"
-        public sealed class Proc
-        {
-            public int Id, Parent, Threads;
-            public string Exe;          // la ruta de su exe (null: no deja mirarlo)
-            public bool Exited;         // ya ha salido (queda su objeto: alguien lo tiene abierto)
-            public bool Clone;          // copia de un Magpie (la del informe de errores): no es un Magpie que corra
-            public bool Ours { get { return Exe != null && string.Equals(Exe, OurExe, StringComparison.OrdinalIgnoreCase); } }
-            public bool Live { get { return Threads > 0 && !Exited && !Clone; } }
-        }
-
-        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-        struct PROCESSENTRY32W
-        {
-            public uint dwSize, cntUsage, th32ProcessID;
-            public IntPtr th32DefaultHeapID;
-            public uint th32ModuleID, cntThreads, th32ParentProcessID;
-            public int pcPriClassBase;
-            public uint dwFlags;
-            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)] public string szExeFile;
-        }
-        [DllImport("kernel32.dll", SetLastError = true)] static extern IntPtr CreateToolhelp32Snapshot(uint flags, uint pid);
-        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)] static extern bool Process32FirstW(IntPtr snap, ref PROCESSENTRY32W pe);
-        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)] static extern bool Process32NextW(IntPtr snap, ref PROCESSENTRY32W pe);
-        [DllImport("kernel32.dll", SetLastError = true)] static extern bool CloseHandle(IntPtr h);
-        [DllImport("kernel32.dll", SetLastError = true)] static extern IntPtr OpenProcess(uint access, bool inherit, int pid);
-        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)] static extern bool QueryFullProcessImageNameW(IntPtr h, uint flags, StringBuilder name, ref uint size);
-        [DllImport("kernel32.dll", SetLastError = true)] static extern uint WaitForSingleObject(IntPtr h, uint ms);
-        [DllImport("kernel32.dll", SetLastError = true)] static extern bool TerminateProcess(IntPtr h, uint code);
-        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)] static extern IntPtr OpenMutexW(uint access, bool inherit, string name);
-        const uint PROCESS_TERMINATE = 0x0001, PROCESS_QUERY_LIMITED_INFORMATION = 0x1000, SYNCHRONIZE = 0x00100000;
-
-        static string ourExe;
-        static string OurExe { get { if (ourExe == null) ourExe = Path.GetFullPath(Paths.MagpieExe); return ourExe; } }
-        static readonly object procSync = new object();
-        static readonly Dictionary<int, DateTime> oursSeen = new Dictionary<int, DateTime>(); // pid de uno nuestro -> visto por ultima vez
-        static readonly Dictionary<int, DateTime> killedAt = new Dictionary<int, DateTime>(); // pid -> cuando se le mato
-        static readonly HashSet<int> clonesLogged = new HashSet<int>();
-
-        // Los Magpie.exe que hay ahora. La lista de Windows no abre ningun proceso (vale con los que no dejan mirarlos); luego cada uno
-        // con PROCESS_QUERY_LIMITED_INFORMATION (vale con uno que se esta cerrando y con uno de administrador): su ruta y si ya ha salido
-        public static List<Proc> Snapshot()
-        {
-            List<Proc> list = new List<Proc>();
-            IntPtr snap = CreateToolhelp32Snapshot(0x2, 0); // TH32CS_SNAPPROCESS
-            if (snap == IntPtr.Zero || snap == new IntPtr(-1))
-            {
-                // (sin la lista de Windows: los de siempre, sin saber su padre ni sus hilos)
-                foreach (Process p in Process.GetProcessesByName(ProcName)) { Proc q = new Proc(); q.Id = p.Id; q.Threads = 1; list.Add(q); }
-            }
-            else
-                try
-                {
-                    PROCESSENTRY32W pe = new PROCESSENTRY32W();
-                    pe.dwSize = (uint)Marshal.SizeOf(typeof(PROCESSENTRY32W));
-                    for (bool ok = Process32FirstW(snap, ref pe); ok; ok = Process32NextW(snap, ref pe))
-                        if (string.Equals(pe.szExeFile, ProcName + ".exe", StringComparison.OrdinalIgnoreCase))
-                        {
-                            Proc q = new Proc();
-                            q.Id = (int)pe.th32ProcessID; q.Parent = (int)pe.th32ParentProcessID; q.Threads = (int)pe.cntThreads;
-                            list.Add(q);
-                        }
-                }
-                finally { CloseHandle(snap); }
-            DateTime now = DateTime.Now;
-            lock (procSync)
-            {
-                foreach (Proc q in list)
-                {
-                    Inspect(q);
-                    if (q.Ours) oursSeen[q.Id] = now;
-                }
-                // Copia de un Magpie (hijo de otro Magpie, de ahora o de uno nuestro de hace poco) sin hilos o que no deja mirarlo. Uno
-                // normal (el del usuario, uno que Magpie abra) tiene hilos y se deja mirar: ese no
-                foreach (Proc q in list)
-                {
-                    if (q.Parent <= 0 || q.Parent == q.Id || (q.Threads > 0 && q.Exe != null)) continue;
-                    bool parentMagpie = false;
-                    foreach (Proc o in list) if (o.Id == q.Parent) parentMagpie = true;
-                    DateTime t;
-                    if (!parentMagpie && oursSeen.TryGetValue(q.Parent, out t) && (now - t).TotalMinutes < 30) parentMagpie = true;
-                    q.Clone = parentMagpie;
-                }
-                if (oursSeen.Count > 64)
-                {
-                    List<int> old = new List<int>();
-                    foreach (KeyValuePair<int, DateTime> kv in oursSeen) if ((now - kv.Value).TotalMinutes >= 30) old.Add(kv.Key);
-                    foreach (int k in old) oursSeen.Remove(k);
-                }
-            }
-            return list;
-        }
-
-        static void Inspect(Proc q)
-        {
-            IntPtr h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION | SYNCHRONIZE, false, q.Id);
-            if (h == IntPtr.Zero) h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, q.Id);
-            if (h == IntPtr.Zero) return; // ("Acceso denegado": la copia del informe de errores, o uno de otro usuario)
-            try
-            {
-                StringBuilder sb = new StringBuilder(1024);
-                uint n = (uint)sb.Capacity;
-                if (QueryFullProcessImageNameW(h, 0, sb, ref n)) q.Exe = sb.ToString(0, (int)Math.Min(n, (uint)sb.Length));
-                if (WaitForSingleObject(h, 0) == 0) q.Exited = true; // (WAIT_OBJECT_0; sin SYNCHRONIZE da WAIT_FAILED: no cuenta)
-            }
-            finally { CloseHandle(h); }
-        }
-
-        static void MarkKilled(int pid)
-        {
-            lock (procSync)
-            {
-                killedAt[pid] = DateTime.Now;
-                if (killedAt.Count > 32)
-                {
-                    List<int> old = new List<int>();
-                    foreach (KeyValuePair<int, DateTime> kv in killedAt) if ((DateTime.Now - kv.Value).TotalSeconds >= 60) old.Add(kv.Key);
-                    foreach (int k in old) killedAt.Remove(k);
-                }
-            }
-        }
-
-        static bool KilledRecently(int pid)
-        {
-            lock (procSync) { DateTime t; return killedAt.TryGetValue(pid, out t) && (DateTime.Now - t).TotalSeconds < 30; }
-        }
-
-        static void NoteClone(Proc p)
-        {
-            lock (procSync) { if (clonesLogged.Count > 64) clonesLogged.Clear(); if (!clonesLogged.Add(p.Id)) return; }
-            Log.Write("Magpie (pid " + p.Parent + ") ha fallado o se ha colgado: el otro Magpie.exe (pid " + p.Id + ", " + p.Threads +
-                      " hilos) es la copia que saca Windows para su informe de errores, no otro Magpie: ni se cierra ni se espera");
-        }
-
-        // El candado de instancia unica de Magpie (CommonSharedConstants::SINGLE_INSTANCE_MUTEX_NAME, el texto esta en Magpie.exe). Con
-        // el cogido, un Magpie nuevo se cierra solo. Se comprueba con un Magpie abierto (lockState 1 = visto); si no se ve (otra
-        // version), al cerrar se espera como antes a que no quede ningun Magpie.exe
-        const string InstanceLock = "{4C416227-4A30-4A2F-8F23-8701544DD7D6}";
-        static volatile int lockState;  // 0 sin comprobar, 1 visto con Magpie abierto, -1 no visto con Magpie abierto
-
-        public static bool LockHeld()
-        {
-            IntPtr h = OpenMutexW(SYNCHRONIZE, false, InstanceLock);
-            if (h != IntPtr.Zero) { CloseHandle(h); return true; } // (cerrado al momento: abierto no dejaria arrancar a otro)
-            return Marshal.GetLastWin32Error() != 2; // ERROR_FILE_NOT_FOUND: nadie lo tiene. "Acceso denegado" (de administrador): cogido
-        }
-
-        static void CheckLock()
-        {
-            bool held = LockHeld();
-            int was = lockState;
-            lockState = held ? 1 : -1;
-            if (!held && was != -1)
-                Log.Write("Aviso: con Magpie abierto no se ve su candado de instancia unica (" + InstanceLock + "): al cerrarlo se espera a que no quede ningun Magpie.exe");
-        }
-
-        // Algo que no deja abrir otro Magpie todavia: uno abierto, o (comprobado el candado) el candado cogido. Sin comprobar, como
-        // antes: cualquier Magpie.exe que no haya salido (tambien la copia del informe de errores)
-        static bool Blocking()
-        {
-            List<Proc> l = Snapshot();
-            if (lockState == 1)
-            {
-                foreach (Proc p in l) if (p.Live) return true;
-                return LockHeld();
-            }
-            foreach (Proc p in l) if (!p.Exited) return true;
-            return false;
-        }
-
-        // Uno abierto que no es el de nuestra copia (el del usuario): hay que cerrarlo para abrir el nuestro
-        public static bool ForeignRunning()
-        {
-            foreach (Proc p in Snapshot()) if (p.Live && !p.Ours) return true;
-            return false;
-        }
-
-        // Donde estaba el log de Magpie al abrirlo por ultima vez (lo de antes es de otro proceso)
-        public static volatile int StartLogPosInt;
-        public static long StartLogPos { get { return StartLogPosInt; } set { StartLogPosInt = (int)Math.Min(int.MaxValue, value); } }
-
-        // 22-11 (1.2.2, ERRORES): Magpie pasa magpie.log a magpie.1.log cada ~500 KB y, con lo que escribe NGX, rota cada 3-6 min y a veces A
-        // MITAD de un arranque (22-11 04:01:30 y 04:04:42, durante la creacion de DLSSNR). Entonces el "empieza el escalado" de este proceso
-        // queda en magpie.1.log y ScalingPhase, que solo miraba magpie.log, decia None: "no se detecto el inicio" y el atajo (alterna) lo
-        // paraba. El principio de magpie.log al abrir Magpie: si ya no es el mismo, ha rotado
-        static volatile byte[] startLogHead;
-        static byte[] LogHead(string f, int max)
-        {
-            try
-            {
-                if (!File.Exists(f)) return null;
-                using (FileStream fs = new FileStream(f, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
-                {
-                    byte[] b = new byte[max];
-                    int n = fs.Read(b, 0, max);
-                    if (n <= 0) return null;
-                    if (n < max) Array.Resize(ref b, n);
-                    return b;
-                }
-            }
-            catch { return null; }
-        }
-        public static void NoteStartLogHead() { startLogHead = LogHead(Paths.MagpieLog, 64); }
-        // ¿magpie.log ya no es el que habia al abrir este Magpie? (su principio ha cambiado)
-        static bool LogRotated()
-        {
-            byte[] a = startLogHead;
-            if (a == null) return false;
-            byte[] b = LogHead(Paths.MagpieLog, a.Length);
-            if (b == null || b.Length < a.Length) return true;
-            for (int i = 0; i < a.Length; i++) if (a[i] != b[i]) return true;
-            return false;
-        }
-
-        // Proceso de Magpie abierto (-1 = ninguno): el nuestro si lo hay (15-11: no la copia del informe de errores de uno que ha fallado)
-        public static int Pid()
-        {
-            int any = -1;
-            foreach (Proc p in Snapshot())
-            {
-                if (!p.Live) continue;
-                if (p.Ours) return p.Id;
-                if (any < 0) any = p.Id;
-            }
-            return any;
-        }
-
-        // El de nuestra copia (false: es el Magpie del usuario, o no deja mirarlo). 15-11: por la ruta con el permiso minimo
-        // (QueryFullProcessImageName): MainModule fallaba con uno que se esta cerrando ("el del usuario" por error) y tardaba 349 ms
-        public static bool IsOurs(Process p)
-        {
-            Proc q = new Proc();
-            q.Id = p.Id;
-            q.Threads = 1;
-            Inspect(q);
-            return q.Ours;
-        }
-
-        // Magpie esta escalando: existe su ventana de escalado
-        // 17-11 (VELOCIDAD): las ventanas con la clase de la de escalado (FindWindowEx), y de ellas la de un Magpie.exe (IsMagpiePid). Antes
-        // Pids() y todas las ventanas en cada llamada (WatchLoop cada 0,5 s, las esperas de Magpie cada 30-200 ms)
-        [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern IntPtr FindWindowEx(IntPtr parent, IntPtr after, string cls, string title);
-        public static bool IsScaling()
-        {
-            for (IntPtr h = FindWindowEx(IntPtr.Zero, IntPtr.Zero, ScalingClass, null); h != IntPtr.Zero; h = FindWindowEx(IntPtr.Zero, h, ScalingClass, null))
-            {
-                uint pid;
-                GetWindowThreadProcessId(h, out pid);
-                if (IsWindowVisible(h) && IsMagpiePid(pid, true)) return true;
-            }
-            return false;
-        }
-
-        // Una ventana de Magpie que no es la de escalado ni su barra (la principal, un aviso): si se pone delante, Magpie deja de
-        // escalar. 17-11 (VELOCIDAD): por el pid de la ventana (IsMagpiePid), no Pids() cada 25 ms (LsFocusGuard)
-        public static bool IsMainWindow(IntPtr h)
-        {
-            if (h == IntPtr.Zero) return false;
-            uint pid;
-            GetWindowThreadProcessId(h, out pid);
-            if (!IsMagpiePid(pid)) return false;
-            string c = ClassOf(h);
-            return c != ScalingClass && !c.StartsWith("Magpie_Renderer", StringComparison.Ordinal) &&
-                   !c.StartsWith("Magpie_ScalingBorder", StringComparison.Ordinal) && !c.StartsWith("Magpie_TouchHelper", StringComparison.Ordinal);
-        }
-
-        public static bool HasWindow(IntPtr h)
-        {
-            uint pid;
-            GetWindowThreadProcessId(h, out pid);
-            return IsMagpiePid(pid);
-        }
-
-        static string ClassOf(IntPtr h)
-        {
-            StringBuilder sb = new StringBuilder(96);
-            GetClassName(h, sb, sb.Capacity);
-            return sb.ToString();
-        }
-
-        // Ya hay alguna ventana suya (arrancado del todo: la del icono de la bandeja o la de los atajos)
-        static bool HasAnyWindow()
-        {
-            bool found = false;
-            EnumWindows(delegate (IntPtr h, IntPtr l)
-            {
-                // (17-11, VELOCIDAD: la clase primero y el pid por IsMagpiePid, sin Pids() en cada vuelta de la espera)
-                string c = ClassOf(h);
-                if (!c.StartsWith("Magpie_", StringComparison.Ordinal)) return true;
-                uint pid;
-                GetWindowThreadProcessId(h, out pid);
-                if (IsMagpiePid(pid, true)) { found = true; return false; }
-                return true;
-            }, IntPtr.Zero);
-            return found;
-        }
-
-        // Cerrado ya, sin esperar (al irse al HOME, mientras mpv cambia a 4K). A la fuerza: asi no guarda su config encima de la nuestra
-        public static void Kill()
-        {
-            foreach (Proc p in Snapshot())
-            {
-                if (!p.Live) continue; // (la copia del informe de errores no se toca: la quita Windows)
-                IntPtr h = OpenProcess(PROCESS_TERMINATE, false, p.Id);
-                if (h == IntPtr.Zero) continue; // "Acceso denegado" si ya se estaba cerrando (o el del usuario con permisos de administrador)
-                try { if (TerminateProcess(h, unchecked((uint)-1))) MarkKilled(p.Id); }
-                finally { CloseHandle(h); }
-            }
-        }
-
-        // Cerrado del todo (para escribir su config o volver a abrirlo). 15-11: sin esperar a la copia del informe de errores de uno
-        // que ha fallado ni a uno que ya ha salido; hasta que no quede ninguno abierto ni el candado de instancia unica cogido (con el
-        // cogido el Magpie nuevo se cerraria solo). Uno nuestro ya matado que aun sale no es "el del usuario"
-        public static void Close(string why)
-        {
-            Stopwatch total = Stopwatch.StartNew();
-            List<Proc> procs = Snapshot();
-            if (procs.Count == 0) return;
-            Log.Write("Cerrando Magpie (" + why + ")");
-            long oursMs = total.ElapsedMilliseconds, exitMs = 0;
-            bool liveOther = false;
-            foreach (Proc p in procs) if (p.Live && !KilledRecently(p.Id)) liveOther = true;
-            if (liveOther) CheckLock(); // (con uno abierto que no se esta cerrando: su candado tiene que verse)
-            foreach (Proc p in procs)
-            {
-                if (p.Clone) { NoteClone(p); continue; }
-                if (!p.Live) continue; // (ya ha salido: nada que matar ni esperar)
-                if (!p.Ours && !KilledRecently(p.Id))
-                    Log.Write("Aviso: hay otro Magpie abierto (pid " + p.Id + ", " + (p.Exe ?? "no deja mirarlo") + "): se cierra tambien (solo puede haber uno)");
-                Stopwatch s1 = Stopwatch.StartNew();
-                IntPtr h = OpenProcess(PROCESS_TERMINATE | SYNCHRONIZE, false, p.Id);
-                if (h == IntPtr.Zero) h = OpenProcess(SYNCHRONIZE, false, p.Id); // (ya cerrandose: matarlo da "Acceso denegado")
-                if (h == IntPtr.Zero) continue; // (sin permiso ni para esperarlo: lo vigila el bucle de abajo)
-                try
-                {
-                    if (TerminateProcess(h, unchecked((uint)-1))) MarkKilled(p.Id); // (falla si ya se estaba cerrando: da igual)
-                    WaitForSingleObject(h, 5000);
-                }
-                finally { CloseHandle(h); }
-                exitMs += s1.ElapsedMilliseconds;
-            }
-            Stopwatch sw = Stopwatch.StartNew();
-            bool blocking;
-            while ((blocking = Blocking()) && sw.ElapsedMilliseconds < 6000) Thread.Sleep(20);
-            if (blocking) Log.Write("Aviso: Magpie no se ha cerrado del todo (¿abierto como administrador?)");
-            Log.Write("Magpie cerrado en " + total.ElapsedMilliseconds + " ms (mirar si es el nuestro " + oursMs + " ms, de matarlo a que sale " + exitMs + " ms, hasta que no aparece " + sw.ElapsedMilliseconds + " ms)");
-        }
-
-        // Abre la copia (en la bandeja, sin su ventana) y espera a que este lista. false = no se pudo
-        // 16-11 (agente S): saliendo la app, ni uno mas. Cerrar la app mientras Magpie se reabria lo volvia a abrir despues de "Fin" y
-        // se quedaba Magpie abierto solo (con Smooth Motion en su perfil). Lo pone ExitRestore al empezar a salir
-        public static volatile bool NoMore;
-
-        public static bool Start()
-        {
-            if (NoMore) { Log.Write("Magpie: no se abre (la app se esta cerrando)"); return false; }
-            try
-            {
-                Stopwatch sw = Stopwatch.StartNew();
-                // 15-11: no con el candado de instancia unica aun cogido (un Magpie que acaba de salir, la copia del informe de errores):
-                // el nuevo se cerraria solo. Como mucho 3 s
-                if (lockState == 1 && LockHeld())
-                {
-                    while (sw.ElapsedMilliseconds < 3000 && LockHeld()) Thread.Sleep(20);
-                    Log.Write("Magpie: " + sw.ElapsedMilliseconds + " ms esperando a que se suelte su candado de instancia unica" + (LockHeld() ? " (sigue cogido)" : ""));
-                    sw = Stopwatch.StartNew();
-                }
-                try { StartLogPos = File.Exists(Paths.MagpieLog) ? new FileInfo(Paths.MagpieLog).Length : 0; } catch { StartLogPos = 0; }
-                NoteStartLogHead(); // (22-11, 1.2.2: para ver si su log rota mientras arranca, ScalingPhase)
-                HideToasts();
-                MagpieOculto.Watch(); // (18-11, INTEGRADO: sin su icono en la bandeja, Integrado.cs)
-                startedTick = Environment.TickCount; // (17-11: el repaso de los avisos cada 30 ms desde ya, aunque aun no tenga ventanas)
-                ProcessStartInfo psi = new ProcessStartInfo(Paths.MagpieExe, "-t");
-                psi.UseShellExecute = false;
-                psi.WorkingDirectory = Paths.MagpieDir;
-                if (DlssFgVsyncPacing) psi.EnvironmentVariables["MAGPIE_DLSSFG_VSYNC_PACING"] = "1";
-                else psi.EnvironmentVariables.Remove("MAGPIE_DLSSFG_VSYNC_PACING");
-                if (DlssFgLite) psi.EnvironmentVariables["MAGPIE_DLSSFG_LITE"] = "1";
-                else psi.EnvironmentVariables.Remove("MAGPIE_DLSSFG_LITE");
-                Process started = Process.Start(psi);
-                if (started != null) lock (procSync) oursSeen[started.Id] = DateTime.Now;
-                if (started != null) EngineJob.Hold(started, true);   // (22-11, 1.2.2: si la app muere, Magpie no se queda escondido con los modelos de NVIDIA cargados)
-                while (sw.ElapsedMilliseconds < 8000 && !HasAnyWindow()) Thread.Sleep(30);
-                MagpieOculto.Hide("al abrirse"); // (18-11, INTEGRADO; si aun no lo ha puesto, lo quita el repaso de MagpieOculto.Watch)
-                bool running = Running;
-                Log.Write("Magpie " + (HasAnyWindow() ? "listo en " + sw.ElapsedMilliseconds + " ms" : "SIN ventanas a los " + sw.ElapsedMilliseconds + " ms") +
-                          (running ? "" : " (el proceso ya no esta)"));
-                if (running && lockState == 0) CheckLock(); // (ya con sus ventanas: su candado tiene que verse)
-                return running;
-            }
-            catch (Exception ex) { Log.Error("No se pudo iniciar Magpie", ex); return false; }
-        }
-
-        // Los avisos de Magpie en pantalla ("Scaling started. Press the scaling shortcut again to stop.", "Preparing effects...")
-        // no se ven nunca. Magpie no tiene ajuste para quitarlos. Su ventana Magpie_Toast es solo la anfitriona (0x0): el aviso en
-        // si es una ventana emergente de XAML aparte (clase Xaml_WindowedPopupClass, "PopupHost", con Magpie_Toast de duena,
-        // visible ~2.2 s; medido el 15-11), y esa no se escondia (se veia en la tele). Se esconden las dos en cuanto se muestran:
-        // un gancho de eventos (EVENT_OBJECT_SHOW, al momento) y, por si acaso, un repaso cada 30 ms. Uno solo para toda la app
-        static int toastThread;
-        static volatile int startedTick = Environment.TickCount - 60000; // 17-11: cuando se abrio el ultimo Magpie (Start)
-        static volatile uint toastPid; // el ultimo Magpie visto (para no mirar el proceso en cada evento)
-        static int toastHidden;
-        static WinEventProc toastHookProc; // (referencia viva: si no, el recolector se lleva el delegado del gancho)
-        delegate void WinEventProc(IntPtr hook, uint ev, IntPtr hwnd, int idObject, int idChild, uint thread, uint time);
-        [DllImport("user32.dll")] static extern bool ShowWindow(IntPtr h, int cmd);
-        [DllImport("user32.dll")] static extern IntPtr GetWindow(IntPtr h, uint cmd);
-        [DllImport("user32.dll")] static extern IntPtr SetWinEventHook(uint evMin, uint evMax, IntPtr hmod, WinEventProc proc, uint pid, uint tid, uint flags);
-
-        // Un aviso de Magpie: su anfitriona o una emergente de XAML cuya duena es la anfitriona
-        // (17-11, VELOCIDAD: magpieKnown = el repaso ya sabe que la ventana es de un Magpie.exe -IsMagpiePid-; antes le pasaba Pids())
-        static bool IsToast(IntPtr h, bool magpieKnown)
-        {
-            uint pid;
-            GetWindowThreadProcessId(h, out pid);
-            if (pid == 0) return false;
-            string c = ClassOf(h);
-            bool host = c.StartsWith("Magpie_Toast", StringComparison.Ordinal);
-            if (!host && c != "Xaml_WindowedPopupClass") return false;
-            if (!magpieKnown && pid != toastPid)
-            {
-                try { using (Process pr = Process.GetProcessById((int)pid)) if (pr.ProcessName != ProcName) return false; } catch { return false; }
-                toastPid = pid;
-            }
-            if (host) return true;
-            IntPtr owner = GetWindow(h, 4); // GW_OWNER
-            return owner != IntPtr.Zero && ClassOf(owner).StartsWith("Magpie_Toast", StringComparison.Ordinal);
-        }
-
-        [DllImport("user32.dll", EntryPoint = "GetWindowLongW")] static extern int ToastGetLong(IntPtr h, int idx);
-        [DllImport("user32.dll", EntryPoint = "SetWindowLongW")] static extern int ToastSetLong(IntPtr h, int idx, int v);
-        [DllImport("user32.dll", EntryPoint = "SetLayeredWindowAttributes")] static extern bool ToastSetAlpha(IntPtr h, uint key, byte alpha, uint flags);
-        [DllImport("user32.dll", EntryPoint = "SetWindowPos")] static extern bool ToastSetPos(IntPtr h, IntPtr after, int x, int y, int cx, int cy, uint flags);
-        static void ToastInvisible(IntPtr h)
-        {
-            const int GWL_EXSTYLE = -20, WS_EX_LAYERED = 0x80000, WS_EX_TRANSPARENT = 0x20, WS_EX_NOACTIVATE = 0x8000000;
-            int ex = ToastGetLong(h, GWL_EXSTYLE);
-            if ((ex & WS_EX_LAYERED) == 0 || (ex & WS_EX_TRANSPARENT) == 0)
-            {
-                ToastSetLong(h, GWL_EXSTYLE, ex | WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_NOACTIVATE);
-                ToastSetAlpha(h, 0, 0, 2); // LWA_ALPHA, 0 = invisible
-            }
-            ToastSetPos(h, IntPtr.Zero, -32000, -32000, 0, 0, 0x0001 | 0x0004 | 0x0010); // SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE
-        }
-
-        static void HideToast(IntPtr h, string how)
-        {
-            try { ToastInvisible(h); } catch { }
-            ShowWindow(h, 0); // SW_HIDE
-            if (Interlocked.Increment(ref toastHidden) <= 6) Log.Write("Aviso de Magpie en pantalla escondido (" + ClassOf(h) + ", " + how + ")");
-        }
-
-        public static void HideToasts()
-        {
-            if (Interlocked.Exchange(ref toastThread, 1) != 0) return;
-            // El gancho: avisado por Windows en cuanto se muestra cualquier ventana (fuera de proceso: lo recibe este hilo, que
-            // necesita su bucle de mensajes)
-            Thread hook = new Thread(delegate ()
-            {
-                try
-                {
-                    toastHookProc = delegate (IntPtr hk, uint ev, IntPtr hwnd, int idObject, int idChild, uint thread, uint time)
-                    {
-                        try
-                        {
-                            if (idObject != 0 || hwnd == IntPtr.Zero || ev == 0x8001 || !IsToast(hwnd, false)) return;
-                            // 16-11 noche (el usuario: "a veces se ve por una milesima una ventana pequeña al activar DLSS 5"): el gancho llega
-                            // tarde (fuera de proceso) y el aviso salia una imagen. Ahora ya al crearse: transparente y fuera de la pantalla
-                            ToastInvisible(hwnd);
-                            if (ev == 0x8002) HideToast(hwnd, "al mostrarse");
-                        }
-                        catch { }
-                    };
-                    const uint EVENT_OBJECT_CREATE = 0x8000, EVENT_OBJECT_SHOW = 0x8002, WINEVENT_OUTOFCONTEXT = 0, WINEVENT_SKIPOWNPROCESS = 2;
-                    if (SetWinEventHook(EVENT_OBJECT_CREATE, EVENT_OBJECT_SHOW, IntPtr.Zero, toastHookProc, 0, 0,
-                                        WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS) == IntPtr.Zero)
-                    { Log.Write("Aviso: sin gancho para los avisos de Magpie (solo el repaso cada 30 ms)"); return; }
-                    Application.Run();
-                }
-                catch (Exception ex) { Log.Error("Gancho de avisos de Magpie", ex); }
-            });
-            hook.IsBackground = true;
-            hook.SetApartmentState(ApartmentState.STA);
-            hook.Start();
-            Thread t = new Thread(delegate ()
-            {
-                while (true)
-                {
-                    try
-                    {
-                        // 17-11 (VELOCIDAD): sin Pids() cada 30 ms (3,9 ms de CPU cada vez, ~13 % de un nucleo con Magpie abierto): las
-                        // ventanas de un Magpie.exe por su pid (IsMagpiePid, recordado 1 s); cada 30 ms si hay alguna (o se ha abierto uno
-                        // hace menos de 15 s), si no cada 0,5 s
-                        bool any = unchecked(Environment.TickCount - startedTick) < 15000;
-                        EnumWindows(delegate (IntPtr h, IntPtr l)
-                        {
-                            uint wpid;
-                            GetWindowThreadProcessId(h, out wpid);
-                            if (!IsMagpiePid(wpid)) return true;
-                            any = true;
-                            if (IsWindowVisible(h) && IsToast(h, true)) HideToast(h, "repaso");
-                            return true;
-                        }, IntPtr.Zero);
-                        Thread.Sleep(any ? 30 : 500);
-                    }
-                    catch { Thread.Sleep(500); }
-                }
-            });
-            t.IsBackground = true;
-            t.Priority = ThreadPriority.BelowNormal;
-            t.Start();
-        }
-
-        // Segundos desde que se abrio Magpie (0 si no esta abierto o no se sabe)
-        public static double RunningFor()
-        {
-            int pid = Pid(); // (15-11: el abierto, no la copia del informe de errores, que no deja mirar su hora)
-            if (pid <= 0) return 0;
-            try { using (Process p = Process.GetProcessById(pid)) return (DateTime.Now - p.StartTime).TotalSeconds; }
-            catch { return 0; }
-        }
-
-        // En que va el escalado segun el final del log de Magpie: Starting = empezo y aun no presenta (con DLSSNR, DLSS SR y DLSS FG
-        // tarda 6-12 s en crear los modelos de NVIDIA: medido el 14-11), Shown = ya presenta, Ended = termino, None = nada en el log.
-        // Mientras empieza NO se le puede pulsar el atajo: lo para a medias y, al volver a escalar en el mismo proceso, NGX fallaba
-        // ("NGX runtime fault ... restart required", MP-061, medido el 14-11)
-        public enum Phase { None, Starting, Shown, Ended }
-        public static Phase ScalingPhase()
-        {
-            try
-            {
-                if (!File.Exists(Paths.MagpieLog)) return Phase.None;
-                // 22-11 (1.2.2, ERRORES): con el log rotado desde que se abrio este Magpie, todo magpie.log es suyo y lo de antes de rotar
-                // esta en magpie.1.log (desde donde empezo); ver LogRotated
-                bool rotado = LogRotated();
-                Phase? f = PhaseIn(Paths.MagpieLog, rotado ? 0 : StartLogPos);
-                if (f.HasValue) return f.Value;
-                if (rotado)
-                {
-                    string viejo = Path.Combine(Path.GetDirectoryName(Paths.MagpieLog), "magpie.1.log");
-                    if (File.Exists(viejo)) { Phase? g = PhaseIn(viejo, StartLogPos); if (g.HasValue) return g.Value; }
-                }
-                return Phase.None;
-            }
-            catch { return Phase.None; }
-        }
-
-        // La ultima marca de fase de ese log desde 'desde' (null = ninguna)
-        static Phase? PhaseIn(string path, long desde)
-        {
-            using (FileStream fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
-            {
-                long sp = desde > fs.Length ? 0 : desde; // (solo lo de este proceso: al matarlo no apunta el final)
-                long from = Math.Max(sp, fs.Length - 512 * 1024);
-                fs.Seek(from, SeekOrigin.Begin);
-                string text;
-                using (StreamReader r = new StreamReader(fs, Encoding.UTF8)) text = r.ReadToEnd();
-                int st = text.LastIndexOf("|_StartImpl|缩放开始", StringComparison.Ordinal);   // "empieza el escalado"
-                int sh = text.LastIndexOf("Scaling output shown", StringComparison.Ordinal);
-                int en = text.LastIndexOf("缩放结束", StringComparison.Ordinal);              // "termina el escalado"
-                int last = Math.Max(st, Math.Max(sh, en));
-                if (last < 0) return null;
-                return last == en ? Phase.Ended : last == sh ? Phase.Shown : Phase.Starting;
-            }
-        }
-
-        // NGX roto en este proceso de Magpie ("restart required"): hay que cerrarlo y abrirlo
-        public static bool NeedsRestart(long logStart)
-        {
-            try
-            {
-                if (!File.Exists(Paths.MagpieLog)) return false;
-                using (FileStream fs = new FileStream(Paths.MagpieLog, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
-                {
-                    if (fs.Length < logStart) logStart = 0;
-                    fs.Seek(Math.Max(logStart, fs.Length - 2 * 1024 * 1024), SeekOrigin.Begin);
-                    using (StreamReader r = new StreamReader(fs, Encoding.UTF8)) return r.ReadToEnd().Contains("restart required");
-                }
-            }
-            catch { return false; }
-        }
-
-        // El ultimo problema que Magpie apunto (config\v4e\last-issue.json) despues de 'since' (null = ninguno)
-        public static string LastIssue(DateTime since)
-        {
-            try
-            {
-                FileInfo fi = new FileInfo(Paths.MagpieIssue);
-                if (!fi.Exists || fi.LastWriteTime < since) return null;
-                Dictionary<string, object> d = new JavaScriptSerializer().DeserializeObject(File.ReadAllText(fi.FullName, Encoding.UTF8)) as Dictionary<string, object>;
-                return d != null && d.ContainsKey("summary") ? ((string)d["summary"]).Replace("\n", " | ") : null;
-            }
-            catch { return null; }
-        }
-
-        delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
-        [DllImport("user32.dll")] static extern bool EnumWindows(EnumWindowsProc cb, IntPtr lParam);
-        [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint pid);
-        [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr hWnd);
-        [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetClassName(IntPtr h, StringBuilder s, int n);
-    }
+    // (1.2.4 ronda 6, QUITAFG, fase 2: aqui iba MagpieLive -abrir, cerrar y vigilar el proceso de Magpie-; sin Magpie, fuera)
 
     // ===================================================================
     //  Rendimiento durante la sesion (menos latencia, misma imagen):
@@ -3061,7 +1774,6 @@ namespace ConsoleEnhancer
 
         public static void Start()
         {
-            MagpieLive.NoMore = true; // (16-11: saliendo, ningun Magpie nuevo)
             lock (sync)
             {
                 if (worker != null) return;
@@ -3100,13 +1812,6 @@ namespace ConsoleEnhancer
             Thread w;
             lock (sync) w = worker;
             if (!w.Join(5000)) Log.Write("Aviso: restaurar lo de segundo plano / el plan de energia / Afterburner sigue sin acabar tras 5 s; se sale igualmente");
-            // 16-11 (agente S): un Magpie que se abriera mientras se salia (un reinicio de Magpie a medias) no se queda abierto solo
-            try { if (MagpieLive.Running) { MagpieLive.Kill(); Log.Write("Magpie seguia abierto al salir: cerrado"); } }
-            catch (Exception ex) { Log.Error("Cerrando Magpie al salir", ex); }
-            // 22-11 (1.2.2, REVISION): nvngx_dlss.dll de Magpie otra vez en su sitio al salir (src\Lanzador\TiemposCarga.cs). Una version
-            // anterior abierta despues en esta carpeta, o en otra que herede esta magpie\ (Integrado.HeredarDatos), no sabe devolverlo y su
-            // DLSS SR (captura de 1080p / 1440p) no arrancaria. Devolverlo con Magpie aun abierto no le afecta (solo lo carga al escalar)
-            DllDlssSr.Poner(true, "al salir");
             // 16-11 (revision): otra vez al final: si tras empezar esto (PowerOffNow) algo relanzo Magpie (la recuperacion de un reinicio de
             // la grafica) y volvio a poner Smooth Motion o la sincronizacion vertical en su perfil. Sin nada puesto no hace nada
             try { NvProfiles.SmoothOffAtExit(); } catch (Exception ex) { Log.Error("Quitando Smooth Motion de Magpie.exe", ex); }
@@ -3493,7 +2198,7 @@ namespace ConsoleEnhancer
         const int NvProfileNotFound = -163;
         const int NvExecutableNotFound = -166;
 
-        public static readonly string[] Exes = { "Magpie.exe", "mpv.exe" };
+        public static readonly string[] Exes = { "mpv.exe" };   // (1.2.4 ronda 6, QUITAFG: sin Magpie.exe; el motor lleva su perfil aparte: SetEngineSmooth / SetEngineFixed)
 
         public const int Unchanged = 0, Changed = 1, Failed = -1;
 
@@ -6652,7 +5357,7 @@ namespace ConsoleEnhancer
             ui.CreateControl();
 
             ContextMenuStrip menu = new ContextMenuStrip();
-            menu.Items.Add(Idioma.T("Escalar ahora (atajo de Magpie)"), null, delegate { ThreadPool.QueueUserWorkItem(delegate { SendScaleHotkey(); }); });
+            // (1.2.4 ronda 6, QUITAFG: sin "Escalar ahora (atajo de Magpie)": sin Magpie)
             detectItem = new ToolStripMenuItem("", null, delegate { ToggleDetection(); });
             menu.Items.Add(detectItem);
             menu.Items.Add(new ToolStripSeparator());
@@ -6893,7 +5598,7 @@ namespace ConsoleEnhancer
                     else if (splash != null && !splash.IsDisposed) h = splash.Handle;
                 });
                 // (16-11, dlss5_sin_telon: sin telon, el motor que juega encima mientras se abre Magpie)
-                if (h == IntPtr.Zero && RelevoToMagpieActive()) { Relevo r = relevo; if (r != null) h = WindowOf(r.Engine); }
+
                 if (h == IntPtr.Zero) return;
                 ForceForeground(h);
                 Thread.Sleep(50);
@@ -7116,16 +5821,7 @@ namespace ConsoleEnhancer
 
         // Con el telon aun puesto se comprueba que la ventana de escalado de Magpie sigue ahi y, si no, se vuelve a escalar
         volatile int lsScaledPid = -1; // el Magpie que ya escalo una vez (LsFocusGuard sin punto ciego)
-        void EnsureStillScaling()
-        {
-            for (int i = 0; i < 8; i++)
-            {
-                if (MagpieLive.IsScaling()) return;
-                Thread.Sleep(100);
-            }
-            Log.Write("Magpie dejo de escalar (delante: " + FgOwner() + "): se vuelve a escalar");
-            Rescale();
-        }
+        // (1.2.4 ronda 6, QUITAFG, fase 2: EnsureStillScaling era de Magpie; fuera)
 
         [DllImport("user32.dll", CharSet = CharSet.Unicode, EntryPoint = "GetClassNameW")] static extern int GetClassNameFg(IntPtr h, StringBuilder s, int n);
         // Quien tiene el primer plano (para el log)
@@ -7224,7 +5920,7 @@ namespace ConsoleEnhancer
                     }
                 }
                 bool back = false;
-                if (Config.EngineActive && unwanted && !RelevoToMagpieActive() && GetForegroundWindow() == h)
+                if (Config.EngineActive && unwanted && GetForegroundWindow() == h)
                 {
                     ForceForeground(img);
                     back = GetForegroundWindow() == img;
@@ -7335,114 +6031,30 @@ namespace ConsoleEnhancer
             catch { }
         }
 
-        // Vuelve a hacer escalar a Magpie: su escalado automatico salta cuando mpv pasa a primer plano (se le quita y se le
-        // devuelve); el atajo de escalar, solo si tras eso sigue sin escalar (alterna: con Magpie escalando lo pararia)
-        void Rescale()
-        {
-            Process p = mpv;
-            if (p == null || p.HasExited || cfg.HomeNative || !MagpieConfig.Needed(cfg)) return;
-            // Magpie aun creando los modelos: el atajo lo pararia a medias (y NGX se rompia)
-            if (MagpieLive.ScalingPhase() == MagpieLive.Phase.Starting) { Log.Write("Rescale: Magpie aun esta preparando el escalado: se espera"); WaitWhileStarting(); return; }
-            p.Refresh();
-            IntPtr h = p.MainWindowHandle;
-            if (h == IntPtr.Zero) return;
-            if (focusProxy != IntPtr.Zero) { ForceForeground(focusProxy); Thread.Sleep(150); }
-            ForceForeground(h);
-            for (int i = 0; i < 15; i++)
-            {
-                Thread.Sleep(200);
-                if (MagpieLive.IsScaling()) { Log.Write("Magpie escala de nuevo (primer plano devuelto a mpv)"); return; }
-            }
-            if (GetForegroundWindow() != h)
-            {
-                Log.Write("Rescale: mpv no se queda delante (lo tiene " + FgOwner() + "): otra vez");
-                ForceForeground(h);
-                for (int i = 0; i < 8; i++)
-                {
-                    Thread.Sleep(200);
-                    if (MagpieLive.IsScaling()) { Log.Write("Magpie escala de nuevo (2o intento)"); return; }
-                }
-                if (GetForegroundWindow() != h) return;
-            }
-            // (el primer plano devuelto puede haber hecho empezar el escalado automatico: entonces nada de atajo)
-            if (MagpieLive.ScalingPhase() == MagpieLive.Phase.Starting) { WaitWhileStarting(); return; }
-            SendScaleHotkey();
-            for (int i = 0; i < 20; i++)
-            {
-                Thread.Sleep(200);
-                if (MagpieLive.IsScaling()) { Log.Write("Magpie escala de nuevo (atajo)"); return; }
-            }
-            string issue = MagpieLive.LastIssue(DateTime.Now.AddSeconds(-30));
-            Log.Write("Aviso: Magpie sigue sin escalar (delante: " + FgOwner() + ")" + (issue != null ? "; Magpie dice: " + issue : ""));
-        }
+        // (1.2.4 ronda 6, QUITAFG, fase 2: Rescale era de Magpie; fuera)
 
-        // Mientras Magpie esta creando los modelos (fase Starting) se le espera sin tocar nada. true = ya escala
-        bool WaitWhileStarting()
-        {
-            Stopwatch sw = Stopwatch.StartNew();
-            while (sw.Elapsed.TotalSeconds < cfg.MagpieStartMaxSecs && !userExit && !MagpieLive.IsScaling() && MagpieLive.ScalingPhase() == MagpieLive.Phase.Starting)
-                Thread.Sleep(100);
-            return MagpieLive.IsScaling();
-        }
+        // (1.2.4 ronda 6, QUITAFG, fase 2: WaitWhileStarting era de Magpie; fuera)
 
         // Un solo cambio grande a la vez (reabrir Magpie, pasar del HOME al juego): antes passesBusy se miraba y se ponia en dos pasos
         int busyGate;
         bool TryGate() { return Interlocked.CompareExchange(ref busyGate, 1, 0) == 0; }
         void ReleaseGate() { Interlocked.Exchange(ref busyGate, 0); }
 
-        // Si una ventana de Magpie (la principal, un aviso) se queda el primer plano, Magpie deja de escalar: se le devuelve a mpv
-        void KeepMpvInFront(Process p, int checks = 12)
-        {
-            try
-            {
-                p.Refresh();
-                IntPtr h = p.MainWindowHandle;
-                if (p.HasExited || h == IntPtr.Zero) return;
-                for (int i = 0; i < checks; i++)
-                {
-                    IntPtr fg = GetForegroundWindow();
-                    if (fg != h && MagpieLive.IsMainWindow(fg))
-                    {
-                        ForceForeground(h);
-                        Log.Write("Primer plano devuelto a mpv (lo tomo Magpie)");
-                    }
-                    Thread.Sleep(25);
-                }
-            }
-            catch (InvalidOperationException) { } // ese mpv ya se ha cerrado (se esta relanzando)
-            catch (Exception ex) { Log.Error("Devolviendo el primer plano a mpv", ex); }
-        }
+        // (1.2.4 ronda 6, QUITAFG, fase 2: KeepMpvInFront era de Magpie; fuera)
 
-        // Red de seguridad: si una ventana de Magpie se pone delante (su ventana principal, un aviso), deja de escalar y la imagen
-        // se queda a 1:1 en una esquina de la tele: el primer plano vuelve a mpv al momento
+        // Red de seguridad: el motor escondido en espera no se puede quedar el primer plano (1.2.4 ronda 6, QUITAFG: antes tambien las
+        // ventanas de Magpie, que ya no esta)
         void LsFocusGuard(Process p)
         {
             try
             {
                 Thread.CurrentThread.Priority = ThreadPriority.AboveNormal;
-                DateTime lastLog = DateTime.MinValue;
                 while (!p.HasExited && !userExit && mpv == p)
                 {
                     Thread.Sleep(25);
                     // 16-11 (motor_en_espera): el motor escondido en espera tampoco se puede quedar el primer plano
                     Process se = standbyEngine;
                     if (se != null && se != p) StandbyFgBack(se);
-                    if (!MagpieLive.IsMainWindow(GetForegroundWindow())) continue;
-                    p.Refresh();
-                    IntPtr h = p.MainWindowHandle;
-                    if (h == IntPtr.Zero) continue;
-                    ForceForeground(h);
-                    if ((DateTime.Now - lastLog).TotalSeconds >= 5)
-                    {
-                        lastLog = DateTime.Now;
-                        Log.Write("Primer plano devuelto a mpv (lo tomo una ventana de Magpie sin que se le pidiera)");
-                    }
-                    Thread.Sleep(250);
-                    if (lsReady && !cfg.HomeNative && MagpieConfig.Needed(cfg) && !MagpieLive.IsScaling() && Monitor.TryEnter(lsModeSync))
-                    {
-                        try { if (mpv == p && !MagpieLive.IsScaling()) Rescale(); }
-                        finally { Monitor.Exit(lsModeSync); }
-                    }
                 }
             }
             catch (InvalidOperationException) { } // ese mpv ya se ha cerrado (se esta relanzando)
@@ -7461,7 +6073,6 @@ namespace ConsoleEnhancer
         double vfFps;               // imagenes por segundo a la salida del filtro de repetidas (mpv)
         bool vfNew;                 // la ultima que salio era nueva (no una copia de una imagen quieta)
         int lsPidSeen = -1;
-        DateTime lastHitchLog;
         long lsLogPos = -1;
 
         // Cada 0,5 s que Magpie siga escalando; cada 5 s el ritmo
@@ -7474,7 +6085,7 @@ namespace ConsoleEnhancer
             gl.Start();
             try
             {
-                int notScaling = 0, wrongWindow = 0, winTicks = 0;
+                int wrongWindow = 0, winTicks = 0;
                 DateTime lastRescale = DateTime.MinValue, lastPacing = DateTime.MinValue, lastWindowFix = DateTime.MinValue;
                 while (!p.HasExited && !userExit && mpv == p)
                 {
@@ -7525,133 +6136,22 @@ namespace ConsoleEnhancer
                         {
                             wrongWindow = 0;
                             lastWindowFix = now;
-                            if (RestoreWindowSize(p) && lsReady && !cfg.HomeNative && MagpieLive.Running)
-                                RestartLs("Ajustando la ventana", "Un momento…", true);
+                            RestoreWindowSize(p);   // (1.2.4 ronda 6: sin Magpie que reabrir)
                             continue;
                         }
                     }
 
-                    // Magpie deja de escalar (la imagen se queda pequeña): con mpv delante y sin su ventana de escalado 4 s
-                    // seguidos, se vuelve a escalar
-                    if (lsReady && !cfg.HomeNative && MagpieConfig.Needed(cfg) && !passesBusy && GetForegroundWindow() == hwnd && !MagpieLive.IsScaling())
-                    {
-                        if (++notScaling >= 8 && (now - lastRescale).TotalSeconds >= 15)
-                        {
-                            string issue = MagpieLive.LastIssue(now.AddSeconds(-20));
-                            Log.Write("Magpie ha dejado de escalar: se vuelve a escalar" + (issue != null ? " (Magpie dice: " + issue + ")" : ""));
-                            if (!MagpieLive.Running || MagpieLive.NeedsRestart(MagpieLive.StartLogPos) || (issue != null && issue.Contains("MP-06")))
-                                RestartLs("Magpie", "Volviendo a abrir el escalado…", true);
-                            else if (Monitor.TryEnter(lsModeSync))
-                            {
-                                try { if (!passesBusy && lsReady) Rescale(); }
-                                finally { Monitor.Exit(lsModeSync); }
-                            }
-                            notScaling = 0;
-                            lastRescale = DateTime.Now;
-                        }
-                    }
-                    else notScaling = 0;
-
+                    // (1.2.4 ronda 6, QUITAFG: sin Magpie, ni "Magpie ha dejado de escalar" ni su ritmo cada 5 s -CheckLsPacing-)
                     if (lsReady && !cfg.HomeNative && !homeGrace) ChooseLook(hwnd, now);
                     if (lsReady) RunHomeTick(now);
-                    if (lsReady && !cfg.HomeNative && (now - lastPacing).TotalSeconds >= 5)
-                    {
-                        lastPacing = now;
-                        CheckLsPacing(hwnd);
-                    }
                 }
             }
             catch (Exception ex) { Log.Error("Vigilando la imagen de mpv", ex); }
         }
 
-        // Lo nuevo en el log de Magpie desde la vez anterior
-        struct LsStats
-        {
-            public double Captured;    // imagenes reales por segundo que recibe Magpie (0 = sin dato nuevo)
-            public double Shown;       // las que presenta (con la generacion)
-            public double CapP95;      // ms entre dos imagenes reales (p95 del ultimo resumen; 0 = sin dato)
-            public double CapMax;      // la mas lenta
-            public int Errors;         // lineas de error nuevas
-            public string LastError;
-            // 19-11 (FLUIDEZ): resumenes de 4 s de Magpie leidos, cuantos con una imagen real tarde o perdida (hueco > 1,6 veces lo normal)
-            // y cuantos con un pico de la grafica (la espera de su ultima imagen, fenceMaxMs, > 2 veces la media y 15 ms mas)
-            public int Windows, Gaps, GpuSpikes, GapsWithSpike;
-            public double FenceMax, FenceAvg;
-            // 21-11 (1.2.1, EscalaAuto.cs): TODOS los resumenes de esta lectura (a 120 son 4-5 en 5 s; antes solo contaba el primero):
-            // imagenes nuevas e inventadas y el tiempo que cubren (nuevas / captureFps), y el peor captureFps
-            public int CapN, NewSum, GenSum;
-            public double CapTime, CapMin;
-        }
+        // (1.2.4 ronda 6, QUITAFG, fase 2: LsStats era de Magpie; fuera)
 
-        LsStats ReadLsStats()
-        {
-            LsStats st = new LsStats();
-            string path = Paths.MagpieLog;
-            try
-            {
-                if (!File.Exists(path)) return st;
-                using (FileStream fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
-                {
-                    if (lsLogPos < 0 || lsLogPos > fs.Length) lsLogPos = fs.Length; // primera vez o log rotado
-                    fs.Seek(lsLogPos, SeekOrigin.Begin);
-                    byte[] buf = new byte[Math.Min(fs.Length - lsLogPos, 4 * 1024 * 1024)];
-                    int n = 0, r;
-                    while (n < buf.Length && (r = fs.Read(buf, n, buf.Length - n)) > 0) n += r;
-                    if (n == 0) return st;
-                    int end = Array.LastIndexOf(buf, (byte)'\n', n - 1);
-                    if (end < 0) return st;
-                    lsLogPos += end + 1;
-                    foreach (string line in Encoding.UTF8.GetString(buf, 0, end + 1).Split('\n'))
-                    {
-                        System.Text.RegularExpressions.Match m;
-                        if ((m = System.Text.RegularExpressions.Regex.Match(line, @"presentation ring: captured=([0-9.]+) FPS, queued=([0-9.]+) FPS")).Success)
-                        {
-                            st.Captured = double.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture);
-                            st.Shown = double.Parse(m.Groups[2].Value, CultureInfo.InvariantCulture);
-                            RitmoDiag.MagpieAnillo(line);   // (1.2.3 RITMO2: su cola llena = imagenes perdidas, src\Lanzador\Ritmo.cs)
-                        }
-                        else if ((m = System.Text.RegularExpressions.Regex.Match(line, @"Output cadence .*?captureFps=([0-9.]+).*?captureIntervalP95Ms=([0-9.]+).*?captureIntervalMaxMs=([0-9.]+)")).Success)
-                        {
-                            if (st.Captured <= 0) st.Captured = double.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture);
-                            {   // (1.2.1, EscalaAuto.cs) todos los resumenes: nuevas, inventadas y el tiempo que cubren
-                                double cf = double.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture);
-                                System.Text.RegularExpressions.Match mn = System.Text.RegularExpressions.Regex.Match(line, @"newCapture=(\d+).*?generated=(\d+)");
-                                int nc = mn.Success ? int.Parse(mn.Groups[1].Value, CultureInfo.InvariantCulture) : 0;
-                                if (cf > 0.5 && nc > 0)
-                                {
-                                    st.CapN++; st.NewSum += nc; st.GenSum += int.Parse(mn.Groups[2].Value, CultureInfo.InvariantCulture); st.CapTime += nc / cf;
-                                    st.CapMin = st.CapN == 1 ? cf : Math.Min(st.CapMin, cf);
-                                }
-                            }
-                            st.CapP95 = double.Parse(m.Groups[2].Value, CultureInfo.InvariantCulture);
-                            double mx = double.Parse(m.Groups[3].Value, CultureInfo.InvariantCulture);
-                            st.CapMax = Math.Max(st.CapMax, mx);
-                            // (19-11, FLUIDEZ) el resumen de la grafica (Backend publication) va justo antes en el log
-                            double normal = want30 || cfg.CapMode ? 33.4 : 16.7;
-                            bool spike = st.FenceMax > 2 * st.FenceAvg && st.FenceMax > st.FenceAvg + 15;
-                            RitmoDiag.MagpieVentana(line, spike);   // (22-11, 1.2.2 RITMO: de donde viene cada tiron, src\Lanzador\Ritmo.cs)
-                            st.Windows++;
-                            if (spike) st.GpuSpikes++;
-                            if (mx > normal * 1.6) { st.Gaps++; if (spike) st.GapsWithSpike++; }
-                            st.FenceMax = 0; st.FenceAvg = 0;
-                        }
-                        else if ((m = System.Text.RegularExpressions.Regex.Match(line, @"Backend publication CPU timing: .*?fenceAvgMs=([0-9.]+) fenceMaxMs=([0-9.]+)")).Success)
-                        {
-                            st.FenceAvg = double.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture);
-                            st.FenceMax = double.Parse(m.Groups[2].Value, CultureInfo.InvariantCulture);
-                        }
-                        else if (line.Contains("frontend timing: mode=")) RitmoDiag.MagpieEspera(line);   // (22-11, 1.2.2 RITMO: la cola de Magpie)
-                        else if (line.Contains("|error|"))
-                        {
-                            st.Errors++;
-                            st.LastError = line.Length > 220 ? line.Substring(0, 220) : line.TrimEnd('\r');
-                        }
-                    }
-                }
-            }
-            catch { }
-            return st;
-        }
+        // (1.2.4 ronda 6, QUITAFG, fase 2: ReadLsStats era de Magpie; fuera)
 
         // Cada 0,5 s: si el juego va a 30 o a 60 (para los avisos y el log). Con Magpie no hay que cambiar nada en caliente
         void ChooseLook(IntPtr hwnd, DateTime now)
@@ -7690,7 +6190,6 @@ namespace ConsoleEnhancer
         volatile string relaunchSize;   // captura pedida con el mando: mpv se reabre con ella
         Stopwatch captureSw;            // desde que se pidio la captura (para el log: tiempo con el telon)
         bool dlss5Shown = true;         // DLSS 5 encendido (false: sin DLSSNR en la cadena de Magpie; games\dlss5_on.txt)
-        Stopwatch lsStartSw;            // desde que se abrio Magpie por ultima vez (para los tiempos del arranque en el log)
         readonly LinkQueue osdQueue = new LinkQueue();
 
         // 17-11 (VELOCIDAD): las ordenes para mpv / el motor (cmdQueue) y los avisos (osdQueue) despiertan a MpvLinkLoop al encolarse y
@@ -7979,7 +6478,6 @@ namespace ConsoleEnhancer
             bool pad = PadRecent;
             if (pad) { padRestart = true; padRestartAt = DateTime.Now; }
             ShowFastCurtain(pad ? "Un momento…" : null, pad ? "Captura " + SizeName(size) : null, false);
-            if (!Config.EngineActive && Config.WindowFor(size) != Config.WindowFor(cfg.CaptureNow)) KillMagpieNow("otra ventana de mpv: a la vez que mpv", false);
             QuitMpvForRelaunch();
             CurtainToFront();
         }
@@ -8033,7 +6531,6 @@ namespace ConsoleEnhancer
             Process p = mpv;
             if (p == null || p.HasExited || GetForegroundWindow() != p.MainWindowHandle) return;
             if (passesBusy || relaunchSize != null || !lsReady) return;
-            PasadasOnToggle(!dlss5Shown); // (18-11, PASADAS: con 2-3 pasadas, el log de Magpie de la imagen que se va)
             SetDlss5State(!dlss5Shown);
             Log.Write("Mando: DLSS 5 " + (dlss5Shown ? "encendido" : "apagado") + ReopenNote);
             SaveCurProfile();
@@ -8243,8 +6740,7 @@ namespace ConsoleEnhancer
                 {
                     string n = p.ProcessName;
                     return string.Equals(n, "ConsoleEnhancerEngine", StringComparison.OrdinalIgnoreCase) ||
-                           string.Equals(n, "mpv", StringComparison.OrdinalIgnoreCase) ||
-                           string.Equals(n, MagpieLive.ProcName, StringComparison.OrdinalIgnoreCase);
+                           string.Equals(n, "mpv", StringComparison.OrdinalIgnoreCase);
                 }
             }
             catch { return false; }
@@ -8273,7 +6769,7 @@ namespace ConsoleEnhancer
         void ToggleFrameGeneration()
         {
             lastPadAction = DateTime.Now;
-            RelevoCaptureButton(); // (16-11, dlss5_sin_telon: con Magpie aun vivo en el relevo, fuera ya: el boton de captura lo tumbaba)
+
             SetFrameGen(!fgWanted);
         }
 
@@ -8451,7 +6947,7 @@ namespace ConsoleEnhancer
                 cfg.HomeNative = true;
             }
             pendingPassesRestart = false;
-            Log.Write("HOME con Magpie y mpv se relanza (" + why + "): se vuelve a abrir ya en el HOME a 4K nativo");
+            Log.Write("HOME (homeGrace) y se relanza (" + why + "): se vuelve a abrir ya en el HOME a 4K nativo");
         }
 
         // Del HOME visto con LS al HOME a 4K nativo (la imagen congelada y un fundido). Lo del HOME (juego seleccionado...) sigue
@@ -10207,13 +8703,7 @@ namespace ConsoleEnhancer
             audioClosing = true;
             Process a = audioProc;
             try { if (a != null && !a.HasExited) a.Kill(); } catch { }
-            int ls = 0;
-            foreach (Process l in Process.GetProcessesByName(MagpieLive.ProcName))
-            {
-                try { l.Kill(); ls++; }
-                catch (Exception) { } // "Acceso denegado" si ya se estaba cerrando
-            }
-            Log.Write("Apagado: mpv" + (ls > 0 ? ", Magpie" : "") + " y el audio cerrados en " + PowerOffClock.ElapsedMilliseconds +
+            Log.Write("Apagado: mpv y el audio cerrados en " + PowerOffClock.ElapsedMilliseconds +
                       " ms (sin esperarlos); se devuelven a la vez lo de segundo plano, el plan de energia y Afterburner");
             ExitRestore.Start();
         }
@@ -10386,13 +8876,13 @@ namespace ConsoleEnhancer
             // (revision 10-11: no con la captura de 4K, ventana de 4K: las capturas del HOME cada 0,5 s a 4K atascan mpv con LS encima)
             // 15-11: con DLSS 5 encendido, a 4K nativo al momento (DLSS 5 sobre el HOME: tono, texto e interfaz con errores; en 60 con
             // generacion ademas sin su mascara de interfaz). La espera solo sin DLSS 5
-            bool grace = cfg.HomeGraceSecs > 0 && lsReady && MagpieLive.IsScaling() && Config.WindowFor(cfg.VideoSize) != "3840x2160" && cfg.Dlss5Off;
+            bool grace = false;   // (1.2.4 ronda 6, QUITAFG: seguir viendo el HOME con Magpie unos segundos; sin Magpie, nunca)
             if (grace)
                 Log.Write("HOME de la consola: se sigue viendo con Magpie " + Ms(cfg.HomeGraceSecs) + " s por si se vuelve al juego " +
                           "(sin cerrar nada); luego a 4K nativo" + (curGame != null ? " (\"" + curGame + "\" sigue con sus ajustes guardados)" : ""));
             else
             {
-                Log.Write("HOME de la consola: a 4K nativo a 60 fps, sin Magpie" +
+                Log.Write("HOME de la consola: a 4K nativo a 60 fps" +
                           (curGame != null ? " (\"" + curGame + "\" sigue con sus ajustes guardados)" : ""));
                 pendingPassesRestart = false;
             }
@@ -10571,16 +9061,10 @@ namespace ConsoleEnhancer
                     return;
                 }
                 if (capture) RequestCapture(p.Capture); // (sin cerrar mpv)
-                int hard = LsHardChanges();
-                pendingPassesRestart = hard > 0;
-                if (hard > 0)
-                {
-                    pendingPassesRestart = true; // ApplyPending: una sola vez, con la captura ya cambiada
-                    Log.Write("Juego: " + (curGame != null ? "\"" + curGame + "\"" : "(sin nombre)") + " -> sus ajustes: " + p.Summary() +
-                              ": se reabre Magpie (" + hard + " cambios en su config)" + where);
-                }
-                else Log.Write("Juego: " + (curGame != null ? "\"" + curGame + "\"" : "(sin nombre)") + " -> sus ajustes: " + p.Summary() +
-                               ": la config de Magpie no cambia, no se reabre nada (0 ms en negro)" + where);
+                // (1.2.4 ronda 6, QUITAFG: sin Magpie no hay config que reabrir: el motor coge lo nuevo en marcha -SyncEngine- y, si pide otra
+                // identidad -cadena, Smooth Motion, refresco-, el relevo -CheckEngine*-; o otro motor -abajo-)
+                pendingPassesRestart = false;
+                Log.Write("Juego: " + (curGame != null ? "\"" + curGame + "\"" : "(sin nombre)") + " -> sus ajustes: " + p.Summary() + ": en marcha, sin reabrir nada" + where);
             }
             finally { applying = false; }
         }
@@ -10597,19 +9081,7 @@ namespace ConsoleEnhancer
             EscalaAuto.Juego = curGame; // (1.2.1: la escala de DLSS 5 aprendida va por juego, EscalaAuto.cs)
         }
 
-        // Cuantos cambios obligan a reabrir Magpie con lo elegido ahora (sin escribir). El enfoque de otra captura no cuenta
-        int LsHardChanges()
-        {
-            if (!File.Exists(Paths.MagpieExe)) return 0;
-            PrepareCfg();
-            try
-            {
-                List<string> ch = MagpieConfig.Patch(cfg, false, true);
-                foreach (string c in ch) Log.Write("Cambio necesario en Magpie: " + c);
-                return ch.Count;
-            }
-            catch (Exception ex) { Log.Error("Comparando la config de Magpie", ex); return 1; }
-        }
+        // (1.2.4 ronda 6, QUITAFG, fase 2: LsHardChanges era de Magpie; fuera)
 
         // Cambia mpv (ventana, filtros y captura) sin cerrarlo y, al ir a un juego, abre Magpie. Con el telon puesto
         // fromGrace (10-11): del HOME visto con Magpie (homeGrace) al de 4K nativo; lo del HOME sigue como estaba
@@ -10622,9 +9094,9 @@ namespace ConsoleEnhancer
             homeBusy = true;
             passesBusy = true;
             padRestart = false;
-            // 10-11 (telon_imagen_congelada): al HOME a 4K con Magpie escalando, el telon es la pantalla congelada (lo que se ve) y
-            // al quitarse se funde con el HOME a 4K: ni negro ni corte
-            bool frozen = toHome && cfg.CurtainFrozen && MagpieLive.IsScaling();
+            // 10-11 (telon_imagen_congelada): al HOME a 4K con Magpie escalando, el telon era la pantalla congelada (1.2.4 ronda 6, QUITAFG:
+            // sin Magpie, no)
+            bool frozen = false;
             // 16-11 (velocidad, dlss5_sin_telon_entrada): al juego con un motor en espera listo, sin telon: la imagen de la consola sigue
             // hasta que el motor da la suya encima (el telon lo pone, si hace falta, lo que falle)
             bool early = !toHome && !fromGrace && BridgeEntryReady();
@@ -10650,8 +9122,6 @@ namespace ConsoleEnhancer
                     lock (lsModeSync)
                     {
                         lsReady = false;
-                        // Al HOME: Magpie se cierra sin esperar y mpv cambia a la vez
-                        if (toHome) MagpieLive.Kill();
                         cfg.HomeNative = toHome;
                         if (fromGrace) homeGrace = false; // (InHome sigue: ya es el HOME a 4K)
                     }
@@ -10660,7 +9130,7 @@ namespace ConsoleEnhancer
                     PrepareCfg();
                     if (cfg.EngineNow != Config.EngineActive)
                     {
-                        Log.Write((toHome ? "Al HOME" : "Al juego") + ": toca " + (cfg.EngineNow ? "el motor propio" : "mpv + Magpie") + " (se reabre la imagen)");
+                        Log.Write((toHome ? "Al HOME" : "Al juego") + ": toca " + (cfg.EngineNow ? "el motor propio" : "mpv sin el motor") + " (se reabre la imagen)");
                         relaunched = true;
                         switchUntil = DateTime.MinValue;
                         // 16-11 (velocidad, dlss5_sin_telon_entrada): al motor sin telon, como DLSS 5 apagado con el boton A: el motor despierta
@@ -10671,135 +9141,35 @@ namespace ConsoleEnhancer
                         QuitMpvForRelaunch();
                         return;
                     }
-                    // Al juego: la config de Magpie se escribe y Magpie se abre a la vez que mpv cambia de captura y de ventana; escala
-                    // cuando mpv pasa delante (WaitForScaling), con su ventana ya cambiada
-                    long logStart = 0;
-                    Thread lsStart = null;
-                    bool direct = !toHome && cfg.EnterLsDirect, lsDone = false, mpvOk = false;
-                    // 16-11 (velocidad, dlss5_sin_telon_entrada): el puente ya antes de cambiar mpv (la consola a la vista hasta su imagen)
-                    bool bridgeFirst = false;
-                    ManualResetEvent mpvDone = new ManualResetEvent(false);
-                    if (!toHome)
-                    {
-                        logStart = LogLength(Paths.MagpieLog);
-                        long ls0 = logStart;
-                        lsStart = new Thread(delegate ()
-                        {
-                            try
-                            {
-                                lock (lsModeSync)
-                                {
-                                    EnsureLossless();
-                                    if (cfg.PerformanceBoost) ThreadPool.QueueUserWorkItem(delegate { Perf.BoostByName(MagpieLive.ProcName); }); // (en paralelo: no retrasa el arranque)
-                                    if (direct)
-                                    {
-                                        mpvDone.WaitOne((SwitchSecs + 3) * 1000);
-                                        if (mpvOk && !p.HasExited && !userExit)
-                                        {
-                                            lsDone = true;
-                                            // (16-11, velocidad: el puente, si lo hay, lo despierta el hilo de la entrada en cuanto mpv ha cambiado; aqui
-                                            // solo se termina si Magpie no llega a presentar)
-                                            if (MagpieConfig.Needed(cfg) && EnsureScaled(p, ls0)) FinishLsStart(p, ls0);
-                                            if (RelevoToMagpieActive()) FinishRelevoToMagpie("Magpie no llego a presentar (entrada en " + title + "): se quita igualmente");
-                                        }
-                                    }
-                                }
-                            }
-                            catch (Exception ex) { Log.Error("Abriendo Magpie", ex); }
-                        });
-                        lsStart.IsBackground = true;
-                        lsStart.Start();
-                        // 16-11 (velocidad, dlss5_sin_telon_entrada): sin telon puesto, el motor en espera despierta ya con la captura del juego
-                        // (mpv sigue a 4K: la consola a la vista) y se pone encima en cuanto da imagen; mpv cambia (ventana, filtros, captura)
-                        // y Magpie se abre debajo de el. Sin su imagen a tiempo, el telon negro de siempre y el puente de despues
-                        if (early && MagpieConfig.Needed(cfg))
-                        {
-                            Relevo bf = BridgeWake(title, subtitle, "entrada en " + title + ", antes de cambiar mpv");
-                            bridgeFirst = bf != null && BridgeUp(bf, cfg.Dlss5SeamlessWaitMs, false);
-                        }
-                        if (early && !bridgeFirst)
-                        {
-                            ShowCurtain();
-                            WaitCurtainOpaque();
-                        }
-                        // 17-11 (VELOCIDAD): con el motor propio, sin esperar a que el telon este opaco (165 ms: telon_entrada_ms 120 + 45): el
-                        // motor tarda ~200 ms en cerrar y abrir la capturadora y dar la primera imagen del juego (engine.log 17-11 02:45:04:
-                        // loadfile .233 -> Stopped .309 -> Opened .381 -> FirstFrame .433), y hasta entonces sigue la ultima imagen de la consola
-                        // (lo que ya se veia) bajo el telon que se oscurece. Como al ir al HOME, que ya no esperaba. Con mpv + Magpie, como antes
-                        // (mpv cambia de ventana y Magpie se abre: eso no se puede ver)
-                        else if (direct && !early && !Config.EngineActive) WaitCurtainOpaque();
-                    }
-                    bool switched = false;
-                    try { switched = SwitchMpvInPlace(p, oldCapture); }
-                    finally
-                    {
-                        mpvOk = switched;
-                        mpvDone.Set();
-                    }
-                    // 16-11 (velocidad, dlss5_sin_telon_puente): con la captura del juego ya en mpv, el motor en espera ya (sin esperar a que
-                    // Magpie acabe de abrirse en el otro hilo: ~1,5 s mas de negro) juega encima mientras Magpie prepara (antes 8-13 s de negro):
-                    // el telon se va en cuanto da imagen
-                    Relevo brAfter = null;
-                    if (!toHome && switched && !bridgeFirst && MagpieConfig.Needed(cfg) && !p.HasExited && !userExit)
-                    {
-                        brAfter = BridgeWake(title, subtitle, "entrada en " + title);
-                        if (brAfter != null) BridgeUpAsync(brAfter, cfg.Dlss5SeamlessWaitMs);
-                        else
-                        {
-                            // 21-11 (1.2.1): sin motor en espera listo: el telon en vivo (la imagen del juego, sin escalar) mientras Magpie prepara
-                            // y, si se esta arrancando uno, el puente en cuanto lo este (src\TelonVivo.cs, src\SinTelon.cs)
-                            SwapToLiveCurtainAsync("entrada en " + title, p);
-                            PuenteTardio(title, subtitle, "entrada en " + title, p, finEntrada);
-                        }
-                    }
-                    if (lsStart != null) lsStart.Join();
-                    // (el puente, si sigue tras Magpie: no llego a presentar)
-                    if (lsDone && (brAfter != null || bridgeFirst) && RelevoToMagpieActive())
-                        FinishRelevoToMagpie("Magpie no llego a presentar (entrada en " + title + "): se quita igualmente");
+                    // (1.2.4 ronda 6, QUITAFG: sin Magpie, mpv solo cambia de captura y de ventana; antes Magpie se abria a la vez y el motor en
+                    // espera hacia de puente mientras preparaba)
+                    bool switched = SwitchMpvInPlace(p, oldCapture);
                     if (toHome)
                     {
                         if (switched)
                         {
-                            Stopwatch ws = Stopwatch.StartNew();
-                            while (MagpieLive.IsScaling() && ws.ElapsedMilliseconds < 1500) Thread.Sleep(30);
                             if (frozen) Thread.Sleep(80);
                             HideCurtain(frozen ? cfg.CurtainFrozenFadeMs : 250);
                             curtainOff = true;
                             Log.Write("HOME a la vista: " + sw.ElapsedMilliseconds + " ms" + (frozen ? " (imagen congelada hasta aqui, luego " + cfg.CurtainFrozenFadeMs + " ms de fundido)" : ""));
                         }
-                        lock (lsModeSync) MagpieLive.Close("HOME a 4K nativo"); // (ya muerto: se espera a que no quede)
                     }
                     if (!switched)
                     {
                         capEnSitioFallo = true; // 21-11 (1.2.1): la reapertura se vigila con menos tiempo (CapturaSegura.cs)
-                        Log.Write("mpv no ha podido cambiar sin cerrarse: se reabre" + (toHome ? "" : " (y Magpie)"));
-                        // (16-11, velocidad: con el puente ya encima, fuera y el telon de siempre mientras se reabre)
-                        if (bridgeFirst)
-                        {
-                            ShowCurtain();
-                            FinishRelevoToMagpie("mpv no ha podido cambiar (entrada en " + title + ")");
-                        }
+                        Log.Write("mpv no ha podido cambiar sin cerrarse: se reabre");
                         relaunched = true;
                         switchUntil = DateTime.MinValue;
                         relaunchSize = cfg.CaptureNow;
                         QuitMpvForRelaunch();
                         return;
                     }
-                    if (!toHome && !lsDone && !p.HasExited && !userExit)
-                        lock (lsModeSync)
-                        {
-                            // (16-11, velocidad: con entrada_directa=0 el puente ya lo desperto el cambio de mpv; aqui solo se termina)
-                            if (!p.HasExited && !userExit && MagpieConfig.Needed(cfg) && EnsureScaled(p, logStart)) FinishLsStart(p, logStart);
-                            if (RelevoToMagpieActive()) FinishRelevoToMagpie("Magpie no llego a presentar (entrada en " + title + "): se quita igualmente");
-                        }
                 }
                 catch (Exception ex) { Log.Error("Cambiando entre el HOME y el juego", ex); }
                 finally
                 {
                     // 21-11 (1.2.1): el cambio ha terminado: el puente tardio ya no se pone, y si se puso y Magpie no llego a presentar, fuera
                     finEntrada.Hecho = true;
-                    if (!toHome && !relaunched && RelevoToMagpieActive())
-                        FinishRelevoToMagpie("Magpie no llego a presentar (entrada en " + title + "): se quita igualmente");
                     if (!relaunched)
                     {
                         lsReady = true;
@@ -10978,8 +9348,6 @@ namespace ConsoleEnhancer
                     SaveText(Paths.FgFile, p.Fg ? "1" : "0");
                 }
                 SetPicks(p.Pick60, p.Pick30); // (19-11, GENERACION: el tipo de generacion elegido con L3 en este juego)
-                // (19-11: o si con sus ajustes toca el otro motor: FSR 3 / XeSS FG solo los hace Magpie; RestartLs cambia de motor)
-                if (!newWindow && LsHardChanges() > 0) pendingPassesRestart = true;
                 PrepareCfg();
                 if (!newWindow && cfg.EngineNow != Config.EngineActive) pendingPassesRestart = true;
             }
@@ -11008,7 +9376,6 @@ namespace ConsoleEnhancer
             if (passesBusy || relaunchSize != null || !lsReady) return;
             Process p = mpv;
             if (p == null || p.HasExited) return;
-            PasadasOnPasses(cfg.Dlss5Off || !cfg.Dlss5FitsNow ? 0 : cfg.Dlss5PassesNow, n); // (18-11, PASADAS)
             dlss5Passes = n;
             SaveText(Paths.Dlss5PassesFile, n.ToString(CultureInfo.InvariantCulture));
             Log.Write("Mando: DLSS 5 con " + Pasadas(n) + ReopenNote);
@@ -11159,26 +9526,12 @@ namespace ConsoleEnhancer
                 // del mando, Magpie fuera ya (se caia si seguia vivo ~0,5 s despues) y el telon hasta la imagen del motor
                 if ((sinTelon || cfg.MagpieBridge) && TrySinTelon(title, subtitle))
                 {
-                    if (CaptureButtonRecent) RelevoCaptureButton();
+
                     return;
                 }
-                Log.Write(title + ": " + (cfg.EngineNow ? "de mpv + Magpie al motor propio" : "del motor propio a mpv + Magpie") + " (se reabre la imagen)");
+                Log.Write(title + ": " + (cfg.EngineNow ? "de mpv al motor propio" : "del motor propio a mpv sin el motor") + " (se reabre la imagen)");
                 lsReady = false; // (nada del mando ni del HOME sobre la imagen que se cierra)
                 relaunchEngine = true;
-                // 15-11: al motor propio Magpie sobra: se mata ya, mientras mpv se cierra. Antes se cerraba despues, en serie
-                // (EnsureLossless): ~0.4 s mas de negro, lo que tarda en irse con los modelos de NVIDIA. Sin config que escribir
-                // (EnsureLossless luego solo espera a que no quede). Y al momento: el telon negro ya opaco (sin copiar antes la ultima
-                // imagen, 0,8-1,3 s) y Magpie fuera enseguida (con el boton de captura del mando Magpie se caia si seguia vivo ~0,5 s)
-                if (cfg.EngineNow && MagpieLive.Running)
-                {
-                    bool pad = PadRecent;
-                    if (pad) { padRestart = true; padRestartAt = DateTime.Now; }
-                    ShowFastCurtain(pad ? subtitle : null, pad ? title : null, false);
-                    KillMagpieNow("al motor propio: a la vez que mpv", false);
-                    QuitMpvForRelaunch();
-                    CurtainToFront();
-                    return;
-                }
                 // 16-11: al momento, negro con el aviso arriba (como el de las reaperturas de Magpie). Antes la ultima imagen atenuada:
                 // 0,8-0,9 s de componerla a 4K ANTES de cerrar (o pasar a espera) el motor
                 bool padNow = PadRecent;
@@ -11186,120 +9539,15 @@ namespace ConsoleEnhancer
                 ShowFastCurtain(padNow ? subtitle : null, padNow ? title : null, false);
                 QuitMpvForRelaunch();
                 CurtainToFront();
-                if (!cfg.EngineNow) ThreadPool.QueueUserWorkItem(delegate { PrestartMagpie(); });
                 return;
             }
-            if (!TryGate()) return;
-            passesBusy = true;
-            Thread t = new Thread(delegate ()
-            {
-                Stopwatch sw = Stopwatch.StartNew();
-                bool shown = false, bridged = false;
-                Bandera finReapertura = new Bandera(); // 21-11 (1.2.1): para el puente tardio (src\SinTelon.cs)
-                try
-                {
-                    lock (lsModeSync)
-                    {
-                        // Si la config de Magpie no cambia y ya escala, nada que reabrir (6-12 s de telon menos). 15-11: lo primero, sin
-                        // telon ni primer plano (antes el telon iba antes: 0,8-1,3 s con la imagen atenuada, y quitarle el primer plano a
-                        // mpv con Magpie escalando le reiniciaba el historial a DLSS 5 para nada); si es del mando, el aviso de lo puesto
-                        if (!force && MagpieLive.IsScaling() && LsHardChanges() == 0)
-                        {
-                            Log.Write(title + ": la config de Magpie no cambia, no se reabre (ni telon)");
-                            if (PadRecent) Osd(StatusText());
-                            return;
-                        }
-                        // Con texto solo si viene de un boton del mando. 15-11 (telon_vivo): solo se reabre Magpie, mpv sigue: el juego en
-                        // directo de fondo (o negro), ya opaco y sin copiar antes la ultima imagen; Magpie se mata en cuanto esta puesto
-                        // (~0,1 s del boton: con el de captura del mando Magpie se caia si seguia vivo ~0,5 s despues) y solo entonces el
-                        // primer plano pasa al telon (el Magpie nuevo escala cuando WaitForScaling se lo devuelve a mpv)
-                        // 16-11 (velocidad, dlss5_sin_telon_puente): mejor que el telon, el motor en espera jugando encima mientras Magpie se
-                        // reabre (src\SinTelon.cs). Magpie sigue a la vista hasta que el motor da imagen (~0,2-0,7 s), salvo con el boton de
-                        // captura: entonces Magpie fuera ya y el telon un momento, hasta la imagen del motor
-                        bool shot = CaptureButtonRecent;
-                        Stopwatch ks = Stopwatch.StartNew();
-                        if (shot)
-                        {
-                            ShowPadCurtain(subtitle, title, true);
-                            shown = true;
-                            KillMagpieNow(title + " (boton de captura: fuera ya)", false);
-                        }
-                        Relevo br = BridgeWake(title, subtitle, "reapertura de Magpie: " + title);
-                        bridged = br != null && BridgeUp(br, cfg.Dlss5SeamlessWaitMs, shown);
-                        if (bridged) shown = false; // (el telon, si lo habia, ya se ha ido: se ve el motor)
-                        else if (!shown)
-                        {
-                            ShowPadCurtain(subtitle, title, true);
-                            shown = true;
-                        }
-                        // 21-11 (1.2.1): sin motor en espera listo pero arrancandose: el puente en cuanto lo este (src\SinTelon.cs)
-                        if (!bridged && br == null) PuenteTardio(title, subtitle, "reapertura de Magpie: " + title, p, finReapertura);
-                        lsReady = false;
-                        // 16-11: matado sin esperar a que salga (~0,45 s: NVIDIA soltando sus modelos); mientras sale, su config y el perfil de
-                        // NVIDIA (Smooth Motion, ~0,2 s) ya para el nuevo (matado no guarda nada encima) y luego se espera a que no quede.
-                        // Antes, todo en fila: ~0,8 s del boton a "Iniciando Magpie" al encender o apagar la generacion en el modo 60
-                        if (!shot)
-                        {
-                            ks.Restart();
-                            KillMagpieNow(title, false);
-                        }
-                        if (shown) CurtainToFront();
-                        RestoreWindowSize(p); // (Magpie mide la ventana al empezar a escalar)
-                        WriteMagpieConfigNow();
-                        WaitMagpieGone(ks);
-                        long logStart = LogLength(Paths.MagpieLog);
-                        EnsureLossless();
-                        if (cfg.PerformanceBoost) ThreadPool.QueueUserWorkItem(delegate { Perf.BoostByName(MagpieLive.ProcName); }); // (en paralelo: no retrasa el arranque)
-                        if (!p.HasExited && !userExit && MagpieConfig.Needed(cfg) && EnsureScaled(p, logStart)) FinishLsStart(p, logStart);
-                        // (el puente, si sigue: Magpie no llego a presentar. 21-11, 1.2.1: tambien el tardio)
-                        finReapertura.Hecho = true;
-                        if (bridged || RelevoToMagpieActive()) FinishRelevoToMagpie("Magpie no llego a presentar (" + title + "): se quita igualmente");
-                        lsReady = true;
-                    }
-                }
-                catch (Exception ex) { Log.Error("Reabriendo Magpie (" + title + ")", ex); }
-                finally
-                {
-                    finReapertura.Hecho = true;
-                    lsReady = true;
-                    passesBusy = false;
-                    ReleaseGate();
-                    if (shown || bridged) HideCurtain(); // (15-11: sin reabrir no hay telon: no se quita el de otro. 16-11: con el puente, el
-                                                         // que pudo poner su vigilancia si el motor se cerro)
-                    Log.Write(title + " listo: " + sw.ElapsedMilliseconds + " ms" + (bridged ? " (con el motor encima: sin telon)" : ""));
-                }
-            });
-            t.IsBackground = true;
-            t.Start();
+            // (1.2.4 ronda 6, QUITAFG: sin Magpie, con mpv sin el motor no hay nada que reabrir -la captura la cambia RequestCapture-)
+            if (!applying && title != null) Osd(string.IsNullOrEmpty(subtitle) ? title : title + " · " + subtitle);
         }
 
-        // 16-11: la config de Magpie (y Smooth Motion en su perfil de NVIDIA) con lo elegido ahora, con el Magpie de antes ya matado pero aun
-        // saliendo (RestartLs): EnsureLossless luego la encuentra al dia y solo lo abre
-        void WriteMagpieConfigNow()
-        {
-            try
-            {
-                PrepareCfg();
-                if (cfg.HomeNative || !MagpieConfig.Needed(cfg) || !EnsureMagpieCopy()) return;
-                foreach (string c in MagpieConfig.Patch(cfg, true)) Log.Write("Cambio necesario (mientras sale Magpie): " + c);
-            }
-            catch (Exception ex) { Log.Error("Escribiendo la config de Magpie mientras sale", ex); }
-        }
+        // (1.2.4 ronda 6, QUITAFG, fase 2: WriteMagpieConfigNow era de Magpie; fuera)
 
-        // Hasta que no quede el Magpie matado (como KillMagpieNow con wait). since: desde el boton de matarlo
-        void WaitMagpieGone(Stopwatch since)
-        {
-            // (22-11, 1.2.2: tambien cuando suelta su candado de instancia unica, para ver si el nuevo podria abrirse antes. Medido: suelto a
-            // los 400-490 ms y fuera del todo a los 550-610 ms: abrir el nuevo con el viejo aun saliendo ahorraria ~150 ms, no compensa)
-            long lockFree = -1;
-            while (MagpieLive.Running && since.ElapsedMilliseconds < 6000)
-            {
-                if (lockFree < 0 && !MagpieLive.LockHeld()) lockFree = since.ElapsedMilliseconds;
-                Thread.Sleep(lockFree < 0 ? 5 : 20);
-            }
-            Log.Write(MagpieLive.Running ? "Aviso: Magpie no se ha cerrado del todo (¿abierto como administrador?)"
-                                         : "Magpie cerrado en " + since.ElapsedMilliseconds + " ms" + (lockFree >= 0 ? " (candado suelto a los " + lockFree + " ms)" : ""));
-        }
+        // (1.2.4 ronda 6, QUITAFG, fase 2: WaitMagpieGone era de Magpie; fuera)
 
         static void SaveText(string path, string text)
         {
@@ -11996,82 +10244,8 @@ namespace ConsoleEnhancer
             return JoinArgs(a);
         }
 
-        // Cada 5 s: lo que dice el log de Magpie (imagenes reales que recibe, errores), para el log de la app
-        void CheckLsPacing(IntPtr hwnd)
-        {
-            int pid = MagpieLive.Pid();
-            if (pid != lsPidSeen)
-            {
-                lsPidSeen = pid;
-                lsLogPos = -1;
-                // (22-11, 1.2.2 RITMO: lo del Magpie que se cierra, con su perfil, y a cero para el nuevo)
-                { string r = RitmoDiag.Resumen(); if (r != null && ritmoPerfil != null) Log.Write("Tirones por origen (hasta cerrar Magpie, " + ritmoPerfil + "): " + r); }
-                RitmoDiag.Limpia(); ritmoOrigenSince = DateTime.MinValue; ritmoPerfil = pid > 0 ? cfg.ProfileText : null;
-                if (pid > 0) Log.Write("Magpie: " + cfg.ProfileText);
-            }
-            LsStats st = ReadLsStats();
-            DateTime now = DateTime.Now;
-            PasadasWatch(now); // (18-11, PASADAS: src\Pasadas.cs)
-            CeEscalasMagpie(st); // (ConsoleEnhancer: la escala de DLSS 5 por Magpie que cabe en este PC, src\Escalas.cs)
-            // (1.2.01: Magpie no llega a los fps del modo -> se baja un paso, src\FpsBajo.cs; 1.2.1: con DLSS 5 por Magpie lo vigila la escala
-            // automatica, src\EscalaAuto.cs: primero el % de DLSS 5, en caliente)
-            // (1.2.2, MULTI: con x3 / x4, si la salida no llega lo primero es bajar el multiplicador, src\Lanzador\Multiplicador.cs)
-            if (pid > 0 && !ProteVigila(st) && !EscalaVigila(st)) FpsMagpieVigila(st.Captured);   // (1.2.4 ronda 6: ProteVigila, antes MultVigila)
-            if (st.Errors > 0 && (now - lastErrLog).TotalSeconds >= 30)
-            {
-                lastErrLog = now;
-                Log.Write("Magpie: " + st.Errors + " error(es) en su log; el ultimo: " + st.LastError);
-            }
-            // 19-11 (FLUIDEZ): cada 5 min, cuantos resumenes de 4 s de Magpie tuvieron una imagen real tarde o perdida y cuantos un pico de
-            // la grafica (los "Tirones sueltos" de abajo salen como mucho 1 cada 15 s: no dicen cuantos hay)
-            if (pid > 0)
-            {
-                ritmoWin += st.Windows; ritmoGaps += st.Gaps; ritmoSpikes += st.GpuSpikes; ritmoBoth += st.GapsWithSpike;
-                if (ritmoSince == DateTime.MinValue) ritmoSince = now;
-                if ((now - ritmoSince).TotalMinutes >= 5 && ritmoWin > 0)
-                {
-                    double min = ritmoWin * 4 / 60.0;
-                    Log.Write("Ritmo de Magpie (" + Ms(Math.Round(min, 1)) + " min, " + (cfg.CapMode ? "modo 30" : "modo 60") + (cfg.SmoothNow ? ", Smooth Motion" : "") +
-                              "): " + ritmoGaps + " ventanas de 4 s con una imagen real tarde o perdida (" + Ms(Math.Round(ritmoGaps / min, 2)) + "/min), " +
-                              ritmoBoth + " de ellas con un pico de la grafica; picos de la grafica en total " + ritmoSpikes + " (" + cfg.ProfileText + ")");
-                    ritmoWin = ritmoGaps = ritmoSpikes = ritmoBoth = 0; ritmoSince = now;
-                }
-            }
-            else { ritmoWin = ritmoGaps = ritmoSpikes = ritmoBoth = 0; ritmoSince = DateTime.MinValue; }
-            // Tirones sueltos que la media no ve: dos imagenes reales separadas por 1,45 veces lo normal y 20 ms mas
-            // 22-11 (1.2.2, RITMO): y de donde vienen (juego, mpv, captura, grafica o la salida de Magpie: src\Lanzador\Ritmo.cs); cada
-            // 5 min, todos por origen
-            double normal = want30 || cfg.CapMode ? 33.4 : 16.7;
-            double peorRitmo;
-            string origen = RitmoDiag.Repasa(normal, normal / Math.Max(1, cfg.FgOff ? 1 : cfg.FgMultNow), out peorRitmo);
-            if (pid > 0 && origen.Length > 0 && (now - lastHitchLog).TotalSeconds >= 15)
-            {
-                lastHitchLog = now;
-                Log.Write("Tirones sueltos: " + (st.CapMax >= normal * 1.45 ? "Magpie estuvo " + Ms(Math.Round(st.CapMax, 1)) + " ms sin imagen nueva (p95 " + Ms(Math.Round(st.CapP95, 1)) + ")" : "peor " + Ms(Math.Round(peorRitmo)) + " ms") +
-                          " -> " + origen);
-            }
-            if (pid > 0 && (now - ritmoOrigenSince).TotalSeconds >= cfg.RitmoResumenSecs)
-            {
-                if (ritmoOrigenSince != DateTime.MinValue) { string r = RitmoDiag.Resumen(); if (r != null) Log.Write("Tirones por origen (" + Ms(Math.Round((now - ritmoOrigenSince).TotalMinutes, 1)) + " min, " + cfg.ProfileText + "): " + r); }
-                ritmoOrigenSince = now;
-            }
-            // Modo 60 con generacion: si Magpie recibe bastante menos de 60 reales con mpv dandole 60, la grafica no llega
-            if (st.Captured > 0)
-            {
-                bool low = !cfg.CapMode && fgWanted && !want30 && vfFps >= 55 && st.Captured < 50 && MagpieLive.RunningFor() > 20; // (no lo de los primeros segundos)
-                lockWins = low ? lockWins + 1 : 0;
-                if (lockWins == 2 && (now - lastLockLog).TotalSeconds >= 60)
-                {
-                    lastLockLog = now;
-                    Log.Write("Modo 60 con generacion: Magpie va a " + Ms(Math.Round(st.Captured, 1)) + " imagenes reales por segundo (mpv da " +
-                              Ms(Math.Round(vfFps, 1)) + "): la grafica no llega (" + cfg.ProfileText + ")");
-                }
-            }
-        }
-        int lockWins;
-        int ritmoWin, ritmoGaps, ritmoSpikes, ritmoBoth;   // (19-11, FLUIDEZ: el resumen de ritmo de cada 5 min)
+        // (1.2.4 ronda 6, QUITAFG, fase 2: CheckLsPacing era de Magpie; fuera)
         DateTime ritmoOrigenSince = DateTime.MinValue;     // (22-11, 1.2.2 RITMO: el resumen por origen, src\Lanzador\Ritmo.cs)
-        string ritmoPerfil;
         DateTime ritmoSince = DateTime.MinValue;
         DateTime lastLockLog = DateTime.MinValue, lastErrLog = DateTime.MinValue;
 
@@ -12090,76 +10264,9 @@ namespace ConsoleEnhancer
             catch (Exception ex) { Log.Error("No se pudo abrir la config", ex); }
         }
 
-        // 21-11 (1.2.1, pendiente de la revision del 21-11: "SendScaleHotkey apaga un escalado que Magpie ya empezo (~20 s de mas al primer
-        // arranque)"): el atajo alterna, y a los 8 s sin escalar se pulsaba aunque Magpie siguiera arrancando (el primer arranque lee cientos de
-        // efectos, su log no para de crecer) y su escalado automatico saltaba justo despues: el atajo lo paraba, y luego "Reiniciando Magpie".
-        // true = Magpie quieto (su log sin crecer 1,5 s, como mucho 6 s de espera) y sin escalar ni empezando: entonces si se puede pulsar
-        bool MagpieQuieto()
-        {
-            try
-            {
-                Stopwatch sw = Stopwatch.StartNew(), still = Stopwatch.StartNew();
-                long last = LogLength(Paths.MagpieLog);
-                while (sw.ElapsedMilliseconds < 6000 && !userExit)
-                {
-                    if (MagpieLive.IsScaling() || MagpieLive.ScalingPhase() == MagpieLive.Phase.Starting) return false;
-                    Thread.Sleep(100);
-                    long now = LogLength(Paths.MagpieLog);
-                    if (now != last) { last = now; still.Restart(); }
-                    else if (still.ElapsedMilliseconds >= 1500) return true;
-                }
-                if (sw.ElapsedMilliseconds >= 6000) Log.Write("Magpie sigue escribiendo en su log (aun arrancando): se le espera antes de pulsar su atajo");
-                return false;
-            }
-            catch { return true; }
-        }
+        // (1.2.4 ronda 6, QUITAFG, fase 2: MagpieQuieto era de Magpie; fuera)
 
-        // El atajo "escalar" de Magpie (el de su config; de serie Alt+Mayus+A) con mpv delante. Alterna: con Magpie escalando lo para
-        void SendScaleHotkey()
-        {
-            try
-            {
-                Process p = mpv;
-                if (p != null && !p.HasExited)
-                {
-                    p.Refresh();
-                    IntPtr h = p.MainWindowHandle;
-                    bool yaDelante = h != IntPtr.Zero && GetForegroundWindow() == h;
-                    if (h != IntPtr.Zero) ForceForeground(h);
-                    Thread.Sleep(150);
-                    // 22-11 (1.2.2, ERRORES; pendiente de la revision de la 1.2.03): con mpv detras, pasarlo delante ya hace saltar el escalado
-                    // automatico de Magpie, y el atajo (alterna) lo paraba a los 150 ms. 22-11 03:14: dos atajos y 24 s hasta escalar (dos
-                    // DLSSNR creados). Si ha empezado, sin atajo
-                    if (!yaDelante && h != IntPtr.Zero)
-                    {
-                        Stopwatch ws = Stopwatch.StartNew();
-                        do
-                        {
-                            if (MagpieLive.IsScaling() || MagpieLive.ScalingPhase() == MagpieLive.Phase.Starting)
-                            {
-                                Log.Write("Magpie " + (MagpieLive.IsScaling() ? "ya esta escalando" : "ha empezado a escalar") + " con mpv delante: sin pulsar su atajo (lo pararia)");
-                                return;
-                            }
-                            Thread.Sleep(50);
-                        } while (ws.ElapsedMilliseconds < 700);
-                    }
-                }
-                int sc = MagpieConfig.ScaleShortcut();
-                byte key = (byte)(sc & 0xFF);
-                List<byte> mods = new List<byte>();
-                if ((sc & 0x100) != 0) mods.Add(0x5B); // Win
-                if ((sc & 0x200) != 0) mods.Add(VK_CONTROL);
-                if ((sc & 0x400) != 0) mods.Add(VK_MENU);
-                if ((sc & 0x800) != 0) mods.Add(0x10); // Mayus
-                foreach (byte m in mods) keybd_event(m, 0, 0, (UIntPtr)0x50434D44u);   // (1.0.12: con la marca de la app)
-                keybd_event(key, 0, 0, (UIntPtr)0x50434D44u);
-                Thread.Sleep(50);
-                keybd_event(key, 0, KEYEVENTF_KEYUP, (UIntPtr)0x50434D44u);
-                for (int i = mods.Count - 1; i >= 0; i--) keybd_event(mods[i], 0, KEYEVENTF_KEYUP, (UIntPtr)0x50434D44u);
-                Log.Write("Enviado el atajo de escalar de Magpie (0x" + sc.ToString("X") + ")");
-            }
-            catch (Exception ex) { Log.Error("Fallo al enviar el atajo de Magpie", ex); }
-        }
+        // (1.2.4 ronda 6, QUITAFG, fase 2: SendScaleHotkey era de Magpie; fuera)
 
         void QuitRequested()
         {
@@ -12186,7 +10293,6 @@ namespace ConsoleEnhancer
             CloseAudio();
             KillStandby("salir"); // (16-11: el motor en espera)
             KillRelevo("salir");  // (16-11, dlss5_sin_telon: el motor del relevo, si lo hay)
-            MagpieLive.Close("salir");
             ExitApp();
         }
 
@@ -12244,7 +10350,6 @@ namespace ConsoleEnhancer
             // avisar: fuera la imagen (mpv / motor, audio, Magpie) y el telon; el aviso encima de todo
             try { Process v = mpv; if (v != null && !v.HasExited) v.Kill(); } catch { }
             try { CloseAudio(); } catch { }
-            try { MagpieLive.Kill(); } catch { }
             OnUi(delegate
             {
                 try { HideCurtain(0); } catch { }
@@ -12267,17 +10372,8 @@ namespace ConsoleEnhancer
                 }
 
                 Progress(0.12);
-                // El perfil de NVIDIA se lee al arrancar el proceso: si cambia,
-                // Lossless Scaling se cierra y EnsureLossless lo vuelve a abrir
-                if (cfg.PerformanceBoost && NvProfiles.Ensure()) MagpieLive.Close("perfil de NVIDIA cambiado: se lee al arrancar el proceso");
-                // 15-11: Smooth Motion del perfil de Magpie.exe, mirado aqui una vez (no en el hilo de la interfaz); lo pone o quita MagpieConfig.Patch
-                // 16-11 (velocidad): en otro hilo: la lectura tarda ~0,5 s y retrasaba mpv (la primera imagen). Quien lo necesite antes
-                // (MagpieConfig.Patch, al abrir Magpie) espera a su candado; en el HOME a 4K nada lo necesita al arrancar
-                ThreadPool.QueueUserWorkItem(delegate
-                {
-                    try { Log.Write("NVIDIA: Smooth Motion en el perfil de Magpie.exe al abrir: " + (NvProfiles.SmoothOn ? "si" : "no")); }
-                    catch (Exception ex) { Log.Error("NVIDIA: mirando Smooth Motion", ex); }
-                });
+                // El perfil de NVIDIA de mpv / el motor (se lee al arrancar el proceso). (1.2.4 ronda 6, QUITAFG: sin Magpie que reabrir ni su perfil)
+                if (cfg.PerformanceBoost) NvProfiles.Ensure();
                 try { Log.Write("Imagen: " + cfg.SoloMotorTexto); } catch { }   // (1.2.4 SOLOMOTOR)
                 // Lo ultimo elegido con el mando
                 string size = LoadText(Paths.CaptureFile);
@@ -12319,7 +10415,7 @@ namespace ConsoleEnhancer
                 // Se abre en el HOME a 4K nativo (lo normal al encender la consola); si ya se estaba jugando, HomeTick
                 // lo ve en unos segundos y pone los ajustes del ultimo juego
                 cfg.HomeNative = cfg.HomeNativeEnabled;
-                if (cfg.HomeNative) Log.Write("Se empieza en el " + (Consolas.Actual.TieneHome ? "HOME" : "menu de la consola") + " a 4K nativo (60 fps, sin Magpie" + (Consolas.Actual.MenuPropio ? " ni Smooth Motion" : "") + ")");
+                if (cfg.HomeNative) Log.Write("Se empieza en el " + (Consolas.Actual.TieneHome ? "HOME" : "menu de la consola") + " a 4K nativo (60 fps" + (Consolas.Actual.MenuPropio ? ", sin Smooth Motion" : "") + ")");
                 Thread padThread = new Thread(GamepadLoop);
                 padThread.IsBackground = true;
                 padThread.Start();
@@ -12327,7 +10423,6 @@ namespace ConsoleEnhancer
                 OnUi(InstallKeyHook);
                 OnUi(InstallMouseHook); // (18-11, MANDOS: bloquear a Joyxoff con la imagen delante; mando_bloquear_joyxoff)
                 OnUi(InstallFgWatch); // (17-11: quien le quita el primer plano a la imagen)
-                EnsureLossless();
 
                 Progress(0.35);
                 StartAudio();
@@ -12351,12 +10446,7 @@ namespace ConsoleEnhancer
                 // que termine y lo de segundo plano se devuelve a la vez (ExitRestore, si no empezo ya en PowerOffNow)
                 KillStandby(off ? "consola apagada" : "fin de la sesion"); // (16-11: el motor en espera)
                 KillRelevo(off ? "consola apagada" : "fin de la sesion");
-                if (off)
-                {
-                    MagpieLive.Kill();
-                    ExitRestore.Start();
-                }
-                else MagpieLive.Close("fin de la sesion");
+                if (off) ExitRestore.Start();
                 OnUi(ExitApp);
             }
             catch (Exception ex)
@@ -12373,138 +10463,11 @@ namespace ConsoleEnhancer
         }
 
         // La copia propia de Magpie (enlaces duros), una vez por sesion de la app (asi coge una version nueva de Magpie)
-        bool magpieCopyDone, magpieCopyOk;
-        bool EnsureMagpieCopy()
-        {
-            if (magpieCopyDone) return magpieCopyOk;
-            magpieCopyDone = true;
-            DllDlssSr.Poner(true, "al abrir la app"); // (22-11, 1.2.2: apartado la vez anterior; el manifiesto de Magpie lo pide. TiemposCarga.cs)
-            string detail;
-            Stopwatch sw = Stopwatch.StartNew();
-            try { magpieCopyOk = MagpieLive.EnsureCopy(cfg.MagpieSource, out detail); }
-            catch (Exception ex) { magpieCopyOk = File.Exists(Paths.MagpieExe); detail = ex.Message; }
-            Log.Write("Magpie de la app en " + Paths.MagpieDir + ": " + detail + " (" + sw.ElapsedMilliseconds + " ms)");
-            if (magpieCopyOk)
-            {
-                // Las DLL de NVIDIA que carga Magpie (~350 MB) leidas una vez en segundo plano: quedan en la cache de Windows y el primer
-                // arranque del escalado no las lee del disco (15-11: tambien las de VSR y TrueHDR: NGX las abre en cada arranque al
-                // buscar sus funciones, se usen o no)
-                Thread warm = new Thread(delegate ()
-                {
-                    Stopwatch ws = Stopwatch.StartNew(); long bytes = 0;
-                    byte[] buf = new byte[1 << 20];
-                    foreach (string dll in new[] { "nvngx_dlssnr.dll", "nvngx_dlss.dll", DllDlssSr.Aparte, "nvngx_dlssg.dll", "nvngxruntime.dll", "cudart64_12.dll", "nvngx_vsr.dll", "nvngx_truehdr.dll" })
-                    {
-                        try { using (FileStream fs = new FileStream(Path.Combine(Paths.MagpieDir, dll), FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 1 << 20)) { int r; while ((r = fs.Read(buf, 0, buf.Length)) > 0) bytes += r; } }
-                        catch { }
-                    }
-                    Log.Write("DLL de NVIDIA de Magpie precargadas: " + (bytes >> 20) + " MB en " + ws.ElapsedMilliseconds + " ms");
-                });
-                warm.IsBackground = true; warm.Priority = ThreadPriority.BelowNormal; warm.Start();
-            }
-            if (!magpieCopyOk)
-            {
-                // (18-11, INTEGRADO: el Magpie es de la app; nunca se pide instalar ni descargar nada)
-                Log.Write("Aviso: falta el Magpie de la app (" + Paths.MagpieExe + "): la imagen ira sin escalar (con motor=propio, el motor propio)");
-                OnUi(delegate { Tip("Falta el escalador de la app (" + Paths.MagpieExe + "): la imagen irá sin escalar"); });
-            }
-            return magpieCopyOk;
-        }
+        // (1.2.4 ronda 6, QUITAFG, fase 2: EnsureMagpieCopy era de Magpie; fuera)
 
-        // 15-11: del motor propio a mpv + Magpie: la config de Magpie escrita y Magpie abierto mientras el motor se cierra (antes, despues:
-        // mpv se lanzaba ~0.2 s mas tarde). Magpie esta cerrado (con el motor no hace nada). Su perfil es el de la ventana de mpv: no
-        // escala la del motor; empieza en cuanto sale mpv. El relanzamiento (EnsureLossless) lo encuentra ya en marcha con su config
-        void PrestartMagpie()
-        {
-            try
-            {
-                lock (lsModeSync)
-                {
-                    if (!relaunchEngine || userExit || MagpieLive.Running) return;
-                    PrepareCfg();
-                    // (MagpieConfig.Needed sin mirar Config.EngineActive: el motor sigue hasta que se va)
-                    if (cfg.EngineNow || cfg.HomeNative || !(cfg.UpscaleOn || !cfg.Dlss5Off || !cfg.FgOff) || !EnsureMagpieCopy()) return;
-                    foreach (string c in MagpieConfig.Patch(cfg, true)) Log.Write("Cambio necesario: " + c);
-                    MagpieDlssSrSegunCadena(); // (22-11, 1.2.2: src\Lanzador\TiemposCarga.cs)
-                    lsStartSw = Stopwatch.StartNew();
-                    Log.Write("Iniciando Magpie (mientras se cierra el motor): " + cfg.ProfileText);
-                    MagpieLive.Start();
-                    lsPidSeen = MagpieLive.Pid();
-                    lsLogPos = -1;
-                }
-            }
-            catch (Exception ex) { Log.Error("Abriendo Magpie mientras se cierra el motor", ex); }
-        }
+        // (1.2.4 ronda 6, QUITAFG, fase 2: PrestartMagpie era de Magpie; fuera)
 
-        // Escribe la config de Magpie con lo elegido ahora y lo deja abierto (escala cuando mpv pasa delante). Si su config
-        // tiene que cambiar, Magpie se cierra antes (la lee al arrancar y la guardaria encima al salir)
-        void EnsureLossless()
-        {
-            PrepareCfg(); // (lo elegido ahora, antes de decidir si hace falta Magpie)
-            if (!EnsureMagpieCopy()) return;
-            // En el HOME a 4K nativo, con el motor propio (o sin nada que hacer) Magpie no pinta nada: cerrado
-            if (cfg.HomeNative || !MagpieConfig.Needed(cfg))
-            {
-                // (15-11: el motivo de verdad; al pasar al motor propio decia "sin nada que hacer: captura 4K sin DLSS 5 ni generacion")
-                if (MagpieLive.Running)
-                    MagpieLive.Close(cfg.HomeNative ? "HOME a 4K nativo" :
-                                     cfg.EngineNow || Config.EngineActive ? "la imagen la hace el motor propio" :
-                                     "sin nada que hacer: " + (Config.WindowFor(cfg.VideoSize) == "3840x2160" ? "captura 4K" : "sin escalador") +
-                                     ", sin DLSS 5 ni generacion");
-                return;
-            }
-            PrepareCfg();
-            // Las repetidas segun la generacion (TrayApp.DedupeOn)
-            // 15-11: el escalado de mpv (1080p/720p en la ventana de 1440p) segun el modo (MpvScaleNow)
-            string sc = cfg.MpvScaleNow;
-            if (sc != mpvScaleSent && ipcUp && !Config.EngineActive)
-                lock (cmdQueue)
-                {
-                    mpvScaleSent = sc; cmdQueue.Add(JsonCmd("set", "scale", sc));
-                    string csc = cfg.MpvCscaleFor(sc);   // 22-11 (1.2.4 LATENCIA): y el croma (mpv_cscale)
-                    if (csc.Length > 0) cmdQueue.Add(JsonCmd("set", "cscale", csc));
-                    Log.Write("mpv: escalado " + sc + (csc.Length > 0 ? " (croma " + csc + ")" : ""));
-                }
-            bool dd = DedupeOn(cfg, fgWanted);
-            if (dd != vfDedupe)
-                lock (cmdQueue)
-                {
-                    vfDedupe = dd;
-                    cmdQueue.Add(dd ? JsonCmd("vf", "set", FrameFilter(cfg)) : JsonCmd("vf", "clr", ""));
-                }
-
-            List<string> changes = new List<string>();
-            // 15-11: con Magpie ya cerrado (cada reapertura del mando) se compara y se escribe de una vez (una lectura menos)
-            bool closed = !MagpieLive.Running;
-            try { changes = MagpieConfig.Patch(cfg, closed); }
-            catch (Exception ex) { Log.Error(closed ? "Escribiendo la config de Magpie" : "Leyendo la config de Magpie", ex); }
-            foreach (string c in changes) Log.Write("Cambio necesario: " + c);
-            bool written = closed && changes.Count > 0;
-            if (closed) changes.Clear(); // (ya escrita)
-
-            // (15-11: uno abierto que no es el nuestro; la copia del informe de errores de uno que ha fallado no cuenta)
-            bool foreign = MagpieLive.ForeignRunning();
-            if (changes.Count > 0 || foreign)
-            {
-                Progress(0.15);
-                if (MagpieLive.Running) MagpieLive.Close(foreign ? "es el Magpie del usuario, no la copia de la app" : "para aplicar la configuracion");
-                try { MagpieConfig.Patch(cfg, true); }
-                catch (Exception ex) { Log.Error("Escribiendo la config de Magpie", ex); }
-            }
-            else if (!written) Log.Write("Configuracion de Magpie correcta, sin cambios");
-
-            if (!MagpieLive.Running)
-            {
-                MagpieDlssSrSegunCadena(); // (22-11, 1.2.2: sin DLSS SR en la cadena, NGX no carga su DLL; src\Lanzador\TiemposCarga.cs)
-                lsStartSw = Stopwatch.StartNew();
-                Log.Write("Iniciando Magpie: " + cfg.ProfileText);
-                MagpieLive.Start();
-                lsPidSeen = MagpieLive.Pid();
-                lsLogPos = -1;
-            }
-            else Log.Write("Magpie ya esta en marcha (" + cfg.ProfileText + ")");
-            Process p = mpv;
-        }
+        // (1.2.4 ronda 6, QUITAFG, fase 2: EnsureLossless era de Magpie; fuera)
 
         // ---------------- Audio de la consola ----------------
         // Un mpv solo de audio con el pin de audio de la capturadora: no toca la GPU ni la imagen. Su sonido
@@ -13233,7 +11196,6 @@ namespace ConsoleEnhancer
                             int bn = int.Parse(m.Groups[2].Value), bw = int.Parse(m.Groups[3].Value), bh = int.Parse(m.Groups[4].Value),
                                 bs = int.Parse(m.Groups[5].Value);
                             string bf = m.Groups[6].Value, bg = curGame;
-                            if (PasadasBurstDone(bp, bn, bw, bh, bs, bf)) continue; // (18-11, PASADAS: las de la vigilancia de la imagen)
                             Thread st = new Thread(delegate () { SaveDitherBurst(bp, bn, bw, bh, bs, bf, bg); });
                             st.IsBackground = true;
                             st.Priority = ThreadPriority.Lowest;
@@ -13487,97 +11449,9 @@ namespace ConsoleEnhancer
         // (16-11, 4 vueltas alternas con una fuente de prueba): Magpie presenta igual de bien y antes. Debajo del telon: no se ve nada.
         // WaitForScaling luego no toca el primer plano mientras Magpie ya prepara (earlyScaled)
         volatile Process earlyScaled;
-        void EarlyScale(Process p)
-        {
-            Thread t = new Thread(delegate ()
-            {
-                try
-                {
-                    Stopwatch sw = Stopwatch.StartNew();
-                    IntPtr h = IntPtr.Zero;
-                    while (sw.ElapsedMilliseconds < 3000 && mpv == p && !p.HasExited && !userExit && !videoSignal)
-                    {
-                        p.Refresh();
-                        h = p.MainWindowHandle;
-                        if (h != IntPtr.Zero) break;
-                        Thread.Sleep(15);
-                    }
-                    // (con su primera imagen ya, como siempre: lo hace WaitForScaling)
-                    if (h == IntPtr.Zero || mpv != p || p.HasExited || userExit || videoSignal || MagpieLive.IsScaling()) return;
-                    earlyScaled = p;
-                    MarcoMpv.Quitar(h, "antes del escalado de Magpie"); // (1.2.1: antes de que Magpie mida la ventana, MarcoMpv.cs)
-                    ForceForeground(h);
-                    Log.Write("Primer plano a mpv a los " + sw.ElapsedMilliseconds + " ms de lanzarlo, antes de su primera imagen: Magpie empieza ya a preparar el escalado");
-                }
-                catch (InvalidOperationException) { } // (ese mpv ya se ha cerrado)
-                catch (Exception ex) { Log.Error("Primer plano a mpv antes de su imagen", ex); }
-            });
-            t.IsBackground = true;
-            t.Start();
-        }
+        // (1.2.4 ronda 6, QUITAFG, fase 2: EarlyScale era de Magpie; fuera)
 
-        // Espera a que Magpie empiece a escalar la ventana de mpv (su ventana de escalado) o a que pase el tiempo maximo
-        // (22-11, 1.2.2: lo llama WaitForScaling, que lo cuenta, en src\Lanzador\AjustesGuia.cs).
-        // tocarPrimerPlano = false (22-11, 1.2.2): justo tras pulsar el atajo de escalar, que ya lo ha empezado (o no): sin quitarle a mpv el
-        // primer plano, que lo pararia a medias antes de que el log de Magpie diga que ha empezado
-        bool WaitForScalingCore(Process p, long logStart, int seconds = 15, bool tocarPrimerPlano = true)
-        {
-            DateTime limit = DateTime.Now.AddSeconds(seconds), began = DateTime.Now;
-            bool focused = !tocarPrimerPlano, preparing = false;
-            while (DateTime.Now < limit && !p.HasExited)
-            {
-                // 22-11 (1.2.2, MENU): "Aplicar" en el menu de ajustes con Magpie preparando: reabierto ya con lo nuevo; la espera de nuevo
-                if (Thread.VolatileRead(ref ajReinicio) == 1 && AjReinicioEnEspera(p))
-                {
-                    began = DateTime.Now; limit = began.AddSeconds(Math.Max(seconds, 8)); focused = false; preparing = false;
-                    continue;
-                }
-                // El escalado automatico de Magpie salta cuando mpv pasa a primer plano: si mpv ya estaba delante (Magpie
-                // reabierto en plena partida), antes un momento el telon
-                if (!focused)
-                {
-                    p.Refresh();
-                    if (p.MainWindowHandle != IntPtr.Zero)
-                    {
-                        // 16-11: si ya ha empezado por EarlyScale (mpv delante antes de su primera imagen), sin tocar el primer plano: quitarselo
-                        // a mpv mientras Magpie prepara el escalado lo pararia a medias. 22-11 (1.2.2, ERRORES): empezado por lo que sea (el
-                        // atajo, un primer plano de antes), no solo por EarlyScale
-                        bool early = MagpieLive.ScalingPhase() == MagpieLive.Phase.Starting;
-                        if (!MagpieLive.IsScaling() && !early)
-                        {
-                            MarcoMpv.Quitar(p.MainWindowHandle, "antes del escalado de Magpie"); // (1.2.1, MarcoMpv.cs)
-                            if (GetForegroundWindow() == p.MainWindowHandle) BounceForeground();
-                            ForceForeground(p.MainWindowHandle);
-                        }
-                        focused = true;
-                    }
-                }
-                if (MagpieLive.IsScaling())
-                {
-                    Log.Write("Magpie ya esta escalando (" + (int)(DateTime.Now - began).TotalMilliseconds + " ms" +
-                              (lsStartSw != null ? ", " + lsStartSw.ElapsedMilliseconds + " ms desde que se abrio" : "") + ")");
-                    lsScaledPid = MagpieLive.Pid();
-                    return true;
-                }
-                // Ya ha empezado y esta creando los modelos de NVIDIA (6-12 s): se le espera, sin tocar nada
-                if (!preparing && MagpieLive.ScalingPhase() == MagpieLive.Phase.Starting)
-                {
-                    preparing = true;
-                    DateTime l2 = DateTime.Now.AddSeconds(cfg.MagpieStartMaxSecs);
-                    if (l2 > limit) limit = l2;
-                    Log.Write("Magpie preparando el escalado (" + (int)(DateTime.Now - began).TotalMilliseconds + " ms): se espera hasta " + cfg.MagpieStartMaxSecs + " s");
-                    RelevoFocusToEngine(); // (16-11, dlss5_sin_telon_foco: el foco al motor que juega encima mientras Magpie prepara)
-                }
-                // Magpie ha dicho que no puede (efecto no soportado, modo de ventana, NGX roto...): no se espera mas
-                string issue = MagpieLive.LastIssue(began);
-                if (issue != null) { Log.Write("Magpie no escala: " + issue); return false; }
-                if (preparing && MagpieLive.ScalingPhase() == MagpieLive.Phase.Ended) { Log.Write("Magpie dejo el escalado a medias"); return false; }
-                if (!MagpieLive.Running) { Log.Write("Magpie se ha cerrado sin escalar"); return false; }
-                Thread.Sleep(preparing ? 20 : 60);
-            }
-            Log.Write("No se detecto el inicio del escalado de Magpie (delante: " + FgOwner() + ")");
-            return false;
-        }
+        // (1.2.4 ronda 6, QUITAFG, fase 2: WaitForScalingCore era de Magpie; fuera)
 
         // (con lock (cmdQueue)) tras un "vf set" / "vf clr": nada mas que volver a poner (con LS habia un filtro de arranque lento)
         void ReAddThrottleLocked() { }
@@ -13594,76 +11468,9 @@ namespace ConsoleEnhancer
             return true;
         }
 
-        // El telon hasta que Magpie presenta su primera imagen con todo puesto ("Scaling output shown" en su log: con DLSSNR y la
-        // generacion los modelos de NVIDIA tardan en crearse) + 150 ms, con tope
-        void WaitLsSettled(Process p, long logStart)
-        {
-            int maxMs = cfg.CurtainSettleMaxMs;
-            if (maxMs <= 0) return;
-            Stopwatch sw = Stopwatch.StartNew();
-            bool seen = MagpieLive.IsScaling(); // (su ventana a la vista = ya presenta: sin esperar a que escriba el log)
-            while (!seen && sw.ElapsedMilliseconds < maxMs && !p.HasExited && !userExit)
-            {
-                if (LogHasSince(Paths.MagpieLog, logStart, "Scaling output shown")) { seen = true; break; }
-                Thread.Sleep(40);
-            }
-            if (seen) Thread.Sleep(30);
-            Log.Write("Telon " + sw.ElapsedMilliseconds + " ms mas: " + (seen ? "Magpie ya presenta (\"Scaling output shown\")" : "sin \"Scaling output shown\" (tope de " + maxMs + " ms)"));
-        }
+        // (1.2.4 ronda 6, QUITAFG, fase 2: WaitLsSettled era de Magpie; fuera)
 
-        // Con Magpie ya escalando (recien abierto o no): el telon fuera cuando presenta y, si lo ha pedido un boton del mando,
-        // lo que ha quedado puesto
-        void FinishLsStart(Process p, long logStart)
-        {
-            if (p.HasExited || userExit) return;
-            if (!MagpieLive.IsScaling())
-            {
-                Log.Write("Magpie dejo de escalar mientras arrancaba (delante: " + FgOwner() + "): se vuelve a escalar");
-                Rescale();
-            }
-            WaitLsSettled(p, logStart);
-            FinishRelevoToMagpie("Magpie ya presenta"); // (16-11, dlss5_sin_telon: el motor que jugaba encima deja paso)
-            HideCurtain(); // (antes que KeepMpvInFront: el primer plano lo vigila ya LsFocusGuard)
-            KeepMpvInFront(p, 6);
-            SmDrainAfterStart(); // 18-11 (LATENCIA, src\ColaSm.cs): con Smooth Motion, vaciar la cola de la tele tras el arranque
-            bool byPad = padRestart && (DateTime.Now - padRestartAt).TotalSeconds < 30;
-            padRestart = false;
-            if (MagpieLive.IsScaling()) pendingWarnOsd = null;
-            else
-                pendingWarnOsd = "Magpie no está escalando · " + (MagpieLive.LastIssue(DateTime.Now.AddSeconds(-60)) ?? "mira switch2.log");
-            if (!ShowPendingWarn() && byPad) Osd(StatusText());
-            // Para el log: lo que Magpie dice de este arranque (efectos creados y errores)
-            // 22-11 (1.2.2, ERRORES): de ESTE arranque. Con Magpie reabierto en esos 3 s (otra captura nada mas escalar), el informe salia con
-            // el tiempo del nuevo y el log del viejo (02:28:00 "Arranque de Magpie (1932 ms desde que se abrio)" con el DLSSNR de 4K del de
-            // antes, ya a 1440p): el del Magpie nuevo sale luego, el suyo
-            Stopwatch swEste = lsStartSw;
-            Thread t = new Thread(delegate ()
-            {
-                Thread.Sleep(3000);
-                if (lsStartSw != swEste) return;
-                string text = LogSince(Paths.MagpieLog, logStart);
-                int errors = 0;
-                StringBuilder sb = new StringBuilder();
-                foreach (string raw in text.Split('\n'))
-                {
-                    string line = raw.TrimEnd('\r');
-                    bool err = line.Contains("|error|");
-                    bool init = line.Contains("initialized:") || line.Contains("DLSSNR STATUS") || line.Contains("Configuration recovery");
-                    if (err) errors++;
-                    if ((err && errors <= 3) || init)
-                    {
-                        string[] f = line.Split('|');
-                        sb.Append("\r\n    ").Append(f.Length >= 5 ? f[4] : line);
-                        if (sb.Length > 1600) break;
-                    }
-                }
-                Log.Write("Arranque de Magpie (" + (swEste != null ? swEste.ElapsedMilliseconds + " ms desde que se abrio" : "ya abierto") + "): " +
-                          errors + " errores en su log" + sb);
-                GenComprobarArranque(); // (1.2.4 ronda 6: lo elegido que no puede ir, src\Lanzador\TiposGeneracion.cs; antes con el multiplicador)
-            });
-            t.IsBackground = true;
-            t.Start();
-        }
+        // (1.2.4 ronda 6, QUITAFG, fase 2: FinishLsStart era de Magpie; fuera)
 
         static string LogSince(string path, long start)
         {
@@ -13681,42 +11488,7 @@ namespace ConsoleEnhancer
             catch { return ""; }
         }
 
-        // Tras reabrir Magpie en plena partida mpv ya esta en primer plano y el escalado automatico solo salta cuando cambia el
-        // primer plano (WaitForScaling se lo quita y lo devuelve): si no empieza solo, su atajo
-        bool EnsureScaled(Process p, long logStart)
-        {
-            if (WaitForScaling(p, logStart, 8)) return true;
-            if (!MagpieLive.Running)
-            {
-                Log.Write("Magpie no esta abierto: se abre otra vez");
-                EnsureLossless();
-                if (WaitForScaling(p, logStart, 8)) return true;
-            }
-            for (int i = 0; i < 2 && !p.HasExited && !userExit; i++)
-            {
-                if (MagpieLive.IsScaling()) return true;
-                // Magpie roto (NGX) o el escalado a medias: se cierra y se abre (el atajo lo empeoraria)
-                if (MagpieLive.NeedsRestart(logStart) || MagpieLive.ScalingPhase() != MagpieLive.Phase.None && MagpieLive.ScalingPhase() != MagpieLive.Phase.Ended)
-                {
-                    Log.Write("Magpie no escala tras empezar (" + MagpieLive.ScalingPhase() + (MagpieLive.NeedsRestart(logStart) ? ", NGX pide reiniciar" : "") + "): se reabre");
-                    MagpieLive.Close("no escalaba");
-                    logStart = LogLength(Paths.MagpieLog);
-                    EnsureLossless();
-                    if (WaitForScaling(p, logStart, 8)) return true;
-                    continue;
-                }
-                // 21-11 (1.2.1): sin Magpie abierto (no se pudo abrir) el atajo no hace nada: se lo comia la ventana de delante
-                if (!MagpieLive.Running) break;
-                // 21-11 (1.2.1): Magpie aun cargando: se le espera en vez de pulsar el atajo (alterna: lo pararia a punto de empezar)
-                if (!MagpieQuieto()) { if (WaitForScaling(p, logStart, 8)) return true; continue; }
-                Log.Write("Magpie no ha escalado solo: se pulsa su atajo");
-                SendScaleHotkey();
-                if (WaitForScaling(p, logStart, 5, false)) return true;   // (22-11, 1.2.2: sin volver a tocar el primer plano, ver WaitForScaling)
-            }
-            string issue = MagpieLive.LastIssue(DateTime.Now.AddSeconds(-40));
-            pendingWarnOsd = "Magpie no escala · " + (issue ?? "mira switch2.log");
-            return false;
-        }
+        // (1.2.4 ronda 6, QUITAFG, fase 2: EnsureScaled era de Magpie; fuera)
 
         static long LogLength(string path)
         {
@@ -13782,8 +11554,6 @@ namespace ConsoleEnhancer
             // Menos carga hasta cerrar la app: el modelo de DLSS 5 corre en menos imagenes
             cfg.Dlss5EveryExtra++;
             Log.Write("Hasta cerrar la app: el modelo de DLSS 5 corre en 1 de cada " + cfg.Dlss5EveryNow + " imagenes");
-            // Magpie tambien ha perdido la GPU: se vuelve a abrir con el mpv nuevo
-            MagpieLive.Close("reinicio de la grafica");
             stallKilledPid = -1;
             // El mpv colgado tiene la capturadora: se le da tiempo a soltarla
             if (!p.HasExited && !p.WaitForExit(30000))
@@ -13860,7 +11630,6 @@ namespace ConsoleEnhancer
                     "\tventanas=" + windows + "\tventanas_lentas=" + slow95 +
                     "\tmpv=" + Ms(vfN > 0 ? Math.Round(vfSum / vfN, 1) : 0) +
                     "\tdlssnr_pct=" + (pct.Length > 0 ? pct : "-") + "\terrores=" + errors +
-                    "\tescalando=" + (MagpieLive.IsScaling() ? 1 : 0) +
                     "\tperfil=" + cfg.ProfileText;
                 File.AppendAllText(Path.Combine(Paths.Datos, @"games\bench.txt"), res + "\r\n", new UTF8Encoding(false));
                 Log.Write("Banco: " + res);
@@ -13889,13 +11658,7 @@ namespace ConsoleEnhancer
                 relaunchEngine = false;
                 quitForRelaunch = false;
                 quitToStandby = false;
-                if (!first)
-                    lock (lsModeSync)
-                    {
-                        pendingPassesRestart = false; // (Magpie se abre ya con todo: nada pendiente)
-                        EnsureLossless();
-                        if (cfg.PerformanceBoost) ThreadPool.QueueUserWorkItem(delegate { Perf.BoostByName(MagpieLive.ProcName); }); // (en paralelo: no retrasa el arranque)
-                    }
+                if (!first) pendingPassesRestart = false; // (la imagen se abre ya con todo: nada pendiente)
                 Process p;
                 while (true)
                 {
@@ -13993,11 +11756,7 @@ namespace ConsoleEnhancer
                     imageStart = DateTime.Now;
                     curIpc = ipc;
                     edgeShaderSet = cfg.HomeNative ? "" : cfg.EdgeShaderNow; // (lo que lleva en sus argumentos, AddCommonMpvArgs)
-                    if (cfg.PerformanceBoost)
-                    {
-                        Perf.Boost(p, "mpv");
-                        Perf.BoostByName(MagpieLive.ProcName);
-                    }
+                    if (cfg.PerformanceBoost) Perf.Boost(p, "mpv");
                     if (userExit) // salir pedido justo mientras se lanzaba
                     {
                         try { p.Kill(); } catch { }
@@ -14013,9 +11772,6 @@ namespace ConsoleEnhancer
                     Thread guard = new Thread(delegate () { LsFocusGuard(started); });
                     guard.IsBackground = true;
                     guard.Start();
-                    // 16-11: con Magpie ya abierto para esta ventana, mpv al primer plano en cuanto tiene ventana (no tras su primera imagen):
-                    // Magpie empieza a preparar el escalado (~8 s de modelos de NVIDIA) mientras mpv abre la capturadora (~1,2 s)
-                    if (!eng && !cfg.HomeNative && MagpieConfig.Needed(cfg) && MagpieLive.Running) EarlyScale(p);
                     if (WaitForSignal(p, woke != null ? 4 : 30, woke != null))
                     {
                         if (eng) engineFails = 0;
@@ -14034,7 +11790,7 @@ namespace ConsoleEnhancer
                     if (userExit) return salida;
                     // 16-11 (dlss5_sin_telon): el mpv nuevo se ha cerrado sin imagen con el motor del relevo aun encima: deja paso, con el telon
                     // de siempre mientras se sigue
-                    if (!eng && RelevoToMagpieActive()) { ShowCurtain(); FinishRelevoToMagpie("mpv se ha cerrado sin dar imagen"); }
+
                     // 21-11 (1.2.1, src\Lanzador\CapturaSegura.cs): sin imagen por el formato de la capturadora (cerrado aqui o solo, con 2): otra
                     // vez ya con el repuesto, sin contarlo como fallo ni esperar
                     if (CapFallo(eng, woke != null, salida)) continue;
@@ -14045,13 +11801,12 @@ namespace ConsoleEnhancer
                         DropWake();
                         continue;
                     }
-                    // 15-11: el motor propio no llega a dar imagen 2 veces: el resto de la sesion, mpv + Magpie
+                    // 15-11: el motor propio no llega a dar imagen 2 veces: el resto de la sesion, mpv sin el motor (1.2.4 ronda 6: sin Magpie)
                     if (eng && salida != 0 && ++engineFails >= 2)
                     {
-                        Log.Write("El motor propio no arranca (codigo " + salida + ", ver data\\logs\\engine.log): mpv + Magpie el resto de la sesion");
+                        Log.Write("El motor propio no arranca (codigo " + salida + ", ver data\\logs\\engine.log): mpv sin el motor el resto de la sesion");
                         cfg.Engine = "magpie";
                         Config.EngineActive = false;
-                        lock (lsModeSync) EnsureLossless();
                         continue;
                     }
                     // Cerrado por el usuario (codigo 0): se sale como siempre. 20-11 (CIERRES): el motor con 0 sin que el usuario saliera
@@ -14088,7 +11843,7 @@ namespace ConsoleEnhancer
                 Progress(0.8);
                 if (Config.EngineActive)
                 {
-                    Log.Write("Motor propio en marcha: sin Magpie (" + EngineLive(cfg) + ")");
+                    Log.Write("Motor propio en marcha (" + EngineLive(cfg) + ")");
                     // El primer plano al motor al irse la pantalla de carga (la generacion de NVIDIA lo necesita, y el mando
                     // solo cambia cosas con la imagen delante)
                     Process ep = p;
@@ -14099,53 +11854,7 @@ namespace ConsoleEnhancer
                         catch { }
                     });
                 }
-                else if (cfg.HomeNative) Log.Write("HOME a 4K nativo: sin Magpie");
-                else if (!MagpieConfig.Needed(cfg)) Log.Write("Captura 4K sin DLSS 5 ni generacion: sin Magpie");
-                // Un solo cambio en Magpie a la vez
-                else
-                lock (lsModeSync)
-                {
-                    // 21-11 (1.2.1): reabiertos mpv y Magpie (otra captura con otra ventana, un cambio de motor con el telon...): el motor en
-                    // espera jugando encima mientras Magpie prepara, como en las demas reaperturas (src\SinTelon.cs)
-                    Bandera finRun = null;
-                    if (relanzado && relevo == null)
-                    {
-                        finRun = new Bandera();
-                        // (sin puente al momento: el telon en vivo, la imagen de la consola sin escalar, en vez de negro; src\TelonVivo.cs)
-                        if (!PuenteAlReabrir(p, finRun)) SwapToLiveCurtainAsync("mpv y Magpie reabiertos", p);
-                    }
-                    bool scaled = WaitForScaling(p, logStart, 8);
-                    // 21-11 (1.2.1): Magpie aun cargando (su log crece: el primer arranque lee cientos de efectos): mas tiempo antes de pulsar su
-                    // atajo (alterna: con el escalado a punto de empezar lo paraba) o de reiniciarlo (ver MagpieQuieto)
-                    if (!scaled && !p.HasExited && !userExit && MagpieLive.Running && !MagpieQuieto())
-                        scaled = WaitForScaling(p, logStart, 10);
-                    if (!scaled && !p.HasExited && !userExit && MagpieLive.Running && !MagpieLive.NeedsRestart(logStart) &&
-                        MagpieLive.ScalingPhase() != MagpieLive.Phase.Starting && MagpieLive.ScalingPhase() != MagpieLive.Phase.Shown)
-                    {
-                        // Relanzado en plena sesion la ventana nueva puede no pasar a primer plano
-                        Log.Write("Magpie no ha escalado solo: se pulsa su atajo");
-                        SendScaleHotkey();
-                        scaled = WaitForScaling(p, logStart, 5, false);   // (22-11, 1.2.2: sin volver a tocar el primer plano, ver WaitForScaling)
-                    }
-                    if (!scaled && !p.HasExited && !userExit && File.Exists(Paths.MagpieExe))
-                    {
-                        // Magpie colgado o cerrado: se reabre una vez y se vuelve a esperar
-                        Log.Write("Reiniciando Magpie");
-                        Progress(0.85);
-                        MagpieLive.Close("no escalaba");
-                        logStart = LogLength(Paths.MagpieLog);
-                        EnsureLossless();
-                        if (cfg.PerformanceBoost) ThreadPool.QueueUserWorkItem(delegate { Perf.BoostByName(MagpieLive.ProcName); }); // (en paralelo: no retrasa el arranque)
-                        if (!EnsureScaled(p, logStart))
-                            Log.Write("Magpie sigue sin escalar; se quita la pantalla de carga igualmente");
-                        else scaled = true;
-                    }
-                    // Con la pantalla de carga (o el telon) aun puesta
-                    if (scaled && !p.HasExited && !userExit) FinishLsStart(p, logStart);
-                    if (finRun != null) finRun.Hecho = true;
-                }
-                // (16-11, dlss5_sin_telon: si el motor del relevo sigue encima -Magpie no llego a escalar-, deja paso igualmente)
-                FinishRelevoToMagpie("Magpie no llego a presentar: se quita igualmente");
+                else Log.Write(cfg.HomeNative ? "HOME a 4K nativo con mpv" : "mpv sin el motor: la imagen de la capturadora tal cual");   // (1.2.4 ronda 6, QUITAFG: sin Magpie)
                 lsReady = true;
                 HideCurtain(); // si mpv se relanzo en plena partida para cambiar la captura
                 ShowPendingWarn();
@@ -14227,10 +11936,8 @@ namespace ConsoleEnhancer
                     if (relaunchSize != cfg.CaptureNow) cfg.VideoSize = relaunchSize;
                     switchUntil = DateTime.MinValue;
                     ShowCurtain();
-                    // Otro tamaño de ventana (4K): otra cadena de efectos (a 4K no se escala). EnsureLossless reabre Magpie si cambia
-                    if (newWindow) lock (lsModeSync) MagpieLive.Close("otra ventana de mpv (" + Config.WindowFor(cfg.VideoSize) + ")");
-                    Log.Write("Captura a " + SizeName(cfg.CaptureNow) + " (" + cfg.FramerateNow + " fps): se vuelve a abrir mpv" +
-                              (newWindow ? " y Magpie (ventana de " + Config.WindowFor(cfg.VideoSize) + ")" : " (Magpie sigue abierto)"));
+                    Log.Write("Captura a " + SizeName(cfg.CaptureNow) + " (" + cfg.FramerateNow + " fps): se vuelve a abrir " + (Config.EngineActive ? "el motor" : "mpv") +
+                              (newWindow ? " (ventana de " + Config.WindowFor(cfg.VideoSize) + ")" : ""));
                     relaunchSize = null;
                     signalOn = false;
                     waitStart = DateTime.Now;
@@ -14588,8 +12295,10 @@ namespace ConsoleEnhancer
                 // 19-11 (DETECCION): el menu de la consola con imagenes y escenas, antes y ahora (src\PruebaDeteccion.cs):
                 // --test-deteccion=<carpeta>[;<informe>] (games\test_deteccion) o --test-deteccion=listar;<carpeta>;<informe.tsv>
                 if (arg.StartsWith("--test-deteccion=")) return PruebaDeteccion.Run(arg.Substring(17));
-                // 21-11 (1.2.1): la escala de DLSS 5 automatica (modelo, decisiones, la config de Magpie) sin consola: --test-escala[=<informe>]
-                if (arg == "--test-escala" || arg.StartsWith("--test-escala=")) return EscalaPrueba.Run(arg.Length > 14 ? arg.Substring(14) : null);
+                // (1.2.1-1.2.4: --test-escala, la escala de DLSS 5 por Magpie, y --test-reescalado, su config de reescalado; 1.2.4 ronda 6,
+                // QUITAFG: sin Magpie, fuera: dicen que ya no estan y salen bien, para los guiones de antes)
+                if (arg == "--test-escala" || arg.StartsWith("--test-escala=") || arg == "--test-reescalado" || arg.StartsWith("--test-reescalado="))
+                { Console.WriteLine(arg.Split('=')[0] + ": era de Magpie, que ya no esta (1.2.4 ronda 6): nada que probar"); return 0; }
                 // (1.2.4 ronda 6, QUITAFG) los tipos de generacion y la puesta al dia de lo guardado con DLSS FG / x3 / x4, sin abrir nada:
                 // --test-tipos-generacion[=<informe>][;<carpeta con copias de datos de usuario>] (src\Lanzador\TiposGeneracion.cs). El
                 // --test-multiplicador de la 1.2.2-1.2.4 (las reglas de x3 / x4, que ya no estan) hace lo mismo, para los guiones de antes
@@ -14599,8 +12308,6 @@ namespace ConsoleEnhancer
                     string[] pa = (ig > 0 ? arg.Substring(ig + 1) : "").Split(';');
                     return TrayApp.TiposPrueba(pa[0].Length > 0 ? pa[0] : null, pa.Length > 1 ? pa[1] : null);
                 }
-                // 22-11 (1.2.2, REESCALADO): la config de Magpie de reescalado y DLSS 5 por combinacion: --test-reescalado[=<informe>]
-                if (arg == "--test-reescalado" || arg.StartsWith("--test-reescalado=")) return ReescaladoPrueba.Run(arg.Length > 18 ? arg.Substring(18) : null);
                 // 22-11 (1.2.3, MOTOR5): por donde va DLSS 5 (motor con PrismaNr.dll / Magpie) con cada combinacion: --test-motor-dlss5[=<informe>]
                 if (arg == "--test-motor-dlss5" || arg.StartsWith("--test-motor-dlss5=")) return Config.MotorDlss5Prueba(arg.Length > 19 ? arg.Substring(19) : null);
                 // 22-11 (1.2.4, SOLOMOTOR): el reparto motor / Magpie (reserva) con cada combinacion: --test-solo-motor[=<informe>] (SoloMotor.cs)
@@ -14873,33 +12580,21 @@ namespace ConsoleEnhancer
 
         // (ConsoleEnhancer: ApagarPc, con el aviso que se puede cancelar, esta en src\InicioWindows.cs)
 
-        // Prueba: hace la copia de Magpie (enlaces duros) y escribe la config que pondria la app en una COPIA en
-        // %TEMP%\Switch2Magpie_dryrun\config.json (la de la copia de Magpie no se toca). No lanza nada
+        // Prueba: lo que haria la app con este ini (rutas, perfil, camino, los argumentos de mpv). No lanza nada. (1.2.4 ronda 6, QUITAFG:
+        // sin Magpie: ni su copia ni su config)
         static int DryRun(Config cfg)
         {
             Log.Write("===== DRY RUN =====");
             int rc = 0;
             try
             {
-                // (1.2.2: el nvngx_dlss.dll que se aparta a 4K, src\Lanzador\TiemposCarga.cs, en su sitio antes de mirar la copia de Magpie:
-                // si no, "FALTAN nvngx_dlss.dll" sin motivo)
-                DllDlssSr.Poner(true, "--dry-run");
-                string detail = null;
-                bool ok = MagpieLive.Running ? File.Exists(Paths.MagpieExe) : MagpieLive.EnsureCopy(cfg.MagpieSource, out detail);
-                if (MagpieLive.Running) detail = "Magpie abierto: la copia no se toca";
-                Log.Write("DRY RUN copia de Magpie: " + (ok ? "ok" : "FALLO") + " (" + detail + ")");
+                Log.Write("DRY RUN XeSS / FSR para el motor: " + (Paths.HayLib("libxess_fg.dll") ? "xess\\ si" : "xess\\ NO") + ", " +
+                          (Paths.HayLib("amd_fidelityfx_framegeneration_dx12.dll") ? "fsr\\ si" : "fsr\\ NO") + "; DLSS 5 " + (Integrado.Dlss5Available ? "en " + Integrado.Dlss5Dir : "no"));
                 Log.Write("DRY RUN rutas: " + Integrado.Describe(cfg)); // (18-11, INTEGRADO)
                 Log.Write("DRY RUN perfil: " + cfg.ProfileText);
                 Log.Write("DRY RUN camino: " + cfg.SoloMotorTexto);   // (1.2.4 SOLOMOTOR)
-                List<string> changes = MagpieConfig.Patch(cfg, false);
-                if (changes.Count == 0) Log.Write("DRY RUN: sin cambios necesarios");
-                foreach (string c in changes) Log.Write("DRY RUN cambio: " + c);
-                string dir = Path.Combine(Path.GetTempPath(), "ConsoleEnhancer_dryrun");
-                Directory.CreateDirectory(dir);
-                File.WriteAllText(Path.Combine(dir, "cadena.json"), JsonWriter.Serialize(MagpieConfig.Chain(cfg, double.NaN)), new UTF8Encoding(false));
-                Log.Write("DRY RUN cadena de efectos en " + Path.Combine(dir, "cadena.json"));
+                Log.Write("DRY RUN generacion: " + (cfg.FgOff ? "no" : cfg.FgTypeNow) + (Config.EngineActive || cfg.EngineNow ? " (motor, cadena " + cfg.EngineFgChain + ", Smooth Motion " + cfg.EngineSmoothMode + ")" : ""));
                 Log.Write("DRY RUN mpv: " + cfg.MpvPath + " " + TrayApp.BuildMpvArgs(cfg));
-                Log.Write("DRY RUN Magpie en marcha: " + (MagpieLive.Running ? "si" : "no") + " (no se toca)");
             }
             catch (Exception ex)
             {

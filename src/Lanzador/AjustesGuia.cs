@@ -39,8 +39,6 @@ namespace ConsoleEnhancer
 
         int ajGuiaVistas = int.MinValue;      // PadHub.GuidePresses ya atendidas (GamepadLoop)
         volatile bool homeSwitchToHome;       // StartHomeSwitch: hacia el menu de la consola (true) o hacia un juego (false)
-        int ajEsperaMagpie;                   // WaitForScaling en marcha (Interlocked)
-        int ajReinicio;                       // 0 nada; 1 pedido por "Aplicar" con Magpie preparando; 2 tomado por WaitForScaling
         DateTime ajPedidoEn = DateTime.MinValue;   // la Guia pulsada sin poder abrirlo aun: se abre en cuanto se pueda
         string ajPedidoDesde = "";
         string ajPedidoPorque = "";
@@ -151,10 +149,10 @@ namespace ConsoleEnhancer
             if (!cambiando) return AjPuede.Si;
             // Cambiando: con Magpie preparando (entrar en un juego, reabrir Magpie, mpv reabierto con el puente) se abre encima de lo que se vea
             if (relaunchSize != null) { porque = "cambiando la captura"; return AjPuede.Espera; }
-            if (relaunchEngine && !RelevoToMagpieActive()) { porque = "cambiando de motor"; return AjPuede.Espera; }
-            if (entrando || passesBusy || RelevoToMagpieActive() || Thread.VolatileRead(ref ajEsperaMagpie) > 0)
+            if (relaunchEngine) { porque = "cambiando de motor"; return AjPuede.Espera; }
+            if (entrando || passesBusy)
             {
-                porque = "sobre " + (RelevoToMagpieActive() ? "el puente" : curtain != null ? "el telon" : "la imagen") + " mientras Magpie prepara";
+                porque = "sobre " + (curtain != null ? "el telon" : "la imagen") + " mientras cambia";
                 return AjPuede.Si;
             }
             porque = "sin imagen (aun preparandose)";
@@ -171,7 +169,7 @@ namespace ConsoleEnhancer
             Process p = mpv;
             bool vivo = false;
             try { vivo = p != null && !p.HasExited; } catch { }
-            if (vivo || RelevoToMagpieActive()) { ajSinImagenDesde = DateTime.MinValue; return true; }
+            if (vivo) { ajSinImagenDesde = DateTime.MinValue; return true; }
             // (sin mpv: si se esta reabriendo -otra captura, otro motor-, un rato; si no, fuera)
             if (relaunchSize == null && !relaunchEngine) { porque = "la imagen ya no esta"; return false; }
             if (ajSinImagenDesde == DateTime.MinValue) ajSinImagenDesde = DateTime.Now;
@@ -251,7 +249,7 @@ namespace ConsoleEnhancer
                 if (userExit || Config.EngineActive || relaunchSize != null || relaunchEngine || InHomeOHaciaEl()) return false;
                 Process p = mpv;
                 if (p == null || p.HasExited) return false;
-                bool preparando = Thread.VolatileRead(ref ajEsperaMagpie) > 0 || passesBusy || (homeBusy && !homeSwitchToHome);
+                bool preparando = passesBusy || (homeBusy && !homeSwitchToHome);
                 if (!preparando || (lsReady && !passesBusy && !homeBusy)) return false;
                 string v;
                 if (e.TryGetValue("cap", out v) && v != cfg.VideoSize) return false;
@@ -264,64 +262,12 @@ namespace ConsoleEnhancer
 
         bool InHomeOHaciaEl() { return (homeBusy && homeSwitchToHome) || (!homeBusy && InHome); }
 
-        // (con los ajustes ya puestos) Que el hilo que espera a Magpie lo reabra con lo nuevo. false = no se puede (otro motor, ya ha acabado
-        // de preparar...): lo de siempre
-        bool AjReiniciarEnCaliente()
-        {
-            PrepareCfg();
-            if (Config.EngineActive || cfg.EngineNow || cfg.HomeNative || !MagpieConfig.Needed(cfg))
-            {
-                Log.Write("Menu de ajustes: en caliente no (" + (cfg.EngineNow || Config.EngineActive ? "toca el motor propio" : "sin Magpie") + "): al acabar de preparar, lo de siempre");
-                return false;
-            }
-            Interlocked.Exchange(ref ajReinicio, 1);
-            Stopwatch sw = Stopwatch.StartNew();
-            while (sw.ElapsedMilliseconds < 4000 && !userExit)
-            {
-                if (Thread.VolatileRead(ref ajReinicio) == 2) { Interlocked.Exchange(ref ajReinicio, 0); return true; }
-                // (ya no se prepara nada: lo hara RestartLs, que solo reabre si la config de Magpie cambia)
-                if (Thread.VolatileRead(ref ajEsperaMagpie) == 0 && lsReady && !passesBusy && !homeBusy) break;
-                Thread.Sleep(10);
-            }
-            if (Interlocked.CompareExchange(ref ajReinicio, 0, 1) == 1)
-            {
-                Log.Write("Menu de ajustes: Magpie ya ha acabado de preparar (" + sw.ElapsedMilliseconds + " ms): se aplica como siempre");
-                return false;
-            }
-            Interlocked.Exchange(ref ajReinicio, 0);
-            return true;
-        }
+        // (1.2.2-1.2.4: AjReiniciarEnCaliente reabria Magpie con lo nuevo mientras preparaba; 1.2.4 ronda 6, QUITAFG: sin Magpie, nunca)
+        bool AjReiniciarEnCaliente() { return false; }
 
-        // Desde WaitForScaling (su hilo, con lsModeSync), cada vuelta: si "Aplicar" lo ha pedido, Magpie fuera y otra vez con lo nuevo (el
-        // puente o el telon siguen a la vista). true = reabierto: la espera vuelve a empezar
-        bool AjReinicioEnEspera(Process p)
-        {
-            if (Interlocked.CompareExchange(ref ajReinicio, 2, 1) != 1) return false;
-            try
-            {
-                if (p.HasExited || userExit) return false;
-                if (LsHardChanges() == 0) { Log.Write("Menu de ajustes: Magpie ya se abrio con lo nuevo: sigue preparando"); return false; }
-                Stopwatch ks = Stopwatch.StartNew();
-                Log.Write("Menu de ajustes: aplicado con Magpie preparando: se reabre ya con lo nuevo (" +
-                          (RelevoToMagpieActive() ? "el puente sigue encima" : curtain != null ? "con el telon" : "sin telon") + ")");
-                KillMagpieNow("ajustes aplicados mientras preparaba", false);
-                RestoreWindowSize(p);
-                WriteMagpieConfigNow();
-                WaitMagpieGone(ks);
-                EnsureLossless();
-                if (cfg.PerformanceBoost) ThreadPool.QueueUserWorkItem(delegate { Perf.BoostByName(MagpieLive.ProcName); });
-                return true;
-            }
-            catch (Exception ex) { Log.Error("Menu de ajustes: reabriendo Magpie con lo nuevo", ex); return false; }
-        }
+        // (1.2.4 ronda 6, QUITAFG, fase 2: AjReinicioEnEspera era de Magpie; fuera)
 
-        // WaitForScaling, contado (AjustesPuede / AjEnCaliente saben que hay un Magpie preparando)
-        bool WaitForScaling(Process p, long logStart, int seconds = 15, bool tocarPrimerPlano = true)
-        {
-            Interlocked.Increment(ref ajEsperaMagpie);
-            try { return WaitForScalingCore(p, logStart, seconds, tocarPrimerPlano); }
-            finally { Interlocked.Decrement(ref ajEsperaMagpie); }
-        }
+        // (1.2.4 ronda 6, QUITAFG, fase 2: WaitForScaling era de Magpie; fuera)
 
         // Antes de aplicar lo de siempre: con algo cambiando aun (otra reapertura, Magpie preparando...), se espera a que acabe (hasta 45 s:
         // Magpie tarda 8-15 s; antes 10 s y despues no se aplicaba nada). false = no se aplica (el menu de la consola, la imagen se ha ido)
@@ -470,24 +416,23 @@ namespace ConsoleEnhancer
             TrayApp a;
             a = jugando(); puede("Jugando, imagen lista", a, AjPuede.Si, null);
             a = jugando(); a.cfg.HomeNative = true; puede("En el menu de la consola (4K nativo)", a, AjPuede.No, "menu de la consola");
-            a = jugando(); a.homeGrace = true; puede("En el menu de la consola visto aun con Magpie (homeGrace)", a, AjPuede.No, "menu de la consola");
+            a = jugando(); a.homeGrace = true; puede("En el menu de la consola visto aun con el juego (homeGrace)", a, AjPuede.No, "menu de la consola");
             a = jugando(); a.homeBusy = true; a.homeSwitchToHome = true; a.lsReady = false; puede("Yendo al menu de la consola", a, AjPuede.No, "menu de la consola");
             // Log del usuario 04:00:34-04:00:45: entrando en un juego, el puente encima y Magpie preparando 11 s; la Guia a 1,1 / 3,8 / 6,6 s
             a = jugando(); a.homeBusy = true; a.homeSwitchToHome = false; a.cfg.HomeNative = true; a.lsReady = false; a.passesBusy = true; a.salioMenuEn = ahora.AddSeconds(-1.1);
             puede("Entrando en un juego, 1,1 s tras salir del menu (aun HomeNative)", a, AjPuede.Espera, "se acaba de salir");
             a.cfg.HomeNative = false; a.salioMenuEn = ahora.AddSeconds(-3.8); puede("Entrando en un juego, 3,8 s", a, AjPuede.Espera, "se acaba de salir");
-            a.salioMenuEn = ahora.AddSeconds(-6.6); puede("Entrando en un juego, 6,6 s (Magpie preparando)", a, AjPuede.Si, "mientras Magpie prepara");
+            a.salioMenuEn = ahora.AddSeconds(-6.6); puede("Entrando en un juego, 6,6 s (el motor cambiando)", a, AjPuede.Si, "mientras cambia");
             sigue("Entrando en un juego (HomeNative aun puesto)", a, true);
             // Log 04:01:27-04:01:38: "Aplicar" captura 1080p: mpv y Magpie reabiertos, la Guia a 3,6 y 6,1 s
             a = jugando(); a.relaunchSize = "1920x1080"; a.lsReady = false; puede("Cambiando la captura (mpv cerrandose)", a, AjPuede.Espera, "captura");
             a = jugando(); a.mpv = null; a.relaunchSize = "1920x1080"; a.lsReady = false; puede("Cambiando la captura (sin mpv)", a, AjPuede.Espera, "sin imagen");
             sigue("Cambiando la captura (sin mpv)", a, true);
-            a = jugando(); a.lsReady = false; a.imageStart = ahora.AddSeconds(-3.6); Interlocked.Increment(ref a.ajEsperaMagpie);
-            puede("mpv reabierto hace 3,6 s, Magpie preparando", a, AjPuede.Espera, "acaba de abrirse");
-            a.imageStart = ahora.AddSeconds(-6.1); puede("mpv reabierto hace 6,1 s, Magpie preparando", a, AjPuede.Si, "mientras Magpie prepara");
-            sigue("mpv reabierto, Magpie preparando", a, true);
+            // (1.2.4 ronda 6, QUITAFG: "mpv reabierto, Magpie preparando" -WaitForScaling- ya no existe: sin Magpie)
+            a = jugando(); a.lsReady = false; a.imageStart = ahora.AddSeconds(-3.6);
+            puede("Motor reabierto hace 3,6 s", a, AjPuede.Espera, "acaba de abrirse");
             // Log 04:04:32-04:04:44: "Aplicar" pasadas 2: Magpie reabriendose (RestartLs) con el puente
-            a = jugando(); a.passesBusy = true; a.lsReady = false; puede("Magpie reabriendose (Aplicar, R3, modo...)", a, AjPuede.Si, "mientras Magpie prepara");
+            a = jugando(); a.passesBusy = true; a.lsReady = false; puede("Motor reabriendose (Aplicar, R3, modo...)", a, AjPuede.Si, "mientras cambia");
             a = jugando(); a.relaunchEngine = true; a.lsReady = false; puede("Cambiando de motor (DLSS 5 si/no)", a, AjPuede.Espera, "motor");
             a = jugando(); a.lsReady = false; puede("Sin imagen aun (esperando a la consola)", a, AjPuede.Espera, "preparandose");
             a = jugando(); a.mpv = null; puede("Sin mpv", a, AjPuede.Espera, "sin imagen");
@@ -511,13 +456,13 @@ namespace ConsoleEnhancer
             Dictionary<string, string> nivel = new Dictionary<string, string>(); nivel["nivel"] = "3"; nivel["cap"] = "3840x2160"; nivel["modo"] = "30";
             a = jugando(); a.cfg.VideoSize = "3840x2160"; a.cfg.CapMode = true;
             caliente("Jugando con la imagen lista", cal(a, nivel), false);
-            a.passesBusy = true; a.lsReady = false; caliente("Magpie reabriendose", cal(a, nivel), true);
+            a.passesBusy = true; a.lsReady = false; caliente("Motor reabriendose", cal(a, nivel), true);
             Dictionary<string, string> cap = new Dictionary<string, string>(nivel); cap["cap"] = "1920x1080";
-            caliente("Magpie reabriendose, con otra captura", cal(a, cap), false);
+            caliente("Motor reabriendose, con otra captura", cal(a, cap), false);
             Dictionary<string, string> m120 = new Dictionary<string, string>(nivel); m120["modo"] = "120";
-            caliente("Magpie reabriendose, al modo 120", cal(a, m120), false);
+            caliente("Motor reabriendose, al modo 120", cal(a, m120), false);
             Dictionary<string, string> m60 = new Dictionary<string, string>(nivel); m60["modo"] = "60";
-            caliente("Magpie reabriendose, al modo 60", cal(a, m60), true);
+            caliente("Motor reabriendose, al modo 60", cal(a, m60), true);
             a = jugando(); a.cfg.VideoSize = "3840x2160"; a.cfg.CapMode = true; a.homeBusy = true; a.homeSwitchToHome = false; a.lsReady = false;
             caliente("Entrando en un juego", cal(a, nivel), true);
             a = jugando(); a.cfg.VideoSize = "3840x2160"; a.cfg.CapMode = true; a.relaunchSize = "1920x1080"; a.lsReady = false;

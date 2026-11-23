@@ -426,7 +426,7 @@ namespace ConsoleEnhancer
             {
                 string l = ls[n].Trim();
                 int i = l.IndexOf('=');
-                if (i > 0 && !l.StartsWith("#") && Array.IndexOf(ClavesQuitadas, l.Substring(0, i).Trim().ToLowerInvariant()) >= 0) continue;
+                if (i > 0 && !l.StartsWith("#") && (Array.IndexOf(ClavesQuitadas, l.Substring(0, i).Trim().ToLowerInvariant()) >= 0 || Config.ClaveRetirada(l.Substring(0, i)))) continue;
                 sb.Append(ls[n]);
                 if (n < ls.Length - 1) sb.Append("\r\n");
             }

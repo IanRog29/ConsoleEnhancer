@@ -204,9 +204,8 @@ namespace ConsoleEnhancer
             if (eng)
             {
                 engineCrashes++;
-                if (engineCrashes >= 3) { Log.Write("El motor se ha parado o cerrado " + engineCrashes + " veces: el resto de la sesion, mpv + Magpie"); cfg.Engine = "magpie"; }
+                if (engineCrashes >= 3) { Log.Write("El motor se ha parado o cerrado " + engineCrashes + " veces: el resto de la sesion, mpv sin el motor"); cfg.Engine = "magpie"; }
             }
-            else MagpieLive.Close("imagen parada");
             try { if (!p.HasExited && !p.WaitForExit(30000)) Log.Write("El proceso parado (pid " + p.Id + ") sigue sin terminar: se abre otro igualmente"); }
             catch (Exception) { }
             try { if (File.Exists(Paths.FlagFile)) File.Delete(Paths.FlagFile); } catch { }

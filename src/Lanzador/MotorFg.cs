@@ -80,14 +80,17 @@ namespace ConsoleEnhancer
             if (!m.Success) return true;
             string tipo = m.Groups[1].Value;
             if (tipo != "xess") return true;
-            Config.MotorFgNoPuede(tipo);
-            Log.Write("Motor: su XeSS FG no ha arrancado en esta grafica: en esta sesion va por Magpie");
             PrepareCfg();
-            if (!cfg.FgOff && cfg.FgTypeNow == "xess")
+            bool eraXess = !cfg.FgOff && cfg.FgTypeNow == "xess";
+            Config.MotorFgNoPuede(tipo);
+            PrepareCfg();
+            // (1.2.4 ronda 6, QUITAFG: sin Magpie, el resto de la sesion otro tipo en el motor -GenPuedeIr mira MotorFgSabe-; se reabre con el)
+            Log.Write("Motor: su XeSS FG no ha arrancado en esta grafica: en esta sesion otro tipo de generacion (ahora " + (cfg.FgOff ? "sin generacion" : cfg.FgTypeNow) + ")");
+            if (eraXess)
                 System.Threading.ThreadPool.QueueUserWorkItem(delegate
                 {
-                    try { System.Threading.Thread.Sleep(300); RestartLs("XeSS FG", Tx.T("el motor no ha podido arrancarlo: va por otro camino", "the engine couldn't start it: using another path")); }
-                    catch (Exception ex) { Log.Error("generacion del motor: otro camino", ex); }
+                    try { System.Threading.Thread.Sleep(300); RestartLs("XeSS FG", Tx.T("el motor no ha podido arrancarlo: va otra generación", "the engine couldn't start it: using another frame generation")); }
+                    catch (Exception ex) { Log.Error("generacion del motor: otro tipo", ex); }
                 });
             return true;
         }

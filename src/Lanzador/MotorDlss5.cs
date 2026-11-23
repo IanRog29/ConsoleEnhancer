@@ -93,12 +93,10 @@ namespace ConsoleEnhancer
                                         c.Passes30 = pas; c.Level30 = 2; c.FgPick30 = tipo; c.ScalerPick = ""; c.AltScalerOn = false;
                                         bool en = c.EngineNow, ed = c.EngineDlss5Now, au = c.Dlss5AutoAhora;
                                         string t = c.FgTypeNow;
-                                        // lo esperado: el motor con DLSS 5 solo con PrismaNr.dll, elegido, las pasadas que hace y una generacion
-                                        // que sepa hacer (el reparto de SoloMotor.cs / MotorFg.cs: Smooth Motion, FSR 3 FG; XeSS FG con DLSS 5 por Magpie)
-                                        bool motorDebe = prisma == 1 && eng && pas <= c.EngineDlss5MaxPasses && MotorSabeGeneracion(t) && c.Dlss5FitsNow &&
-                                                         !c.MotorGenAMagpie(t) && !(t == "fsr3" && Ce.EngineUpscaler(c) == "dlss");   // (1.2.4 ronda 5, XEFGM: XeSS FG con DLSS 5 por Magpie, XefgMotor.cs)
-                                        bool ok = ed == motorDebe && (!motorDebe || en) && (!motorDebe ? au == (c.Dlss5AutoOn && c.Dlss5InputPct == 0) : !au) &&
-                                                  (motorDebe || !c.Dlss5FitsNow || !en);
+                                        // lo esperado (1.2.4 ronda 6, QUITAFG, fase 2: sin Magpie): siempre el motor; DLSS 5 en el, con PrismaNr.dll y
+                                        // elegido, con cualquier generacion y 1-3 pasadas; nunca la escala automatica de Magpie
+                                        bool motorDebe = prisma == 1 && eng && c.Dlss5FitsNow;
+                                        bool ok = ed == motorDebe && en && !au;
                                         n++; if (!ok) fallos++;
                                         sb.AppendLine((ok ? "      " : "FALLO ") + prisma + " " + (eng ? 1 : 0) + " " + cap + " " + tipo + " p" + pas + " -> " + (en ? "motor" : "magpie") + " " +
                                                       (ed ? "dlss5_motor" : "-") + " " + (au ? "auto" : "-") + " " + t + " | " + c.MotorDlss5PorQueMagpie(false));
@@ -106,7 +104,7 @@ namespace ConsoleEnhancer
                 // el motor dice que su DLSS 5 no va: por Magpie
                 md5DllPrueba = 1; md5DllAt = DateTime.MinValue; MotorDlss5Roto = true;
                 c.EngineDlss5 = true; c.VideoSize = "3840x2160"; c.Passes30 = 1; c.FgPick30 = "smooth";
-                bool rOk = !c.EngineDlss5Now && (!c.Dlss5FitsNow || !c.EngineNow);
+                bool rOk = !c.EngineDlss5Now && c.EngineNow;
                 n++; if (!rOk) fallos++;
                 sb.AppendLine((rOk ? "      " : "FALLO ") + "motor con su DLSS 5 roto -> " + (c.EngineNow ? "motor" : "magpie") + " " + (c.EngineDlss5Now ? "dlss5_motor" : "-"));
                 MotorDlss5Roto = false;
@@ -145,7 +143,7 @@ namespace ConsoleEnhancer
             if (usado && !cfg.Dlss5Off)
                 System.Threading.ThreadPool.QueueUserWorkItem(delegate
                 {
-                    try { System.Threading.Thread.Sleep(300); RestartLs("DLSS 5 · Magpie", Tx.T("el motor no pudo con DLSS 5", "the engine could not run DLSS 5")); }
+                    try { System.Threading.Thread.Sleep(300); RestartLs("DLSS 5", Tx.T("el motor no pudo con DLSS 5: sin el", "the engine could not run DLSS 5: without it")); }
                     catch (Exception ex) { Log.Error("DLSS 5 del motor roto: a Magpie", ex); }
                 });
             return true;

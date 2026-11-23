@@ -1,21 +1,17 @@
-Parches de codigo fuente para Magpie Experimental, no binarios. Opcionales: ConsoleEnhancer funciona con el Magpie oficial.
+Source code patches for third-party code, not binaries. Optional. Each patch keeps the license of the code it changes, and each change
+carries its date in a comment, as section 5 of the GPL asks.
 
-Licencia: los parches modifican Magpie (https://github.com/Blinue/Magpie y su fork https://github.com/SAOG0721/Magpie), que es
-GPL-3.0; por eso los parches son tambien GPL-3.0 (sin el permiso adicional de LICENSE-EXCEPTION.txt), (c) los autores de Magpie y
-de ConsoleEnhancer. Cada cambio lleva su fecha en un comentario, como pide la seccion 5 de la GPL.
+PrismaNr ("DLSS 5" inside the engine, C++) is not a patch: its source is in src\PrismaNr (since 1.2.4). It is built with NVIDIA's two
+public NGX headers (scripts\descargar_cabeceras_ngx.ps1, not in git) and loads the unofficial DLL in a way the NVIDIA RTX SDKs license
+does not allow (see THIRD-PARTY.md). Without PrismaNr.dll the engine works the same (src\Motor\Engine\EngineDlss5.cs only uses it if
+it is there).
 
-magpie-dlssfg-vsync-pacing.patch (20-11-2026)
-  Sobre SAOG0721/Magpie commit 716cc62ff14a8059d5a7a2daf093e5ee38a742cc (v0.6.12 Experimental), src/Magpie.Core/Renderer.cpp.
-  Con la variable de entorno MAGPIE_DLSSFG_VSYNC_PACING=1, DLSS FG por DXGI sin VRR sale al ritmo de la sincronizacion vertical
-  de la pantalla en vez del reloj propio de Magpie (que va al ritmo de la captura, 59,94, y se desfasa contra los 60,000 huecos
-  de una pantalla de 120 Hz con sincronizacion cada 2 refrescos). El lanzador pone la variable si magpie_dlssfg_ritmo_vsync=1
-  (de serie); el Magpie oficial la ignora.
-  Medido (modo 30 + DLSS 5 + DLSS FG, RTX 4060 Ti, pantalla 4K 120 Hz, fuente de prueba): tirones en pantalla ~25 -> ~11 por minuto y unos
-  7-10 ms menos de latencia de media.
-  Aplicar: git apply magpie-dlssfg-vsync-pacing.patch en la raiz del codigo de Magpie y compilar segun su docs/Compilation guide.md
-  (hace falta el SDK de DLSS de NVIDIA, NVAPI y, para el flujo optico, el Optical Flow SDK). El exe resultante es solo para uso
-  propio y NO se reparte: enlaza la libreria estatica de NGX de NVIDIA, con licencia propia incompatible con la GPL de Magpie.
+--- Espanol ---
 
-PrismaNr ("DLSS 5" dentro del motor, C++) no esta en este repositorio: necesita las cabeceras propietarias del SDK de DLSS y carga la
-DLL no oficial de un modo que la licencia de los SDK de NVIDIA RTX no permite. Sin PrismaNr.dll el motor funciona igual
+Parches de codigo fuente para codigo de terceros, no binarios. Opcionales. Cada parche lleva la licencia del codigo que cambia, y cada
+cambio su fecha en un comentario, como pide la seccion 5 de la GPL.
+
+PrismaNr ("DLSS 5" dentro del motor, C++) no es un parche: su codigo esta en src\PrismaNr (desde la 1.2.4). Se compila con las dos
+cabeceras publicas de NGX de NVIDIA (scripts\descargar_cabeceras_ngx.ps1, no van a git) y carga la DLL no oficial de un modo que la
+licencia de los SDK de NVIDIA RTX no permite (ver THIRD-PARTY.md). Sin PrismaNr.dll el motor funciona igual
 (src\Motor\Engine\EngineDlss5.cs solo la usa si esta).

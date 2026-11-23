@@ -776,7 +776,7 @@ namespace ConsoleEnhancer
             // reabre con lo nuevo sin esperar a que acabe (src\Lanzador\AjustesGuia.cs). Si no, con algo cambiando aun se espera a que acabe
             // (antes 10 s como mucho y luego no se aplicaba: ahora hasta 45 s, con aviso)
             bool enCaliente = AjEnCaliente(e);
-            if (enCaliente) Log.Write("Menu de ajustes: Magpie esta preparando la imagen: se aplica ya (en caliente)");
+            if (enCaliente) Log.Write("Menu de ajustes: la imagen se esta preparando: se aplica ya (en caliente)");
             else if (!AjEsperarParaAplicar()) return;
             int modoAhora = cfg.Mode120 ? 120 : cfg.CapMode ? 30 : 60;
             string capV = AjVal(e, "cap") ?? cfg.VideoSize, modoV = AjVal(e, "modo") ?? modoAhora.ToString();

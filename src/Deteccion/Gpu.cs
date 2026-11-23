@@ -295,9 +295,9 @@ namespace ConsoleEnhancer.Deteccion
                 f.Motor.Pon(false, Tx.T("grafica por software (sin driver de grafica): solo imagen sin escalar", "software adapter: no scaling"));
                 return;
             }
-            f.Motor.Pon(d3d12, d3d12 ? Tx.T("Direct3D 12 ", "Direct3D 12 ") + NivelTexto(g.NivelD3D12) : Tx.T("sin Direct3D 12 nivel 12_0: el motor propio no arranca (mpv + Magpie)", "no Direct3D 12 FL 12_0"));
+            f.Motor.Pon(d3d12, d3d12 ? Tx.T("Direct3D 12 ", "Direct3D 12 ") + NivelTexto(g.NivelD3D12) : Tx.T("sin Direct3D 12 nivel 12_0: el motor propio no arranca (solo mpv)", "no Direct3D 12 FL 12_0"));
             f.Fsr1.Pon(true, Tx.T("shader propio (EASU + RCAS), cualquier grafica", "own shader, any GPU"));
-            f.Fsr3Fg.Pon(d3d12 && sm62, d3d12 && sm62 ? Tx.T("Magpie (FSR 3 FG x2, flujo óptico de AMD)", "Magpie (FSR 3 FG x2)") : Tx.T("pide D3D12 12_0 y SM 6.2", "needs D3D12 FL 12_0 + SM 6.2"));
+            f.Fsr3Fg.Pon(d3d12 && sm62, d3d12 && sm62 ? Tx.T("FSR 3 FG x2 (motor propio, AMD FSR SDK)", "FSR 3 FG x2 (own engine, AMD FSR SDK)") : Tx.T("pide D3D12 12_0 y SM 6.2", "needs D3D12 FL 12_0 + SM 6.2"));
             f.Fsr3Fg.Dudoso = g.ShaderModel == 0;
 
             if (g.Fab == Fabricante.Nvidia)
@@ -326,8 +326,8 @@ namespace ConsoleEnhancer.Deteccion
                                             Tx.T("; ajuste oculto del driver: se confirma al ponerlo en el perfil (si falla, XeSS FG)", "; hidden driver setting: confirmed when set (falls back to XeSS FG)")));
                         f.SmoothMotion.Dudoso = drv == 0 && g.SmoothAjuste != 1;
                     }
-                    f.RtxVideo.Pon(drv == 0 || drv >= 53118, "RTX Video Super Resolution (Magpie)");
-                    f.RtxHdr.Pon(drv == 0 || drv >= 55123, "RTX HDR (Magpie)");
+                    f.RtxVideo.Pon(drv == 0 || drv >= 53118, "RTX Video Super Resolution (1.2.4 ronda 6: era de Magpie, la app ya no la usa)");
+                    f.RtxHdr.Pon(drv == 0 || drv >= 55123, "RTX HDR (del driver)");
                     // DLSS 5 (DLSSNR de Magpie): DLL no oficial, solo si el usuario la tiene
                     string dnr = Existe(op.RutasDlssNr);
                     if (dnr == null) f.DlssNr.Pon(false, Tx.T("no está nvngx_dlssnr.dll (extra no oficial: no va en la app)", "nvngx_dlssnr.dll not present (unofficial extra)"));
@@ -348,8 +348,8 @@ namespace ConsoleEnhancer.Deteccion
                     f.RtxVideo.Pon(false, Tx.T("solo RTX", "RTX only"));
                     f.RtxHdr.Pon(false, Tx.T("solo RTX", "RTX only"));
                 }
-                f.XessSr.Pon(sm64, sm64 ? Tx.T("XeSS (DP4a) por Magpie", "XeSS (DP4a) via Magpie") : Tx.T("pide SM 6.4 (DP4a)", "needs SM 6.4"));
-                f.XessFg.Pon(sm64 && d3d12, Tx.T("XeSS FG x2 (motor propio; con DLSS 5, Magpie)", "XeSS FG x2 (own engine; with DLSS 5, Magpie)"));
+                f.XessSr.Pon(sm64, sm64 ? Tx.T("XeSS (DP4a, motor propio)", "XeSS (DP4a, own engine)") : Tx.T("pide SM 6.4 (DP4a)", "needs SM 6.4"));
+                f.XessFg.Pon(sm64 && d3d12, Tx.T("XeSS FG x2 (motor propio)", "XeSS FG x2 (own engine)"));
                 f.XessFg.Dudoso = true;
             }
             else
@@ -369,19 +369,19 @@ namespace ConsoleEnhancer.Deteccion
                 // 21-11 (1.0.9; el usuario: "en las 9000 7000 y 6000 que use fsr 4 que lo soportan"): RX 9000 oficial; RX 7000 / 6000 con el
                 // override de FSR 4.1.1 de este Magpie (THIRD-PARTY-NOTICES: "capability-check override", experimental; en RDNA 2 mas lento)
                 bool fsr4 = g.Familia == FamiliaGpu.AmdRdna4 || g.Familia == FamiliaGpu.AmdRdna3 || g.Familia == FamiliaGpu.AmdRdna2;
-                f.Fsr4.Pon(fsr4, g.Familia == FamiliaGpu.AmdRdna4 ? Tx.T("FSR 4 (Magpie) en RX 9000", "FSR 4 (Magpie) on RX 9000")
-                              : fsr4 ? Tx.T("FSR 4 (Magpie, sin soporte oficial: override de FSR 4.1.1)", "FSR 4 (Magpie, unofficial: FSR 4.1.1 override)")
+                f.Fsr4.Pon(fsr4, g.Familia == FamiliaGpu.AmdRdna4 ? Tx.T("FSR 4 (motor propio) en RX 9000", "FSR 4 (own engine) on RX 9000")
+                              : fsr4 ? Tx.T("FSR 4 (motor propio, sin soporte oficial: override de FSR 4.1.1)", "FSR 4 (own engine, unofficial: FSR 4.1.1 override)")
                               : Tx.T("FSR 4 pide RX 6000 o mas nueva", "FSR 4 needs RX 6000 or newer"));
                 if (fsr4 && g.Familia != FamiliaGpu.AmdRdna4) f.Fsr4.Dudoso = true;
-                f.XessSr.Pon(sm64, sm64 ? Tx.T("XeSS (DP4a) por Magpie", "XeSS (DP4a) via Magpie") : Tx.T("pide SM 6.4 (DP4a)", "needs SM 6.4"));
-                f.XessFg.Pon(sm64 && d3d12, Tx.T("XeSS FG por Magpie (modo de compatibilidad)", "XeSS FG via Magpie (compat mode)"));
+                f.XessSr.Pon(sm64, sm64 ? Tx.T("XeSS (DP4a, motor propio)", "XeSS (DP4a, own engine)") : Tx.T("pide SM 6.4 (DP4a)", "needs SM 6.4"));
+                f.XessFg.Pon(sm64 && d3d12, Tx.T("XeSS FG x2 (motor propio)", "XeSS FG x2 (own engine)"));
                 f.XessFg.Dudoso = true;
             }
             else if (g.Fab == Fabricante.Intel)
             {
                 bool arc = g.Familia == FamiliaGpu.IntelArc || g.Familia == FamiliaGpu.IntelArcB;
                 f.XessSr.Pon(sm64 || arc, arc ? Tx.T("XeSS con XMX (Intel Arc)", "XeSS on XMX (Arc)") : sm64 ? Tx.T("XeSS (DP4a): lento en integradas", "XeSS (DP4a): slow on iGPU") : Tx.T("pide SM 6.4", "needs SM 6.4"));
-                f.XessFg.Pon(arc, arc ? Tx.T("XeSS FG nativo de Intel Arc (Magpie)", "native XeSS FG on Arc (Magpie)") : Tx.T("XeSS FG pide Intel Arc", "XeSS FG needs Intel Arc"));
+                f.XessFg.Pon(arc, arc ? Tx.T("XeSS FG nativo de Intel Arc (motor propio)", "native XeSS FG on Arc (own engine)") : Tx.T("XeSS FG pide Intel Arc", "XeSS FG needs Intel Arc"));
                 f.Afmf.Pon(false, Tx.T("solo AMD", "AMD only")); f.AntiLag.Pon(false, Tx.T("solo AMD", "AMD only")); f.Fsr4.Pon(false, Tx.T("solo AMD RX 9000", "AMD RX 9000 only"));
             }
             else

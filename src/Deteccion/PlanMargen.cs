@@ -142,8 +142,8 @@ namespace ConsoleEnhancer.Deteccion
             bool conocido = f.Length > 0 && f != "AUTO";
             if (!conocido || CapturadoraInfo.MotorLoAbre(f)) return;
             p.Motor = "mpv";
-            p.Motivos.Add(Tx.T("La captura llega en " + f + " (el motor propio solo abre YUY2 / NV12 / RGB): la imagen va por mpv (lo descomprime) y Magpie (escalado y generación)",
-                               "Capture arrives as " + f + " (the own engine only takes YUY2 / NV12 / RGB): picture goes through mpv (decodes it) and Magpie"));
+            p.Motivos.Add(Tx.T("La captura llega en " + f + " (el motor propio solo abre YUY2 / NV12 / RGB): la imagen va por mpv (lo descomprime), sin el motor",
+                               "Capture arrives as " + f + " (the own engine only takes YUY2 / NV12 / RGB): picture goes through mpv (decodes it), without the engine"));
         }
 
         // (asistente) El formato elegido a mano en la lista: los fps que se le piden (59,94 o 60 segun su rango) y si el motor propio puede

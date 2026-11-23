@@ -68,13 +68,13 @@ namespace ConsoleEnhancer
             get
             {
                 string r = PorQueReserva;
-                return "el juego por " + (EngineNow ? "el motor propio" : "mpv + Magpie (reserva: " + r + ")") +
-                       (!Dlss5Off && Dlss5FitsNow ? "; DLSS 5 " + Dlss5PassesNow + " pasada(s) " + (EngineDlss5Now ? "en el motor (engine\\PrismaNr.dll)" : "por Magpie") : "");
+                return "el juego por " + (EngineNow ? "el motor propio" : "mpv sin el motor (" + r + ")") +
+                       (!Dlss5Off && Dlss5FitsNow ? "; DLSS 5 " + Dlss5PassesNow + " pasada(s) " + (EngineDlss5Now ? "en el motor (engine\\PrismaNr.dll)" : "NO (" + r + ")") : "");
             }
         }
 
-        // --test-solo-motor[=<informe>]: el reparto con cada combinacion, sin abrir nada ni la grafica: con PrismaNr.dll todo lo que el motor
-        // sabe va por el, sin ella DLSS 5 por Magpie, XeSS FG con DLSS 5 por Magpie; un ini viejo con motor_dlss5=0 no cambia nada; la limpieza
+        // --test-solo-motor[=<informe>]: el reparto con cada combinacion, sin abrir nada ni la grafica: todo por el motor (1.2.4 ronda 6: sin
+        // Magpie); DLSS 5 en el motor con PrismaNr.dll, sin ella el motor sin DLSS 5; un ini viejo con motor_dlss5=0 no cambia nada; la limpieza
         // de la puesta al dia. Devuelve los fallos (0 = bien). (1.2.4 ronda 6, QUITAFG: los tipos smooth / fsr3 / xess, sin x3 / x4; dlss de
         // antes = el mas parecido)
         public static int SoloMotorPrueba(string informe)
@@ -113,38 +113,36 @@ namespace ConsoleEnhancer
                                             bool genOk = c.FgOff || modo == 120 || MotorSabeGeneracion(t);
                                             if (tipo == "dlss" && !TipoGen(t)) { n++; fallos++; sb.AppendLine("FALLO dlss de antes -> \"" + t + "\" (tiene que ser smooth / xess / fsr3)"); }
                                             bool d5 = !off && c.Dlss5FitsNow;
-                                            // lo esperado: el motor si sabe la generacion y (sin DLSS 5, o DLSS 5 con PrismaNr.dll y las pasadas que hace)
-                                            bool conGen = !c.FgOff && modo != 120;   // (a 120 no hay generacion: da igual la elegida)
-                                            bool motorDebe = genOk && !(conGen && t == "fsr3" && Ce.EngineUpscaler(c) == "dlss") &&
-                                                             !(conGen && c.MotorGenAMagpie(t)) &&   // (1.2.4 ronda 5, XEFGM: XeSS FG con DLSS 5 por Magpie, XefgMotor.cs)
-                                                             (!d5 || (prisma == 1 && Math.Max(1, Math.Min(3, pas)) <= c.EngineDlss5MaxPasses));
-                                            bool ok = en == motorDebe && ed == (motorDebe && d5);
+                                            // lo esperado (1.2.4 ronda 6, QUITAFG, fase 2: sin Magpie): siempre el motor; DLSS 5 en el motor si cabe y esta
+                                            // PrismaNr.dll (1-3 pasadas, con cualquier generacion, tambien XeSS FG y FSR 3 FG con DLSS de escalador)
+                                            bool ok = en && genOk && ed == (d5 && prisma == 1);
                                             n++; if (!ok) fallos++;
                                             sb.AppendLine((ok ? "      " : "FALLO ") + prisma + " " + (off ? "off" : "on ") + " " + cap + " " + modo + " " + tipo + " p" + pas +
-                                                          " -> " + (en ? "motor" : "magpie") + (ed ? " dlss5_motor" : "") + " (" + t + ") | " + c.PorQueReserva);
+                                                          " -> " + (en ? "motor" : "SIN motor") + (ed ? " dlss5_motor" : "") + " (" + t + ") | " + c.PorQueReserva);
                                         }
-                // (1.2.4 ronda 5, XEFGM) la grafica perdida con XeSS FG en el motor (sin DLSS 5): el resto de la sesion XeSS FG por Magpie
+                // (1.2.4 ronda 5, XEFGM; ronda 6 sin Magpie) la grafica perdida con XeSS FG en el motor: el resto de la sesion otro tipo, en el motor
                 MotorDlss5Prueba1(1); MotorDlss5Roto = false; MotorGenCaidaOlvida();
                 c.VideoSize = "3840x2160"; c.CapMode = true; c.Mode120 = false; c.FgOff = false; c.Dlss5Off = true; c.HomeNative = false; c.FgPick30 = "xess";
-                bool xAntes = c.EngineNow;
+                string xAntes = c.FgTypeNow;
                 MotorGenCaidaAnota("xess");
-                bool xDespues = c.EngineNow;
+                string xDespues = c.FgTypeNow; bool xMotor = c.EngineNow;
                 MotorGenCaidaOlvida();
-                bool xOk = xAntes && !xDespues;
+                bool xOk = xAntes == "xess" && xDespues != "xess" && xMotor;
                 n++; if (!xOk) fallos++;
-                sb.AppendLine((xOk ? "      " : "FALLO ") + "XeSS FG x2 sin DLSS 5: " + (xAntes ? "motor" : "magpie") + "; tras perder la grafica con el: " + (xDespues ? "motor" : "magpie") + " | " + c.PorQueReserva);
-                // DLSS 5 del motor roto en la sesion: por Magpie
+                sb.AppendLine((xOk ? "      " : "FALLO ") + "XeSS FG sin DLSS 5: " + xAntes + "; tras perder la grafica con el: " + xDespues + (xMotor ? " en el motor" : " SIN el motor"));
+                // DLSS 5 del motor roto en la sesion: el motor sin DLSS 5 (antes, por Magpie)
                 MotorDlss5Prueba1(1); MotorDlss5Roto = true;
                 c.VideoSize = "3840x2160"; c.CapMode = true; c.Mode120 = false; c.Dlss5Off = false; c.Passes30 = 1; c.FgPick30 = "smooth";
-                bool rOk = !c.EngineDlss5Now && (!c.Dlss5FitsNow || !c.EngineNow);
+                bool rOk = !c.EngineDlss5Now && c.EngineNow;
                 n++; if (!rOk) fallos++;
-                sb.AppendLine((rOk ? "      " : "FALLO ") + "DLSS 5 del motor roto -> " + (c.EngineNow ? "motor" : "magpie") + " | " + c.PorQueReserva);
+                sb.AppendLine((rOk ? "      " : "FALLO ") + "DLSS 5 del motor roto -> " + (c.EngineNow ? "el motor sin DLSS 5" : "SIN el motor"));
                 MotorDlss5Roto = false;
                 // la puesta al dia quita motor_dlss5 y lo de DLSS FG / x3 / x4 (1.2.4 ronda 6, QUITAFG), y nada mas
                 string viejo = "a=1\r\nmotor_dlss5=1\r\n# motor_dlss5=0 (comentario)\r\nmotor_dlss5_pasadas=1\r\nmotor_dlss5_entrada_30_4k=65,50,40\r\nmotor_dlss5=auto\r\n" +
-                               "generacion_60=2\r\nmotor_generacion_30=dlss\r\ndlssg_solo_magpie=0\r\nmodo30_generacion=2\r\nfg_flujo_30=nvidia\r\ngeneracion_tipo_30=smooth\r\nxess_fg_1080=1";
+                               "generacion_60=2\r\nmotor_generacion_30=dlss\r\ndlssg_solo_magpie=0\r\nmodo30_generacion=2\r\nfg_flujo_30=nvidia\r\ngeneracion_tipo_30=smooth\r\nxess_fg_1080=1" +
+                               "\r\nmagpie_vrr=0\r\nmagpie_sm_vaciar_ms=4\r\npasadas_vigilancia=1\r\ndlss5_sin_telon_puente=1";
                 string limpio = Ce.SinClavesQuitadasPrueba(viejo);
-                bool okL = limpio == "a=1\r\n# motor_dlss5=0 (comentario)\r\nmotor_dlss5_pasadas=1\r\nmotor_dlss5_entrada_30_4k=65,50,40\r\ngeneracion_tipo_30=smooth\r\nxess_fg_1080=1";
+                bool okL = limpio == "a=1\r\n# motor_dlss5=0 (comentario)\r\nmotor_dlss5_entrada_30_4k=65,50,40\r\ngeneracion_tipo_30=smooth\r\nxess_fg_1080=1\r\ndlss5_sin_telon_puente=1";   // (motor_dlss5_pasadas, magpie_*, pasadas_vigilancia: de Magpie, fuera; el puente entre motores se queda)
                 n++; if (!okL) fallos++;
                 sb.AppendLine((okL ? "      " : "FALLO ") + "puesta al dia: \"" + limpio.Replace("\r\n", " | ") + "\"");
             }
