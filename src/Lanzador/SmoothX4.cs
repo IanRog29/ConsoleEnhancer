@@ -49,12 +49,12 @@ namespace ConsoleEnhancer
         // Lo de DLSS 5 / la captura que impide x4 ("" = nada): con d5 = DLSS 5 encendido (en el menu, lo elegido en el menu)
         string SmoothX4FaltaD5(bool d5, string cap)
         {
-            if (d5 && !SmoothX4Dlss5) return Tx.T("con DLSS 5 va x2: con x4 la gráfica no llega a las 30 reales (apaga DLSS 5 para x4)",
-                                                  "with DLSS 5 it runs x2: with x4 the GPU can't keep 30 real fps (turn DLSS 5 off for x4)");
+            if (d5 && !SmoothX4Dlss5) return Tx.T("con DLSS 5 va x2: la gráfica no llega (sin DLSS 5, x4)",
+                                                  "with DLSS 5 it runs x2: the GPU can't keep up (x4 without DLSS 5)");
             if (smx4NoLlega.Length > 0 && smx4NoLlega == Smx4Clave(d5, cap))
-                return d5 ? Tx.T("con DLSS 5 a " + Smx4Cap(cap) + " no llegó a las 30 reales: x2 esta sesión (sin DLSS 5 u otra captura, sí)",
-                                 "with DLSS 5 at " + Smx4Cap(cap) + " it couldn't keep 30 real fps: x2 this session (without DLSS 5 or another capture, yes)")
-                          : Tx.T("a " + Smx4Cap(cap) + " no llegó a las 30 reales: x2 esta sesión", "at " + Smx4Cap(cap) + " it couldn't keep 30 real fps: x2 this session");
+                return d5 ? Tx.T("con DLSS 5 a " + Smx4Cap(cap) + " no llegó a 30: x2 esta sesión",
+                                 "with DLSS 5 at " + Smx4Cap(cap) + " it couldn't keep 30 fps: x2 this session")
+                          : Tx.T("a " + Smx4Cap(cap) + " no llegó a 30: x2 esta sesión", "at " + Smx4Cap(cap) + " it couldn't keep 30 fps: x2 this session");
             return "";
         }
 
@@ -65,7 +65,7 @@ namespace ConsoleEnhancer
             {
                 if (!SmoothX4) return "smooth_x4=0";
                 if (FgOff || HomeNative || Mode120 || !CapMode) return Tx.T("solo en el modo 30", "only in the 30 fps mode");
-                if (!EngineSmoothFor(true)) return Tx.T("la generacion del modo 30 no es Smooth Motion", "the 30 fps mode generation is not Smooth Motion");
+                if (!EngineSmoothFor(true)) return Tx.T("la generación del modo 30 no es Smooth Motion", "the 30 fps mode generation is not Smooth Motion");
                 if (Ce.NoNvidia || NvProfiles.EngineSmoothBroken) return Tx.T("Smooth Motion no se puede poner en este PC", "Smooth Motion can't be set on this PC");
                 if (Pantalla.Hz() < 119) return Tx.T("la pantalla no va a 120 Hz", "the screen is not at 120 Hz");
                 if (EngineVrr <= 0) return Tx.T("sin VRR (G-SYNC) en la pantalla", "no VRR (G-SYNC) on the screen");
@@ -75,8 +75,8 @@ namespace ConsoleEnhancer
                 { string d5 = SmoothX4FaltaD5(MotorD5Simple, VideoSize); if (d5.Length > 0) return d5; }
                 // (1.2.4 ronda 6, integracion: sin Magpie ni el multiplicador viejo, lo mismo que pide el tipo XeSS FG -DLL, el motor, la captura y
                 // que no se haya caido en esta sesion, XessCaido-)
-                if (!GenPuedeIr("xess", VideoSize)) return XessCaido ? Tx.T("XeSS FG se ha caido en el motor en esta sesion", "XeSS FG failed in the engine this session")
-                                                                   : Tx.T("XeSS FG no esta o no va en el motor", "XeSS FG is missing or does not run in the engine");
+                if (!GenPuedeIr("xess", VideoSize)) return XessCaido ? Tx.T("XeSS FG se ha caído en el motor en esta sesión", "XeSS FG failed in the engine this session")
+                                                                   : Tx.T("XeSS FG no está o no va en el motor", "XeSS FG is missing or does not run in the engine");
                 return "";
             }
         }

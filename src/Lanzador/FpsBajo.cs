@@ -78,7 +78,7 @@ namespace ConsoleEnhancer
                 // sesion y con esta captura y DLSS 5 si / no: lo elegido -x4- sigue guardado y la fila del menu dice por que va x2; SmoothX4.cs)
                 Config.SmoothX4NoLlegaAnota(cfg.MotorD5Simple, cfg.VideoSize);
                 hecho = "Smooth Motion x2"; hechoEn = "Smooth Motion x2";
-                RestartLs("Smooth Motion x2", Tx.T("Un momento…", "One moment…"));
+                RestartLs(null, null);   // (sin aviso propio: habla el OsdWarn de abajo; TEXTOS)
             }
             else if (!cfg.FgOff && !cfg.Mode120 && cfg.FgTypeNow == "fsr3" && cfg.FsrMultNow > 2)
             {
