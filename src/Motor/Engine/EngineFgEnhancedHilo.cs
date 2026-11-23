@@ -357,7 +357,7 @@ namespace ConsoleEnhancer.Motor
             // 2. la hora de la primera (B) desde la llegada: lo que tarda la real (p90) + lo que hace falta para la primera + el margen
             double need0 = (nReal > 0 ? efgFlowGpu + efgGenGpu + 0.4 : 0) + efgCopyMs;
             double want = EfgReadyP90() + need0 + s.EfgMarginMs;
-            if (efgLcur <= 0 || want > efgLcur) efgLcur = want; else efgLcur += (want - efgLcur) * 0.03;
+            if (efgLcur <= 0 || want > efgLcur) efgLcur = want; else efgLcur += (want - efgLcur) * 0.06;
             long B = EfgAt(j.Arrival, efgLcur);
             long early = EfgAt(Clock.Now, need0);
             if (B < early) { B = early; efgLate++; }
