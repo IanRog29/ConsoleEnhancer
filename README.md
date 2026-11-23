@@ -156,7 +156,7 @@ with help a lot too.
   - **Smooth Motion ×4** (RTX 40 / 50, a 120 Hz VRR screen; off by default): the engine runs XeSS FG ×2 underneath and the driver's
     Smooth Motion doubles it, 30 → 120: measured 118.7 frames/s, 97.7 % of them for exactly one refresh, all real frames, first new image
     14 ms and real frame 40 ms after it arrives (Smooth Motion ×2: 20 / 37 ms). Smooth Motion alone is ×2 in every driver; there is no
-    good ×3 (90 frames/s can't be even on a 120 Hz screen).
+    good ×3 (90 frames/s can't be even on a 120 Hz screen). Not with DLSS 5 (measured 16-23 real frames of 30 with it: the row stays at ×2 and says so).
   - **Enhanced FG ×2 / ×3 / ×4** (below).
   - Interpolating always waits for the next real frame: ×4 shows the real frame ~8 ms later than ×2. Smooth Motion ×3 / ×4 on its own and
     XeSS FG ×3 / ×4 outside Intel GPUs are not offered: they would need patching NVIDIA's driver or Intel's library.
@@ -727,7 +727,7 @@ y contar en qué PC y con qué consola lo usas.
   - **Smooth Motion ×4** (RTX 40 / 50, una pantalla de 120 Hz con VRR; apagado de serie): el motor hace XeSS FG ×2 debajo y el Smooth
     Motion del driver lo dobla, de 30 a 120: medido 118,7 imágenes/s, el 97,7 % a un refresco justo, todas las reales, la primera imagen
     nueva a 14 ms y la real a 40 ms de llegar (Smooth Motion ×2: 20 / 37 ms). Smooth Motion solo es ×2 en todos los drivers; ×3 bueno no
-    hay (90 imágenes/s no salen parejas en una pantalla de 120 Hz).
+    hay (90 imágenes/s no salen parejas en una pantalla de 120 Hz). No con DLSS 5 (con él se midieron 16-23 reales de 30: la fila se queda en ×2 y lo dice).
   - **Enhanced FG ×2 / ×3 / ×4** (abajo).
   - Interpolar siempre espera a la siguiente real: ×4 enseña la real ~8 ms más tarde que ×2. Smooth Motion ×3 / ×4 por sí solo y XeSS FG
     ×3 / ×4 fuera de las gráficas Intel no se ofrecen: para ellos haría falta parchear el driver de NVIDIA o la librería de Intel.

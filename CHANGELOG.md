@@ -70,7 +70,7 @@ retiró tras probarla con la consola; esta se ha rehecho con esa prueba y la sig
   (`smooth_x4=1`, off by default) the engine runs XeSS FG ×2 underneath and Smooth Motion doubles it, 30 → 120: measured 118.7 fps,
   97.7 % of the frames shown for exactly one refresh, all real frames kept, first new frame 14 ms and real frame 40 ms after it arrives
   (Smooth Motion ×2: 20 / 37 ms; DLSS FG ×4 through Magpie in 1.2.3: 72 / 81 ms). It needs VRR and XeSS FG in the engine; otherwise it
-  stays at ×2 and the row says why. There is no good ×3 (90 fps on a 120 Hz screen can't be even).
+  stays at ×2 and the row says why. Not with DLSS 5 (measured 16-23 real frames of 30 with it: the row stays at ×2 and says so). There is no good ×3 (90 fps on a 120 Hz screen can't be even).
 - **Enhanced FG (new, optional, for testing): ConsoleEnhancer's own frame generation ×2 / ×3 / ×4 for any GPU with Direct3D 12**,
   written from scratch for the engine (no NVIDIA, AMD or Intel SDK or library): its own optical flow in both directions (hierarchical,
   with a forward / backward check to find what gets covered and uncovered), a per-pixel choice of motion in every generated frame, the
@@ -208,7 +208,7 @@ Engine settings go at the end of the `motor_extra=` line of `consoleenhancer.ini
   **Multiplicador ×4** (`smooth_x4=1`, apagado de serie) el motor hace XeSS FG ×2 debajo y Smooth Motion lo dobla, de 30 a 120: medido
   118,7 imágenes/s, el 97,7 % a un refresco justo, todas las reales, la primera imagen nueva a 14 ms y la real a 40 ms de su llegada
   (Smooth Motion ×2: 20 / 37 ms; DLSS FG ×4 por Magpie en la 1.2.3: 72 / 81 ms). Necesita VRR y XeSS FG en el motor; si no, se queda en
-  ×2 y la fila dice por qué. ×3 bueno no hay (90 en una pantalla de 120 no sale parejo).
+  ×2 y la fila dice por qué. No con DLSS 5 (con él se midieron 16-23 reales de 30: la fila se queda en ×2 y lo dice). ×3 bueno no hay (90 en una pantalla de 120 no sale parejo).
 - **Enhanced FG (nueva, opcional, para probar): generación propia de ConsoleEnhancer ×2 / ×3 / ×4 para cualquier gráfica con Direct3D
   12**, código propio del motor (sin SDK ni DLL de NVIDIA, AMD o Intel): flujo óptico propio en los dos sentidos (jerárquico, con
   comprobación de ida y vuelta para saber qué se tapa y qué se destapa), el movimiento elegido punto a punto en cada inventada, la
