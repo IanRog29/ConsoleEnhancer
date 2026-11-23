@@ -1134,6 +1134,7 @@ namespace ConsoleEnhancer.Motor
                 if (slot < 0 && !repaint) continue;
                 // 18-11 (LATENCIA): test_paron= (prueba) y cola_tirar_ms= (la imagen no se pinta si la cola de la tele va llena)
                 if (slot >= 0 && LatSkip(slot)) continue;
+                if (slot < 0 && LatSkipRepaint()) continue;   // (23-11, CAIDAS: con Smooth Motion y la cola llena, sin repintar; EngineCaidas.cs)
                 if (slot >= 0)
                 {
                     int w = slotW[slot], h = slotH[slot];
