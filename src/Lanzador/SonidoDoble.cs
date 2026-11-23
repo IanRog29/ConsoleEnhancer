@@ -1,12 +1,12 @@
 // SonidoDoble.cs - que el sonido de la consola no se oiga dos veces (ConsoleEnhancer, 21-11-2026)
 //
-// Un usuario con una AVerMedia GC573 lo oia todo "dos veces" (como un eco): el sonido de la capturadora salia por el mpv de audio de la
+// Un usuario con una AVerMedia GC573 lo oia todo "dos veces" (como un eco): el sonido de la capturadora salia por el proceso de sonido de la
 // app y, a la vez, por otro camino con otro retraso. Los caminos que la app puede ver y evitar:
 //  1. Windows "Escuchar este dispositivo" (Sonido > Grabar > propiedades de la entrada de la capturadora > Escuchar) encendido en la
 //     entrada de la capturadora: Windows la reproduce por su cuenta. Mientras suena por la app se apaga y al salir se vuelve a poner
 //     como estaba (se apunta en data\games\poweroff_listen.txt por si la app se cerrase de golpe; la proxima vez lo devuelve).
 //     Se cambia con el almacen de propiedades del dispositivo (IMMDevice::OpenPropertyStore), como el panel de Sonido: sin UAC.
-//  2. Un mpv de audio de una sesion anterior que siguio sonando (la app se cerro de golpe, desde el administrador de tareas o un fallo):
+//  2. Un proceso de sonido (el motor con --audio; antes un mpv) de una sesion anterior que siguio sonando (la app se cerro de golpe, desde el administrador de tareas o un fallo):
 //     al empezar se cierran los que no son de esta sesion, y los nuevos van en un "job" de Windows que los cierra con la app.
 //  3. Otro programa abierto con la capturadora (RECentral, OBS con "monitorizar", Streamlabs, XSplit...): no se cierra (puede estar
 //     grabando), se avisa en pantalla si se le oye sonar.
@@ -27,7 +27,7 @@ namespace ConsoleEnhancer
 {
     partial class Config
     {
-        public bool SonidoDoble = true;     // sonido_doble: 0 = no tocar "Escuchar este dispositivo" ni cerrar mpv de audio de otras sesiones
+        public bool SonidoDoble = true;     // sonido_doble: 0 = no tocar "Escuchar este dispositivo" ni cerrar el sonido de otras sesiones
 
         public bool ParseSonidoDoble(string key, string val)
         {
@@ -44,7 +44,7 @@ namespace ConsoleEnhancer
         readonly List<string> escucharApagado = new List<string>();   // entradas a las que la app quito "Escuchar"
         volatile bool vigilaOtros;
 
-        // StartAudio, con el mpv de audio de la app (console_audio=1)
+        // StartAudio, con el sonido de la app (el motor con --audio) (console_audio=1)
         void SonidoDobleAlEmpezar()
         {
             if (!cfg.SonidoDoble) return;
@@ -52,7 +52,7 @@ namespace ConsoleEnhancer
             // Lo lento (WMI, el almacen de propiedades) en otro hilo: no retrasa la imagen
             Thread t = new Thread(delegate ()
             {
-                try { CerrarAudiosHuerfanos(myPid); } catch (Exception ex) { Log.Error("Sonido doble: mpv de audio de otras sesiones", ex); }
+                try { CerrarAudiosHuerfanos(myPid); } catch (Exception ex) { Log.Error("Sonido doble: el sonido de otras sesiones", ex); }
                 try { ApagarEscucharWindows(); } catch (Exception ex) { Log.Error("Sonido doble: Escuchar este dispositivo", ex); }
                 try { VigilarOtrosProgramas(); } catch (Exception ex) { Log.Error("Sonido doble: otros programas con la capturadora", ex); }
             });
@@ -67,18 +67,21 @@ namespace ConsoleEnhancer
             try { DevolverEscucharWindows(); } catch (Exception ex) { Log.Error("Sonido doble: devolviendo Escuchar este dispositivo", ex); }
         }
 
-        // ---- 2. mpv de audio de otra sesion ----
+        // ---- 2. el sonido de otra sesion ----
         void CerrarAudiosHuerfanos(string myPid)
         {
             string mine = "ce-audio-" + myPid + "-";
             int n = 0;
-            using (ManagementObjectSearcher s = new ManagementObjectSearcher("SELECT ProcessId, CommandLine FROM Win32_Process WHERE Name = 'mpv.exe'"))
+            // (23-11, 1.2.4 SINMPV: el sonido ya es el motor en su modo de sonido -ConsoleEnhancerEngine.exe --audio ipc=ce-audio-<pid>-N-; los
+            // mpv de audio de una version anterior tambien se cierran)
+            using (ManagementObjectSearcher s = new ManagementObjectSearcher("SELECT ProcessId, CommandLine FROM Win32_Process WHERE Name = 'mpv.exe' OR Name = 'ConsoleEnhancerEngine.exe'"))
             using (ManagementObjectCollection l = s.Get())
             {
                 foreach (ManagementBaseObject o in l)
                 {
                     string cmd = o["CommandLine"] as string;
-                    if (cmd == null || cmd.IndexOf("--title=ConsoleEnhancerAudio", StringComparison.OrdinalIgnoreCase) < 0) continue;
+                    if (cmd == null || (cmd.IndexOf("--title=ConsoleEnhancerAudio", StringComparison.OrdinalIgnoreCase) < 0 &&
+                                        (cmd.IndexOf(" --audio", StringComparison.OrdinalIgnoreCase) < 0 || cmd.IndexOf("ipc=ce-audio-", StringComparison.OrdinalIgnoreCase) < 0))) continue;
                     if (cmd.IndexOf(mine, StringComparison.OrdinalIgnoreCase) >= 0) continue; // de esta sesion
                     try
                     {
@@ -86,10 +89,10 @@ namespace ConsoleEnhancer
                         p.Kill();
                         n++;
                     }
-                    catch (Exception ex) { Log.Error("Cerrando un mpv de audio de otra sesion", ex); }
+                    catch (Exception ex) { Log.Error("Cerrando el sonido de otra sesion", ex); }
                 }
             }
-            if (n > 0) Log.Write("Sonido doble: cerrado" + (n > 1 ? "s " + n : " un") + " mpv de audio de una sesion anterior que seguia sonando");
+            if (n > 0) Log.Write("Sonido doble: cerrado" + (n > 1 ? "s " + n : " un") + " proceso de sonido de una sesion anterior que seguia sonando");
         }
 
         // ---- 1. "Escuchar este dispositivo" de Windows ----
@@ -203,7 +206,7 @@ namespace ConsoleEnhancer
         }
     }
 
-    // El mpv de audio va en un job de Windows que lo cierra si la app se va sin cerrarlo (un fallo, el administrador de tareas)
+    // El proceso de sonido va en un job de Windows que lo cierra si la app se va sin cerrarlo (un fallo, el administrador de tareas)
     static class AudioJob
     {
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)] static extern IntPtr CreateJobObjectW(IntPtr attrs, string name);
@@ -249,7 +252,7 @@ namespace ConsoleEnhancer
         {
             if (warned) return;
             warned = true;
-            Log.Write("Audio de la consola: sin el job de Windows (" + why + "): si la app muriera sin cerrarlo, el mpv de audio seguiria sonando");
+            Log.Write("Audio de la consola: sin el job de Windows (" + why + "): si la app muriera sin cerrarlo, el sonido seguiria");
         }
     }
 

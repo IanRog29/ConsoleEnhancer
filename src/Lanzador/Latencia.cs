@@ -1,14 +1,10 @@
-// Latencia.cs - claves de la latencia del camino de mpv + Magpie y del sonido de la consola (21-11, 1.2.1).
-//   mpv_cola_ms=N        lo que el demuxer de mpv puede leer por delante de la imagen (--demuxer-readahead-secs; 0 = el de mpv, 1 s).
-//                        Con --untimed y sin quitar imagenes, si mpv se retrasa (la grafica ocupada con Magpie) lo leido sale tarde y por
-//                        orden: el rtbufsize de ~3 imagenes de LavfOptions no lo para (mpv vacia el bufer de DirectShow en el suyo, hasta
-//                        150 MB: 9 imagenes a 4K, ~36 a 1080p). Con N (p. ej. 50) mpv deja de leer y DirectShow tira las que no caben.
-//                        La cola se ve en el log cada 20 s ("cola de mpv max ...", scripts\ce_diag.lua)
-//   audio_bloque_ms=N    trozos del sonido de la capturadora (audio_buffer_size de DirectShow; de serie 20, como antes)
-//   audio_cola_alta_ms   con mas sonido en la cola de mpv que esto, mpv va al 1,004 de velocidad (de serie 70, como antes)
-//   audio_cola_baja_ms   ... hasta bajar de esto (de serie 30)
-// Cada 5 minutos el log dice la cola del sonido ("Audio de la consola: cola ..."): con la cola baja y sin cortes se pueden bajar los
-// tres (p. ej. 10 / 40 / 15: ~25 ms menos de retraso del sonido, que va detras de la imagen)
+// Latencia.cs - claves de la latencia del sonido de la consola (21-11, 1.2.1; 23-11, 1.2.4 SINMPV: ya sin las de mpv).
+//   audio_bloque_ms=N    trozos del sonido de la capturadora (como audio_buffer_size de DirectShow; de serie 20, como antes)
+//   audio_cola_alta_ms   con mas sonido en cola que esto, el lanzador le pide al proceso de sonido 1,004 de velocidad (de serie 70)
+//   audio_cola_baja_ms   ... hasta bajar de esto (de serie 30). (1.2.4: el proceso de sonido del motor ya corrige la deriva el solo, con
+//                        su cola objetivo audio_cola_ms=30 de audio_motor_extra; estos dos quedan de reserva)
+//   mpv_cola_ms, mpv_cscale (de mpv, hasta la 1.2.3): ya no hacen nada
+// Cada 5 minutos el log dice la cola del sonido ("Audio de la consola: cola ..."); el detalle, en data\logs\audio.log
 using System;
 using System.Globalization;
 
@@ -16,34 +12,21 @@ namespace ConsoleEnhancer
 {
     partial class Config
     {
-        public int MpvQueueMs = 0;
         public int AudioBlockMs = 20;
         public int AudioQueueHighMs = 70, AudioQueueLowMs = 30;
-        // 22-11 (1.2.4 LATENCIA) mpv_cscale: el filtro del color (croma) de mpv. Sin --cscale mpv usa el de --scale (ewa_lanczossharp, un
-        // filtro polar caro) tambien para subir el croma 4:2:2 de la capturadora, aunque la imagen vaya 1:1. Medido (mpv solo, 4K YUY2 a
-        // 29,97, los argumentos de la app, PresentMon): 6,09 ms de grafica por imagen -> 4,97 con spline36 o lanczos (-1,1 ms; sin el
-        // suavizado de bordes 4,26); la imagen: media 0,09 niveles, el 100 % de los puntos a 1 nivel o menos (maximo 4) frente a la de antes.
-        // igual (de serie) = como antes (sin --cscale: el croma con el filtro del escalado); auto = spline36 si el escalado de mpv es uno
-        // EWA (polar) y si no el mismo que el escalado (bilinear con bilinear); otro valor = ese filtro. De serie como antes: cambia (muy
-        // poco) la imagen y el encargo era no tocarla; probado solo con una imagen natural (falta una con bordes de color finos)
-        public string MpvCscale = "igual";
-        public string MpvCscaleFor(string scale)
-        {
-            string v = MpvCscale.Trim().ToLowerInvariant();
-            if (v == "igual" || v == "0" || v.Length == 0) return "";
-            if (v != "auto") return v;
-            return scale != null && scale.StartsWith("ewa_") ? "spline36" : (scale ?? "");
-        }
-
+        // 23-11 (1.2.4, SINMPV): el sonido por el motor (ConsoleEnhancerEngine.exe --audio). audio_motor_extra= claves para el (separadas por
+        // espacios: audio_cola_ms=30 audio_salida_ms=10 audio_deriva=1 audio_cola_max_ms=100); test_audio=clic|tono[,ppm=N][,jit=N] (solo
+        // pruebas: un generador con el ritmo de la capturadora en vez de abrirla)
+        public string AudioEngineExtra = "", TestAudio = "";
         bool CeParseLatencia(string key, string val)
         {
             int v;
             switch (key)
             {
-                case "mpv_cscale": MpvCscale = val.Trim(); return true;
-                case "mpv_cola_ms":
-                    if (!int.TryParse(val.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out v)) return true;
-                    MpvQueueMs = Math.Max(0, Math.Min(1000, v)); return true;
+                case "mpv_cscale": return true;   // (23-11, 1.2.4 SINMPV: sin mpv)
+                case "audio_motor_extra": AudioEngineExtra = val.Trim(); return true;
+                case "test_audio": TestAudio = val.Trim(); return true;
+                case "mpv_cola_ms": return true;  // (23-11, 1.2.4 SINMPV: sin mpv)
                 case "audio_bloque_ms":
                     if (!int.TryParse(val.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out v)) return true;
                     AudioBlockMs = Math.Max(5, Math.Min(100, v)); return true;

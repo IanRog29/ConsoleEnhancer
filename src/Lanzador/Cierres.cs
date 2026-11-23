@@ -153,11 +153,11 @@ namespace ConsoleEnhancer
                 hangPid = p.Id;
                 hangSince = now.AddMilliseconds(-stalled);
                 Log.Write("No llegan imagenes a la tele desde hace " + (int)stalled + " ms, pero " + why + ": NO es la consola apagada (la grafica o " +
-                          (eng ? "el motor" : "mpv") + " parados); se espera" + (cfg.HangRelaunchMs > 0 ? " y si sigue asi " + (cfg.HangRelaunchMs / 1000.0).ToString("0.#", CultureInfo.InvariantCulture) + " s se vuelve a abrir" : ""));
+                          "el motor parados); se espera" + (cfg.HangRelaunchMs > 0 ? " y si sigue asi " + (cfg.HangRelaunchMs / 1000.0).ToString("0.#", CultureInfo.InvariantCulture) + " s se vuelve a abrir" : ""));
             }
             if (cfg.HangRelaunchMs > 0 && stalled >= cfg.HangRelaunchMs)
             {
-                Log.Write("La imagen sigue parada (" + (int)stalled + " ms; " + why + "): se cierra " + (eng ? "el motor" : "mpv") + " (pid " + p.Id +
+                Log.Write("La imagen sigue parada (" + (int)stalled + " ms; " + why + "): se cierra el motor (pid " + p.Id +
                           ") para volver a abrirlo; la app sigue");
                 hangPid = -1;
                 hangKilledPid = p.Id;
@@ -198,13 +198,13 @@ namespace ConsoleEnhancer
                 Log.Write("La imagen se ha parado " + hangRecoveries + " veces en esta sesion: se cierra la app (no es la consola apagada: el PC no se apaga)");
                 return false;
             }
-            Log.Write("Imagen parada sin ser la consola (" + (eng ? "motor" : "mpv") + " pid " + p.Id + (hung ? ", sin terminar aun" : "") + "): se vuelve a abrir (" +
+            Log.Write("Imagen parada sin ser la consola (motor pid " + p.Id + (hung ? ", sin terminar aun" : "") + "): se vuelve a abrir (" +
                       hangRecoveries + "a vez en esta sesion)");
             ShowCurtain("Recuperando la imagen…", "La imagen se ha parado", true);
             if (eng)
             {
                 engineCrashes++;
-                if (engineCrashes >= 3) { Log.Write("El motor se ha parado o cerrado " + engineCrashes + " veces: el resto de la sesion, mpv sin el motor"); cfg.Engine = "magpie"; }
+                if (engineCrashes >= 3) Log.Write("El motor se ha parado o cerrado " + engineCrashes + " veces: se sigue con el (sin mpv no hay otro camino; ver data\\logs\\engine.log)");
             }
             try { if (!p.HasExited && !p.WaitForExit(30000)) Log.Write("El proceso parado (pid " + p.Id + ") sigue sin terminar: se abre otro igualmente"); }
             catch (Exception) { }

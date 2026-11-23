@@ -39,8 +39,8 @@ First-run details:
 
 - If Windows says *"Windows protected your PC"*: **More info > Run anyway** (the exe is not signed with a paid certificate; the source
   code is here for anyone who wants to review it).
-- The first time it downloads **mpv**, **Intel XeSS** and **AMD FSR** (free components the app uses: the player and its engine's XeSS /
-  FSR upscaling and frame generation) from their official pages: about 270 MB, once, with their SHA-256 hash checked. Click
+- The first time it downloads **Intel XeSS** and **AMD FSR** (free components its engine uses for XeSS / FSR upscaling and frame
+  generation) from their official pages: about 205 MB, once, with their SHA-256 hash checked. Click
   **Download**. If something breaks later: tray icon > **Components: check / download again**.
 - The **wizard** asks for the language and shows what was detected, the capture card with **Test picture**, the sound with **Test sound**,
   the console, the display and the plan. At the end you choose whether it starts with Windows and what the PC does when you turn the
@@ -144,6 +144,12 @@ with help a lot too.
   DLSS as the upscaler), all of them also with "DLSS 5"; Reflex / XeLL; and, optionally, NVIDIA RTX Dynamic Vibrance
   (`motor_extra=vibrancia=1`). Colour from YUY2 / NV12 capture cards is properly reconstructed, without blocky red edges (`croma=2`
   in `motor_extra`; `croma=0` = as before).
+- **No mpv any more** (1.2.4): the engine does everything mpv used to do. The console menu at native 4K, the grabs the app reads to
+  detect the menu, the game and *No Signal* (now in colour, as mpv's were), the frozen-picture curtain, the low-power probe and the
+  wizard's picture / sound tests. The **console sound** is the engine too, in a separate sound-only process
+  (`ConsoleEnhancerEngine.exe --audio`): same capture pin, format and 20 ms blocks, Windows audio output (WASAPI), the same 7.1 →
+  stereo mix with a limiter, and clock-drift correction inside it. `audio_motor_extra=` passes it `audio_cola_ms=30` (its queue),
+  `audio_salida_ms=10`, `audio_deriva=0|1`; its log is `data\logs\audio.log`.
 - **Scaling that adapts to your PC** (`escalas_adaptables=1`, on by default): the wizard estimates the DLSS model and percentages for
   your GPU and display; while you play, the engine measures GPU time every second and lowers quality if it can't keep up (within 2 s)
   or raises it little by little if there is headroom (after 20 s), and remembers it for next time (`data\scales_engine.txt`). Tray >
@@ -235,7 +241,7 @@ with help a lot too.
 - **`ConsoleEnhancer Settings.exe`** next to `ConsoleEnhancer.exe` (replaces `Inicio y apagado.bat`): all of the above plus DLSS 5,
   components, logs, the countdown and standby tests and uninstall, in one window. If the app is open, it offers to restart it to apply
   the changes.
-- **Components**: mpv, Intel XeSS and AMD FSR are downloaded once from their official pages with their SHA-256 checked (offline, from
+- **Components**: Intel XeSS and AMD FSR are downloaded once from their official pages with their SHA-256 checked (offline, from
   the zips in `downloads\`; if the app folder still has a `magpie\` folder from an older version, the Intel and AMD files are taken
   from there without downloading anything); tray > *Components: check / download again* repairs them.
 - **Updates keep your data**: the first time a new version opens, it copies the settings, per-game profiles and recognised console from
@@ -262,7 +268,7 @@ power?*) or in `ConsoleEnhancer Settings.exe`.
 It is **not** sleep and **not** shutdown: the PC stays on, so nothing has to "turn it on" again. When the console turns off:
 
 1. No countdown: a black cover with no pointer goes over every screen at once (the taskbar stays hidden), the screen goes off,
-   ConsoleEnhancer closes (mpv and the engine with it) and Windows switches to a temporary low-power plan (*Power saver*
+   ConsoleEnhancer closes (the engine with it) and Windows switches to a temporary low-power plan (*Power saver*
    with the processor capped at 50 % and no boost, `espera_cpu_max`; deleted on waking), so the CPU and GPU drop to their lowest
    clocks (the GPU idles in P8; an RTX 4060 Ti measured 8.5-9 W with the screen off).
 2. Only a tiny watcher stays, in its own small process (about 0.1 % of one core, low priority, EcoQoS, without raising Windows' timer
@@ -319,7 +325,7 @@ nothing to choose.
 Short and neutral (this is what the licences say; it is not legal advice):
 
 - **What ConsoleEnhancer ships**: its own code (GPL-3.0) and NVIDIA's official Streamline / DLSS SR / Reflex / RTX Dynamic Vibrance
-  DLLs, unmodified, which NVIDIA allows apps to redistribute. It downloads mpv and Intel's and AMD's XeSS / FSR files from their
+  DLLs, unmodified, which NVIDIA allows apps to redistribute. It downloads Intel's and AMD's XeSS / FSR files from their
   official pages.
 - **Since 1.2.4 the repository and the zip also carry `PrismaNr`**, the engine's own native piece (own code). It loads the file you
   add yourself (`nvngx_dlssnr.dll`) without going through NVIDIA's check (NGX), which NVIDIA's terms do not allow. The user decided to
@@ -348,10 +354,10 @@ again, add **only the app folder** as an exclusion (*Manage settings > Exclusion
 https://www.microsoft.com/wdsi/filesubmission ("Incorrectly detected as malware/malicious"). Each release lists the SHA-256 of the
 zip and of every file in it (`.files.sha256`), and you can build it yourself (see *For developers*).
 
-**The picture stays but there is no sound and the controller does nothing.** Microsoft Defender closed the app while mpv and the engine
+**The picture stays but there is no sound and the controller does nothing.** Microsoft Defender closed the app while the engine
 kept showing the picture: see the previous answer (the app also explains it the next time it opens).
 
-**The mpv / XeSS / FSR download fails.** Internet is needed once. Behind a proxy or offline: download the zips linked in that window
+**The XeSS / FSR download fails.** Internet is needed once. Behind a proxy or offline: download the zips linked in that window
 (also in `licenses\VERSIONS.txt`) on another PC and put them in a `downloads\` folder next to `ConsoleEnhancer.exe`; they are checked
 the same way. If it says it can't write, the folder is read-only (Program Files): move it to one of your own.
 
@@ -395,7 +401,7 @@ contain anything of yours you don't want to show, such as folder names).
 **What about "DLSS 5"?** It is a community-modified NVIDIA DLL: **it is not included, not downloaded and not recommended**. The app
 works fully without it; if you already have it, see [DLSS 5 (optional)](#dlss-5-optional).
 
-**Is mpv, XeSS or FSR broken?** Tray icon > **Components: check / download again**: it says what is missing and downloads them again from
+**Is XeSS or FSR broken?** Tray icon > **Components: check / download again**: it says what is missing and downloads them again from
 their official pages.
 
 **"Shut down the PC when the console is turned off" closed my stuff.** In *Shut down* mode it really shuts down Windows after the
@@ -418,8 +424,8 @@ low-power mode in `ConsoleEnhancer Settings.exe` > *Test standby*.
   and the NVIDIA Streamline / DLSS / Reflex / RTX Dynamic Vibrance DLLs, unmodified and signed by NVIDIA, which NVIDIA allows to be
   redistributed inside an application; their terms (no selling them on their own, no reverse engineering...) are in
   `licenses\NVIDIA-NOTICE.txt` and also apply to you.
-- **mpv, Intel XeSS and AMD FSR are not redistributed by ConsoleEnhancer**: the app downloads them from their official releases, with
-  their licenses (mpv: GPL, with its source code on its page; XeSS: Intel Simplified Software License; FSR: MIT).
+- **Intel XeSS and AMD FSR are not redistributed by ConsoleEnhancer**: the app downloads them from their official releases, with
+  their licenses (XeSS: Intel Simplified Software License; FSR: MIT). Since 1.2.4 the app neither uses nor downloads mpv.
 - **"DLSS 5" is not included.** `nvngx_dlssnr.dll` is a community-modified NVIDIA DLL with no signature or license, and
   it is not in the repository or the zip, the app doesn't download it, and using it may go against NVIDIA's terms. If you already have
   it, you can add it yourself (tray > *Add DLSS 5*, which copies it to `extras\`) at your own risk: the app warns that it is not
@@ -430,7 +436,7 @@ low-power mode in `ConsoleEnhancer Settings.exe` > *Test standby*.
 - **Trademarks**: NVIDIA, GeForce RTX, DLSS, Reflex, AMD, FSR, FidelityFX, Intel, XeSS, Nintendo, PlayStation, Xbox, Windows and others
   belong to their owners; they are named only to describe compatibility. ConsoleEnhancer is not affiliated with, sponsored or endorsed by
   any of them. Uses NVIDIA DLSS, NVIDIA Reflex and NVIDIA Streamline.
-- **Privacy**: the app doesn't send anything anywhere. It only connects to the internet to download mpv, XeSS and FSR from GitHub the
+- **Privacy**: the app doesn't send anything anywhere. It only connects to the internet to download XeSS and FSR from GitHub the
   first time.
 - **Content**: it shows your console's picture on your screen; it doesn't record, doesn't stream and doesn't remove HDCP.
 
@@ -444,8 +450,8 @@ it is built with the `csc.exe` of .NET Framework 4.8 that ships with Windows (C#
 Step by step:
 
 ```bat
-powershell -ExecutionPolicy Bypass -File scripts\descargar_dependencias.ps1   :: terceros\mpv, terceros\xess, terceros\fsr, terceros\streamline
-build.bat                       :: bin\ConsoleEnhancer.exe (src\Lanzador + src\Deteccion) y bin\ listo (mpv, xess y fsr enlazados a terceros\)
+powershell -ExecutionPolicy Bypass -File scripts\descargar_dependencias.ps1   :: terceros\xess, terceros\fsr, terceros\streamline
+build.bat                       :: bin\ConsoleEnhancer.exe (src\Lanzador + src\Deteccion) y bin\ listo (xess y fsr enlazados a terceros\)
 build_motor.bat                 :: bin\engine\ConsoleEnhancerEngine.exe (src\Motor) + DLL de Streamline
 powershell -ExecutionPolicy Bypass -File scripts\descargar_cabeceras_ngx.ps1   :: terceros\dlss_sdk (2 cabeceras de NGX / NGX headers)
 build_prismanr.bat              :: bin\engine\PrismaNr.dll (C++, Visual Studio)
@@ -460,7 +466,7 @@ powershell -ExecutionPolicy Bypass -File scripts\empaquetar.ps1 -Zip -Version v1
 - **Dependencies**: the table `scripts\components.json` (version, URL, SHA-256 and what is taken from each zip) is used by
   `descargar_dependencias.ps1` and by the app itself. To change a version, change it there.
 - **Package** (`scripts\empaquetar.ps1`): allow-list. It includes the app, the engine with Streamline / DLSS, scripts, languages,
-  resources and licenses; it does **not** include mpv, XeSS or FSR (the app downloads them) or anything non-redistributable, and it checks
+  resources and licenses; it does **not** include XeSS or FSR (the app downloads them) or anything non-redistributable, and it checks
   that there is no data from the PC it is built on (your user name, the computer name and whatever you put in `scripts\privado.txt`,
   which is not in git).
 - **GitHub Actions** (`.github/workflows/compilar.yml`): builds and runs the tests on every push; with a `v*` tag it builds the zip and
@@ -473,8 +479,8 @@ powershell -ExecutionPolicy Bypass -File scripts\empaquetar.ps1 -Zip -Version v1
 | `--asistente-auto` | Writes the ini with the detection plan (estimated scales, picture, controller), without asking |
 | `--simula=<caso>` | With `--asistente-auto`: another PC's plan (`amd-rx7800xt`, `intel-arc-b580`, `rtx3060`, `sin-nvidia`...) |
 | `--dry-run` | Writes the chain and the command lines to the log, without launching anything |
-| `--componentes=<carpeta>` | Downloads and installs mpv, XeSS and FSR in that folder without asking (or from the zips in `<carpeta>\downloads`) and reports in `componentes.log` |
-| `--componentes-reparar` | Downloads mpv, XeSS and FSR again even if they are fine (what tray > *Components: check / download again* does) |
+| `--componentes=<carpeta>` | Downloads and installs XeSS and FSR in that folder without asking (or from the zips in `<carpeta>\downloads`) and reports in `componentes.log` |
+| `--componentes-reparar` | Downloads XeSS and FSR again even if they are fine (what tray > *Components: check / download again* does) |
 | `--ui-preview=asistente;<carpeta>` | Images of the wizard's 9 steps (es / en), without opening anything |
 | `--ui-preview=apagado;<carpeta>` | Images of the shutdown notice |
 | `--prueba-apagado[=<s>[;fuera]]` | The real countdown; when it ends it only writes "SIMULADO" to the log |
@@ -488,12 +494,12 @@ powershell -ExecutionPolicy Bypass -File scripts\empaquetar.ps1 -Zip -Version v1
 **Layout**
 
 ```
-src\Lanzador\   the tray app (C# 5, WinForms): mpv, the engine, controllers, curtain, wizard, components, start-up and shutdown,
+src\Lanzador\   the tray app (C# 5, WinForms): the engine (picture and sound), controllers, curtain, wizard, components, start-up and shutdown,
                 user extras (Add / Remove DLSS 5) and the support link (Extras.cs)
 src\Deteccion\  detection of GPU, displays, capture cards, audio and controllers; the picture plan; simulated PCs
 src\Motor\      the D3D12 image engine (capture, DLSS / XeSS / FSR, frame generation, Reflex, OSD)
-scripts\        mpv lua and glsl, components.json, descargar_dependencias.ps1, empaquetar.ps1
-resources\       base.ini (starting settings), mpv.conf (mpv portable_config), icon
+scripts\        components.json, descargar_dependencias.ps1, empaquetar.ps1
+resources\       base.ini (starting settings), icon
 languages\        en.txt (English on-screen texts)
 parches\        source code patches for third-party code, optional (parches\LEEME.txt)
 tests\          DeteccionTest
@@ -540,8 +546,8 @@ Detalles de la primera vez:
 
 - Si Windows dice *"Windows protegió su PC"*: **Más información > Ejecutar de todas formas** (el exe no está firmado con un certificado
   de pago; el código está aquí para quien quiera revisarlo).
-- La primera vez baja **mpv**, **Intel XeSS** y **AMD FSR** (componentes libres que usa la app: el reproductor y el reescalado y la
-  generación XeSS / FSR de su motor) de sus páginas oficiales: unos 270 MB, una sola vez, comprobando su huella SHA-256. Pulsa
+- La primera vez baja **Intel XeSS** y **AMD FSR** (componentes libres que usa su motor para el reescalado y la generación XeSS /
+  FSR) de sus páginas oficiales: unos 205 MB, una sola vez, comprobando su huella SHA-256. Pulsa
   **Descargar**. Si algo se estropea más tarde: icono de la bandeja > **Componentes: comprobar / volver a descargar**.
 - El **asistente** pregunta el idioma y enseña lo detectado, la capturadora con **Probar imagen**, el sonido con **Probar sonido**, la
   consola, la pantalla y el plan. Al final eliges si se abre al iniciar Windows y qué hace el PC al apagar la consola (nada, bajo
@@ -645,6 +651,12 @@ y contar en qué PC y con qué consola lo usas.
   cualquier gráfica** (también con DLSS de escalador), todas también con "DLSS 5"; Reflex / XeLL; y, si quieres, la Vibrancia RTX de
   NVIDIA (`motor_extra=vibrancia=1`). El color de las capturadoras YUY2 / NV12 se reconstruye bien, sin bordes rojos en escalones
   (`croma=2` en `motor_extra`; `croma=0` = como antes).
+- **Ya sin mpv** (1.2.4): el motor hace todo lo que hacía mpv. El menú de la consola a 4K nativo, las capturas que lee la app para
+  ver el menú, el juego y *No Signal* (ahora en color, como las de mpv), el telón con la imagen congelada, la sonda del modo de bajo
+  consumo y las pruebas de imagen y sonido del asistente. El **sonido de la consola** también es del motor, en un proceso aparte solo
+  de sonido (`ConsoleEnhancerEngine.exe --audio`): el mismo pin de la capturadora, formato y trozos de 20 ms, la salida de sonido de
+  Windows (WASAPI), la misma mezcla de 7.1 a estéreo con limitador y la corrección de la deriva del reloj dentro. `audio_motor_extra=`
+  le pasa `audio_cola_ms=30` (su cola), `audio_salida_ms=10`, `audio_deriva=0|1`; su registro es `data\logs\audio.log`.
 - **Escalas que se adaptan a tu PC** (`escalas_adaptables=1`, de serie): el asistente estima el modelo de DLSS y los porcentajes para tu
   gráfica y tu pantalla; jugando, el motor mide el tiempo de gráfica cada segundo y baja la calidad si no llega (en 2 s) o la sube poco
   a poco si sobra (tras 20 s), y lo recuerda para la próxima vez (`data\scales_engine.txt`). Bandeja > Imagen > *Escalas que se
@@ -735,7 +747,7 @@ y contar en qué PC y con qué consola lo usas.
 - **`ConsoleEnhancer Settings.exe`** junto a `ConsoleEnhancer.exe` (sustituye a `Inicio y apagado.bat`): todo lo anterior más DLSS 5,
   componentes, registros, las pruebas del aviso y de la espera y desinstalar, en una ventana. Si la app está abierta, ofrece reiniciarla
   para aplicar los cambios.
-- **Componentes**: mpv, Intel XeSS y AMD FSR se bajan una vez de sus páginas oficiales comprobando su SHA-256 (sin internet, con los
+- **Componentes**: Intel XeSS y AMD FSR se bajan una vez de sus páginas oficiales comprobando su SHA-256 (sin internet, con los
   zip en `downloads\`; si en la carpeta de la app queda un `magpie\` de una versión anterior, de ahí salen los archivos de Intel y AMD
   sin bajar nada); bandeja > *Componentes: comprobar / volver a descargar* los repara.
 - **Al actualizar no pierdes nada**: la primera vez que se abre una versión nueva, copia los ajustes, los perfiles de cada juego y la
@@ -763,7 +775,7 @@ cambia en el asistente, en bandeja > *Al apagar la consola, el PC* (con *¿Cómo
 **No** es suspender ni apagar: el PC sigue encendido, así que no hace falta "encenderlo" otra vez. Al apagar la consola:
 
 1. Sin cuenta atrás: una cubierta negra sin cursor tapa todas las pantallas al momento (la barra de tareas se queda oculta), la
-   pantalla se apaga, ConsoleEnhancer se cierra (con mpv y el motor) y Windows pasa a un plan de bajo consumo temporal
+   pantalla se apaga, ConsoleEnhancer se cierra (con el motor) y Windows pasa a un plan de bajo consumo temporal
    (*Economizador* con el procesador al 50 % y sin turbo, `espera_cpu_max`; se borra al despertar), así que la CPU y la gráfica bajan a
    lo mínimo (la gráfica queda en reposo, en P8; una RTX 4060 Ti midió 8,5-9 W con la pantalla apagada).
 2. Solo queda un vigilante muy pequeño, en su propio proceso (un 0,1 % de un núcleo, prioridad baja, EcoQoS, sin subir el temporizador
@@ -820,7 +832,7 @@ elegir.
 En corto y neutro (es lo que dicen las licencias; no es asesoramiento legal):
 
 - **Lo que reparte ConsoleEnhancer**: su propio código (GPL-3.0) y las DLL oficiales de NVIDIA de Streamline / DLSS SR / Reflex /
-  Vibrancia RTX, sin cambios, que NVIDIA deja repartir dentro de una app. mpv y los archivos de XeSS / FSR de Intel y AMD los baja de
+  Vibrancia RTX, sin cambios, que NVIDIA deja repartir dentro de una app. Los archivos de XeSS / FSR de Intel y AMD los baja de
   sus páginas oficiales.
 - **Desde la 1.2.4 el repositorio y el zip llevan también `PrismaNr`**, la pieza nativa propia del motor (código propio). Carga el
   archivo que pones tú (`nvngx_dlssnr.dll`) sin pasar por la comprobación de NVIDIA (NGX), cosa que los términos de NVIDIA no permiten.
@@ -850,10 +862,10 @@ copiada) y, si puedes, avisa a Microsoft del falso positivo en https://www.micro
 as malware/malicious"). Cada release publica el SHA-256 del zip y de cada fichero de dentro (`.files.sha256`), y puedes compilarlo tú
 (ver *Para desarrolladores*).
 
-**Se queda la imagen pero sin sonido y el mando no hace nada.** Microsoft Defender cerró la app mientras mpv y el motor seguían
+**Se queda la imagen pero sin sonido y el mando no hace nada.** Microsoft Defender cerró la app mientras el motor seguía
 enseñando la imagen: mira la respuesta anterior (la app también lo explica la próxima vez que se abre).
 
-**La descarga de mpv / XeSS / FSR falla.** Hace falta internet una vez. Con proxy o sin conexión: baja los zip que enlaza la ventana
+**La descarga de XeSS / FSR falla.** Hace falta internet una vez. Con proxy o sin conexión: baja los zip que enlaza la ventana
 (también en `licenses\VERSIONS.txt`) en otro PC y ponlos en una carpeta `downloads\` junto a `ConsoleEnhancer.exe`; se comprueban
 igual. Si dice que no puede escribir, la carpeta es de solo lectura (Archivos de programa): muévela a una tuya.
 
@@ -897,7 +909,7 @@ tuyo que no quieras enseñar, como nombres de carpetas).
 **¿Y "DLSS 5"?** Es una DLL de NVIDIA modificada por la comunidad: **no viene, no se baja y no se recomienda**. La app funciona
 entera sin ella; si ya la tienes, mira [DLSS 5 (opcional)](#dlss-5-opcional).
 
-**¿Se ha estropeado mpv, XeSS o FSR?** Icono de la bandeja > **Componentes: comprobar / volver a descargar**: dice qué falta y los vuelve a
+**¿Se ha estropeado XeSS o FSR?** Icono de la bandeja > **Componentes: comprobar / volver a descargar**: dice qué falta y los vuelve a
 bajar de sus páginas oficiales.
 
 **"Apagar el PC al apagar la consola" me ha cerrado cosas.** En el modo *Apagar* apaga Windows de verdad tras la cuenta atrás: guarda
@@ -920,8 +932,8 @@ consumo en `ConsoleEnhancer Settings.exe` > *Probar el modo espera*.
   de NVIDIA Streamline / DLSS / Reflex / Vibrancia RTX, sin cambios y firmadas por NVIDIA, que
   NVIDIA deja repartir dentro de una aplicación; sus condiciones (no venderlas sueltas, no hacer ingeniería inversa...) están en
   `licenses\NVIDIA-NOTICE.txt` y valen también para ti.
-- **mpv, Intel XeSS y AMD FSR no los reparte ConsoleEnhancer**: los baja la app de sus releases oficiales, con sus licencias (mpv: GPL,
-  con su código fuente en su página; XeSS: Intel Simplified Software License; FSR: MIT).
+- **Intel XeSS y AMD FSR no los reparte ConsoleEnhancer**: los baja la app de sus releases oficiales, con sus licencias (XeSS: Intel
+  Simplified Software License; FSR: MIT). Desde la 1.2.4 la app ya no usa ni baja mpv.
 - **"DLSS 5" no se incluye.** `nvngx_dlssnr.dll` es una DLL de NVIDIA modificada por la comunidad, sin firma ni licencia, y
   no está en el repositorio ni en el zip, la app no la baja, y su uso puede ir contra las condiciones de NVIDIA. Si ya la tienes, puedes
   añadirla tú (bandeja > *Añadir DLSS 5*, que la copia a `extras\`) bajo tu responsabilidad: la app avisa de que no es oficial. Mira
@@ -932,7 +944,7 @@ consumo en `ConsoleEnhancer Settings.exe` > *Probar el modo espera*.
 - **Marcas**: NVIDIA, GeForce RTX, DLSS, Reflex, AMD, FSR, FidelityFX, Intel, XeSS, Nintendo, PlayStation, Xbox, Windows y demás son de
   sus dueños; se nombran solo para describir compatibilidad. ConsoleEnhancer no está afiliado, patrocinado ni respaldado por ninguno.
   Usa NVIDIA DLSS, NVIDIA Reflex y NVIDIA Streamline.
-- **Privacidad**: la app no manda nada a ningún sitio. Solo se conecta a internet para bajar mpv, XeSS y FSR de GitHub la primera vez.
+- **Privacidad**: la app no manda nada a ningún sitio. Solo se conecta a internet para bajar XeSS y FSR de GitHub la primera vez.
 - **Contenido**: muestra en tu pantalla la imagen de tu consola; no graba, no emite y no quita el HDCP.
 
 ## Para desarrolladores
@@ -945,8 +957,8 @@ para abrir. `preparar.bat paquete` además monta el zip de la release en `dist\`
 Paso a paso:
 
 ```bat
-powershell -ExecutionPolicy Bypass -File scripts\descargar_dependencias.ps1   :: terceros\mpv, terceros\xess, terceros\fsr, terceros\streamline
-build.bat                       :: bin\ConsoleEnhancer.exe (src\Lanzador + src\Deteccion) y bin\ listo (mpv, xess y fsr enlazados a terceros\)
+powershell -ExecutionPolicy Bypass -File scripts\descargar_dependencias.ps1   :: terceros\xess, terceros\fsr, terceros\streamline
+build.bat                       :: bin\ConsoleEnhancer.exe (src\Lanzador + src\Deteccion) y bin\ listo (xess y fsr enlazados a terceros\)
 build_motor.bat                 :: bin\engine\ConsoleEnhancerEngine.exe (src\Motor) + DLL de Streamline
 powershell -ExecutionPolicy Bypass -File scripts\descargar_cabeceras_ngx.ps1   :: terceros\dlss_sdk (2 cabeceras de NGX / NGX headers)
 build_prismanr.bat              :: bin\engine\PrismaNr.dll (C++, Visual Studio)
@@ -961,7 +973,7 @@ powershell -ExecutionPolicy Bypass -File scripts\empaquetar.ps1 -Zip -Version v1
 - **Dependencias**: la tabla `scripts\components.json` (versión, URL, SHA-256 y qué se coge de cada zip) la usan
   `descargar_dependencias.ps1` y la propia app. Para cambiar de versión, se cambia ahí.
 - **Paquete** (`scripts\empaquetar.ps1`): lista blanca. Lleva la app, el motor con Streamline / DLSS, scripts, languages, resources y
-  licencias; **no** lleva mpv, XeSS ni FSR (los baja la app) ni nada no redistribuible, y comprueba que no hay datos del PC donde se monta
+  licencias; **no** lleva XeSS ni FSR (los baja la app) ni nada no redistribuible, y comprueba que no hay datos del PC donde se monta
   (tu usuario, el nombre del equipo y lo que pongas en `scripts\privado.txt`, que no va a git).
 - **GitHub Actions** (`.github/workflows/compilar.yml`): compila y pasa las pruebas en cada push; con una etiqueta `v*` monta el zip y
   crea la Release con él y su `.sha256`.
@@ -973,8 +985,8 @@ powershell -ExecutionPolicy Bypass -File scripts\empaquetar.ps1 -Zip -Version v1
 | `--asistente-auto` | Escribe el ini con el plan de la detección (escalas estimadas, imagen, mando), sin preguntar |
 | `--simula=<caso>` | Con `--asistente-auto`: el plan de otro PC (`amd-rx7800xt`, `intel-arc-b580`, `rtx3060`, `sin-nvidia`...) |
 | `--dry-run` | Apunta en el log la cadena y las líneas de órdenes, sin lanzar nada |
-| `--componentes=<carpeta>` | Baja e instala mpv, XeSS y FSR en esa carpeta sin preguntar (o con los zip de `<carpeta>\downloads`) e informa en `componentes.log` |
-| `--componentes-reparar` | Vuelve a bajar mpv, XeSS y FSR aunque estén bien (lo que hace bandeja > *Componentes: comprobar / volver a descargar*) |
+| `--componentes=<carpeta>` | Baja e instala XeSS y FSR en esa carpeta sin preguntar (o con los zip de `<carpeta>\downloads`) e informa en `componentes.log` |
+| `--componentes-reparar` | Vuelve a bajar XeSS y FSR aunque estén bien (lo que hace bandeja > *Componentes: comprobar / volver a descargar*) |
 | `--ui-preview=asistente;<carpeta>` | Imágenes de los 9 pasos del asistente (es / en), sin abrir nada |
 | `--ui-preview=apagado;<carpeta>` | Imágenes del aviso de apagado |
 | `--prueba-apagado[=<s>[;fuera]]` | La cuenta atrás de verdad; al acabar solo apunta "SIMULADO" en el log |
@@ -988,12 +1000,12 @@ powershell -ExecutionPolicy Bypass -File scripts\empaquetar.ps1 -Zip -Version v1
 **Estructura**
 
 ```
-src\Lanzador\   la app de bandeja (C# 5, WinForms): mpv, el motor, mandos, telón, asistente, componentes, inicio y apagado,
+src\Lanzador\   la app de bandeja (C# 5, WinForms): el motor (imagen y sonido), mandos, telón, asistente, componentes, inicio y apagado,
                 extras del usuario (Añadir / Quitar DLSS 5) y el enlace de apoyo (Extras.cs)
 src\Deteccion\  detección de gráfica, pantallas, capturadoras, audio y mandos; el plan de imagen; PCs simulados
 src\Motor\      el motor de imagen D3D12 (captura, DLSS / XeSS / FSR, generación, Reflex, OSD)
-scripts\        lua y glsl de mpv, components.json, descargar_dependencias.ps1, empaquetar.ps1
-resources\       base.ini (ajustes de partida), mpv.conf (portable_config de mpv), icono
+scripts\        components.json, descargar_dependencias.ps1, empaquetar.ps1
+resources\       base.ini (ajustes de partida), icono
 languages\        en.txt (textos de pantalla en inglés)
 parches\        parches de código fuente para código de terceros, opcionales (parches\LEEME.txt)
 tests\          DeteccionTest

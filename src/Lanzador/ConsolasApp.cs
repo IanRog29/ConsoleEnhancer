@@ -145,8 +145,8 @@ namespace ConsoleEnhancer
         }
 
         // "No Signal" jugando: lo del ini (apagado_espera_s) y, con una consola cuyo menu no se ve, como poco lo suyo (la PS5 y la Xbox
-        // cambian de modo de video al entrar en un juego con HDR o 120 Hz). Tambien para el script de mpv y el motor (nosig_hold_ms:
-        // AddCommonMpvArgs y EngineArgs son estaticos)
+        // cambian de modo de video al entrar en un juego con HDR o 120 Hz). Tambien para el motor (nosig_hold_ms:
+        // EngineArgs es estatico)
         // 20-11 (CONSOLA): con consola=auto y una consola sin probar (Xbox, PS4, Switch 1) u "otra" elegida sola, la espera mas larga de
         // todas (detras puede haber otra: el 20-11 la PS5 se tomo por la Xbox; Consolas.ApagadoPrudente)
         static double EsperaSinSenalJugando(Config cfg)

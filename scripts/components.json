@@ -2,28 +2,6 @@
   "_que_es": "Programas y librerias de terceros que usa ConsoleEnhancer (1.2.4 ronda 6: sin Magpie; XeSS y FSR de las releases oficiales de Intel y AMD): version, descarga oficial, SHA-256 y que ficheros se cogen del zip. Lo leen scripts\\descargar_dependencias.ps1 (desarrollo: terceros\\), scripts\\empaquetar.ps1 y la propia app (src\\Lanzador\\Componentes.cs: los de al_abrir=true se bajan la primera vez que se abre, a la carpeta de la app). Rutas dentro del zip con '/'. Para actualizar: version, url, sha256, archivo y bytes.",
   "componentes": [
     {
-      "nombre": "mpv",
-      "titulo": "mpv",
-      "version": "v0.42.0",
-      "url": "https://github.com/mpv-player/mpv/releases/download/v0.42.0/mpv-v0.42.0-x86_64-w64-mingw32-full.zip",
-      "sha256": "c7d4ff6a67dd33659f71d81efa56335fea2213c7522fd67235f3abf0d9ea1dbd",
-      "archivo": "mpv-v0.42.0-x86_64-w64-mingw32-full.zip",
-      "bytes": 65699428,
-      "destino": "mpv",
-      "comprobar": "mpv.exe",
-      "al_abrir": true,
-      "descripcion_es": "reproductor de vídeo (abre la capturadora y el sonido)",
-      "descripcion_en": "video player (opens the capture device and the sound)",
-      "licencia": "GPL-2.0-or-later (build oficial con FFmpeg y otras librerias dentro)",
-      "web": "https://mpv.io",
-      "fuente": "https://github.com/mpv-player/mpv/releases/tag/v0.42.0",
-      "quitar_prefijo": "",
-      "renombrar": [],
-      "incluir": ["^(mpv\\.exe|mpv\\.com|LICENSE\\.GPL)$"],
-      "excluir": [],
-      "no_oficial": []
-    },
-    {
       "nombre": "xess",
       "titulo": "Intel XeSS SDK",
       "version": "v3.0.2",

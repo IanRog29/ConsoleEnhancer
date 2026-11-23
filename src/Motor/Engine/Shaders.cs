@@ -16,7 +16,7 @@
 //    FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 //    CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //  - Aa: la parte FXAA sigue NVIDIA FXAA 3.11 (Timothy Lottes). Copyright (c) 2014-2015, NVIDIA CORPORATION. All rights reserved.
-//    BSD-3-Clause (https://github.com/NVIDIAGameWorks/GraphicsSamples): texto completo en scripts\s2_aa.glsl y THIRD-PARTY.md.
+//    BSD-3-Clause (https://github.com/NVIDIAGameWorks/GraphicsSamples): texto completo en THIRD-PARTY.md (23-11, 1.2.4: ya sin el scripts\s2_aa.glsl de mpv).
 namespace ConsoleEnhancer.Motor
 {
     static class Shaders

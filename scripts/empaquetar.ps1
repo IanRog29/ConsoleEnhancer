@@ -1,10 +1,11 @@
 # empaquetar.ps1 - monta la carpeta portable de ConsoleEnhancer (dist\ConsoleEnhancer y, con -Zip, el zip para GitHub Releases)
 #
 # Lista BLANCA. Va: el lanzador, el motor y sus DLL de NVIDIA Streamline / DLSS / Reflex (redistribuibles dentro de una aplicacion,
-# con sus licencias), los scripts de mpv, idiomas, recursos, licencias y avisos.
+# con sus licencias), scripts\components.json, idiomas, recursos, licencias y avisos.
 # NO va (y se comprueba al final):
-#  - mpv, Intel XeSS ni AMD FSR: no los reparte ConsoleEnhancer. La app los baja la primera vez que se abre de sus releases oficiales
-#    (con su SHA-256: scripts\components.json, src\Lanzador\Componentes.cs). Asi no hay que repartir el codigo fuente de mpv / FFmpeg
+#  - Intel XeSS ni AMD FSR: no los reparte ConsoleEnhancer. La app los baja la primera vez que se abre de sus releases oficiales
+#    (con su SHA-256: scripts\components.json, src\Lanzador\Componentes.cs). (1.2.4, SINMPV: mpv ya no se usa ni se baja: la imagen,
+#    las capturas y el sonido los hace el motor)
 #    (1.2.4 ronda 6: sin Magpie; las DLL de XeSS y FSR que traia salen ahora de los SDK oficiales de Intel y AMD)
 #  - nvngx_dlssnr.dll ("DLSS 5": DLL de NVIDIA modificada, sin firma), runtimes\dlssg_sm86 (autofirmado) ni ninguna otra DLL de NVIDIA que
 #    no sea de las redistribuibles. (1.2.4) SI va la pieza propia del motor engine\PrismaNr.dll (build_prismanr.bat): carga el archivo
@@ -91,13 +92,12 @@ Texto "$Destino\portable.txt" @(
     'Delete it to keep them in %LOCALAPPDATA%\ConsoleEnhancer (e.g. if the app folder cannot be written to).',
     'ConsoleEnhancer portable: con este fichero los datos (ajustes, log, juegos, calibracion) van en la carpeta data\ de aqui al lado.',
     'Borralo para guardarlos en %LOCALAPPDATA%\ConsoleEnhancer (p. ej. si la carpeta de la app no se puede escribir).')
-foreach ($f in @('ce_power.lua', 'ce_diag.lua', 'ce_standby.lua', 's2_aa.glsl', 's2_aa_strong.glsl', 'components.json')) { Poner "$Raiz\scripts\$f" "$Destino\scripts\$f" }
+# (23-11, 1.2.4 SINMPV: sin los lua ni los glsl de mpv: la imagen, las capturas y el sonido los hace el motor)
+foreach ($f in @('components.json')) { Poner "$Raiz\scripts\$f" "$Destino\scripts\$f" }
 Poner "$Raiz\resources\base.ini" "$Destino\resources\base.ini"
 # (1.2.0) el panel de ajustes (sustituye a "Inicio y apagado.bat"): como se usa el PC, apagado, DLSS 5, componentes, desinstalar
 Poner "$Raiz\bin\ConsoleEnhancer Settings.exe" "$Destino\ConsoleEnhancer Settings.exe"
 Get-ChildItem "$Raiz\languages" -File -Filter *.txt | ForEach-Object { Poner $_.FullName "$Destino\languages\$($_.Name)" }
-# (mpv\ solo con su portable_config\mpv.conf: mpv.exe lo baja la app la primera vez)
-Poner "$Raiz\resources\mpv.conf" "$Destino\mpv\portable_config\mpv.conf"
 
 # ---- el motor y las DLL de produccion de Streamline (firmadas por NVIDIA) ----
 Poner "$Raiz\bin\engine\ConsoleEnhancerEngine.exe" "$Destino\engine\ConsoleEnhancerEngine.exe"
@@ -147,7 +147,7 @@ foreach ($c in $tabla) {
     $ver += "  codigo fuente / source: $($c.fuente)"
 }
 Texto "$lic\VERSIONS.txt" $ver
-$mpvC = $tabla | Where-Object { $_.nombre -eq 'mpv' }; $xeC = $tabla | Where-Object { $_.nombre -eq 'xess' }; $fsC = $tabla | Where-Object { $_.nombre -eq 'fsr' }
+$xeC = $tabla | Where-Object { $_.nombre -eq 'xess' }; $fsC = $tabla | Where-Object { $_.nombre -eq 'fsr' }
 Texto "$lic\README.txt" @(
     "ConsoleEnhancer $verTxt - licencias y componentes de terceros / licenses and third-party components (detalle: THIRD-PARTY.md)",
     '',
@@ -164,7 +164,6 @@ Texto "$lic\README.txt" @(
     '',
     'Bajados por la app la primera vez (NO van en el paquete; cada uno con su licencia, dentro de su carpeta):',
     "Downloaded by the app on first start (NOT in the package; each one keeps its license inside its folder):",
-    " - mpv $($mpvC.version) (mpv\): $($mpvC.licencia). Codigo fuente / source: $($mpvC.fuente)",
     " - Intel XeSS SDK $($xeC.version) (xess\): $($xeC.licencia). $($xeC.fuente)",
     " - AMD FSR SDK $($fsC.version) (fsr\): $($fsC.licencia). $($fsC.fuente)",
     '',
@@ -188,8 +187,8 @@ Texto "$Destino\extras\README.txt" @(
 Texto "$Destino\README.txt" @(
     "ConsoleEnhancer $verTxt - your console through a capture card, enhanced on your PC / tu consola por la capturadora, mejorada en el PC",
     '',
-    'GETTING STARTED: open ConsoleEnhancer.exe. The first time it downloads mpv, Intel XeSS and AMD FSR (free components the app uses) from',
-    'their official pages (about 270 MB, once; offline: put their zips in a downloads\ folder next to the exe). Then a wizard detects your capture device,',
+    'GETTING STARTED: open ConsoleEnhancer.exe. The first time it downloads Intel XeSS and AMD FSR (free components the app uses) from',
+    'their official pages (about 205 MB, once; offline: put their zips in a downloads\ folder next to the exe). Then a wizard detects your capture device,',
     'GPU and display, tests picture and sound and picks the best chain for your PC. Run it again from the tray menu, where you can also make',
     'it start with Windows and choose what the PC does when the console is turned off.',
     'SETTINGS AND UNINSTALL: "ConsoleEnhancer Settings.exe" (next to it): how the PC is used, start with Windows, what the PC does',
@@ -204,7 +203,7 @@ Texto "$Destino\README.txt" @(
     '--- ESPANOL ---',
     '',
     'EMPEZAR: abre ConsoleEnhancer.exe.',
-    ' 1. La primera vez baja mpv, Intel XeSS y AMD FSR (componentes libres que usa la app) de sus paginas oficiales: unos 270 MB, una vez.',
+    ' 1. La primera vez baja Intel XeSS y AMD FSR (componentes libres que usa la app) de sus paginas oficiales: unos 205 MB, una vez.',
     '    Sin internet: pon sus zip (los enlaces salen en esa ventana y en licenses\VERSIONS.txt) en una carpeta downloads\ aqui al lado.',
     ' 2. Luego sale el asistente: detecta la capturadora, la grafica y la pantalla, prueba la imagen y el sonido y elige la mejor cadena',
     '    (DLSS / FSR 1, generacion de fotogramas segun la grafica). Otra vez: menu de la bandeja > Asistente de configuracion.',
@@ -256,7 +255,7 @@ Write-Output ("Paquete: $Destino - $script:n ficheros, {0:N0} MB, {1:N1} s" -f (
 foreach ($d in Get-ChildItem -LiteralPath $Destino -Directory) { $s = (Get-ChildItem -LiteralPath $d.FullName -Recurse -File | Measure-Object Length -Sum).Sum; Write-Output ("  {0,-10} {1,8:N1} MB" -f $d.Name, ($s / 1MB)) }
 foreach ($k in ($firmas.Keys | Sort-Object)) { Write-Output ("  firma {0}: {1}" -f $k, (($firmas[$k] | Sort-Object) -join ', ')) }
 if ($avisos -gt 0) { throw "$avisos datos de este PC en el paquete (arriba): quitalos antes de publicarlo" }
-Write-Output 'Comprobado: nada no redistribuible, ni mpv ni XeSS / FSR (los baja la app), solo DLL firmadas por NVIDIA (y las propias del motor) y ningun dato de este PC'
+Write-Output 'Comprobado: nada no redistribuible, ni mpv ni XeSS / FSR (estos los baja la app), solo DLL firmadas por NVIDIA (y las propias del motor) y ningun dato de este PC'
 if ($Zip) {
     $z = "$(Split-Path $Destino)\ConsoleEnhancer$(if ($Version) { '-' + $Version }).zip"
     if (Test-Path $z) { Remove-Item -LiteralPath $z -Force }

@@ -222,7 +222,6 @@ namespace ConsoleEnhancer
         {
             capRelanzarYa = false;
             capVigilado = null;
-            mpvSinNada = null;
             capLanzEng = eng;
             capLanzWoke = woke;
             if (!cfg.CapturaSegura) return;
@@ -282,16 +281,14 @@ namespace ConsoleEnhancer
                 ms = (DateTime.Now - capEnlaceAt).TotalMilliseconds;
             }
             bool sonando = (DateTime.Now - capSonido).TotalSeconds < 3;
-            // mpv sin nada abierto (no pudo abrir la capturadora con este formato; mpv.exe se queda esperando en vez de salir): ya, sin esperar
-            bool sinNada = mpvSinNada == p && !capLanzEng && ms > 300;
+            // (23-11, 1.2.4 SINMPV: sin "mpv sin nada abierto": el motor dice por su enlace si la capturadora no le da imagen)
             CapFmt v = capVigilado;
-            if (v != null && sinNada) return CapSiguiente(v, "no se ha podido abrir (mpv sin nada abierto a los " + (int)ms + " ms)");
             if (v == null)
             {
                 // Sin vigilar (al abrir la app, o sin ver antes la consola) pero la consola suena y no llega ni una imagen en el doble de tiempo:
                 // tambien es el formato (p. ej. uno que la capturadora no da guardado en el perfil del juego de la ultima vez)
                 if (capPedido != null || !sonando) return false;
-                if (!sinNada && ms < 1000 * cfg.CapturaSeguraSecs * 2) return false;   // (el motor tambien: ms ya va desde su enlace)
+                if (ms < 1000 * cfg.CapturaSeguraSecs * 2) return false;   // (el motor tambien: ms ya va desde su enlace)
                 CapFmt pedido = CapturaSegura.Pedido(cfg);
                 if (pedido.Key == capRendidoKey && (DateTime.Now - capRendidoAt).TotalSeconds < 60) return false;
                 v = CapturaSegura.Efectivo(cfg);
@@ -309,26 +306,6 @@ namespace ConsoleEnhancer
                 if ((DateTime.Now - capConsolaVista).TotalSeconds > 10 + ms / 1000.0) { CapRendirse(v, "la consola en silencio y sin imagen: puede estar apagada"); return false; }
             }
             return CapSiguiente(v, "sin ninguna imagen en " + (int)ms + " ms" + (desdeEnlace ? " desde que arranco el motor" : "") + (sonando ? " con la consola sonando" : ""));
-        }
-
-        // mpv que se ha quedado sin nada abierto (idle-active, MpvLinkLoop / MpvReader; null = ninguno)
-        volatile Process mpvSinNada;
-        DateTime mpvSinNadaLog = DateTime.MinValue;
-
-        // WaitForSignal, sin formato nuevo que vigilar: mpv sin nada abierto no va a dar imagen nunca (la capturadora no se pudo abrir: ocupada
-        // por otro programa, desenchufada, un formato que no da sin la consola vista antes...). true = se cierra y RunMpv lo reintenta (con su
-        // tope de intentos y su aviso, mpvFails); antes se quedaba "esperando a que se encienda" para siempre
-        bool MpvSinNada(Process p)
-        {
-            if (mpvSinNada != p || Config.EngineActive || userExit) return false;
-            if ((DateTime.Now - imageStart).TotalMilliseconds < 1500) return false;   // (un momento, por si acaba de abrirse)
-            mpvSinNada = null;
-            if ((DateTime.Now - mpvSinNadaLog).TotalSeconds > 30)
-            {
-                mpvSinNadaLog = DateTime.Now;
-                Log.Write("mpv no ha podido abrir la capturadora (" + CapturaSegura.Efectivo(cfg).Desc() + "): se queda sin nada abierto; se cierra y se vuelve a intentar");
-            }
-            return true;
         }
 
         // RunMpv: la imagen se ha cerrado sin dar imagen. true = relanzar ya (con el repuesto o porque se cerro por esto)

@@ -22,8 +22,10 @@ namespace ConsoleEnhancer.Motor
                 case "rgb32": return new[] { CaptureFormat.RGB32 };
                 case "yuy2": return new[] { CaptureFormat.YUY2 };
                 case "nv12": return new[] { CaptureFormat.NV12 };
+                case "mjpg": return new[] { CaptureFormat.MJPG };   // 23-11 (1.2.4, SINMPV): con el MJPEG Decompressor de Windows (DsCapture.cs)
                 // RGB24 = 4:4:4 sin perdidas (como el mpv de siempre); si no hay, el resto
-                default: return new[] { CaptureFormat.RGB24, CaptureFormat.RGB32, CaptureFormat.YUY2, CaptureFormat.NV12 };
+                // (23-11, SINMPV: y MJPEG la ultima: solo si ninguna sin comprimir llega a esos fps a ese tamaño -las USB 2.0 a 1080p-)
+                default: return new[] { CaptureFormat.RGB24, CaptureFormat.RGB32, CaptureFormat.YUY2, CaptureFormat.NV12, CaptureFormat.MJPG };
             }
         }
 

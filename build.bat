@@ -1,8 +1,8 @@
 @echo off
 rem Compila bin\ConsoleEnhancer.exe (el lanzador, C# 5 con el csc de .NET Framework 4.8 que trae Windows: nada que instalar).
 rem src\Lanzador\*.cs (la app de bandeja) + src\Deteccion\*.cs (deteccion y plan). El motor: build_motor.bat
-rem Despues deja bin\ lista para probar: resources\base.ini, languages\, scripts\ (lua y glsl de mpv) y, si ya se descargaron con
-rem scripts\descargar_dependencias.ps1, uniones de carpeta (sin admin) bin\mpv -> terceros\mpv, bin\xess -> terceros\xess y bin\fsr -> terceros\fsr
+rem Despues deja bin\ lista para probar: resources\base.ini, languages\, scripts\ (components.json) y, si ya se descargaron con
+rem scripts\descargar_dependencias.ps1, uniones de carpeta (sin admin) bin\xess -> terceros\xess y bin\fsr -> terceros\fsr (1.2.4: sin mpv)
 rem (1.2.4 ronda 6: las DLL de Intel XeSS y AMD FSR para el motor; sin Magpie).
 setlocal
 set FW=%WINDIR%\Microsoft.NET\Framework64\v4.0.30319
@@ -31,12 +31,8 @@ copy /y resources\base.ini bin\resources\ >nul
 rem (20-11, CIERRES) un fallo en un hilo secundario no cierra la app (legacyUnhandledExceptionPolicy): junto al exe
 copy /y resources\ConsoleEnhancer.exe.config bin\ >nul
 copy /y languages\*.txt bin\languages\ >nul
-copy /y scripts\*.lua bin\scripts\ >nul
-copy /y scripts\*.glsl bin\scripts\ >nul
 copy /y scripts\components.json bin\scripts\ >nul
-if not exist bin\mpv if exist terceros\mpv\mpv.exe mklink /J bin\mpv terceros\mpv >nul
 if not exist bin\xess if exist terceros\xess\libxess_fg.dll mklink /J bin\xess terceros\xess >nul
 if not exist bin\fsr if exist terceros\fsr\amd_fidelityfx_loader_dx12.dll mklink /J bin\fsr terceros\fsr >nul
-if not exist bin\mpv\mpv.exe echo Aviso: sin mpv en bin\ (powershell -ExecutionPolicy Bypass -File scripts\descargar_dependencias.ps1)
 echo Compilado: %~dp0bin\ConsoleEnhancer.exe
 endlocal

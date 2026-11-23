@@ -714,11 +714,17 @@ namespace ConsoleEnhancer.Motor
                 int ow = w / step, oh = h / step;
                 int bpp = fmt == Shaders.FmtBgr24 ? 3 : fmt == Shaders.FmtYuy2 ? 2 : fmt == Shaders.FmtNv12 ? 1 : 4;
                 int rowBytes = w * bpp;
-                long rawLen = (long)rowBytes * oh;
+                // (23-11, SINMPV: con NV12, detras de las filas de luma la fila de croma de cada una, para la captura en color: EngineGrabColor.cs)
+                bool nv12 = fmt == Shaders.FmtNv12 && !GrabColor.Gray;
+                long rawLen = (long)rowBytes * oh * (nv12 ? 2 : 1);
                 byte[] raw = reuse && grabRawBuf != null && grabRawBuf.LongLength >= rawLen ? grabRawBuf : new byte[rawLen];
                 if (reuse) grabRawBuf = raw;
                 fixed (byte* d = raw)
+                {
                     for (int y = 0; y < oh; y++) Buffer.MemoryCopy(src + (long)y * step * pitch, d + (long)y * rowBytes, rowBytes, rowBytes);
+                    if (nv12)
+                        for (int y = 0; y < oh; y++) Buffer.MemoryCopy(src + (long)h * pitch + (long)(y * step / 2) * pitch, d + (long)(oh + y) * rowBytes, rowBytes, rowBytes);
+                }
                 queued = true;
                 ThreadPool.QueueUserWorkItem(delegate
                 {
@@ -727,22 +733,10 @@ namespace ConsoleEnhancer.Motor
                         int outLen = ow * oh * 4;
                         byte[] o = reuse && grabOutBuf != null && grabOutBuf.Length >= outLen ? grabOutBuf : new byte[outLen];
                         if (reuse) grabOutBuf = o;
+                        // (23-11, SINMPV: en color como el screenshot-raw de mpv -YUY2 / NV12 a RGB BT.709, rango limitado-; antes en gris)
                         fixed (byte* d = o)
                         fixed (byte* r0 = raw)
-                        {
-                            for (int y = 0; y < oh; y++)
-                            {
-                                byte* r = r0 + (long)y * rowBytes;
-                                byte* q = d + (long)y * ow * 4;
-                                for (int x = 0; x < ow; x++)
-                                {
-                                    byte* px = r + x * step * bpp;
-                                    if (fmt == Shaders.FmtBgr24 || fmt == Shaders.FmtBgrx32) { q[0] = px[0]; q[1] = px[1]; q[2] = px[2]; }
-                                    else { q[0] = q[1] = q[2] = px[0]; }
-                                    q[3] = 0; q += 4;
-                                }
-                            }
-                        }
+                            GrabColor.Image(r0, rowBytes, nv12 ? fmt : (fmt == Shaders.FmtNv12 ? -1 : fmt), bpp, ow, oh, step, d);
                         using (FileStream fs = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.Read)) fs.Write(o, 0, outLen);
                         lastGrab = string.Format(CultureInfo.InvariantCulture, "{0} {1} {2} {3} bgr0", path, ow, oh, ow * 4);
                         GrabDone(path, ow, oh);

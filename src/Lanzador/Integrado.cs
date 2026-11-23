@@ -9,7 +9,7 @@
 //  - Sin Updater.exe en la copia (el fork tiene la busqueda de actualizaciones quitada al compilar: no lo usa nunca)
 //  - Sin el icono de Magpie en la bandeja (MagpieOculto): Magpie tiene que llevarlo para arrancar sin su ventana (-t), asi que se le
 //    quita desde fuera en cuanto lo pone (y si el explorador se reinicia y lo vuelve a poner)
-//  - mpv\mpv.exe y engine\Switch2Engine.exe dentro de la app si existen (usar_carpetas_app=1), con las rutas del ini de respaldo
+//  - engine\ConsoleEnhancerEngine.exe dentro de la app si existe (usar_carpetas_app=1), con la ruta del ini de respaldo (23-11, 1.2.4 SINMPV: sin mpv)
 //  - Sin nvngx_dlssnr.dll (un paquete para repartir no la lleva: es una DLL de NVIDIA modificada, sin firma): DLSS 5 no disponible y la
 //    app va sin el (con motor=propio, el motor propio), en vez de pedirle a Magpie un filtro que no puede cargar
 using System;
@@ -27,8 +27,7 @@ namespace ConsoleEnhancer
 {
     static class Integrado
     {
-        // ConsoleEnhancer (fase 2, UNIVERSAL): sin rutas de ningun PC. La app es la carpeta del exe; mpv y el motor van dentro
-        public const string DefaultMpv = "";
+        // ConsoleEnhancer (fase 2, UNIVERSAL): sin rutas de ningun PC. La app es la carpeta del exe; el motor va dentro
         public const string DefaultEngine = "";
         public const string Dlss5Dll = "nvngx_dlssnr.dll";
         public const string Dlss5MissingText = "DLSS 5 no disponible";
@@ -213,7 +212,7 @@ namespace ConsoleEnhancer
                 if (deNombre.Equals("data", StringComparison.OrdinalIgnoreCase) || deNombre.Equals("datos", StringComparison.OrdinalIgnoreCase))
                 {
                     // (1.2.4 ronda 6, QUITAFG: sin Magpie; de su carpeta de antes solo las DLL de Intel / AMD que usa el motor, a xess\ y fsr\)
-                    foreach (string comp in new[] { "mpv", "xess", "fsr" })
+                    foreach (string comp in new[] { "xess", "fsr" })   // (23-11, 1.2.4 SINMPV: sin mpv\)
                     {
                         string src = Path.Combine(appDe, comp), dst = Path.Combine(appDir, comp);
                         if (!File.Exists(Path.Combine(src, ".version")) || File.Exists(Path.Combine(dst, ".version"))) continue;
@@ -333,20 +332,18 @@ namespace ConsoleEnhancer
             return n;
         }
 
-        // ---- Rutas de mpv y del motor (al leer el ini: Config.Load) ----
-        public static string AppMpv { get { return Path.Combine(Paths.AppDir, @"mpv\mpv.exe"); } }
+        // ---- Ruta del motor (al leer el ini: Config.Load) ----
+        // (23-11, 1.2.4 SINMPV: sin mpv; mpv_path del ini ya no se usa para nada)
         public static string AppEngine { get { return Path.Combine(Paths.AppDir, @"engine\ConsoleEnhancerEngine.exe"); } }
 
         static int pathsLogged;
 
         public static void ResolvePaths(Config c)
         {
-            string mpvIni = c.MpvPath, engIni = c.EnginePath;
-            c.MpvPath = Pick(c.AppFolders, AppMpv, c.MpvPath, DefaultMpv);
+            string engIni = c.EnginePath;
             c.EnginePath = Pick(c.AppFolders, AppEngine, c.EnginePath, DefaultEngine);
             if (Interlocked.Exchange(ref pathsLogged, 1) == 0)
-                Log.Write("Rutas: app " + Paths.AppDir + ", mpv " + c.MpvPath +
-                          (string.Equals(c.MpvPath, mpvIni, StringComparison.OrdinalIgnoreCase) ? "" : " (ini: " + mpvIni + ")") +
+                Log.Write("Rutas: app " + Paths.AppDir +
                           ", motor " + c.EnginePath + (string.Equals(c.EnginePath, engIni, StringComparison.OrdinalIgnoreCase) ? "" : " (ini: " + engIni + ")"));
         }
 
@@ -368,7 +365,7 @@ namespace ConsoleEnhancer
         {
             return "app " + Paths.AppDir + (Dlss5Available ? ", DLSS 5 en " + Dlss5Dir : ", sin " + Dlss5Dll + ": " + Dlss5MissingText) +
                    ", XeSS " + (Paths.HayLib("libxess_fg.dll") ? Paths.XessDir : "NO") + ", FSR " + (Paths.HayLib("amd_fidelityfx_loader_dx12.dll") ? Paths.FsrDir : "NO") +
-                   ", mpv " + c.MpvPath + ", motor " + c.EnginePath;
+                   ", motor " + c.EnginePath;
         }
 
         // ---- DLSS 5 (el filtro DLSSNR de Magpie) disponible: esta su DLL ----

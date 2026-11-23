@@ -169,20 +169,12 @@ namespace ConsoleEnhancer.Motor
         {
             try
             {
-                int bpp = fmt == Shaders.FmtBgr24 ? 3 : 4;
+                // (23-11, SINMPV: en color, como las de mpv: EngineGrabColor.cs. Antes con YUY2 salia la luma de puntos alternos -bpp 4 en vez de 2-)
+                int bpp = fmt == Shaders.FmtBgr24 ? 3 : fmt == Shaders.FmtYuy2 ? 2 : fmt == Shaders.FmtNv12 ? 1 : 4;
                 byte[] o = new byte[w * h * 4];
                 fixed (byte* d = o)
                     for (int y = 0; y < h; y++)
-                    {
-                        byte* r = src + (long)y * pitch;
-                        byte* q = d + (long)y * w * 4;
-                        for (int x = 0; x < w; x++, q += 4)
-                        {
-                            byte* px = r + x * bpp;
-                            if (fmt == Shaders.FmtBgr24 || fmt == Shaders.FmtBgrx32) { q[0] = px[0]; q[1] = px[1]; q[2] = px[2]; }
-                            else { q[0] = q[1] = q[2] = px[0]; }
-                        }
-                    }
+                        GrabColor.Row(src + (long)y * pitch, fmt == Shaders.FmtNv12 ? src + (long)h * pitch + (long)(y / 2) * pitch : null, fmt, bpp, w, 1, d + (long)y * w * 4);
                 File.WriteAllBytes(burstPrefix + "_" + burstI + ".raw", o);
                 burstW = w; burstH = h;
             }

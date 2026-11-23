@@ -1,10 +1,11 @@
-// Componentes.cs - mpv y Magpie, los programas libres de terceros que usa ConsoleEnhancer, NO van dentro del zip de la release: sus
-// licencias (GPL de mpv y su FFmpeg; Magpie Experimental, que ademas lleva DLL de NVIDIA, AMD e Intel con sus propias condiciones y
-// pide no volver a repartir sus binarios sin revisarlas) hacen que lo limpio sea que cada usuario los baje de su pagina oficial.
+// Componentes.cs - los programas y librerias de terceros que usa ConsoleEnhancer y NO van dentro del zip de la release: sus
+// licencias (Magpie Experimental, que ademas lleva DLL de NVIDIA, AMD e Intel con sus propias condiciones y pide no volver a repartir sus
+// binarios sin revisarlas) hacen que lo limpio sea que cada usuario los baje de su pagina oficial.
+// (23-11, 1.2.4 SINMPV: mpv ya no hace falta -la imagen, las capturas y el sonido los hace el motor- y no se baja.)
 // La primera vez que se abre la app (antes del asistente) se bajan solos, con permiso, de sus releases oficiales de GitHub:
 //  - la tabla es scripts\components.json (la misma de scripts\descargar_dependencias.ps1): version, URL, SHA-256 y que se coge del zip
 //  - se comprueba el SHA-256 de cada zip; sin internet, valen los mismos zip puestos a mano en <app>\downloads\
-//  - se sacan a <app>\mpv y <app>\magpie sin lo no oficial (nvngx_dlssnr.dll, runtimes\dlssg_sm86: los pone el usuario con el boton
+//  - se sacan a su carpeta de <app> (<app>\magpie...) sin lo no oficial (nvngx_dlssnr.dll, runtimes\dlssg_sm86: los pone el usuario con el boton
 //    "Anadir DLSS 5" de la bandeja o del asistente, src\Lanzador\Extras.cs; ver extras\LEEME.txt)
 //  - bandeja > "Componentes: comprobar / volver a descargar" (Extras.cs): --componentes-reparar los vuelve a bajar todos
 //  - <carpeta>\.version = "version sha256" (lo mismo que deja descargar_dependencias.ps1 en terceros\)
@@ -391,13 +392,14 @@ namespace ConsoleEnhancer
         static List<Componente> Ejemplo()
         {
             List<Componente> l = new List<Componente>();
-            Componente mpv = new Componente();
-            mpv.Nombre = "mpv"; mpv.Titulo = "mpv"; mpv.Version = "0.39.0";
-            mpv.DescripcionEs = "reproductor que enseña la imagen de la capturadora con poca latencia";
-            mpv.DescripcionEn = "player that shows the capture picture with low latency";
-            mpv.Licencia = "GPL-2.0-or-later"; mpv.Bytes = 45000000L;
-            mpv.Url = "https://github.com/mpv-player/mpv/releases/download/v0.39.0/mpv-x86_64-20250101.zip";
-            l.Add(mpv);
+            // (23-11, 1.2.4 SINMPV: sin el de mpv; uno de AMD como ejemplo pequeño)
+            Componente fsr = new Componente();
+            fsr.Nombre = "fsr"; fsr.Titulo = "AMD FSR SDK"; fsr.Version = "v2.3.0";
+            fsr.DescripcionEs = "librerias de AMD para FSR 3.1 / 4 y FSR 3 FG en el motor";
+            fsr.DescripcionEn = "AMD libraries for FSR 3.1 / 4 and FSR 3 FG in the engine";
+            fsr.Licencia = "MIT"; fsr.Bytes = 30000000L;
+            fsr.Url = "https://github.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK/releases";
+            l.Add(fsr);
             Componente xe = new Componente();
             xe.Nombre = "xess"; xe.Titulo = "Intel XeSS SDK"; xe.Version = "v3.0.2";
             xe.DescripcionEs = "XeSS y XeSS Frame Generation de Intel para el motor propio";
@@ -704,10 +706,10 @@ namespace ConsoleEnhancer
                         "third-party components: the licenses\\ folder (README.txt).") + "\r\n\r\n" +
                    Tx.T("Usa: NVIDIA DLSS, NVIDIA Reflex y NVIDIA Streamline (© NVIDIA Corporation, con sus licencias); " +
                         "AMD FidelityFX Super Resolution 1 y CAS (© Advanced Micro Devices, Inc., MIT); NVIDIA FXAA 3.11 (© NVIDIA Corporation, BSD); " +
-                        "mpv (GPL), Intel XeSS (Intel Simplified Software License) y AMD FSR SDK (MIT), bajados de sus páginas oficiales.",
+                        "Intel XeSS (Intel Simplified Software License) y AMD FSR SDK (MIT), bajados de sus páginas oficiales.",
                         "Uses: NVIDIA DLSS, NVIDIA Reflex and NVIDIA Streamline (© NVIDIA Corporation, under their " +
                         "licenses); AMD FidelityFX Super Resolution 1 and CAS (© Advanced Micro Devices, Inc., MIT); NVIDIA FXAA 3.11 (© NVIDIA " +
-                        "Corporation, BSD); mpv (GPL), Intel XeSS (Intel Simplified Software License) and the AMD FSR SDK (MIT), downloaded from their official pages.") + "\r\n\r\n" +
+                        "Corporation, BSD); Intel XeSS (Intel Simplified Software License) and the AMD FSR SDK (MIT), downloaded from their official pages.") + "\r\n\r\n" +
                    Tx.T("NVIDIA, DLSS, Reflex, GeForce RTX, AMD, FidelityFX, Intel, XeSS, Nintendo, PlayStation, Xbox y las demás marcas son de " +
                         "sus dueños. ConsoleEnhancer no está afiliado a ninguno de ellos.",
                         "NVIDIA, DLSS, Reflex, GeForce RTX, AMD, FidelityFX, Intel, XeSS, Nintendo, PlayStation, Xbox and other marks belong to " +

@@ -141,7 +141,7 @@ namespace ConsoleEnhancer
             // ---- mantenimiento
             Seccion(Tx.T("Mantenimiento", "Maintenance"));
             FlowLayoutPanel fm = Fila();
-            fm.Controls.Add(Boton(Tx.T("Comprobar / volver a descargar mpv, XeSS y FSR", "Check / download mpv, XeSS and FSR again"), false, delegate
+            fm.Controls.Add(Boton(Tx.T("Comprobar / volver a descargar XeSS y FSR", "Check / download XeSS and FSR again"), false, delegate
             {
                 if (!CerrarSiAbierta(Tx.T("Para volver a descargarlos, la app tiene que estar cerrada.", "To download them again, the app has to be closed."))) return;
                 AbrirApp("--componentes-reparar");
