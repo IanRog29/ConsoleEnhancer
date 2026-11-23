@@ -118,7 +118,7 @@ namespace ConsoleEnhancer.Motor
         // de DLSS5VEC2/3 con fg_vectores=2; con fg_vectores=1 lee mvec y se quedan ligeros, como antes). Si no caben (AutoPresetTick ->
         // MvSrFallback), vuelven a ser ligeros para ese modo y modelo
         bool MvFullWanted { get { return MvFullForDlss5 || MvFullForSr; } }
-        bool MvFullForSr { get { return (s.MvFullSr & MvSrModeBit) != 0 && s.Upscaler == "dlss" && dlssOk && !dlssBroken && (inW != outW || inH != outH) && !(fgApplied && s.FgVec == 1) && !mvSrLight.Contains(MvSrKey); } }
+        bool MvFullForSr { get { return (s.MvFullSr & MvSrModeBit) != 0 && (s.Upscaler == "dlss" && dlssOk && !dlssBroken || SrXessFfxFull) && (inW != outW || inH != outH) && !(fgApplied && s.FgVec == 1) && !mvSrLight.Contains(MvSrKey); } }
         int MvSrModeBit { get { return s.Is120 ? 16 : (s.Mode == 30 ? 1 : 4) << (fgApplied ? 1 : 0); } }   // (Common.cs MvModes: 30 30fg 60 60fg 120)
         string MvSrKey { get { return CapKey + "|" + s.Preset; } }
         readonly System.Collections.Generic.HashSet<string> mvSrLight = new System.Collections.Generic.HashSet<string>();

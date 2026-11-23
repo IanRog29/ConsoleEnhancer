@@ -25,12 +25,20 @@ namespace ConsoleEnhancer.Motor
     partial class Settings
     {
         public int SrVec = 1;   // (de serie: 1; 0 = DLSS SR / XeSS / FSR con los vectores de la busqueda, como antes)
-        public int SrVecRadius = 8, SrVecStep = 2, SrVecIter = 6;
+        public int SrVecRadius = 8, SrVecStep = 2, SrVecIter = 6, SrVecTile = 8;
+        public bool SrVec120 = false;   // (sr_vec_120: tambien en el modo 120 -esports, 8 ms por imagen-; de serie no)
         public double SrVecMax = 1.5, SrVecGain = 0.8, SrVecLambda = 5e-6, SrVecFloor = 0;
         public bool SrVecEsm = true;
-        // Los filtros de la entrada (Shaders.cs Aa: bordes, tramado y liso) con el escalador temporal y SIN DLSS 5 (con DLSS 5 son su entrada:
-        // no cambian). -1 = los de siempre (aa=, dedither=, liso=)
-        public double SrFlat = -1; public int SrAa = -1, SrDedither = -1;
+        // Los filtros de la entrada (Shaders.cs Aa: bordes -FXAA-, tramado y liso; con aa=0 la pasada es una copia y tampoco hay tramado ni
+        // liso) con el escalador temporal que reescala y SIN DLSS 5 (con DLSS 5 son su entrada: no cambian). -1 = los de siempre (aa=,
+        // dedither=, liso=). De serie sr_aa=0: medido en el suelo de la escena zoom (textura fina de poco contraste) con K QUIETO, error 0,76
+        // -> 0,58 niveles y nitidez 0,880 -> 0,914 (liso=0 solo: 0,65 sin mas nitidez; dedither=0 solo: igual): el FXAA de la entrada toma la
+        // textura del suelo por bordes y la emborrona antes de DLSS SR, que ya suaviza los bordes el mismo. En movimiento con los vectores
+        // afinados, M 0,62 -> 0,41 y K 0,96 -> 0,82. sr_aa=-1 (o 1) = como antes
+        public double SrFlat = -1; public int SrAa = 0, SrDedither = -1;
+        // XeSS SR / FSR 3.1-4 de escalador con los vectores COMPLETOS de la busqueda, como DLSS SR (antes los ligeros a 1440p: mv_ligero).
+        // Medido (escena zoom, 1440p, XeSS): vectores 1,42 px de error con los ligeros (0,72 los completos). sr_completos_xess=0 = como antes
+        public bool SrXessFfxFull = true;
 
         bool ApplySrVec(string key, string val)
         {
@@ -45,9 +53,12 @@ namespace ConsoleEnhancer.Motor
                 case "sr_vec_lambda": SrVecLambda = Math.Max(0, D(val)); return true;
                 case "sr_vec_suelo": SrVecFloor = Math.Max(0, D(val)); return true;
                 case "sr_vec_esm": SrVecEsm = B(val); return true;
+                case "sr_vec_casilla": SrVecTile = I(val) >= 8 ? 8 : 4; return true;
+                case "sr_vec_120": SrVec120 = B(val); return true;
                 case "sr_liso": SrFlat = D(val); return true;
                 case "sr_aa": SrAa = I(val); return true;
                 case "sr_tramado": SrDedither = I(val); return true;
+                case "sr_completos_xess": SrXessFfxFull = B(val); return true;
             }
             return false;
         }
@@ -61,6 +72,7 @@ namespace ConsoleEnhancer.Motor
         ID3D12PipelineState psoSrVec, psoSrBlur;
 
         // (Engine.cs RenderFrame y EngineCopia.cs: la pasada de bordes / tramado / liso) con el escalador temporal que reescala y sin DLSS 5
+        bool SrXessFfxFull { get { return s.SrXessFfxFull && (scalerNow == "xess" ? !xessBroken : scalerNow == "ffx" ? !ffxBroken : false); } }
         bool SrFiltroPropio { get { return !s.Nr && (inW != outW || inH != outH) && (scalerNow == "dlss" || scalerNow == "xess" || scalerNow == "ffx"); } }
         bool AaNow { get { return SrFiltroPropio && s.SrAa >= 0 ? s.SrAa > 0 : s.Aa; } }
         bool DeditherNow { get { return SrFiltroPropio && s.SrDedither >= 0 ? s.SrDedither > 0 : s.Dedither; } }
@@ -83,7 +95,7 @@ void main(uint3 id : SV_DispatchThreadID)
 }";
 
         const string SrVecShader = @"
-cbuffer C : register(b0) { uint W, H, TW, TH; float MaxD, Gain, Lambda, Floor; uint Iter, WinR, Step, Esm; uint4 Pad; }
+cbuffer C : register(b0) { uint W, H, TW, TH; float MaxD, Gain, Lambda, Floor; uint Iter, WinR, Step, Esm; uint Tile, P1, P2, P3; }
 Texture2D<float> Cur : register(t0);
 Texture2D<float> Prev : register(t1);
 Texture2D<float2> Mv : register(t2);
@@ -97,14 +109,15 @@ float2 MvAt(int2 p) { return Mv.Load(int3(clamp(p, int2(0, 0), int2(W - 1, H - 1
 void main(uint3 id : SV_DispatchThreadID)
 {
     if (id.x >= TW || id.y >= TH) return;
-    int2 t0 = int2(id.xy) * 4;
-    float2 v0 = MvAt(t0 + int2(2, 2));
+    int ts = (int)Tile, th2 = ts / 2;
+    int2 t0 = int2(id.xy) * ts;
+    float2 v0 = MvAt(t0 + int2(th2, th2));
     float2 best = v0;
     {
         float2 v = v0, inv = 1.0 / float2(W, H);
         float ssd0 = 0, bestSsd = 1e9;
         int r = (int)WinR, st = (int)Step;
-        int2 c = t0 + int2(2, 2);
+        int2 c = t0 + int2(th2, th2);
         uint2 skip = uint2(0, 0);   // (las muestras de otro movimiento, vistas en la primera vuelta: 64 como mucho)
         [loop] for (uint it = 0; it <= Iter; it++)
         {
@@ -154,8 +167,8 @@ void main(uint3 id : SV_DispatchThreadID)
     // la correccion a los puntos de la casilla que llevan ese movimiento (los vectores por punto interpolados siguen igual de suaves); los
     // de otro movimiento (la interfaz quieta, el borde del personaje) tal cual
     float2 dv = best - v0;
-    [unroll] for (int j2 = 0; j2 < 4; j2++)
-        [unroll] for (int i2 = 0; i2 < 4; i2++)
+    [loop] for (int j2 = 0; j2 < ts; j2++)
+        [loop] for (int i2 = 0; i2 < ts; i2++)
         {
             int2 p = t0 + int2(i2, j2);
             if (p.x >= (int)W || p.y >= (int)H) continue;
@@ -189,9 +202,16 @@ void main(uint3 id : SV_DispatchThreadID)
 
         // RecordMotion (EngineMotion.cs), con mvec ya hecho de esta imagen (en NON_PIXEL_SHADER_RESOURCE) y cur = el juego de luma de ahora.
         // Solo para un escalador temporal que reescala (DLSS SR; XeSS / FSR 3.1-4 leen SrMvec); con mvmask_modo=1 no (usa mvecSr)
+        int srFiltroSaid = -1;
         void RecordSrVec(int cur, bool on, uint* c)
         {
-            if (s.SrVec <= 0 || !on || srVecValid || s.MvMaskMode == 1 || s.MvFixed || mvecSr == null || srBlur[0] == null) return;
+            int fs = SrFiltroPropio && (AaNow != s.Aa || DeditherNow != s.Dedither || FlatNow != s.FlatDenoise) ? 1 : 0;
+            if (fs != srFiltroSaid)
+            {
+                srFiltroSaid = fs;
+                if (fs == 1) Log.Write("Entrada del escalador (" + scalerNow + ", sin DLSS 5): " + (AaNow ? "bordes" + (DeditherNow ? ", tramado" : "") + (FlatNow > 0 ? ", liso " + FlatNow.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture) : "") : "sin FXAA, tramado ni liso") + " (sr_aa / sr_tramado / sr_liso; con DLSS 5, los de siempre)");
+            }
+            if (s.SrVec <= 0 || !on || srVecValid || s.MvMaskMode == 1 || s.MvFixed || mvecSr == null || srBlur[0] == null || (s.Is120 && !s.SrVec120)) return;
             bool sr = (inW != outW || inH != outH) && (scalerNow == "dlss" || scalerNow == "xess" || scalerNow == "ffx");
             if (!sr) return;
             if (psoSrVec == null)
@@ -213,13 +233,13 @@ void main(uint3 id : SV_DispatchThreadID)
                 list.Dispatch(Groups(w, 16), Groups(h, 8), 1);
                 Barrier(srBlur[st], D3D12_RESOURCE_STATES.UNORDERED_ACCESS, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE);
             }
-            int tw = (w + 3) / 4, th = (h + 3) / 4;
+            int tile = s.SrVecTile, tw = (w + tile - 1) / tile, th = (h + tile - 1) / tile;
             Barrier(mvecSr, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.UNORDERED_ACCESS);
             for (int i = 0; i < 16; i++) c[i] = 0;
             c[0] = (uint)w; c[1] = (uint)h; c[2] = (uint)tw; c[3] = (uint)th;
             c[4] = F((float)s.SrVecMax); c[5] = F((float)s.SrVecGain); c[6] = F((float)s.SrVecLambda); c[7] = F((float)(s.SrVecFloor / 255.0 * s.SrVecFloor / 255.0));
-            c[8] = (uint)s.SrVecIter; c[9] = (uint)s.SrVecRadius; c[10] = (uint)s.SrVecStep; c[11] = s.SrVecEsm ? 1u : 0u;
-            BindCompute(psoSrVec, TSrVec + cur, c, 12);
+            c[8] = (uint)s.SrVecIter; c[9] = (uint)s.SrVecRadius; c[10] = (uint)s.SrVecStep; c[11] = s.SrVecEsm ? 1u : 0u; c[12] = (uint)tile;
+            BindCompute(psoSrVec, TSrVec + cur, c, 16);
             list.Dispatch(Groups(tw, 8), Groups(th, 8), 1);
             Barrier(mvecSr, D3D12_RESOURCE_STATES.UNORDERED_ACCESS, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE);
             srVecValid = true;
