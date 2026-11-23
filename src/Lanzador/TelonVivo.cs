@@ -627,7 +627,7 @@ namespace ConsoleEnhancer
                 });
             }
             catch (Exception ex) { no = ex.GetType().Name + ": " + ex.Message; }
-            Log.Write(ok ? "Telon en vivo (" + why + "): la imagen de la consola a la vista mientras Magpie prepara (" + (curtainSince != null ? curtainSince.ElapsedMilliseconds + " ms en negro" : "") + ")"
+            Log.Write(ok ? "Telon en vivo (" + why + "): la imagen de la consola a la vista mientras cambia (" + (curtainSince != null ? curtainSince.ElapsedMilliseconds + " ms en negro" : "") + ")"
                          : "Telon en vivo (" + why + "): no (" + no + "): sigue el negro");
             return ok;
         }
