@@ -115,17 +115,14 @@ namespace ConsoleEnhancer.Motor
             Log.Write("En espera: captura liberada en " + rel + " ms");
             Ev("switch2-standby-ok", rel);
             LogVram("En espera, antes de soltar la memoria de la sesion");
-            // 2. Generacion apagada (con la generacion puesta, tocar la ventana puede bloquear a Streamline: docs\SL_NOTES.md) y una
-            //    imagen casi negra a la tele (al volver a enseñar la ventana no sale la ultima imagen de esta sesion); luego se esconde
+            // 2. Una imagen casi negra a la tele (al volver a enseñar la ventana no sale la ultima imagen de esta sesion); luego se esconde
+            //    (1.2.4 ronda 6, QUITAFG: sin DLSS-G ya no hay que apagarla ni soltar sus recursos antes de esconder la ventana)
             long t = Clock.Now;
-            bool fgWas = fgApplied;
             try
             {
-                ConfigureFeatures();            // (en espera: generacion apagada, recursos guardados)
-                PresentBlank(ref fi);           // la que aplica el apagado de la generacion
-                if (fgWas) PresentBlank(ref fi);
-                // 18-11 (pedido de PASADAS/LATENCIA): la memoria de la generacion, para Magpie (Streamline la suelta en la siguiente presentacion)
-                if (FreeFgResources()) PresentBlank(ref fi);
+                ConfigureFeatures();            // (en espera)
+                PresentBlank(ref fi);
+                FreeDlssResources();            // (espera_soltar_dlss=1)
                 WaitIdle();
                 // 20-11 (CIERRES): las DLSSNR de DLSS 5 (1-3, con sus texturas) tampoco se quedan en espera: Magpie hace DLSS 5 en la
                 // misma grafica de 8 GB (al despertar ya se creaban otra vez: inColor es otro)
@@ -141,8 +138,7 @@ namespace ConsoleEnhancer.Motor
             standbySince = Clock.Now;
             vramLogPending = true;
             Log.Write("En espera: ventana " + (hidden ? "oculta" : "SIN ocultar") + ", sin pintar y memoria de la sesion soltada a los " +
-                      Clock.SinceMs(askedAt).ToString("0", IC) + " ms (" + Clock.SinceMs(t).ToString("0", IC) + " ms tras soltar la captura)" +
-                      (fgWas ? "; la generacion se apago antes de esconderla" + (fgFreed ? " (sus recursos soltados)" : " (sus recursos se quedan)") : ""));
+                      Clock.SinceMs(askedAt).ToString("0", IC) + " ms (" + Clock.SinceMs(t).ToString("0", IC) + " ms tras soltar la captura)");
         }
 
         // En espera hasta switch2-wake o quit: sin pintar ni captura. Los ajustes que llegan se guardan (sin abrir la captura)
@@ -392,7 +388,7 @@ namespace ConsoleEnhancer.Motor
             dupSig = null; dupSigLen = 0; cutValid = false;
             resetHistory = true; motionValid = false; mvecDirty = false;
             presetCap.Clear(); overSecs = 0; dlssBroken = false; evalFailsRow = 0;
-            lastFocusTry = 0; tickN = 0;
+            tickN = 0;
             stats.Restart();
             if (entering) osd.Hide();
         }
@@ -412,27 +408,8 @@ namespace ConsoleEnhancer.Motor
 
         static string Mb(ulong b) { return (b / (1024.0 * 1024.0)).ToString("0", IC); }
 
-        // 18-11 (pedido de PASADAS): en espera la generacion (DLSS-G) se apagaba con eRetainResourcesWhenOff y sus recursos (~600-675 MB de
-        // la grafica) se quedaban mientras Magpie hacia DLSS 5 con 2-3 pasadas en la misma grafica de 8 GB. Ahora se sueltan
-        // (slFreeResources) al entrar en espera; al despertar con fg=1 Streamline los vuelve a crear al encenderla (se mide: "Generacion
-        // si" y la primera imagen tras despertar). fg_retener=1: como antes, se quedan
-        bool fgFreed;
-        bool FreeFgResources()
-        {
-            FreeDlssResources();
-            fgFreed = false;
-            if (!fgOk || !fgEverOn || s.FgRetainStandby) return false;
-            long t = Clock.Now;
-            try
-            {
-                SlResult r = Sl.FreeResources(SlFeature.DLSS_G, vp);
-                fgEverOn = false;
-                fgFreed = r == SlResult.eOk;
-                Log.Write("En espera: recursos de la generacion soltados (" + r + ", " + Clock.SinceMs(t).ToString("0", IC) + " ms); al despertar con ella se vuelven a crear");
-                return true;
-            }
-            catch (Exception ex) { Log.Error("En espera: soltar la generacion", ex); return false; }
-        }
+        // (18-11, pedido de PASADAS: en espera se soltaban los recursos de DLSS-G, ~600-675 MB, fg_retener=1 = se quedaban. 1.2.4 ronda 6,
+        // QUITAFG: sin DLSS-G; fg_retener se sigue leyendo y no hace nada)
 
         // 18-11: espera_soltar_dlss=1: tambien DLSS SR (NGX: 450-620 MB a 1080p / 1440p) en espera; al despertar se vuelve a crear con la
         // primera imagen. De serie no (ver lo medido en el informe de LATENCIA: lo que tarda en despertar)
@@ -469,7 +446,6 @@ namespace ConsoleEnhancer.Motor
                     SlDLSSState ds;
                     if (Sl.DLSSGetState(vp, out ds) == SlResult.eOk) t += (t.Length > 0 ? " | " : "") + "DLSS (NGX) " + Mb(ds.estimatedVRAMUsageInBytes) + " MB";
                 }
-                t += (t.Length > 0 ? " | " : "") + "generacion " + (fgEverOn ? "usada: sus recursos siguen" : fgFreed ? "usada: sus recursos soltados" : "sin usar en este proceso");
                 Log.Write(when + ": memoria " + t);
             }
             catch (Exception ex) { Log.Write(when + ": memoria de la grafica: " + ex.Message); }

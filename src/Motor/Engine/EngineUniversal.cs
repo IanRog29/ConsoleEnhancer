@@ -172,7 +172,7 @@ namespace ConsoleEnhancer.Motor
             if (no == null && (FgFfx || FgXe)) slSoloDlss = true;   // (1.2.4 MOTORFG: con DLSS de escalador, Streamline solo para DLSS SR, sin ganchos)
             else if (!dll) no = "no esta sl.interposer.dll junto al exe";
             else if (s.Streamline < 0 && !gpu.IsNvidia) no = "streamline=auto y la grafica no es NVIDIA" + (gpu.Found ? " (" + gpu.VendorText + ")" : "");
-            else if (!(s.Standby || WantDlss || s.Fg || s.Reflex > 0)) no = "no hace falta: upscaler=" + s.Upscaler + ", sin generacion ni Reflex";
+            else if (!(s.Standby || WantDlss || s.Reflex > 0)) no = "no hace falta: upscaler=" + s.Upscaler + ", sin DLSS ni Reflex";   // (1.2.4 ronda 6, QUITAFG: fg=1 ya no pide Streamline -DLSS-G fuera-)
             if (no == null)
             {
                 InitStreamline();
@@ -195,7 +195,7 @@ namespace ConsoleEnhancer.Motor
         // InitDevice, antes de crear la swapchain: cola_max=N, o -1 (auto) = 1 sin Reflex ni generacion (sin Streamline o sin su Reflex: sin
         // nada que marque el ritmo, DXGI dejaria 3 imagenes en cola); con Reflex la de DXGI como siempre (el ritmo lo lleva Reflex; con la
         // generacion de NVIDIA no se puede pedir: docs\SL_NOTES.md)
-        int QueueMaxNow() { return FgFfx || s.Efg >= 2 ? 0 : FgXe ? s.XeQueue : s.QueueMax >= 0 ? s.QueueMax : (!reflexOk && !fgOk ? 1 : 0); }   // (21-11: con FSR 3 FG el ritmo lo lleva su cadena)
+        int QueueMaxNow() { return FgFfx || s.Efg >= 2 ? 0 : FgXe ? s.XeQueue : s.QueueMax >= 0 ? s.QueueMax : (!reflexOk ? 1 : 0); }   // (1.2.4 ronda 6: sin DLSS-G, solo Reflex cuenta)   // (21-11: con FSR 3 FG el ritmo lo lleva su cadena)
 
         // Cada imagen (Run, tras ConfigureFeatures): el escalador que toca. Al cambiar, sin historia (DLSS y los vectores)
         void UpdateScaler()

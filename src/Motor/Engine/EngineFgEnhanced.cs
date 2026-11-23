@@ -103,12 +103,12 @@ namespace ConsoleEnhancer.Motor
         int efgW = EfgSets - 1;
         long efgJobArrival, efgSeq;
 
-        bool EfgWanted() { return s.Efg >= 2 && !s.Fg && s.FgOwn < 2 && !efgBroken; }
+        bool EfgWanted() { return s.Efg >= 2 && !FgXe && !FgFfx && !efgBroken; }
 
         // InitDevice, antes de crear la cadena: con efg pedido al arrancar (y sin la cadena de FSR 3 FG / XeSS FG), la cola propia de presentacion
         ID3D12CommandQueue EfgSwapQueue()
         {
-            if (s.Efg < 2 || !s.EfgOwnQueue || FgFfx || FgXe || s.Fg) return queue;
+            if (s.Efg < 2 || !s.EfgOwnQueue || FgFfx || FgXe) return queue;
             try
             {
                 D3D12_COMMAND_QUEUE_DESC qd = new D3D12_COMMAND_QUEUE_DESC();
@@ -125,7 +125,7 @@ namespace ConsoleEnhancer.Motor
         }
 
         // Prioridad de la cola del motor (InitDevice): con la cola propia de Enhanced FG, normal, para que la de presentacion pase delante
-        int EfgMainQueuePriority(int def) { return s.Efg >= 2 && s.EfgOwnQueue && s.EfgMainLowPrio && !FgFfx && !FgXe && !s.Fg ? 0 : def; }
+        int EfgMainQueuePriority(int def) { return s.Efg >= 2 && s.EfgOwnQueue && s.EfgMainLowPrio && !FgFfx && !FgXe ? 0 : def; }
 
         // La cola de las listas del hilo de presentacion
         ID3D12CommandQueue EfgPq { get { return efgQueue ?? queue; } }

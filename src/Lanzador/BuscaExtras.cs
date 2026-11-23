@@ -1,5 +1,5 @@
 // BuscaExtras.cs - (22-11-2026, 1.2.4) "Añadir DLSS 5" (y el arranque, si falta) busca en ESTE PC los archivos que el usuario ya tenga:
-// su nvngx_dlssnr.dll y su carpeta de runtimes dlssg_sm86. C# 5.
+// su nvngx_dlssnr.dll. C# 5. (1.2.4 ronda 6, QUITAFG: ya no su carpeta de runtimes dlssg_sm86, que era para el DLSS FG de Magpie)
 // Lo aprobo el usuario. Reglas: solo LOCAL (nada de descargas ni de enlaces), rapido y acotado (como mucho ~4 s, profundidad limitada,
 // sin recorrer el disco entero, cancelable) y siempre con su permiso: se le enseña lo encontrado (ruta, tamaño, version, firmado o no
 // -FirmaNvidia.cs-) y elige; se copia a extras\ y se guarda como lo demas (ExtrasGuardados.cs). Se busca por nombre de fichero, no por
@@ -23,7 +23,7 @@ namespace ConsoleEnhancer
 {
     static class BuscaExtras
     {
-        public const string TipoDlss5 = "dlss5", TipoSm86 = "sm86";
+        public const string TipoDlss5 = "dlss5";
 
         public sealed class Hallazgo
         {
@@ -31,7 +31,7 @@ namespace ConsoleEnhancer
             public long Bytes;
             public int Firma = FirmaNvidia.SinFirma;
             public DateTime Fecha;
-            public bool Vale;          // (DLSS 5: DLL de 64 bits; dlssg_sm86: completo y el que pide Magpie)
+            public bool Vale;          // (DLSS 5: DLL de 64 bits)
             public int Copias = 1;     // (el mismo archivo en mas sitios: se enseña una vez)
             public int Orden;          // (el orden de la carpeta en la busqueda: lo primero, lo mas probable)
         }
@@ -119,8 +119,6 @@ namespace ConsoleEnhancer
                     {
                         string f = Path.Combine(full, Integrado.Dlss5Dll);
                         if (File.Exists(f)) todo.Add(Dlss5(f, orden));
-                        if (Path.GetFileName(full).Equals("dlssg_sm86", StringComparison.OrdinalIgnoreCase) && File.Exists(Path.Combine(full, "version.dll")))
-                            todo.Add(Sm86(full, orden));
                     }
                     catch { }
                     if (kv.Value >= raiz.Prof) continue;
@@ -141,7 +139,7 @@ namespace ConsoleEnhancer
                     }
                 }
             }
-            // sin repetir: el mismo archivo (tamaño y fecha; en dlssg_sm86, su version.dll) se queda con el primero
+            // sin repetir: el mismo archivo (tamaño y fecha) se queda con el primero
             List<Hallazgo> r = new List<Hallazgo>();
             foreach (Hallazgo h in todo)
             {
@@ -163,19 +161,6 @@ namespace ConsoleEnhancer
             string mal = Extras.MirarDll(f);
             h.Vale = mal == null;
             if (mal != null) h.Nota = mal;
-            return h;
-        }
-
-        static Hallazgo Sm86(string d, int orden)
-        {
-            Hallazgo h = new Hallazgo { Tipo = TipoSm86, Ruta = d, Orden = orden };
-            FileInfo fi = new FileInfo(Path.Combine(d, "version.dll"));
-            h.Bytes = fi.Length; h.Fecha = fi.LastWriteTimeUtc;
-            try { h.Version = (FileVersionInfo.GetVersionInfo(fi.FullName).FileVersion ?? "").Replace(',', '.').Replace(" ", ""); } catch { }
-            try { foreach (string x in Directory.GetFiles(d, "*", SearchOption.AllDirectories)) h.Bytes += new FileInfo(x).Length; h.Bytes -= fi.Length; } catch { }
-            h.Firma = FirmaNvidia.Otra;
-            h.Vale = Componentes.Sm86Vale(d);
-            if (!h.Vale) h.Nota = Tx.T("incompleto o de otra versión", "incomplete or another version");
             return h;
         }
 
@@ -207,24 +192,22 @@ namespace ConsoleEnhancer
         static string Tam(long b) { return b >= 1 << 20 ? (b / 1048576.0).ToString("0.0", CultureInfo.InvariantCulture) + " MB" : (b / 1024.0).ToString("0", CultureInfo.InvariantCulture) + " KB"; }
         static string FirmaTxt(Hallazgo h)
         {
-            if (h.Tipo == TipoSm86) return h.Vale ? Tx.T("completo", "complete") : h.Nota;
             return h.Firma == FirmaNvidia.Nvidia ? Tx.T("firmada por NVIDIA (solo RTX 50)", "signed by NVIDIA (RTX 50 only)")
                  : h.Firma == FirmaNvidia.SinFirma ? Tx.T("sin firma (modificada: RTX 20/30/40)", "unsigned (modified: RTX 20/30/40)")
                  : Tx.T("otra firma", "other signature");
         }
 
         // ---- con ventanas: "Buscando..." (cancelable, como mucho msMax) y la lista para elegir. null = nada elegido; otro = quiere elegir
-        // el archivo a mano; sm86 = la carpeta dlssg_sm86 marcada para copiar tambien (o null)
-        public static Hallazgo Elegir(IWin32Window w, int msMax, out Hallazgo sm86, out bool otro, out bool cancelado)
+        // el archivo a mano
+        public static Hallazgo Elegir(IWin32Window w, int msMax, out bool otro, out bool cancelado)
         {
-            sm86 = null; otro = false; cancelado = false;
+            otro = false; cancelado = false;
             List<Hallazgo> l = BuscarConVentana(w, msMax, out cancelado);
             if (cancelado) return null;
             Ordenar(l, Familia());
             List<Hallazgo> d5 = l.FindAll(delegate(Hallazgo h) { return h.Tipo == TipoDlss5; });
-            List<Hallazgo> sm = l.FindAll(delegate(Hallazgo h) { return h.Tipo == TipoSm86 && h.Vale; });
-            if (d5.Count == 0 && sm.Count == 0) { otro = true; return null; }
-            return Lista(w, d5, sm, out sm86, out otro);
+            if (d5.Count == 0) { otro = true; return null; }
+            return Lista(w, d5, out otro);
         }
 
         static List<Hallazgo> BuscarConVentana(IWin32Window w, int msMax, out bool cancelado)
@@ -259,12 +242,11 @@ namespace ConsoleEnhancer
             return r;
         }
 
-        static Hallazgo Lista(IWin32Window w, List<Hallazgo> d5, List<Hallazgo> sm, out Hallazgo sm86, out bool otro)
+        static Hallazgo Lista(IWin32Window w, List<Hallazgo> d5, out bool otro)
         {
-            sm86 = null; otro = false;
+            otro = false;
             Hallazgo elegido = null;
             bool quiereOtro = false;
-            CheckBox cs = null;
             using (Form f = new Form())
             {
                 f.Text = Tx.T("Añadir DLSS 5: encontrado en este PC", "Add DLSS 5: found on this PC");
@@ -286,25 +268,17 @@ namespace ConsoleEnhancer
                     lv.Items.Add(it);
                 }
                 if (lv.Items.Count > 0) lv.Items[0].Selected = true;
-                cs = new CheckBox { Location = new Point(12, 268), Size = new Size(836, 22) };
-                if (sm.Count > 0 && !Extras.HaySm86)
-                {
-                    cs.Text = Tx.T("Copiar también la carpeta dlssg_sm86 de ", "Also copy the dlssg_sm86 folder from ") + sm[0].Ruta + " (" + Tam(sm[0].Bytes) + ")";
-                    cs.Checked = true;
-                }
-                else cs.Visible = false;
-                Button ok = new Button { Text = Tx.T("Usar este", "Use this one"), Location = new Point(504, 312), Size = new Size(110, 32), Enabled = lv.Items.Count > 0 || cs.Visible };
+                Button ok = new Button { Text = Tx.T("Usar este", "Use this one"), Location = new Point(504, 312), Size = new Size(110, 32), Enabled = lv.Items.Count > 0 };
                 Button man = new Button { Text = Tx.T("Elegir otro archivo…", "Pick another file…"), Location = new Point(620, 312), Size = new Size(140, 32) };
                 Button no = new Button { Text = Tx.T("Cancelar", "Cancel"), Location = new Point(766, 312), Size = new Size(82, 32) };
                 ok.Click += delegate { if (lv.SelectedItems.Count > 0) elegido = (Hallazgo)lv.SelectedItems[0].Tag; f.DialogResult = DialogResult.OK; };
                 man.Click += delegate { quiereOtro = true; f.DialogResult = DialogResult.OK; };
                 no.Click += delegate { f.DialogResult = DialogResult.Cancel; };
                 lv.DoubleClick += delegate { if (lv.SelectedItems.Count > 0) { elegido = (Hallazgo)lv.SelectedItems[0].Tag; f.DialogResult = DialogResult.OK; } };
-                f.Controls.AddRange(new Control[] { t, lv, cs, ok, man, no });
+                f.Controls.AddRange(new Control[] { t, lv, ok, man, no });
                 f.AcceptButton = ok; f.CancelButton = no;
                 if (f.ShowDialog(w) != DialogResult.OK) return null;
             }
-            if (cs != null && cs.Visible && cs.Checked) sm86 = sm[0];
             otro = quiereOtro;
             return quiereOtro ? null : elegido;
         }
@@ -352,8 +326,7 @@ namespace ConsoleEnhancer
             {
                 if (Directory.Exists(raiz)) Directory.Delete(raiz, true);
                 // una DLL de 64 bits sin firma (la del motor) y una firmada por NVIDIA (de Streamline), con el nombre de la de DLSS 5
-                string sinFirma = Path.Combine(Paths.AppDir, @"engine\PrismaFg.dll"), firmada = Path.Combine(Paths.AppDir, @"engine\sl.common.dll");
-                if (!File.Exists(sinFirma)) sinFirma = Path.Combine(Paths.AppDir, @"engine\PrismaNr.dll");
+                string sinFirma = Path.Combine(Paths.AppDir, @"engine\PrismaNr.dll"), firmada = Path.Combine(Paths.AppDir, @"engine\sl.common.dll");
                 if (!File.Exists(sinFirma) || !File.Exists(firmada)) { sb.AppendLine("FALLO faltan las DLL de prueba en engine\\ (" + sinFirma + ", " + firmada + ")"); fallos++; }
                 else
                 {
@@ -365,7 +338,7 @@ namespace ConsoleEnhancer
                     poner(sinFirma, @"App\extras\nvngx_dlssnr.dll");                                            // la de la app: excluida
                     string smd = Path.Combine(raiz, @"Descargas\ConsoleEnhancer-v1.2.2\extras\runtimes\dlssg_sm86");
                     Directory.CreateDirectory(Path.Combine(smd, @"dlssg_sm86\runtime"));
-                    File.WriteAllText(Path.Combine(smd, "version.dll"), "x");                                    // dlssg_sm86 a medias (no vale)
+                    File.WriteAllText(Path.Combine(smd, "version.dll"), "x");                                    // dlssg_sm86 (1.2.4 ronda 6: ya no se busca)
                     List<Raiz> rs = new List<Raiz> { new Raiz(Path.Combine(raiz, "Descargas"), 4), new Raiz(Path.Combine(raiz, "Escritorio"), 4),
                                                      new Raiz(Path.Combine(raiz, "Juegos"), 5), new Raiz(Path.Combine(raiz, "App"), 3), new Raiz(Path.Combine(raiz, "no existe"), 3) };
                     string res;
@@ -377,7 +350,7 @@ namespace ConsoleEnhancer
                     mira(d5.Count == 2, "DLSS 5: 2 distintas (la de prof 6 y la de la app no; la copia junta) -> " + d5.Count);
                     mira(d5.Exists(delegate(Hallazgo h) { return h.Copias == 2; }), "la misma en 2 sitios: Copias 2");
                     mira(!d5.Exists(delegate(Hallazgo h) { return h.Ruta.IndexOf(@"\App\", StringComparison.OrdinalIgnoreCase) >= 0 || h.Ruta.IndexOf(@"\e\", StringComparison.OrdinalIgnoreCase) >= 0; }), "ni la de la app ni la de prof 6");
-                    mira(l.Exists(delegate(Hallazgo h) { return h.Tipo == TipoSm86 && !h.Vale; }), "dlssg_sm86 a medias: encontrado y NO vale");
+                    mira(l.TrueForAll(delegate(Hallazgo h) { return h.Tipo == TipoDlss5; }), "solo DLSS 5 (dlssg_sm86 ya no se busca)");
                     List<Hallazgo> o = new List<Hallazgo>(d5); Ordenar(o, "rtx50");
                     mira(o.Count == 2 && o[0].Firma == FirmaNvidia.Nvidia, "RTX 50: primero la firmada por NVIDIA");
                     o = new List<Hallazgo>(d5); Ordenar(o, "rtx40");

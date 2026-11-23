@@ -36,8 +36,8 @@ namespace ConsoleEnhancer
         public List<string> Vals = new List<string>(), Txts = new List<string>();
         public int Sel, Orig;
         public bool Visible = true, Activa = true, Carrusel;
-        // (1.2.2, MULTI) valores que se ven pero no se eligen (gris, con candado): el motivo de cada uno ("" = se puede). Visible cambia
-        // en marcha (la fila del multiplicador, solo con DLSS FG / XeSS FG): una fila escondida no cuenta ni se aplica
+        // (1.2.2, MULTI) valores que se ven pero no se eligen (gris, con candado): el motivo de cada uno ("" = se puede). Visible puede
+        // cambiar en marcha: una fila escondida no cuenta ni se aplica. (1.2.4 ronda 6, QUITAFG: la fila del multiplicador ya no esta)
         public List<string> Bloq = new List<string>();
         public bool Bloqueado(int i) { return i >= 0 && i < Bloq.Count && !string.IsNullOrEmpty(Bloq[i]); }
         public bool Cambiada { get { return Visible && Activa && Sel != Orig; } }
@@ -192,7 +192,7 @@ namespace ConsoleEnhancer
             Encima();
         }
         public void Repintar() { Mostrar(alpha); }
-        // (1.2.2, pruebas: lo pintado a un PNG, sin depender de una captura de pantalla; Multiplicador.cs MultPruebaPad "multpng")
+        // (1.2.2, pruebas: lo pintado a un PNG, sin depender de una captura de pantalla; el "ajpng" de las pruebas por la tuberia)
         public void GuardarPng(string path) { if (surface == null) return; GdiFlush(); surface.Save(path, ImageFormat.Png); }
         public void Encima() { if (Handle != IntPtr.Zero) SetWindowPos(Handle, new IntPtr(-1), 0, 0, 0, 0, 0x1 | 0x2 | 0x10); }
 
@@ -497,8 +497,7 @@ namespace ConsoleEnhancer
 
             FilaAjuste tipo = new FilaAjuste { Id = "tipo", Nombre = Tx.T("Tipo de generación", "Frame generation type"), Carrusel = true };
             tipo.Visible = cfg.FgAvailable;
-            // (1.2.2, MULTI) x2 / x3 / x4 de DLSS FG y XeSS FG: solo se ve con esos dos (AjMultDepende), src\Lanzador\Multiplicador.cs
-            FilaAjuste mult = AjFilaMult() ?? new FilaAjuste { Id = "mult", Visible = false };
+            // (1.2.2-1.2.4: aqui iba la fila "Multiplicador" x2 / x3 / x4. 1.2.4 ronda 6, QUITAFG: fuera, todas x2; solo se elige el tipo)
 
             FilaAjuste d5 = new FilaAjuste { Id = "d5", Nombre = "DLSS 5" };
             d5.Poner(SiNo(), SiNoTxt(), dlss5Shown ? "1" : "0", dlss5Shown ? "1" : "0");
@@ -515,19 +514,7 @@ namespace ConsoleEnhancer
                               "To install it, put your " + Integrado.Dlss5Dll + " file in the folder " + Extras.Dir + " and open this menu again " +
                               "(or from the tray: “Add DLSS 5 (your own file)…”)");
 
-            // (1.2.02, el usuario: "derepente no aparece el dlss fg"): con DLSS 5 por Magpie, DLSS FG necesita runtimes\dlssg_sm86 (tambien en
-            // RTX 40) y sin el se quitaba de la lista sin decir nada. Ahora una fila dice que falta y donde va (se mira otra vez al abrir el menu)
-            if (!Integrado.MagpieDlssgOk && Extras.HaySm86 && ExtrasToca()) { Ce.PrepararExtras(); Integrado.Dlss5Rever(); }
-            // (1.2.07: la app lo busca en el PC, Componentes.AsegurarSm86: la fila dice que se esta preparando. 1.2.4: ya no lo baja)
-            Componentes.AsegurarSm86();
-            FilaAjuste fgno = new FilaAjuste { Id = "dlssginfo", Nombre = "DLSS FG", Activa = false,
-                                               Nota = Componentes.Sm86Bajando ? Tx.T("Preparando…", "Getting ready…") : Tx.T("No disponible ahora", "Not available right now") };
-            fgno.Visible = cfg.FgAvailable && !Ce.NoNvidia && cfg.DlssFgPorMagpieSinRuntime &&
-                           (Array.IndexOf(cfg.GenList30, "dlss") >= 0 || Array.IndexOf(cfg.GenList60, "dlss") >= 0);
-            fgno.Ayuda = Tx.T("Con DLSS 5 sin el motor, DLSS FG va por Magpie y necesita un componente no oficial (dlssg_sm86) que la app no trae ni baja. " +
-                              "Si lo tienes, ponlo en " + Extras.Sm86 + " y vuelve a abrir este menú. Mientras, va otra generación",
-                              "With DLSS 5 outside the engine, DLSS FG runs through Magpie and needs an unofficial component (dlssg_sm86) the app neither ships nor downloads. " +
-                              "If you have it, put it in " + Extras.Sm86 + " and open this menu again. Until then another frame generation is used");
+            // (1.2.02-1.2.4: aqui iba la fila "DLSS FG · No disponible ahora" -faltaba dlssg_sm86-. 1.2.4 ronda 6, QUITAFG: sin DLSS FG, fuera)
 
             FilaAjuste niv = new FilaAjuste { Id = "nivel", Nombre = Tx.T("Nivel de DLSS 5", "DLSS 5 level") };
             string nv = Math.Max(1, Math.Min(4, dlss5Level)).ToString();
@@ -560,7 +547,7 @@ namespace ConsoleEnhancer
             esc.Visible = ev.Count > 1;
 
             // (1.2.3 MOTOR5 tenia aqui la fila "DLSS 5 por: Motor / Magpie"; 1.2.4 SOLOMOTOR: fuera, no se elige: el motor siempre que sepa, SoloMotor.cs)
-            ajFilas.AddRange(new[] { cap, mo, fg, tipo, mult, fgno, d5, d5no, niv, pas, esc });
+            ajFilas.AddRange(new[] { cap, mo, fg, tipo, d5, d5no, niv, pas, esc });
             ajFilas.RemoveAll(delegate(FilaAjuste f) { return !f.Visible; });
             AjustesDepende(true);
         }
@@ -571,6 +558,54 @@ namespace ConsoleEnhancer
             if ((DateTime.Now - extrasVisto).TotalSeconds < 10) return false;
             extrasVisto = DateTime.Now;
             return true;
+        }
+
+        // (1.2.2, MULTI; desde la 1.2.4 ronda 6 aqui: estaban en Multiplicador.cs) altura del menu en filas (las de dos lineas cuentan dos;
+        // las escondidas, nada)
+        static int AjAltas(List<FilaAjuste> filas)
+        {
+            int n = 0;
+            foreach (FilaAjuste f in filas) if (f.Visible) n += f.Ayuda != null ? 2 : 1;
+            return n;
+        }
+
+        // Tras un cambio en el menu: si cambia la altura (una fila con su explicacion debajo aparece o se va), la ventana nueva, ya opaca
+        void AjRedimensionar(int altasAntes)
+        {
+            int altas = AjAltas(ajFilas);
+            if (altas == altasAntes || ajVentana == null) return;
+            VentanaAjustes nueva = new VentanaAjustes(mpvWindow, altas);
+            try { ajVentana.Dispose(); } catch { }
+            ajVentana = nueva;
+            AjustesPintar(255);
+            ajVentana.Encima();
+        }
+
+        // Un candado pequeño a la izquierda de un valor bloqueado (con lineas: la fuente del menu puede no tener el simbolo)
+        static void AjCandado(System.Drawing.Graphics g, System.Drawing.RectangleF cr, float u, System.Drawing.Color c)
+        {
+            float w = 10 * u, h = 8 * u, x = cr.X + 14 * u, yb = cr.Y + cr.Height / 2 - 1 * u;
+            using (System.Drawing.SolidBrush b = new System.Drawing.SolidBrush(c))
+            using (System.Drawing.Pen p = new System.Drawing.Pen(c, Math.Max(1f, 1.6f * u)))
+            {
+                g.FillRectangle(b, x, yb, w, h);
+                g.DrawArc(p, x + 2 * u, yb - 6 * u, w - 4 * u, 10 * u, 180, 180);
+            }
+        }
+
+        // El siguiente valor de una fila sin pasar por los bloqueados (d = +1 / -1; vuelta = carrusel)
+        static int AjPaso(FilaAjuste f, int d, bool vuelta)
+        {
+            int n = f.Vals.Count, s = f.Sel;
+            for (int i = 0; i < n; i++)
+            {
+                int k = s + d;
+                if (vuelta) k = (k + n) % n;
+                else if (k < 0 || k >= n) return f.Sel;
+                s = k;
+                if (!f.Bloqueado(s)) return s;
+            }
+            return f.Sel;
         }
 
         static List<string> SiNo() { return new List<string> { "1", "0" }; }
@@ -613,8 +648,6 @@ namespace ConsoleEnhancer
                             !fgSi ? Tx.T("Con la generación encendida", "With frame generation on") : "";
                 AjTipoForzado(tipo, pedido, cap30, capSel);   // (1.2.2: el log del usuario, 22-11 04:01: captura 1080p en el menu = XeSS FG cambiado por DLSS FG y guardado)
             }
-            // (1.2.2, MULTI) el multiplicador del modo y el tipo elegidos (Multiplicador.cs)
-            AjMultDepende(inicio, modoSel, tipo != null && tipo.Activa ? tipo.Val : "", fg == null || fg.Val == "1");
             bool d5si = d5 == null || d5.Val == "1";
             foreach (string id in new[] { "nivel", "pasadas" })
             {
@@ -704,13 +737,12 @@ namespace ConsoleEnhancer
         {
             FilaAjuste antes = f;
             int altasAntes = AjAltas(ajFilas);
-            AjMultTocada(f);   // (1.2.2: el multiplicador elegido a mano se recupera si vuelve a caber)
             AjustesDepende(false);
             // (si una fila deja de ser navegable, el foco sigue en la misma)
             List<FilaAjuste> nav = AjNavegables();
             int i = nav.IndexOf(antes);
             if (i >= 0) ajFoco = i; else AjustesFocoValido(0);
-            AjRedimensionar(altasAntes);   // (1.2.2: la fila del multiplicador aparece o se va con el tipo)
+            AjRedimensionar(altasAntes);   // (1.2.2: una fila con su explicacion debajo -el tipo que no puede ir- cambia la altura)
         }
 
         // ---------------- aplicar (todo a la vez) ----------------
@@ -724,7 +756,6 @@ namespace ConsoleEnhancer
             {
                 if (!f.Activa || !f.Visible) continue;
                 if (f.Id == "tipo" && !f.Cambiada && !modoCambia) continue;   // (sin tocarlo: lo elegido sigue como estaba, tambien "lo del ini")
-                if (f.Id == "mult" && !f.Cambiada) continue;   // (1.2.2: el multiplicador solo si se ha tocado: lo guardado de cada modo sigue)
                 // (1.2.02) el escalador solo si se ha tocado: con R3 en un alternativo que el menu no lista (FSR 1 de AMD / Intel / GTX),
                 // aplicar otra cosa lo devolvia al normal sin decir nada
                 if (f.Id == "esc" && !f.Cambiada) continue;
@@ -779,7 +810,6 @@ namespace ConsoleEnhancer
                 {
                     if (modo == 30) SetPicks(cfg.FgPick60, v); else SetPicks(v, cfg.FgPick30);
                 }
-                AjMultPoner(e, modo);   // (1.2.2, MULTI: x2 / x3 / x4 del modo que queda, Multiplicador.cs)
                 if ((v = AjVal(e, "tram")) != null && (v == "1") != cfg.StrongDitherOn)
                 {
                     cfg.StrongDitherOn = v == "1";

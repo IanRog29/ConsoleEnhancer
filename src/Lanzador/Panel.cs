@@ -236,10 +236,7 @@ namespace ConsoleEnhancer
                                            "Installed (your " + Integrado.Dlss5Dll + " file in the extras folder). Not official from NVIDIA.")
                                     : Tx.T("No instalado. Para instalarlo, pon tu archivo " + Integrado.Dlss5Dll + " en " + Extras.Dir + " (o usa el botón de abajo).",
                                            "Not installed. To install it, put your " + Integrado.Dlss5Dll + " file in " + Extras.Dir + " (or use the button below).");
-                // (1.2.02) con DLSS 5 la generacion DLSS FG va por Magpie y necesita dlssg_sm86 (en cualquier RTX): decirlo aqui tambien
-                if (hay && !Extras.HaySm86 && !Integrado.MagpieDlssgOk)
-                    estadoD5.Text += Tx.T(" Para DLSS FG con DLSS 5 hace falta tu carpeta dlssg_sm86 en " + Extras.Sm86 + " (si no, va otra generación).",
-                                          " DLSS FG with DLSS 5 needs your dlssg_sm86 folder in " + Extras.Sm86 + " (otherwise another frame generation is used).");
+                // (1.2.02-1.2.4: aqui se decia que DLSS FG con DLSS 5 necesitaba dlssg_sm86. 1.2.4 ronda 6, QUITAFG: sin DLSS FG, fuera)
                 bAnadirD5.Text = hay ? Tx.T("Cambiar el archivo…", "Change the file…") : Tx.T("Añadir DLSS 5 (tu propio archivo)…", "Add DLSS 5 (your own file)…");
                 bQuitarD5.Visible = hay || Directory.Exists(Extras.Sm86);
             }

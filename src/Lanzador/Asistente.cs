@@ -183,8 +183,8 @@ namespace ConsoleEnhancer
             GpuInfo g = p.Gpu;
             sb.AppendLine(Tx.T("Gráfica: ", "GPU: ") + (g != null ? g.Nombre + " · " + Tx.Mb(g.Vram) + " · driver " + g.Driver : "?"));
             if (g != null && !g.Software)
-                sb.AppendLine("   DLSS " + Tx.SiNo(g.F.DlssSr.Si) + " · DLSS-G " + Tx.SiNo(g.F.DlssG.Si) + " · Smooth Motion " + Tx.SiNo(g.F.SmoothMotion.Si) + " · Reflex " + Tx.SiNo(g.F.Reflex.Si) +
-                              " · FSR 3 FG " + Tx.SiNo(g.F.Fsr3Fg.Si) + " · AFMF " + Tx.SiNo(g.F.Afmf.Si) + " · DLSS 5 " + (g.F.DlssNr.Si ? Tx.T("sí (no oficial)", "yes (unofficial)") : "no"));
+                sb.AppendLine("   DLSS " + Tx.SiNo(g.F.DlssSr.Si) + " · Smooth Motion " + Tx.SiNo(g.F.SmoothMotion.Si) + " · Reflex " + Tx.SiNo(g.F.Reflex.Si) +
+                              " · XeSS FG " + Tx.SiNo(g.F.XessFg.Si) + " · FSR 3 FG " + Tx.SiNo(g.F.Fsr3Fg.Si) + " · AFMF " + Tx.SiNo(g.F.Afmf.Si) + " · DLSS 5 " + (g.F.DlssNr.Si ? Tx.T("sí (no oficial)", "yes (unofficial)") : "no"));
             foreach (PantallaInfo pa in hw.Pantallas)
                 sb.AppendLine(Tx.T("Pantalla: ", "Display: ") + pa.Nombre + " · " + pa.Ancho + "x" + pa.Alto + " @ " + Tx.N(pa.HzExacto, "0.###") + " Hz" + (pa.HdrPosible ? " · HDR" : "") + (pa.VrrPosible ? " · VRR" : ""));
             int nc = 0;

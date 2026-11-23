@@ -47,10 +47,10 @@ namespace ConsoleEnhancer
         public static string Dll { get { return Path.Combine(Dir, Integrado.Dlss5Dll); } }
         public static string Sm86 { get { return Path.Combine(Dir, @"runtimes\dlssg_sm86"); } }
         public static string Sm86Viejo { get { return Path.Combine(Dir, "dlssg_sm86"); } }
-        public static string Sm86Puesto { get { return Directory.Exists(Sm86) ? Sm86 : Sm86Viejo; } }
         public static string PrismaNr { get { return Path.Combine(Paths.AppDir, @"engine\PrismaNr.dll"); } }
-        public static string PrismaFg { get { return Path.Combine(Paths.AppDir, @"engine\PrismaFg.dll"); } }   // (1.2.4 MOTORFG: DLSS FG x3 / x4 del motor en RTX 40; pieza propia, en el zip desde la 1.2.4)
         public static bool HayDlss5 { get { return File.Exists(Dll); } }
+        // (1.2.4 ronda 6, QUITAFG: dlssg_sm86 -el runtime que pedia el DLSS FG de Magpie- ya no se busca ni se copia; "Quitar DLSS 5" quita el
+        // que quedara en extras\ de antes)
         public static bool HaySm86 { get { return Directory.Exists(Sm86) || Directory.Exists(Sm86Viejo); } }
         public static bool MotorPuede { get { return File.Exists(PrismaNr); } }
 
@@ -101,29 +101,26 @@ namespace ConsoleEnhancer
                     "dentro de los juegos que lo traen. Hay dos nvngx_dlssnr.dll: la original de NVIDIA (firmada por NVIDIA; solo funciona en " +
                     "RTX 50) y una modificada por la comunidad para RTX 20/30/40 (sin firma). Ninguna trae permiso para usarla fuera de su juego, " +
                     "y para hacer DLSS 5 aquí se carga sin pasar por las comprobaciones de NVIDIA: su uso puede ir contra las condiciones de NVIDIA. " +
-                    "Opcionalmente también la carpeta dlssg_sm86 (de la comunidad).\r\n\r\n" +
+                    "\r\n\r\n" +
                     "ConsoleEnhancer no la incluye, no la descarga ni dice de dónde sacarla. Si la usas es bajo tu responsabilidad. " +
                     "La app funciona entera sin ella.\r\n\r\n¿Elegir tu archivo nvngx_dlssnr.dll?",
                     "DLSS 5 is not an official ConsoleEnhancer feature.\r\n\r\n" +
                     "NVIDIA does not yet let other applications use DLSS 5 (it is not in its SDK or in Streamline) and only supports it on RTX 50, " +
                     "inside the games that ship it. Two nvngx_dlssnr.dll files exist: NVIDIA's original (signed by NVIDIA; only works on RTX 50) " +
                     "and a community-modified one for RTX 20/30/40 (unsigned). Neither comes with permission to use it outside its game, and to " +
-                    "run DLSS 5 here it is loaded without going through NVIDIA's checks: using it may breach NVIDIA's terms. Optionally also the " +
-                    "dlssg_sm86 folder (from the community).\r\n\r\n" +
+                    "run DLSS 5 here it is loaded without going through NVIDIA's checks: using it may breach NVIDIA's terms.\r\n\r\n" +
                     "ConsoleEnhancer does not include it, download it or say where to get it. Using it is your own responsibility. " +
                     "The app works fully without it.\r\n\r\nPick your nvngx_dlssnr.dll file?"), MessageBoxIcon.Warning))
                 return false;
             string origen = null;
             // (1.2.4, lo aprobo el usuario) primero se busca en ESTE PC lo que ya tenga (BuscaExtras.cs: solo local, ~4 s como mucho,
             // cancelable) y se elige de la lista; con "Elegir otro archivo...", la busqueda cancelada o nada encontrado: el selector de siempre
-            BuscaExtras.Hallazgo smHallado = null;
             {
                 bool otro, cancel;
-                BuscaExtras.Hallazgo h = BuscaExtras.Elegir(w, 4000, out smHallado, out otro, out cancel);
+                BuscaExtras.Hallazgo h = BuscaExtras.Elegir(w, 4000, out otro, out cancel);
                 if (h != null) origen = h.Ruta;
                 else if (cancel || otro) { }
-                else if (smHallado != null && HayDlss5) { PonerSm86(w, smHallado.Ruta); ExtrasGuardados.Guardar("añadido"); return true; }
-                else if (smHallado == null) return false;   // (la lista cerrada sin elegir)
+                else return false;   // (la lista cerrada sin elegir)
             }
             if (origen == null)
             using (OpenFileDialog d = new OpenFileDialog())
@@ -170,16 +167,7 @@ namespace ConsoleEnhancer
                 Mal(w, Tx.T("No se pudo copiar a ", "Could not copy to ") + Dir + ":\r\n" + ex.Message);
                 return false;
             }
-            // opcional: la carpeta dlssg_sm86 (1.2.02: con DLSS 5, el DLSS FG de Magpie la necesita en RTX 30 y tambien en RTX 40/50).
-            // 21-11 (1.2.06, el usuario: "sigue apareciendo lo de si tengo la carpeta de dlss fg y te habia dicho que quitaras esa pregunta"):
-            // ya no se pregunta. Si esta junto a la DLL elegida (o una carpeta mas arriba) se copia sola; si no, se sigue sin ella (otra
-            // generacion; el menu de ajustes dice "DLSS FG · Falta dlssg_sm86" y donde ponerla)
-            if (!HaySm86)
-            {
-                string sm = BuscarSm86(origen);
-                if (sm != null) PonerSm86(w, sm);
-            }
-            if (!HaySm86 && smHallado != null) PonerSm86(w, smHallado.Ruta);   // (1.2.4: la que se encontro en el PC y se marco en la lista)
+            // (1.2.02-1.2.4: y la carpeta dlssg_sm86 si estaba al lado, para el DLSS FG de Magpie. 1.2.4 ronda 6, QUITAFG: sin DLSS FG, ya no)
             // (22-11, 1.2.3 MOTOR5) y PrismaNr.dll ("DLSS 5" en el motor propio) si esta junto a la DLL elegida: a engine\. (1.2.4: viene ya en
             // el zip; solo si falta, para no cambiar la de esta version por una de otra)
             if (!File.Exists(PrismaNr)) { string pn = BuscarPrismaNr(origen); if (pn != null) PonerPrismaNr(w, pn); }
@@ -195,24 +183,7 @@ namespace ConsoleEnhancer
             return true;
         }
 
-        // dlssg_sm86 junto a la DLL elegida: en su carpeta o hasta dos mas arriba (X\dlssg_sm86 o X\runtimes\dlssg_sm86). null = no esta
-        static string BuscarSm86(string dll)
-        {
-            try
-            {
-                string x = Path.GetDirectoryName(Path.GetFullPath(dll));
-                for (int i = 0; i < 3 && !string.IsNullOrEmpty(x); i++, x = Path.GetDirectoryName(x))
-                {
-                    if (Path.GetFileName(x.TrimEnd('\\')).Equals("dlssg_sm86", StringComparison.OrdinalIgnoreCase)) return x;
-                    foreach (string c in new[] { Path.Combine(x, "dlssg_sm86"), Path.Combine(x, @"runtimes\dlssg_sm86") })
-                        if (Directory.Exists(c) && Directory.GetFiles(c, "*.dll", SearchOption.AllDirectories).Length > 0) return c;
-                }
-            }
-            catch { }
-            return null;
-        }
-
-        // (22-11, 1.2.3 MOTOR5) PrismaNr.dll junto a la DLL elegida, como BuscarSm86: en su carpeta o hasta dos mas arriba (X\PrismaNr.dll o
+        // (22-11, 1.2.3 MOTOR5) PrismaNr.dll junto a la DLL elegida: en su carpeta o hasta dos mas arriba (X\PrismaNr.dll o
         // X\engine\PrismaNr.dll). null = no esta. (Solo la busca: PonerPrismaNr mira que valga)
         public static string BuscarPrismaNr(string dll)
         {
@@ -250,38 +221,6 @@ namespace ConsoleEnhancer
                 Mal(w, Tx.T("No se pudo poner PrismaNr.dll en engine\\ (si el motor está abierto, cierra la app y vuelve a añadir DLSS 5):\r\n",
                             "Could not put PrismaNr.dll in engine\\ (if the engine is open, close the app and add DLSS 5 again):\r\n") + ex.Message);
             }
-        }
-
-        // Copia la carpeta dlssg_sm86 encontrada a extras\runtimes\ (sin preguntar; solo avisa si algo no vale)
-        static void PonerSm86(IWin32Window w, string de)
-        {
-            string[] dlls = Directory.GetFiles(de, "*.dll", SearchOption.AllDirectories);
-            if (dlls.Length == 0) return;
-            foreach (string d in dlls)
-            {
-                string m = MirarDll(d);
-                if (m != null) { Log.Write("dlssg_sm86 junto a la DLL no vale (" + Path.GetFileName(d) + ": " + m + "): no se copia"); return; }
-            }
-            // (1.2.08) otra version de dlssg_for_sm86: Magpie no la valida (DLSS FG no arranca) -> no se copia
-            string otra = Componentes.Sm86Distinto(de);
-            if (otra != null) { Log.Write("dlssg_sm86 junto a la DLL (" + de + ") no es la version que espera Magpie (" + otra + "): no se copia"); return; }
-            try
-            {
-                if (Path.GetFullPath(de).TrimEnd('\\').Equals(Path.GetFullPath(Sm86).TrimEnd('\\'), StringComparison.OrdinalIgnoreCase)) return;
-                QuitarSm86();
-                int n = Copiar(de, Sm86);
-                Log.Write("DLSS-G en RTX 30: el usuario ha puesto su dlssg_sm86 en extras\\runtimes\\ (" + n + " ficheros; de la comunidad, DLL autofirmadas, no oficial)");
-            }
-            catch (Exception ex) { Log.Error("dlssg_sm86: copiando a extras\\", ex); Mal(w, ex.Message); }
-        }
-
-        static int Copiar(string de, string a)
-        {
-            int n = 0;
-            Directory.CreateDirectory(a);
-            foreach (string f in Directory.GetFiles(de)) { File.Copy(f, Path.Combine(a, Path.GetFileName(f)), true); n++; }
-            foreach (string d in Directory.GetDirectories(de)) n += Copiar(d, Path.Combine(a, Path.GetFileName(d)));
-            return n;
         }
 
         // Fuera de extras\ (y la copia de magpie\ que puso la app, con su marca: si Magpie la tiene abierta, se quita al volver a abrir la app)

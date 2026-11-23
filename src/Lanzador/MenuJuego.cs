@@ -59,7 +59,7 @@ namespace ConsoleEnhancer
                 }
             };
 
-            ToolStripMenuItem mult = MultBandeja();   // (1.2.2: x2 / x3 / x4 de DLSS FG y XeSS FG, src\Lanzador\Multiplicador.cs)
+            // (1.2.2-1.2.4: aqui iba "Multiplicador de generación" x2 / x3 / x4; 1.2.4 ronda 6, QUITAFG: fuera, todas x2)
 
             ToolStripMenuItem modo = new ToolStripMenuItem(Tx.T("Modo", "Mode"));
             modo.ShortcutKeyDisplayString = "Ctrl+M";
@@ -118,7 +118,7 @@ namespace ConsoleEnhancer
                 DesdeBandeja("menu de ajustes", false, delegate { OnUi(delegate { AjustesPedir("bandeja"); }); }); // (22-11, 1.2.2: AjustesGuia.cs)
             });
             panel.ShortcutKeyDisplayString = Tx.T("Botón central / Ctrl+O", "Guide button / Ctrl+O");
-            ToolStripItem[] todo = { panel, fg, tipo, mult, modo, cap, d5, esc, tram, est };
+            ToolStripItem[] todo = { panel, fg, tipo, modo, cap, d5, esc, tram, est };
             int at = 0;
             foreach (ToolStripItem it in todo) menu.Items.Insert(at++, it);
             menu.Items.Insert(at, new ToolStripSeparator());
@@ -132,7 +132,7 @@ namespace ConsoleEnhancer
                     fg.Checked = fgWanted && cfg.FgAvailable;
                     fg.Enabled = vivo && cfg.FgAvailable && !cfg.Mode120;
                     tipo.Enabled = vivo && cfg.FgAvailable && !cfg.Mode120;
-                    mult.Visible = MultBandejaVisible();   // (1.2.2: solo con DLSS FG o XeSS FG)
+
                     int cur = cfg.Mode120 ? 120 : cfg.CapMode ? 30 : 60;
                     m30.Checked = cur == 30; m60.Checked = cur == 60; m120.Checked = cur == 120;
                     m120.Visible = cur == 120 || Puede120();
@@ -306,7 +306,7 @@ namespace ConsoleEnhancer
                 case 0x46: que = "generacion si/no"; a = delegate { ToggleFrameGeneration(); }; break;                    // F
                 // (1.2.2) G: el selector del tipo de generacion, lo mismo que L3 (antes en KeyHook aparte, sin traer la imagen delante)
                 case 0x47: que = "tipo de generacion"; a = delegate { GenSelectorPress(); }; break;                         // G
-                case 0x58: que = "multiplicador"; heavy = true; a = delegate { MultSiguiente(); }; break;                   // X (1.2.2, Multiplicador.cs)
+
                 case 0x4D: que = "modo"; heavy = true; a = delegate { CeBotonMenu(); }; break;                             // M
                 case 0x31: case 0x32: case 0x33: case 0x34:                                                                // 1-4
                 {

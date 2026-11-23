@@ -57,17 +57,12 @@ namespace ConsoleEnhancer
 
         // ¿Hace el motor DLSS 5 con lo pedido ahora? (las pasadas PEDIDAS, no las que caben: va dentro de la cuenta de Dlss5PassesNow, de la
         // escala automatica de Magpie y de DlssFgPorMagpieSinRuntime; lo de la generacion que solo hace Magpie con su guarda)
-        [ThreadStatic] static bool md5Dentro;
         public bool MotorDlss5Pedido
         {
             get
             {
-                if (!EngineDlss5 || MotorDlss5Roto || !MotorDlss5Disponible) return false;
-                if (Math.Max(1, Math.Min(3, Passes30)) > Math.Max(1, Math.Min(3, EngineDlss5MaxPasses))) return false;
-                if (md5Dentro) return true;
-                md5Dentro = true;
-                try { return !FgMagpieOnly && !ScalerMagpieOnly; }
-                finally { md5Dentro = false; }
+                // (1.2.4 ronda 6, QUITAFG, fase 2: sin Magpie, DLSS 5 siempre en el motor, con las 1-3 pasadas)
+                return EngineDlss5 && !MotorDlss5Roto && MotorDlss5Disponible;
             }
         }
 
@@ -78,43 +73,39 @@ namespace ConsoleEnhancer
             System.Text.StringBuilder sb = new System.Text.StringBuilder("# MOTOR5: DLSS 5 por el motor o por Magpie (" + DateTime.Now.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture) + ")\r\n");
             int fallos = 0, n = 0;
             System.Reflection.FieldInfo f5 = typeof(Integrado).GetField("dlss5State", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
-            System.Reflection.FieldInfo fg = typeof(Integrado).GetField("dlssgState", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
             if (f5 != null) f5.SetValue(null, 1);   // (como si estuviera nvngx_dlssnr.dll en magpie\)
-            if (fg != null) fg.SetValue(null, 1);   // (y runtimes\dlssg_sm86)
             try
             {
                 Config c = Config.Load();
                 c.Engine = "propio";
                 if (!File.Exists(c.EnginePath)) c.EnginePath = System.Reflection.Assembly.GetExecutingAssembly().Location;   // (EngineNow mira que exista)
                 sb.AppendLine("motor_dlss5_pasadas=" + c.EngineDlss5MaxPasses + " dlss5_escala_auto=" + (c.Dlss5AutoOn ? 1 : 0) + " (ini " + Paths.IniFile + ")");
-                sb.AppendLine("prisma motor_dlss5 captura tipo xN pasadas -> EngineNow EngineDlss5Now escala_auto_Magpie tipo_real xN_real | por que Magpie");
+                sb.AppendLine("prisma motor_dlss5 captura tipo pasadas -> EngineNow EngineDlss5Now escala_auto_Magpie tipo_real | por que Magpie");
                 foreach (int prisma in new[] { 0, 1 })
                     foreach (bool eng in new[] { false, true })
                         foreach (string cap in new[] { "3840x2160", "2560x1440" })
-                            foreach (string tipo in new[] { "dlss", "smooth", "xess" })
-                                foreach (int mult in new[] { 2, 4 })
+                            foreach (string tipo in new[] { "smooth", "xess", "fsr3" })
                                     foreach (int pas in new[] { 1, 2 })
                                     {
-                                        if (mult > 2 && tipo == "smooth") continue;
                                         md5DllPrueba = prisma; md5DllAt = DateTime.MinValue;
                                         MotorDlss5Roto = false;
                                         c.EngineDlss5 = eng; c.VideoSize = cap; c.CapMode = true; c.Mode120 = false; c.FgOff = false; c.Dlss5Off = false; c.HomeNative = false;
-                                        c.Passes30 = pas; c.Level30 = 2; c.FgPick30 = tipo; c.MultPick30 = mult; c.ScalerPick = ""; c.AltScalerOn = false;
+                                        c.Passes30 = pas; c.Level30 = 2; c.FgPick30 = tipo; c.ScalerPick = ""; c.AltScalerOn = false;
                                         bool en = c.EngineNow, ed = c.EngineDlss5Now, au = c.Dlss5AutoAhora;
-                                        string t = c.FgTypeNow; int m = c.FgMultNow;
+                                        string t = c.FgTypeNow;
                                         // lo esperado: el motor con DLSS 5 solo con PrismaNr.dll, elegido, las pasadas que hace y una generacion
-                                        // que sepa hacer (1.2.4: el reparto de SoloMotor.cs / MotorFg.cs: DLSS FG x2, Smooth Motion, XeSS FG x2...)
-                                        bool motorDebe = prisma == 1 && eng && pas <= c.EngineDlss5MaxPasses && MotorSabeGeneracion(t, m) && c.Dlss5FitsNow &&
-                                                         !c.MotorGenAMagpie(t, m);   // (1.2.4 ronda 5, XEFGM: XeSS FG / la propia x3-x4 con DLSS 5 por Magpie, XefgMotor.cs)
+                                        // que sepa hacer (el reparto de SoloMotor.cs / MotorFg.cs: Smooth Motion, FSR 3 FG; XeSS FG con DLSS 5 por Magpie)
+                                        bool motorDebe = prisma == 1 && eng && pas <= c.EngineDlss5MaxPasses && MotorSabeGeneracion(t) && c.Dlss5FitsNow &&
+                                                         !c.MotorGenAMagpie(t) && !(t == "fsr3" && Ce.EngineUpscaler(c) == "dlss");   // (1.2.4 ronda 5, XEFGM: XeSS FG con DLSS 5 por Magpie, XefgMotor.cs)
                                         bool ok = ed == motorDebe && (!motorDebe || en) && (!motorDebe ? au == (c.Dlss5AutoOn && c.Dlss5InputPct == 0) : !au) &&
                                                   (motorDebe || !c.Dlss5FitsNow || !en);
                                         n++; if (!ok) fallos++;
-                                        sb.AppendLine((ok ? "      " : "FALLO ") + prisma + " " + (eng ? 1 : 0) + " " + cap + " " + tipo + " x" + mult + " p" + pas + " -> " + (en ? "motor" : "magpie") + " " +
-                                                      (ed ? "dlss5_motor" : "-") + " " + (au ? "auto" : "-") + " " + t + " x" + m + " | " + c.MotorDlss5PorQueMagpie(false));
+                                        sb.AppendLine((ok ? "      " : "FALLO ") + prisma + " " + (eng ? 1 : 0) + " " + cap + " " + tipo + " p" + pas + " -> " + (en ? "motor" : "magpie") + " " +
+                                                      (ed ? "dlss5_motor" : "-") + " " + (au ? "auto" : "-") + " " + t + " | " + c.MotorDlss5PorQueMagpie(false));
                                     }
                 // el motor dice que su DLSS 5 no va: por Magpie
                 md5DllPrueba = 1; md5DllAt = DateTime.MinValue; MotorDlss5Roto = true;
-                c.EngineDlss5 = true; c.VideoSize = "3840x2160"; c.Passes30 = 1; c.FgPick30 = "dlss"; c.MultPick30 = 2;
+                c.EngineDlss5 = true; c.VideoSize = "3840x2160"; c.Passes30 = 1; c.FgPick30 = "smooth";
                 bool rOk = !c.EngineDlss5Now && (!c.Dlss5FitsNow || !c.EngineNow);
                 n++; if (!rOk) fallos++;
                 sb.AppendLine((rOk ? "      " : "FALLO ") + "motor con su DLSS 5 roto -> " + (c.EngineNow ? "motor" : "magpie") + " " + (c.EngineDlss5Now ? "dlss5_motor" : "-"));
@@ -133,10 +124,7 @@ namespace ConsoleEnhancer
         public string MotorDlss5PorQueMagpie(bool ingles)
         {
             if (!EngineDlss5 || !MotorDlss5Disponible || Dlss5Off) return "";
-            if (Math.Max(1, Math.Min(3, Passes30)) > Math.Max(1, Math.Min(3, EngineDlss5MaxPasses)))
-                return ingles ? Passes30 + " passes: through Magpie" : Passes30 + " pasadas: por Magpie";
-            if (MultPorMagpie) return ingles ? "x" + FgMultNow + ": through Magpie" : "x" + FgMultNow + ": por Magpie";
-            if (FgMagpieOnly) { string t = FgTypeNow; string n = t == "xess" ? "XeSS FG" : t == "fsr3" ? "FSR 3 FG" : t == "vfg" ? "NVIDIA VFG" : t; return ingles ? n + ": through Magpie" : n + ": por Magpie"; }
+            if (FgMagpieOnly) { string t = FgTypeNow; string n = t == "xess" ? "XeSS FG" : t == "fsr3" ? "FSR 3 FG" : t; return ingles ? n + ": through Magpie" : n + ": por Magpie"; }
             return "";
         }
     }

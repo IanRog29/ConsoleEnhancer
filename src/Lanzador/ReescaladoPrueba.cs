@@ -53,7 +53,7 @@ namespace ConsoleEnhancer
             string tmp = Path.Combine(Path.GetTempPath(), "ce_test_reescalado_" + DateTime.Now.ToString("HHmmssfff", CultureInfo.InvariantCulture) + ".txt");
             bool w1080 = Config.Window1080;
             Forzar("dlss5State", 1);   // (como si estuviera nvngx_dlssnr.dll en magpie\)
-            Forzar("dlssgState", 1);   // (y runtimes\dlssg_sm86)
+              // (y runtimes\dlssg_sm86)
             EscalaAuto.SalidaPrueba(3840, 2160);
             try
             {
@@ -143,7 +143,7 @@ namespace ConsoleEnhancer
             finally
             {
                 Config.Window1080 = w1080;
-                Forzar("dlss5State", 0); Forzar("dlssgState", 0);
+                Forzar("dlss5State", 0);
                 EscalaAuto.Reiniciar(null);
                 try { if (File.Exists(tmp)) File.Delete(tmp); } catch { }
             }
