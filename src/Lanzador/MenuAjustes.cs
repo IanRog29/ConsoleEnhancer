@@ -224,6 +224,11 @@ namespace ConsoleEnhancer
         System.Windows.Forms.Timer ajTimer;   // fundido de entrada y "siempre encima" cada 0,5 s
         int ajFundido;
         DateTime ajCerradoEn = DateTime.MinValue;
+        // (1.2.4 r7, coordinador; el usuario: "no me detecta el boton home del mando de pc, no reacciona"): el menu se abria con el boton
+        // central y se cerraba solo 2-5 ms despues ("cerrar sin aplicar"): la misma pulsacion llegaba tambien como Atras (el receptor del
+        // mando tiene ademas un teclado HID que manda su tecla, o el mando la da como B). Atras en los primeros ms tras abrir no cierra
+        DateTime ajAbiertoEn = DateTime.MinValue;
+        const int AjAtrasTrasAbrirMs = 450;
 
         // ---- del mando (GamepadLoop, su hilo) ----
         bool ajGuiaAntes;
@@ -324,6 +329,7 @@ namespace ConsoleEnhancer
                 int altas = AjAltas(ajFilas);   // (1.2.2: sin las escondidas)
                 ajVentana = new VentanaAjustes(img, altas);
                 ajustesAbierto = true;
+                ajAbiertoEn = DateTime.Now;
                 ajPie = -1; ajFoco = 0;
                 AjustesFocoValido(+1);
                 ajFundido = 0;
@@ -744,6 +750,15 @@ namespace ConsoleEnhancer
                         AjustesTrasCambio(foco);
                         break;
                     case AjOrden.Atras:
+                        {
+                            double trasAbrir = (DateTime.Now - ajAbiertoEn).TotalMilliseconds;
+                            if (trasAbrir >= 0 && trasAbrir < AjAtrasTrasAbrirMs)
+                            {
+                                Log.Write("Menu de ajustes: Atras ignorado (" + ((int)trasAbrir).ToString(System.Globalization.CultureInfo.InvariantCulture) +
+                                          " ms tras abrirlo: la misma pulsacion del boton central)");
+                                return;
+                            }
+                        }
                         AjustesCerrar("cerrar sin aplicar");
                         return;
                 }
