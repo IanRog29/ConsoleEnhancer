@@ -13,7 +13,10 @@ namespace ConsoleEnhancer.Motor
     // cadena) o Smooth Motion del driver (1.2.4 ronda 6, QUITAFG: sin DLSS-G)
     unsafe partial class Engine : IDisposable
     {
-        const int FramesInFlight = 2, BackBuffers = 3, Slots = 3;
+        const int FramesInFlight = 2, BackBuffersMax = 6, Slots = 3;
+        // (1.2.4 ronda 7, FGREAL) imagenes de la cadena: 3 de siempre; cadena_buffers=N (2-6) para probar (Smooth Motion x4 + DLSS 5: el Present
+        // de XeSS FG esperaba 31,6 ms con la grafica a tope)
+        int BackBuffers { get { return s.SwapBuffers >= 2 ? Math.Min(BackBuffersMax, s.SwapBuffers) : 3; } }
         const DXGI_FORMAT ColorFmt = DXGI_FORMAT.R8G8B8A8_UNORM;
         static readonly Guid IidResource = typeof(ID3D12Resource).GUID;
 
@@ -36,7 +39,7 @@ namespace ConsoleEnhancer.Motor
         ulong fenceValue;
         readonly AutoResetEvent fenceEvent = new AutoResetEvent(false);
         IDXGISwapChain3 swap;
-        readonly ID3D12Resource[] backbuf = new ID3D12Resource[BackBuffers];
+        readonly ID3D12Resource[] backbuf = new ID3D12Resource[BackBuffersMax];
         ID3D12RootSignature rootSig;
         ID3D12PipelineState psoUnpack, psoScale, psoCas, psoOsd, psoLuma, psoSearch, psoExpand, psoAa;
         ID3D12DescriptorHeap heap;
@@ -225,7 +228,7 @@ namespace ConsoleEnhancer.Motor
             scd.Format = ColorFmt;
             scd.SampleDesc.Count = 1;
             scd.BufferUsage = DXGI_USAGE.RENDER_TARGET_OUTPUT;
-            scd.BufferCount = BackBuffers;
+            scd.BufferCount = (uint)BackBuffers;
             scd.Scaling = DXGI_SCALING.STRETCH;
             scd.SwapEffect = DXGI_SWAP_EFFECT.FLIP_DISCARD;
             scd.AlphaMode = DXGI_ALPHA_MODE.IGNORE;

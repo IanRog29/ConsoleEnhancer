@@ -72,7 +72,15 @@ namespace ConsoleEnhancer
             string hecho = null, hechoEn = null;
             string cap = cfg.VideoSize;
             string menos = cap == "2560x1440" ? "1920x1080" : cap == "1920x1080" ? "1280x720" : null;
-            if (!cfg.FgOff && !cfg.Mode120 && cfg.FgTypeNow == "fsr3" && cfg.FsrMultNow > 2)
+            if (!cfg.FgOff && !cfg.Mode120 && cfg.FgTypeNow == "smooth" && cfg.SmoothX4Now)
+            {
+                // (1.2.4 ronda 7, FGREAL: Smooth Motion x4 -> x2 lo primero -XeSS FG del motor + dos inventadas del driver por real-. Solo en esta
+                // sesion y con esta captura y DLSS 5 si / no: lo elegido -x4- sigue guardado y la fila del menu dice por que va x2; SmoothX4.cs)
+                Config.SmoothX4NoLlegaAnota(cfg.MotorD5Simple, cfg.VideoSize);
+                hecho = "Smooth Motion x2"; hechoEn = "Smooth Motion x2";
+                RestartLs(null, null);   // (sin aviso propio: habla el OsdWarn de abajo; TEXTOS)
+            }
+            else if (!cfg.FgOff && !cfg.Mode120 && cfg.FgTypeNow == "fsr3" && cfg.FsrMultNow > 2)
             {
                 // (1.2.4 ronda 6, FGMULTI: FSR 3 FG x4 -> x3 -> x2 lo primero: es lo que mas grafica pide; MultiFsr.cs)
                 int n = cfg.FsrMultNow - 1;

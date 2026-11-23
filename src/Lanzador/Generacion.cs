@@ -32,9 +32,9 @@ namespace ConsoleEnhancer
             {
                 case "no": return "Sin generación";
                 case "smooth": return "Smooth Motion";
-                case "fsr3": return "FSR 3 FG";
+                case "fsr3": return "FSR 3 FG (experimental)";   // (1.2.4 ronda 7, FGREAL: solo con generacion_fsr3=1)
                 case "xess": return "XeSS FG";
-                case "efg": return Config.EfgLabel(true);   // (1.2.4 ronda 6, ENHANCED: EnhancedFg.cs)
+                case "efg": return Config.EfgLabel(true) + " (experimental)";   // (1.2.4 ronda 6, ENHANCED: EnhancedFg.cs. Ronda 7, FGREAL: el usuario con su PS5, "lo unico bueno la latencia": opcion experimental avisada)
                 default: return t;   // (1.2.4 ronda 6: DLSS FG y NVIDIA VFG ya no existen)
             }
         }

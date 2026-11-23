@@ -48,7 +48,7 @@ namespace ConsoleEnhancer.Motor
                 case "adapta_modelo_sobre_pedido": { string v = val.Trim().ToLowerInvariant(); AdaptaSobrePedido = v == "1" || v == "si" || v == "true" || v == "on"; return true; }   // (1.2.4 ronda 6, DLSSSR)
                 case "dlls_sr": SrDlls = val.Trim(); return true;
                 case "fg_tipo": FgTipo = val.Trim().ToLowerInvariant(); return true;   // 21-11 (EngineFgFfx.cs): fsr3 = FSR 3 FG de FidelityFX   // 21-11 (EngineSr.cs): la carpeta de libxess.dll / amd_fidelityfx_*.dll (la de Magpie)
-                case "uso_grafica": case "gpu_indice": return ApplyMargen(key, val);   // (1.2.2, UNIVERSAL: EngineMargen.cs)
+                case "uso_grafica": case "gpu_indice": case "fg_reserva_ms": case "cadena_buffers": return ApplyMargen(key, val);   // (FGREAL: fg_reserva_ms, cadena_buffers)   // (1.2.2, UNIVERSAL: EngineMargen.cs)
                 // (vrr= y vrr_fg_vsync= ya los hace el motor: Settings.Apply de Common.cs y EngineLatencia.cs, de Prisma LATENCIA4, fusion 20-11)
             }
             return ApplySrVec(key.Trim().ToLowerInvariant(), val);   // (1.2.4 ronda 6, DLSSSR: sr_vectores, sr_vec_*: EngineSrVec.cs)

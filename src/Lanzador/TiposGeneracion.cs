@@ -62,6 +62,11 @@ namespace ConsoleEnhancer
         // ---- XeSS FG con la ventana de 1080p (19-11, Magpie de antes: "no arranca, 0 imagenes"). xess_fg_1080=1 (de serie): se ofrece y se
         // usa (Magpie 0.6.12, medido el 22-11: 59 imagenes/s). Con 0, como antes: no se ofrece a 1080p
         public static volatile bool XessFg1080 = true;
+        // (1.2.4 ronda 7, FGREAL; el usuario tras probarla con su PS5: "Fsr 3 fg ... un verdadero desastre (fallos visuales, muy poca fluidez)",
+        // "fsr fg x2 y x4 un desastre en casi todo"; y el coordinador: si no se puede salvar, fuera del menu). FSR 3 FG (x2 de AMD y x3 / x4 de
+        // CeFsrFg) ya no se ofrece: ni en el menu, ni en L3, ni de reserva; un perfil o un ini con fsr3 pasa al mas parecido (y se dice por que).
+        // generacion_fsr3=1 lo vuelve a poner (como opcion experimental, al final)
+        public static volatile bool FsrFgOfrecer = false;
         public static bool XessNo1080(string videoSize) { return !XessFg1080 && WindowFor(videoSize) == "1920x1080"; }
 
         public bool CeParseTipos(string key, string val)
@@ -69,6 +74,7 @@ namespace ConsoleEnhancer
             switch (key)
             {
                 case "xess_fg_1080": XessFg1080 = val.Trim() != "0"; return true;
+                case "generacion_fsr3": FsrFgOfrecer = val.Trim() == "1"; return true;   // (1.2.4 ronda 7, FGREAL)
             }
             return CeParseXefgm(key, val) || CeParseMultiFsr(key, val);   // (1.2.4 ronda 6, FGMULTI: motor_fsr_multi*, MultiFsr.cs)   // (motor_xefg_dlss5: XefgMotor.cs. 1.2.4 ronda 6: proteccion* -Proteccion.cs, la de Magpie- fuera, ClavesRetiradas)
         }
@@ -83,7 +89,7 @@ namespace ConsoleEnhancer
             {
                 case "smooth": return !Ce.NoNvidia && !NvProfiles.SmoothBroken && !NvProfiles.EngineSmoothBroken && !Pantalla.Is119;
                 case "xess": return XessDll() && MotorFgSabe("xess") && !XessNo1080(videoSize) && !XessCaido;   // (1.2.4 ronda 6: y no si la grafica se perdio con el en esta sesion ni si el motor dijo que no arranca -switch2-fgfallo-)
-                case "fsr3": return FsrFgDll();
+                case "fsr3": return FsrFgDll() && FsrFgOfrecer;   // (1.2.4 ronda 7, FGREAL: fuera salvo generacion_fsr3=1)
                 case "efg": return EfgPuede();   // (1.2.4 ronda 6, ENHANCED: cualquier grafica, el motor; EnhancedFg.cs)
             }
             return false;
@@ -125,7 +131,7 @@ namespace ConsoleEnhancer
                 string r = "";
                 foreach (string g in l)
                 {
-                    bool va = g == "smooth" ? !Ce.NoNvidia : g == "xess" ? XessDll() : FsrFgDll();
+                    bool va = g == "smooth" ? !Ce.NoNvidia : g == "xess" ? XessDll() : g == "fsr3" ? FsrFgDll() && FsrFgOfrecer : false;   // (FGREAL: FSR 3 FG solo con generacion_fsr3=1)
                     if (va) { r = g; break; }
                 }
                 GenEnVezDeDlss = r;
@@ -189,6 +195,7 @@ namespace ConsoleEnhancer
             if (t == "xess" && Config.XessNo1080(capSel)) return Tx.T("no va con la captura de 1080p", "doesn't run with the 1080p capture");
             if (t == "xess" && (Config.XessCaido || !Config.MotorFgSabe("xess")))
                 return Tx.T("el motor no ha podido con él en esta sesión", "the engine couldn't run it this session");   // (1.2.4 ronda 6: sin Magpie)
+            if (t == "fsr3" && !Config.FsrFgOfrecer) return Tx.T("quitada (fallos y poca fluidez con juego real; generacion_fsr3=1 la vuelve a poner)", "removed (artifacts and poor smoothness in real games; generacion_fsr3=1 brings it back)");   // (1.2.4 ronda 7, FGREAL)
             if (t == "fsr3" && !Paths.HayLib("amd_fidelityfx_framegeneration_dx12.dll")) return Tx.T("falta su DLL en fsr\\", "its DLL is missing in fsr\\");
             if (t == "smooth" && Ce.NoNvidia) return Tx.T("solo en NVIDIA RTX 40 / 50", "NVIDIA RTX 40 / 50 only");
             if (t == "smooth" && Pantalla.Is119) return Tx.T("no con la tele a 119,88 Hz", "not with the TV at 119.88 Hz");

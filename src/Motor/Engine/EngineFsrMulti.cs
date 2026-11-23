@@ -327,7 +327,7 @@ void main(uint3 id : SV_DispatchThreadID)
         // para la cadena de vectores del motor (ExtFgOn, EngineFgXe.cs): los mismos vectores y profundidad que FSR 3 FG / XeSS FG
         bool FmVecOn { get { return FmWanted(); } }
         int FmK { get { return FmWanted() ? s.FsrMulti : 1; } }
-        ID3D12Resource FmVec { get { return FfxFgVecNow && s.FgVec >= 2 && mvecFg != null ? mvecFg : FgMvec; } }
+        ID3D12Resource FmVec { get { return FgVecPropiosNow ? mvecFg : FgMvec; } }
         ID3D12Resource FmDepth { get { return s.FsrMultiDepth > 0 && s.FgDepth > 0 && depthFg != null && FfxFgVecNow ? depthFg : depth; } }
 
         string FmErrText()

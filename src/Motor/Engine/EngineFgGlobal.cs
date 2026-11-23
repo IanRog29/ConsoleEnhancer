@@ -81,7 +81,12 @@ namespace ConsoleEnhancer.Motor
 
         bool FgGlobalNow { get { return s.FgGlobal && s.FgVec == 3 && Levels >= 4; } }
         // 22-11 (1.2.1): FSR 3 FG (EngineFgFfx.cs, sin Streamline) recibe los mismos vectores que recibiria DLSS-G (antes, los de mvec, a 0)
-        bool FfxFgVecNow { get { return s.MvXessFfx && ExtFgOn && !fgApplied; } }   // (1.2.4 MOTORFG: o XeSS FG, EngineFgXe.cs)
+        bool FfxFgVecNow { get { return s.MvXessFfx && ExtFgOn && !fgApplied; } }
+        // (1.2.4 ronda 7, FGREAL) fg_vectores=0 con XeSS FG / FSR FG del motor: los vectores de la generacion a cero (mvecFg con el modo 0 de
+        // RecordFgVec): la generacion va solo con su propio flujo optico, como Smooth Motion (para medir con video real de juego)
+        bool FgVecCeroNow { get { return FfxFgVecNow && s.FgVec == 0; } }
+        // los vectores que recibe la generacion del motor: los suyos (fg_vectores=2|3, o a cero) o los del motor (mvec)
+        bool FgVecPropiosNow { get { return FfxFgVecNow && (s.FgVec >= 2 || s.FgVec == 0) && mvecFg != null; } }   // (1.2.4 MOTORFG: o XeSS FG, EngineFgXe.cs)
         // 22-11 (1.2.1): la generacion es la unica que usa los vectores y le basta el de la camara (EngineMotion.cs RecordMotion, sin bloques);
         // las pruebas y mascaras que leen los bloques (mvmask, fgui, fg_borde, completos, mvverdad, mvlog) los siguen pidiendo. (1.2.4,
         // integracion: fgui -de serie 4 en el modo 30- solo cuenta con DLSS-G: XeSS FG / FSR 3 FG del motor no usan su mascara)

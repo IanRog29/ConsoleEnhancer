@@ -41,7 +41,7 @@ namespace ConsoleEnhancer
         }
 
         // DLSS 5 en el motor con lo de ahora (sin la cuenta de si cabe -EscalaAuto- ni FgMagpieOnly: sin recursion)
-        bool MotorD5Simple { get { return !Dlss5Off && Integrado.Dlss5Available && EngineDlss5 && !MotorDlss5Roto && MotorDlss5Disponible; } }
+        internal bool MotorD5Simple { get { return !Dlss5Off && Integrado.Dlss5Available && EngineDlss5 && !MotorDlss5Roto && MotorDlss5Disponible; } }
 
         // ¿Esta generacion, que el motor sabe hacer, va por Magpie (como la 1.2.3) porque en el motor no es fiable?
         public bool MotorGenAMagpie(string tipo)

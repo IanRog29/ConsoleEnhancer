@@ -26,12 +26,36 @@ namespace ConsoleEnhancer
     partial class Config
     {
         public bool SmoothX4 = false;   // smooth_x4
+        // (1.2.4 ronda 7, FGREAL) x4 con DLSS 5: el motor ya reserva la grafica de XeSS FG + las dos inventadas del driver (EngineMargen.cs) y la
+        // escala de DLSS 5 baja para que quepa, pero aun asi no llega: medido el 23-11 (4K, modo 30, DLSS 5 nivel 4, tele 120 VRR): DLSS 5 del
+        // 65 al 55 %, el motor a 15,5 ms y 25-27 reales de 30 -el Present de XeSS FG espera a la grafica 31,6 ms (sin DLSS 5, 2,1)-, en la tele
+        // el 43 % de las imagenes pisadas. Con DLSS 5, x2 (y la nota del menu lo dice). smooth_x4_dlss5=1 lo deja probar
+        public static volatile bool SmoothX4Dlss5 = false;
+        // (FGREAL) FpsBajo: x4 no llego a las reales con esta captura y DLSS 5 si / no: en esta sesion x2 con eso (se puede volver a elegir
+        // con otra captura o con DLSS 5 cambiado; la nota del menu lo dice)
+        static string smx4NoLlega = "";
+        static string Smx4Clave(bool d5, string cap) { return (cap ?? "") + "|" + (d5 ? "d5" : "-"); }
+        static string Smx4Cap(string c) { return c == "3840x2160" ? "4K" : c == "2560x1440" ? "1440p" : c == "1920x1080" ? "1080p" : c == "1280x720" ? "720p" : c ?? ""; }
+        public static void SmoothX4NoLlegaAnota(bool d5, string cap) { smx4NoLlega = Smx4Clave(d5, cap); }
 
         public bool CeParseSmoothX4(string key, string val)
         {
+            if (key == "smooth_x4_dlss5") { SmoothX4Dlss5 = val.Trim() == "1"; return true; }
             if (key != "smooth_x4") return false;
             SmoothX4 = val.Trim() == "1";
             return true;
+        }
+
+        // Lo de DLSS 5 / la captura que impide x4 ("" = nada): con d5 = DLSS 5 encendido (en el menu, lo elegido en el menu)
+        string SmoothX4FaltaD5(bool d5, string cap)
+        {
+            if (d5 && !SmoothX4Dlss5) return Tx.T("con DLSS 5 va x2: la gráfica no llega (sin DLSS 5, x4)",
+                                                  "with DLSS 5 it runs x2: the GPU can't keep up (x4 without DLSS 5)");
+            if (smx4NoLlega.Length > 0 && smx4NoLlega == Smx4Clave(d5, cap))
+                return d5 ? Tx.T("con DLSS 5 a " + Smx4Cap(cap) + " no llegó a 30: x2 esta sesión",
+                                 "with DLSS 5 at " + Smx4Cap(cap) + " it couldn't keep 30 fps: x2 this session")
+                          : Tx.T("a " + Smx4Cap(cap) + " no llegó a 30: x2 esta sesión", "at " + Smx4Cap(cap) + " it couldn't keep 30 fps: x2 this session");
+            return "";
         }
 
         // Lo que falta para Smooth Motion x4 ahora ("" = se puede). Sin propiedades que miren EngineSmoothMode (lo usa el)
@@ -41,30 +65,33 @@ namespace ConsoleEnhancer
             {
                 if (!SmoothX4) return "smooth_x4=0";
                 if (FgOff || HomeNative || Mode120 || !CapMode) return Tx.T("solo en el modo 30", "only in the 30 fps mode");
-                if (!EngineSmoothFor(true)) return Tx.T("la generacion del modo 30 no es Smooth Motion", "the 30 fps mode generation is not Smooth Motion");
+                if (!EngineSmoothFor(true)) return Tx.T("la generación del modo 30 no es Smooth Motion", "the 30 fps mode generation is not Smooth Motion");
                 if (Ce.NoNvidia || NvProfiles.EngineSmoothBroken) return Tx.T("Smooth Motion no se puede poner en este PC", "Smooth Motion can't be set on this PC");
                 if (Pantalla.Hz() < 119) return Tx.T("la pantalla no va a 120 Hz", "the screen is not at 120 Hz");
                 if (EngineVrr <= 0) return Tx.T("sin VRR (G-SYNC) en la pantalla", "no VRR (G-SYNC) on the screen");
-                // (1.2.4 ronda 6, INTEGRA6: con DLSS 5 no llega: 16,4 reales de 29,97 en el banco de SMX4 -y_xe2sm_v_d5- y 22,5 en la app entera
-                // -sesion a3 del 23-11-, 4K modo 30, RTX 4060 Ti. Con DLSS 5, Smooth Motion x2)
-                if (MotorD5Simple) return Tx.T("con DLSS 5 no llega a las reales", "with DLSS 5 it can't keep the real frames");
+                // (1.2.4 ronda 6, INTEGRA6: con DLSS 5 no llega: 16,4 reales de 29,97 en el banco de SMX4 -y_xe2sm_v_d5, DLSS 5 al 90 % y sin la
+                // escala automatica- y 22,5 en la app entera. Ronda 7, FGREAL: con la reserva de grafica nueva y la escala bajando, 25-27; ver
+                // SmoothX4Dlss5. Con smooth_x4_dlss5=1 se deja, salvo si FpsBajo ya lo bajo con esto en esta sesion)
+                { string d5 = SmoothX4FaltaD5(MotorD5Simple, VideoSize); if (d5.Length > 0) return d5; }
                 // (1.2.4 ronda 6, integracion: sin Magpie ni el multiplicador viejo, lo mismo que pide el tipo XeSS FG -DLL, el motor, la captura y
                 // que no se haya caido en esta sesion, XessCaido-)
-                if (!GenPuedeIr("xess", VideoSize)) return XessCaido ? Tx.T("XeSS FG se ha caido en el motor en esta sesion", "XeSS FG failed in the engine this session")
-                                                                   : Tx.T("XeSS FG no esta o no va en el motor", "XeSS FG is missing or does not run in the engine");
+                if (!GenPuedeIr("xess", VideoSize)) return XessCaido ? Tx.T("XeSS FG se ha caído en el motor en esta sesión", "XeSS FG failed in the engine this session")
+                                                                   : Tx.T("XeSS FG no está o no va en el motor", "XeSS FG is missing or does not run in the engine");
                 return "";
             }
         }
         public bool SmoothX4Now { get { return SmoothX4Falta.Length == 0; } }
 
-        // (1.2.4 ronda 6, INTEGRA6) Para el menu: lo que falta para x4 que no depende de lo elegido en el menu (modo, tipo) ("" = se puede)
-        public string SmoothX4FaltaMenu()
+        // (1.2.4 ronda 6, INTEGRA6) Para el menu: lo que falta para x4 que no depende del modo / tipo elegidos ("" = se puede). (1.2.4 ronda 7,
+        // FGREAL: con DLSS 5 y la captura ELEGIDOS EN EL MENU, no los de ahora: el 23-11 el usuario eligio "Smooth Motion, x4, DLSS 5 Si" a la
+        // vez con DLSS 5 apagado -x4 sin candado-, se guardo x4 y fue x2 sin decirlo en pantalla; luego, con DLSS 5, el x4 "aparecio bloqueado")
+        public string SmoothX4FaltaMenu(bool d5, string cap)
         {
             if (Ce.NoNvidia || NvProfiles.EngineSmoothBroken) return Tx.T("Smooth Motion no se puede poner en este PC", "Smooth Motion can't be set on this PC");
             if (Pantalla.Hz() < 119) return Tx.T("La pantalla no va a 120 Hz", "The screen is not at 120 Hz");
             if (EngineVrr <= 0) return Tx.T("Sin VRR (G-SYNC) en la pantalla", "No VRR (G-SYNC) on the screen");
-            if (MotorD5Simple) return Tx.T("x2 con DLSS 5 (con x4 no llega a las reales)", "x2 with DLSS 5 (x4 can't keep the real frames)");
-            if (!GenPuedeIr("xess", VideoSize)) return XessCaido ? Tx.T("XeSS FG se ha caído en el motor en esta sesión", "XeSS FG failed in the engine this session")
+            { string f = SmoothX4FaltaD5(d5, cap); if (f.Length > 0) return f.Substring(0, 1).ToUpperInvariant() + f.Substring(1); }
+            if (!GenPuedeIr("xess", string.IsNullOrEmpty(cap) ? VideoSize : cap)) return XessCaido ? Tx.T("XeSS FG se ha caído en el motor en esta sesión", "XeSS FG failed in the engine this session")
                                                                : Tx.T("Necesita XeSS FG en el motor (falta su DLL en xess\\)", "Needs XeSS FG in the engine (its DLL is missing in xess\\)");
             return "";
         }
@@ -112,6 +139,22 @@ namespace ConsoleEnhancer
                 sb.AppendLine((ok ? "bien  " : "FALLO ") + caso + ": x4=" + x4 + " (" + (c.SmoothX4Falta.Length > 0 ? c.SmoothX4Falta : "nada falta") + ") sm=" + sm + " cadena=" + chain +
                               " motor: '" + args + "' " + (lv.Length > 40 ? lv.Substring(0, 40) : lv));
             }
+            // (1.2.4 ronda 7, FGREAL) el candado del menu con lo ELEGIDO en el menu: DLSS 5 si -> x4 bloqueado con el motivo real (de serie,
+            // smooth_x4_dlss5=0); DLSS 5 no -> nada (si nada mas falta); y FpsBajo: x4 que no llego con esta captura y DLSS 5 -> bloqueado esta sesion
+            {
+                c.SmoothX4 = true; c.EngineVrr = 1; c.CapMode = true; c.Mode120 = false; c.FgOff = false; c.Dlss5Off = true; c.FgPick30 = "smooth";
+                bool base4 = hz120 && GenPuedeIr("xess", "3840x2160");
+                string m5 = c.SmoothX4FaltaMenu(true, "3840x2160"), m0 = c.SmoothX4FaltaMenu(false, "3840x2160");
+                bool ok = (SmoothX4Dlss5 || m5.Length > 0) && (!base4 || m0.Length == 0);
+                if (!ok) fallos++;
+                sb.AppendLine((ok ? "bien  " : "FALLO ") + "menu: con DLSS 5 elegido '" + m5 + "' | sin DLSS 5 '" + m0 + "'");
+                SmoothX4NoLlegaAnota(false, "3840x2160");
+                string mn = c.SmoothX4FaltaMenu(false, "3840x2160"), m1440 = c.SmoothX4FaltaMenu(false, "2560x1440");
+                ok = mn.Length > 0 && (!base4 || m1440.Length == 0) && !c.SmoothX4Now;
+                if (!ok) fallos++;
+                sb.AppendLine((ok ? "bien  " : "FALLO ") + "no llego a 4K sin DLSS 5: 4K '" + mn + "' | 1440p '" + m1440 + "' | x4 ahora " + c.SmoothX4Now);
+                smx4NoLlega = "";
+            }
             sb.AppendLine(fallos == 0 ? "Todo bien" : fallos + " fallo(s)");
             string txt = sb.ToString();
             Console.Write(txt);
@@ -130,22 +173,44 @@ namespace ConsoleEnhancer
             string m = cfg.SmoothX4 ? "4" : "2";
             mul.Poner(new List<string> { "2", "4" }, new List<string> { "x2", "x4" }, m, m);
             mul.Visible = false;
+            smx4Quiere = m;
             return mul;
         }
 
-        // (AjustesDepende, tras el tipo) visible con Smooth Motion elegido en el modo 30
+        // (1.2.4 ronda 7, FGREAL) lo que el usuario tiene elegido en la fila (aunque ahora se enseñe x2 porque x4 no puede ir con lo elegido)
+        string smx4Quiere = "2";
+        void SmoothX4Tocada(FilaAjuste f) { if (f != null && f.Id == "smx4") smx4Quiere = f.Val; }
+
+        // (AjustesDepende, tras el tipo) visible con Smooth Motion elegido en el modo 30. (1.2.4 ronda 7, FGREAL: el candado con DLSS 5 y la
+        // captura elegidos en el menu; si x4 no puede ir, la fila enseña x2 -lo que va a ir de verdad- con el motivo, y lo elegido -x4- se
+        // queda guardado: vuelve solo cuando se pueda. Antes enseñaba x4 aunque fuera x2 y, al elegir x2, x4 quedaba con candado)
         void SmoothX4Depende(string modoSel)
         {
-            FilaAjuste tipo = AjFila("tipo"), fg = AjFila("fg"), mul = AjFila("smx4");
+            FilaAjuste tipo = AjFila("tipo"), fg = AjFila("fg"), mul = AjFila("smx4"), d5 = AjFila("d5"), cap = AjFila("cap");
             if (mul == null) return;
             bool on = tipo != null && tipo.Visible && tipo.Val == "smooth" && modoSel == "30";
             bool fgSi = fg == null || fg.Val == "1";
-            string no = cfg.SmoothX4FaltaMenu();
+            bool d5Sel = d5 != null && d5.Visible ? d5.Val == "1" : cfg.MotorD5Simple;
+            string capSel = cap != null ? cap.Val : cfg.VideoSize;
+            string no = cfg.SmoothX4FaltaMenu(d5Sel && Integrado.Dlss5Available, capSel);
+            string guardado = cfg.SmoothX4 ? "4" : "2";
             mul.Bloq = new List<string> { "", no };
+            if (no.Length > 0)
+            {
+                // x4 no puede ir: se ve x2 y no cuenta como cambio (lo guardado sigue)
+                mul.Sel = 0; mul.Orig = 0;
+            }
+            else
+            {
+                mul.Sel = Math.Max(0, mul.Vals.IndexOf(smx4Quiere));
+                mul.Orig = mul.Vals.IndexOf(guardado);
+            }
             mul.Visible = on;
             mul.Activa = on && fgSi;
             mul.Nota = !on ? "" : !fgSi ? Tx.T("Con la generación encendida", "With frame generation on") :
-                       no.Length > 0 ? no : mul.Val == "4" ? Tx.T("XeSS FG x2 del motor + Smooth Motion encima (prueba)", "Engine XeSS FG x2 + Smooth Motion on top (test)") : "";
+                       no.Length > 0 ? (smx4Quiere == "4" ? Tx.T("x4 vuelve cuando se pueda · ", "x4 comes back when possible · ") : "") + no :
+                       mul.Val == "4" ? (d5Sel ? Tx.T("XeSS FG x2 + Smooth Motion · DLSS 5 se ajusta para que quepa", "XeSS FG x2 + Smooth Motion · DLSS 5 is scaled to fit")
+                                               : Tx.T("XeSS FG x2 del motor + Smooth Motion encima", "Engine XeSS FG x2 + Smooth Motion on top")) : "";
         }
 
         // (AjustesPonerTodo) lo elegido, en el ini (smooth_x4); el reparto abre el motor con la cadena de XeSS FG y el perfil sin la sincronizacion
@@ -153,6 +218,9 @@ namespace ConsoleEnhancer
         {
             string a = AjVal(e, "smx4");
             if (a == null) return;
+            // (1.2.4 ronda 7, FGREAL: sin tocarla nada; con x4 sin poder ir la fila enseña x2 pero lo guardado -x4- se queda)
+            FilaAjuste fila = AjFila("smx4");
+            if (fila != null && !fila.Cambiada) return;
             bool x4 = a == "4";
             if (x4 == cfg.SmoothX4) return;
             cfg.SmoothX4 = x4;
