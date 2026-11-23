@@ -280,7 +280,7 @@ namespace ConsoleEnhancer
                 if (pad && pill != null) r.Send(OsdCmd(pill, OsdMs, false)); // (el motor lo enseña al despertar: sigue en el corte)
                 r.WakeMs = r.Since.ElapsedMilliseconds;
                 r.WakeSent = r.Send(JsonCmd("script-message", "switch2-wake", "detras"));
-                Log.Write("Sin telon: motor (pid " + e.Id + ") despertado detras de Magpie a los " + r.WakeMs + " ms del boton: " + set);
+                Log.Write("Sin telon: motor (pid " + e.Id + ") despertado detras de la imagen de ahora a los " + r.WakeMs + " ms del boton: " + set);
                 Stopwatch sw = Stopwatch.StartNew();
                 bool dead = false;
                 // (1.2.4 arreglos, RELEVO: y con su primera imagen PINTADA -switch2-pintada-, no solo con imagenes llegando: si no, el corte
@@ -324,7 +324,7 @@ namespace ConsoleEnhancer
                 QuitOldMpv(r);
                 Log.Write("Sin telon (al motor): imagen del motor a los " + r.SignalMs + " ms del boton (ritmo " + r.Rate + "/s a los " + r.RateMs + " ms; despertado a los " +
                           r.WakeMs + (needPaint ? "; pintada a los " + r.PaintedMs + (r.SteadyMs >= 0 ? ", " + Config.RelevoPintadas + " a los " + r.SteadyMs : "") : "") + "); corte a los " + r.CutMs + " ms: motor delante" + (fg ? " y con el foco" : " (el foco aun no: se lo da el motor)") +
-                          ", Magpie fuera y mpv se cierra debajo" + (h == IntPtr.Zero ? " (SIN su ventana a mano: el foco, luego)" : ""));
+                          ", la imagen de antes se cierra debajo" + (h == IntPtr.Zero ? " (SIN su ventana a mano: el foco, luego)" : ""));
             }
             catch (Exception ex)
             {
