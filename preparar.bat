@@ -46,6 +46,10 @@ echo [3b] Pieza del motor ^(PrismaNr^)...
 if defined DESCARGAR %PS% "%~dp0scripts\descargar_cabeceras_ngx.ps1"
 call "%~dp0build_prismanr.bat"
 if errorlevel 1 (echo Aviso: sin PrismaNr.dll ^(hace falta Visual Studio con C++^) & if defined PAQUETE goto :mal)
+rem (1.2.4 ronda 6, FGMULTI) la FSR FG x3 / x4 del motor: el codigo MIT de AMD (FidelityFX SDK 1.1.4) con su parche; sin ella, FSR 3 FG solo x2
+echo [3c] FSR FG de varios instantes ^(CeFsrFg^)...
+call "%~dp0build_fsrfg.bat"
+if errorlevel 1 (echo Aviso: sin CeFsrFg.dll ^(hace falta Visual Studio con C++ y git^) & if defined PAQUETE goto :mal)
 echo.
 echo [4/4] Pruebas ^(tests\build_deteccion.bat^)...
 call "%~dp0tests\build_deteccion.bat"

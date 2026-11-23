@@ -22,6 +22,7 @@ del repositorio. En el zip, las licencias completas van en `licenses\`.
 |---|---|---|---|
 | **ConsoleEnhancer** (`ConsoleEnhancer.exe`, `engine\ConsoleEnhancerEngine.exe`, `scripts\`, `resources\`, `languages\`) | este repositorio | GPL-3.0 + `LICENSE-EXCEPTION.txt` | Sí. El código fuente de cada versión está en GitHub, junto a su release |
 | **Piezas propias del motor** (`engine\PrismaNr.dll`, `engine\PrismaFg.dll`, desde la 1.2.4) | este repositorio (`src\PrismaNr`, `src\PrismaFg`, C++); PrismaNr se compila con las cabeceras públicas de NGX del SDK de DLSS v310.9.16 (`scripts\descargar_cabeceras_ngx.ps1`, no van a git) | GPL-3.0 + `LICENSE-EXCEPTION.txt` (código propio) | Es código propio. Pero cargan la `nvngx_dlssnr.dll` y el paquete `dlssg_sm86` que pone el usuario sin pasar por la comprobación de NGX de NVIDIA, cosa que los términos de NVIDIA no permiten (ver abajo); el usuario decidió publicarlas sabiéndolo |
+| **FSR FG de varios instantes** (`engine\CeFsrFg.dll`, desde la 1.2.4) | Compilada por ConsoleEnhancer (`build_fsrfg.bat`) desde el código de AMD FidelityFX SDK v1.1.4 (https://github.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK, etiqueta `v1.1.4`: interpolación de imágenes y flujo óptico de FSR 3.1, backend DX12) **modificado** con `parches\fidelityfx-fi-multi.patch` (inventar en cualquier instante, para x3 / x4) + `src\CeFsrFg\CeFsrFg.cpp` | MIT, Copyright (C) 2024 Advanced Micro Devices, Inc. (texto abajo y en `licenses\`) | Sí (MIT). No es la DLL firmada de AMD (esa, `amd_fidelityfx_framegeneration_dx12.dll`, sigue haciendo la FSR 3 FG x2) |
 | **NVIDIA Streamline** (`engine\sl.interposer.dll`, `sl.common.dll`, `sl.dlss.dll`, `sl.dlss_g.dll`, `sl.reflex.dll`, `sl.pcl.dll`, `sl.deepdvc.dll`) | v2.14.16, DLL de producción firmadas por NVIDIA, de `streamline-sdk-v2.14.16.zip` (https://github.com/NVIDIA-RTX/Streamline/releases) | MIT (`licenses\streamline\license.txt`, `3rd-party-licenses.md`) | Sí (MIT) |
 | **NVIDIA DLSS Super Resolution / Frame Generation, RTX Dynamic Vibrance** (`engine\nvngx_dlss.dll`, `engine\nvngx_dlssg.dll`, `engine\nvngx_deepdvc.dll`) | Las del mismo SDK de Streamline 2.14.16, sin cambios | NVIDIA RTX SDKs License (`licenses\streamline\nvngx_dlss.license.txt`) | Sí, en código objeto y como parte de una aplicación con funciones propias (punto 1.c y 2 de su licencia), con condiciones al menos igual de protectoras para NVIDIA: `licenses\NVIDIA-NOTICE.txt` |
 | **NVIDIA Reflex** (dentro de `sl.reflex.dll`, `sl.pcl.dll`) | Streamline 2.14.16 | Licencia de los SDK de NVIDIA (`licenses\streamline\reflex.license.txt`) | Sí, como parte de la aplicación (1.2 de su licencia) |
@@ -93,6 +94,7 @@ Para desarrollar, `scripts\descargar_dependencias.ps1` baja lo mismo (y Streamli
 | `src\Deteccion\NvApi.cs`, `src\Lanzador\Switch2Magpie.cs` (`NvProfiles`), `src\Motor\Engine\NvDrs.cs` | Identificadores de funciones y ajustes de NVAPI (`nvapi_interface.h`, `NvApiDriverSettings.h`) para llamar al driver | NVIDIA NVAPI SDK, MIT (https://github.com/NVIDIA/nvapi) |
 | `src\Motor\Native\*.cs`, `src\Deteccion\DirectShow.cs` | Declaraciones de interop de Direct3D 12, DXGI, D3DCompiler, DirectShow y Streamline escritas a partir de sus cabeceras públicas | Direct3D: https://github.com/microsoft/DirectX-Headers (MIT); Streamline: MIT |
 | `parches\magpie-dlssfg-vsync-pacing.patch` | Cambio de `src/Magpie.Core/Renderer.cpp` de Magpie Experimental (commit `716cc62`) | GPL-3.0, como Magpie |
+| `parches\fidelityfx-fi-multi.patch`, `src\CeFsrFg\CeFsrFg.cpp` | Cambio de 11 ficheros de AMD FidelityFX SDK v1.1.4 (interpolación de FSR 3.1: el instante de la inventada en vez de 0,5; sin PIX) y el envoltorio C que llama a su API desde el motor. `build_fsrfg.bat` baja el SDK (solo lo necesario) a `obj\` y aplica el parche: el SDK no está en el repositorio | MIT, Copyright (C) 2024 Advanced Micro Devices, Inc. (texto abajo) |
 
 Nada más se ha copiado de Magpie, mpv u otros proyectos: el resto se escribió para ConsoleEnhancer (o para la app de la que sale, del
 mismo autor). De otros programas solo se han tomado ideas, nunca su código.
@@ -109,6 +111,32 @@ in the Software without restriction, including without limitation the rights
 to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 copies of the Software, and to permit persons to whom the Software is
 furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+```
+
+### Texto de la licencia MIT de AMD FidelityFX SDK 1.1.4 (`engine\CeFsrFg.dll`, `parches\fidelityfx-fi-multi.patch`)
+
+```
+This file is part of the FidelityFX SDK.
+
+Copyright (C) 2024 Advanced Micro Devices, Inc.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files(the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and /or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions :
 
 The above copyright notice and this permission notice shall be included in
 all copies or substantial portions of the Software.
