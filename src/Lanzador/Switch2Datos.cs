@@ -220,7 +220,107 @@ namespace ConsoleEnhancer
             catch (Exception ex) { Log.Error("Switch 2: portadas de la PS5 sacadas del HOME de la Switch 2", ex); }
             try { foreach (string q in QuitaJuegosDeOtraConsola(gamesDir, logs)) renombres.Add(new KeyValuePair<string, string>(q, null)); }
             catch (Exception ex) { Log.Error("Switch 2: \"Juego N\" creados con la imagen de otra consola", ex); }
+            try { renombres.AddRange(QuitaJuegosDeAnimacion(gamesDir, logs)); }
+            catch (Exception ex) { Log.Error("Switch 2: \"Juego N\" creados con la animacion de arranque de otro juego", ex); }
             return renombres;
+        }
+
+        // 1.3.1 (23-11 20:22:45-52, su log de la 1.3): Ocarina of Time reconocido por su icono en el HOME, A, el HOME atenuado ("Fuera del HOME")
+        // y, en la animacion de arranque de su casilla, el logo azul de la casilla de al lado tomado por el nombre de otro juego ("HOME: otro juego
+        // seleccionado (nuevo, sin leer su nombre todavia)"): se entro como "Juego 1", con un "icono" que era un trozo de dos casillas y los
+        // ajustes que hubiera (los de la PS5). Ese "Juego N" era el reconocido de justo antes. Se quitan (perfil e iconos: su icono no es el de
+        // ningun juego) los "Juego N" creados asi -en una sesion: el juego reconocido, una captura de fuera del HOME, "otro juego seleccionado" en
+        // los 5 s siguientes a reconocerlo y "Juego nuevo: "Juego N" ... (sin nombre leido" en los 15 s siguientes sin otra seleccion entre medias-,
+        // si siguen sin nombre y es la ultima vez que se creo ese "Juego N". El juego de verdad (para last_game.txt / el juego en marcha) es el
+        // reconocido. Una vez (games\name_fixes.txt)
+        static readonly Regex ReSeleccionado = new Regex("^HOME: seleccionado \"(.+?)\"( \\(|$)");
+        static readonly Regex ReAvisoEnUso = new Regex("^Aviso: el juego en uso es \"(.+?)\", pero lo cambiado con el mando se guardaba en \"(Juego \\d+)\"");
+        static List<KeyValuePair<string, string>> QuitaJuegosDeAnimacion(string gamesDir, IEnumerable<string> logs)
+        {
+            List<KeyValuePair<string, string>> hechos = new List<KeyValuePair<string, string>>();
+            string marca = Path.Combine(gamesDir, MarcaNombres);
+            HashSet<string> ya = new HashSet<string>(StringComparer.Ordinal);
+            if (File.Exists(marca)) foreach (string l in File.ReadAllLines(marca, Encoding.UTF8)) ya.Add(l.Trim());
+            List<string[]> malos = new List<string[]>();                      // hora, "Juego N", el reconocido, su ajustes al crearse
+            Dictionary<string, string> ultimaCreacion = new Dictionary<string, string>(StringComparer.Ordinal);   // "Juego N" -> la hora de su ultima creacion
+            Dictionary<string, string> enUso = new Dictionary<string, string>(StringComparer.Ordinal);            // "hora|Juego N" -> el juego en uso visto despues
+            foreach (string lf in logs)
+            {
+                if (lf == null || !File.Exists(lf) || new FileInfo(lf).Length > 64L << 20) continue;
+                string sel = null, pend = null;
+                DateTime selAt = DateTime.MinValue, pendAt = DateTime.MinValue;
+                bool fuera = false;
+                string[] ultimoMalo = null;
+                using (FileStream fs = new FileStream(lf, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+                using (StreamReader sr = new StreamReader(fs, Encoding.UTF8))
+                {
+                    string l;
+                    while ((l = sr.ReadLine()) != null)
+                    {
+                        Match m = ReLinea.Match(l);
+                        if (!m.Success) continue;
+                        string t = m.Groups[2].Value;
+                        DateTime at;
+                        if (!DateTime.TryParseExact(m.Groups[1].Value, "yyyy-MM-dd HH:mm:ss.fff", CultureInfo.InvariantCulture, DateTimeStyles.None, out at)) continue;
+                        Match q;
+                        if (t.StartsWith("===== Inicio", StringComparison.Ordinal)) { sel = pend = null; fuera = false; ultimoMalo = null; }
+                        else if ((q = ReSeleccionado.Match(t)).Success)
+                        {
+                            string n = q.Groups[1].Value;
+                            bool consola = t.IndexOf("(de la consola, no es un juego)", StringComparison.Ordinal) >= 0 || n == "?";
+                            sel = consola ? null : n; selAt = at; fuera = false; pend = null;
+                        }
+                        else if (t.StartsWith("HOME: ningun juego seleccionado", StringComparison.Ordinal) || t.StartsWith("HOME: seleccionado \"Ver m", StringComparison.Ordinal))
+                        { sel = null; pend = null; }
+                        else if (t.StartsWith("Fuera del HOME", StringComparison.Ordinal)) { if (sel != null) fuera = true; }
+                        else if (t.StartsWith("HOME: otro juego seleccionado", StringComparison.Ordinal) && t.IndexOf("sin leer su nombre", StringComparison.Ordinal) >= 0)
+                        {
+                            pend = sel != null && fuera && (at - selAt).TotalSeconds <= 5 && at >= selAt ? sel : null;
+                            pendAt = at;
+                            sel = null; fuera = false;
+                        }
+                        else if ((q = ReNuevo.Match(t)).Success)
+                        {
+                            string g = q.Groups[1].Value, antes;
+                            if (!ultimaCreacion.TryGetValue(g, out antes) || string.CompareOrdinal(m.Groups[1].Value, antes) > 0) ultimaCreacion[g] = m.Groups[1].Value;
+                            ultimoMalo = null;
+                            if (pend != null && t.IndexOf("sin nombre leido", StringComparison.Ordinal) >= 0 && (at - pendAt).TotalSeconds <= 15 && at >= pendAt)
+                            {
+                                Match aj = Regex.Match(t, "de partida, (.+)\\)$");
+                                ultimoMalo = new[] { m.Groups[1].Value, g, pend, aj.Success ? aj.Groups[1].Value : "" };
+                                malos.Add(ultimoMalo);
+                            }
+                            pend = null;
+                        }
+                        else if ((q = ReRenombrado.Match(t)).Success)
+                        {
+                            for (int i = malos.Count - 1; i >= 0; i--) if (malos[i][1] == q.Groups[1].Value) malos.RemoveAt(i);
+                        }
+                        else if ((q = ReAvisoEnUso.Match(t)).Success && ultimoMalo != null && ultimoMalo[1] == q.Groups[2].Value)
+                            enUso[ultimoMalo[0] + "|" + ultimoMalo[1]] = q.Groups[1].Value;
+                    }
+                }
+            }
+            StringBuilder sb = new StringBuilder();
+            foreach (string[] b in malos)
+            {
+                string id = "animacion|" + b[0] + "|" + b[1];
+                if (ya.Contains(id)) continue;
+                ya.Add(id);
+                sb.Append(id).Append("\r\n");
+                string ult;
+                if (ultimaCreacion.TryGetValue(b[1], out ult) && ult != b[0]) continue;   // (despues se creo otro con ese nombre: ese no se toca)
+                if (!GameProfiles.QuitaSinNombre(b[1])) continue;
+                string confirmado;
+                enUso.TryGetValue(b[0] + "|" + b[1], out confirmado);
+                GameProfile real = GameProfiles.Find(b[2]);
+                Log.Write("Switch 2: \"" + b[1] + "\" (creado el " + b[0] + " al arrancar \"" + b[2] + "\": la animacion de arranque de su casilla se tomo por otro juego " +
+                          "sin nombre" + (b[3].Length > 0 ? "; con " + b[3] : "") + (confirmado != null ? "; despues el HOME lo dio en uso: \"" + confirmado + "\"" : "") +
+                          "): quitado con sus iconos");
+                hechos.Add(new KeyValuePair<string, string>(b[1], real != null ? real.Name : null));
+            }
+            if (sb.Length > 0) File.AppendAllText(marca, sb.ToString(), new UTF8Encoding(false));
+            return hechos;
         }
 
         // 23-11 18:56:30 (su log): la app abrio con la Switch 2 de console.txt y la PS5 delante; la logica del HOME de la Switch 2 tomo la
@@ -541,6 +641,13 @@ namespace ConsoleEnhancer
                 }
                 lock (profileSync) { if (curGame == kv.Key) curGame = kv.Value; }
             }
+            // (1.3.1: el ultimo juego de cada consola, para los ajustes de partida de un juego nuevo: src\Lanzador\AjustesDeConsola.cs)
+            try
+            {
+                string s = SiembraUltimos(Path.Combine(Paths.Datos, "games"));
+                if (s != null) Log.Write("Ajustes de partida de cada consola: el ultimo juego guardado, " + s.Replace("|", ": \"") + "\" (games\\console_last_game.txt)");
+            }
+            catch (Exception ex) { Log.Error("Ajustes de partida de cada consola", ex); }
         }
 
         // ---- --test-switch2=<informe>[;<datos de la app (se copian)>[;<datos de la version de antes>]] ----
@@ -718,7 +825,8 @@ namespace ConsoleEnhancer
                         // (23-11 19:05: games\debug\ps5 guarda solo las 8 mas nuevas: las de 18:08 y 18:10 ya no estan; la de 18:55:16 es el HOME de la
                         // Switch 2 con la PS5 puesta, con el que la app de las 18:55 cambio a la Switch 2 en 0,5 s)
                         bool esSwitch = fn.StartsWith("20261123-180816", StringComparison.Ordinal) || fn.StartsWith("20261123-180818", StringComparison.Ordinal) ||
-                                        fn.StartsWith("20261123-181019", StringComparison.Ordinal) || fn.StartsWith("20261123-185516", StringComparison.Ordinal);
+                                        fn.StartsWith("20261123-181019", StringComparison.Ordinal) || fn.StartsWith("20261123-185516", StringComparison.Ordinal) ||
+                                        fn.StartsWith("20261123-202244", StringComparison.Ordinal);   // (1.3.1: la de las 20:22:44 de la 1.3, el HOME de la Switch 2 con la PS5 puesta)
                         bool esPs5 = f.IndexOf(@"debug\ps5", StringComparison.OrdinalIgnoreCase) >= 0 && !esSwitch;
                         if (esSwitch) { sw++; if (reloj) swHome++; else sinHora++; }
                         else if (esPs5) { otras++; if (reloj) otrasMal++; }
@@ -735,7 +843,8 @@ namespace ConsoleEnhancer
                 foreach (string f in imgs)
                 {
                     string fn = Path.GetFileName(f);
-                    if (!fn.StartsWith("20261123-180816", StringComparison.Ordinal) && !fn.StartsWith("20261123-180818", StringComparison.Ordinal) && !fn.StartsWith("20261123-185516", StringComparison.Ordinal)) continue;
+                    if (!fn.StartsWith("20261123-180816", StringComparison.Ordinal) && !fn.StartsWith("20261123-180818", StringComparison.Ordinal) && !fn.StartsWith("20261123-185516", StringComparison.Ordinal) &&
+                        !fn.StartsWith("20261123-202244", StringComparison.Ordinal)) continue;
                     conCian++;
                     if (ReconoceHome(f)) enteros++;
                 }
@@ -768,7 +877,11 @@ namespace ConsoleEnhancer
                 check("3. Un nombre largo que se desplaza (sin seguro): lecturas nuevas al volver (la marquesina vuelve a empezar)", sel.Count == 0 && otra.Sure);
 
                 // ---- 4. Importar de la version de antes y arreglar "Juego 1" (COPIAS) ----
-                if (datosUsuario != null && Directory.Exists(Path.Combine(datosUsuario, "games")))
+                // (1.3.1: solo con los datos de la r7 -su .bak de antes de las 18:46:54-; con los de la 1.3 el "Juego 1" es otro, el de las 20:22:52: parte 11)
+                bool datosR7 = datosUsuario != null && File.Exists(Path.Combine(datosUsuario, @"games\profiles.txt.bak")) &&
+                               File.GetLastWriteTime(Path.Combine(datosUsuario, @"games\profiles.txt.bak")) < new DateTime(2026, 11, 23, 18, 46, 54);
+                if (datosUsuario != null && !datosR7) sb.Append("      4. (estos datos no son los de la r7 de antes de las 18:46:54: la parte 4 no se prueba)\r\n");
+                if (datosR7 && Directory.Exists(Path.Combine(datosUsuario, "games")))
                 {
                     string g = Path.Combine(tmp, "games");
                     Directory.CreateDirectory(g);
@@ -879,7 +992,9 @@ namespace ConsoleEnhancer
                         bool hayJ1 = j1 != null && !j1.NameSure;
                         sb.Append("      6. en sus datos de ahora: " + (hayJ1 ? "\"Juego 1\" (creado a las 18:56:30 con la imagen de la PS5)" : "sin \"Juego 1\"") + ", " + antesN + " perfiles\r\n");
                         List<KeyValuePair<string, string>> r6 = Switch2Datos.AlAbrir(g2, null, viejo, new[] { logTodo }, new DateTime(2026, 11, 23, 19, 30, 0));
-                        bool quitado = r6.Exists(delegate (KeyValuePair<string, string> kv) { return kv.Key == "Juego 1" && kv.Value == null; });
+                        // (1.3.1: con los datos de la 1.3, el "Juego 1" que queda es el de las 20:22:52 -la animacion de arranque de Ocarina-: se quita
+                        // tambien, con Ocarina como el juego de verdad)
+                        bool quitado = r6.Exists(delegate (KeyValuePair<string, string> kv) { return kv.Key == "Juego 1"; });
                         check("6. \"Juego 1\" creado con la imagen de la PS5 (Switch 2 de console.txt, cambio a la PS5 51 s despues): quitado con sus iconos" +
                               (hayJ1 ? "" : " (no estaba)"),
                               !hayJ1 || (quitado && GameProfiles.Find("Juego 1") == null && (icJ1 == null || GameProfiles.FindByIcon(icJ1) == null)));
@@ -933,13 +1048,13 @@ namespace ConsoleEnhancer
                     foreach (string dir in new[] { viejo != null ? Path.Combine(viejo, "test_deteccion") : null, Environment.GetEnvironmentVariable("CE_BANCO_DETECCION") })
                         if (dir != null && Directory.Exists(dir)) bancoPs5.AddRange(Directory.GetFiles(dir, "*.png"));
                     if (datosUsuario != null)
-                        foreach (string n in new[] { "20261123-180816_1280x720.png", "20261123-180818_1280x720.png", "20261123-181019_1280x720.png", "20261123-185516_1280x720.png" })
+                        foreach (string n in new[] { "20261123-180816_1280x720.png", "20261123-180818_1280x720.png", "20261123-181019_1280x720.png", "20261123-185516_1280x720.png", "20261123-202244_1280x720.png" })
                             if (File.Exists(Path.Combine(datosUsuario, @"games\debug\ps5\" + n))) bancoPs5.Add(Path.Combine(datosUsuario, @"games\debug\ps5\" + n));
                     foreach (string f in bancoPs5)
                     {
                         string fn = Path.GetFileNameWithoutExtension(f);
                         bool menuPs5 = fn.StartsWith("menu_ce-gta-pestanas", StringComparison.Ordinal) || fn.StartsWith("ps5inicio_", StringComparison.Ordinal);
-                        bool otraC = fn.StartsWith("sw2home", StringComparison.Ordinal) || fn.StartsWith("20261123-18", StringComparison.Ordinal) || fn.StartsWith("juego_sw2", StringComparison.Ordinal) ||
+                        bool otraC = fn.StartsWith("sw2home", StringComparison.Ordinal) || fn.StartsWith("20261123-18", StringComparison.Ordinal) || fn.StartsWith("20261123-202244", StringComparison.Ordinal) || fn.StartsWith("juego_sw2", StringComparison.Ordinal) ||
                                   fn.StartsWith("xbox", StringComparison.Ordinal);
                         if (!menuPs5 && !otraC) continue;
                         DateTime cuando;
@@ -965,6 +1080,9 @@ namespace ConsoleEnhancer
                     check("8. Ninguna captura de la PS5 ni de la Switch 2 da el texto fuerte de la Xbox (" + xbMal + ")", xbMal == 0);
                     sb.Append("      8. menus de la Xbox dibujados con su texto fuerte: " + xbSi + " de " + xbN + " (sin capturas reales de la Xbox)\r\n");
                 }
+
+                // ---- 9-11. 1.3.1: el primer juego de la Switch 2 tras la PS5 (23-11 20:22:38-52, la 1.3) ----
+                Switch2Prueba131(sb, check, tmp, datosUsuario, viejo);
             }
             catch (Exception ex) { check("Excepcion: " + ex, false); }
             finally

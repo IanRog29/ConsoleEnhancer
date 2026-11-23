@@ -2993,7 +2993,10 @@ namespace ConsoleEnhancer
             // hay dos (su nombre y "Cambiar de usuario" debajo): la de un texto conocido se salta
             int band = Math.Max(4, (int)(0.035 * H));
             List<int> tried = new List<int>();
-            for (int attempt = 0; attempt < 3; attempt++)
+            FueraDeFila = Rectangle.Empty;
+            // (1.3.1, SWITCH2: las franjas fuera de la fila de los nombres no gastan intento: como mucho 3 de las de antes)
+            int valid = 0;
+            for (int attempt = 0; attempt < 8 && valid < 3; attempt++)
             {
                 int bestY = -1, bestN = 0;
                 for (int y = 0; y + band < H; y += 2)
@@ -3010,14 +3013,34 @@ namespace ConsoleEnhancer
                 Rectangle b;
                 LabelText lt;
                 byte[] m = Shape(text, W, H, bestY, band, out b, out lt);
-                if (m == null) continue;
-                if (HomeHints.IsHint(m)) { if (!hint) hintY = b.Y + b.Height / 2; hint = true; continue; }
+                if (m == null) { valid++; continue; }
+                if (HomeHints.IsHint(m)) { valid++; if (!hint) hintY = b.Y + b.Height / 2; hint = true; continue; }
+                // 1.3.1 (SWITCH2, el usuario: "de primeras no ha detectado el cambio a switch 2 despues de estar en ps5"): el nombre del juego
+                // seleccionado va SIEMPRE encima de la fila de casillas (su centro a y 83-85 de 360 en todas las capturas del HOME: 72-75 el
+                // recuadro). Un texto cian mas abajo es el dibujo de una casilla: el logo de "Leyendas Pokémon: Arceus" (azul) se tomaba por un
+                // nombre en la animacion de arranque de otra casilla (23-11 20:22:47, el juego arranco como "Juego 1" con los ajustes de la PS5),
+                // al moverse el cursor (20:23:07) y con el nombre aun sin salir (18:10:40, 18:55:42); y los textos de los avisos encima
+                // ("Opciones de descarga") o de otras pantallas. Esos ya no son un nombre (ni el HOME para ObservaHomeSwitch)
+                if (!EnFilaDeNombres(lt)) { if (FueraDeFila.IsEmpty) FueraDeFila = b; continue; }
+                valid++;
                 box = b;
                 label = lt;
                 return m;
             }
             return null;
         }
+
+        // 1.3.1 (SWITCH2): la fila del nombre del juego seleccionado en el HOME (el centro del texto, en proporcion de la imagen: 0,20-0,27 = y
+        // 72-97 de 360; medido 83-85 en todas las del HOME). Las casillas empiezan en y 100 (el recuadro de la seleccionada en 96)
+        public const double FilaNombresArriba = 0.20, FilaNombresAbajo = 0.27;
+        public static bool EnFilaDeNombres(LabelText t)
+        {
+            if (t == null || t.H <= 0) return false;
+            double cy = (t.Y0 + t.Y1) / 2.0 / t.H;
+            return cy >= FilaNombresArriba && cy <= FilaNombresAbajo;
+        }
+        // (diagnostico) el primer texto cian descartado por estar fuera de esa fila en la ultima llamada a Selected de este hilo
+        [ThreadStatic] public static Rectangle FueraDeFila;
 
         static byte[] Shape(bool[] text, int W, int H, int bestY, int band, out Rectangle box, out LabelText label)
         {
@@ -6948,6 +6971,51 @@ namespace ConsoleEnhancer
         const int KHome = 0, KBlack = 1, KDim = 2, KConsole = 3, KGame = 4;
         int homeHits;                   // capturas seguidas con el HOME mientras se juega
         bool labelNoName;               // la ultima captura del HOME tenia un juego seleccionado sin nombre leido
+        // 1.3.1 (SWITCH2, el usuario: "de primeras no ha detectado el cambio a switch 2 despues de estar en ps5"; 23-11 20:22:47-52: Ocarina of
+        // Time reconocido por su icono, la animacion de arranque de su casilla tomada por "otro juego" sin nombre y entrado como "Juego 1" con los
+        // ajustes de la PS5). La ultima seleccion reconocida del HOME (un juego guardado o con nombre leido), su icono y la ultima captura en que
+        // se vio; y de la seleccion sin nombre de ahora (labelNoName), el reconocido al que sustituyo y sus capturas con el HOME quieto (no saliendo)
+        string ultimaSel;
+        double[] ultimaSelIcon;
+        int ultimaSelCx;                // (su centro en la imagen de 640x360: el de su nombre)
+        DateTime ultimaSelAt = DateTime.MinValue;
+        string sinNombreAntes;
+        DateTime sinNombreAntesAt = DateTime.MinValue;
+        int sinNombreQuieto;
+        const double MantenerSelSecs = 3, UltimaSelAlEntrarSecs = 8;
+
+        // (con homeSync) ¿Una seleccion sin nombre ahora es solo la salida hacia el juego reconocido (la animacion de su casilla, un aviso)?
+        // Saliendo del HOME (la captura anterior era de fuera), con un juego reconocido seleccionado y visto hace MantenerSelSecs como mucho
+        bool SalidaConElReconocido(bool saliendo, bool library, DateTime now)
+        {
+            return saliendo && !library && homeGame != null && ultimaSel != null && GameProfiles.SameGame(homeGame, ultimaSel) &&
+                   ultimaSelAt != DateTime.MinValue && (now - ultimaSelAt).TotalSeconds <= MantenerSelSecs && now >= ultimaSelAt;
+        }
+
+        // (con homeSync) El HOME sin el nombre de ningun juego, con uno seleccionado: ¿la animacion de arranque de su casilla? Si llega saliendo
+        // del HOME (la captura anterior era de fuera: el HOME atenuado al pulsar A) y las que siguen sin nombre hasta AnimSalidaSecs despues: no
+        // cuentan para "ningun juego seleccionado" (3 capturas = el cursor en la barra de abajo, y lo que se abriera no seria un juego)
+        DateTime animSalidaDesde = DateTime.MinValue;
+        const double AnimSalidaSecs = 1.5;
+        bool AnimacionDeSalida(bool saliendo, DateTime now)
+        {
+            if (homeGame == null && !labelNoName) { animSalidaDesde = DateTime.MinValue; return false; }
+            if (saliendo) { animSalidaDesde = now; return true; }
+            if (animSalidaDesde != DateTime.MinValue && now >= animSalidaDesde && (now - animSalidaDesde).TotalSeconds <= AnimSalidaSecs) return true;
+            animSalidaDesde = DateTime.MinValue;
+            return false;
+        }
+
+        // (con homeSync) Al entrar con un juego sin nombre seleccionado (labelNoName): si esa seleccion solo se vio saliendo del HOME (nunca con
+        // el HOME quieto) y sustituyo a un juego reconocido hace UltimaSelAlEntrarSecs como mucho, es ese juego (la animacion de arranque o un
+        // aviso encima, no otra casilla). null si no
+        string EntradaSinNombreEsReconocido(DateTime now)
+        {
+            if (homeGame != null || !labelNoName || homeLib || sinNombreQuieto > 0 || sinNombreAntes == null) return null;
+            if (sinNombreAntesAt == DateTime.MinValue || (now - sinNombreAntesAt).TotalSeconds > UltimaSelAlEntrarSecs || now < sinNombreAntesAt) return null;
+            GameProfile p = GameProfiles.Find(sinNombreAntes);
+            return p != null ? p.Name : null;
+        }
         volatile bool homeBusy;         // pasando del HOME al juego o al reves
         bool homeInUse;                 // en el HOME: el juego seleccionado esta en uso ("Cambiar de usuario" debajo)
         DateTime inUseAt = DateTime.MinValue; // la ultima captura del HOME en la que se vio en uso
@@ -7178,6 +7246,17 @@ namespace ConsoleEnhancer
                     {
                         enter = homeGame ?? "";
                         enterIcon = homeIcon;
+                        // 1.3.1 (SWITCH2): sin saber el juego (un nombre sin leer que solo se vio saliendo del HOME), el reconocido de justo antes en
+                        // vez de un "Juego N" nuevo
+                        string rec = EntradaSinNombreEsReconocido(now);
+                        if (rec != null)
+                        {
+                            Log.Write("Al entrar: el juego sin nombre leido solo se vio saliendo del HOME (la animacion de arranque o un aviso encima): es \"" + rec +
+                                      "\", el reconocido justo antes (hace " + Ms((now - sinNombreAntesAt).TotalSeconds) + " s); no se crea un juego nuevo");
+                            enter = rec;
+                            enterIcon = null;   // (el icono de esa captura no es el suyo)
+                            homeGame = rec;
+                        }
                         // (15-11: su nombre esta confirmado si las lecturas de esta seleccion lo dan por seguro)
                         // (16-11: o firme, NameReads.Firm: sin eso no da nombre a un juego nuevo ni cambia el de un perfil)
                         NameReads nr = selReads;
@@ -7427,6 +7506,21 @@ namespace ConsoleEnhancer
                 "Zelda", "H=Mario 2; N 1.5; J 3", "Mario", "imagen del juego en 3 capturas", 0, 0);
             run("Juego nuevo sin nombre leido: negro",
                 "Ocarina", "H=? 2; N 6", "", "sin pantalla de usuario", 0, 3900);
+            // 1.3.1 (SWITCH2): 23-11 20:22:45-52, la Switch 2 recien puesta tras la PS5: Ocarina of Time reconocido por su icono, A, el HOME
+            // atenuado, la animacion de arranque de su casilla y negro. La 1.3 tomo un texto de esa animacion por "otro juego" sin nombre y
+            // entro como "Juego 1". Ahora: la animacion sin nombre (L) o con un texto sin leer (H=?) es la de Ocarina
+            run("1.3.1: 20:22:47, Ocarina, A, HOME atenuado, la animacion de arranque (sin nombre) y negro: Ocarina (la 1.3: \"Juego 1\")",
+                null, "H=Ocarina 2; D 0.2; L 0.3; N 6", "Ocarina", "sin pantalla de usuario", 0, 3900);
+            run("1.3.1: lo mismo con un texto cian sin leer en la animacion (lo que vio la 1.3): Ocarina, no un juego nuevo",
+                null, "H=Ocarina 2; D 0.2; H=? 0.3; N 6", "Ocarina", "sin pantalla de usuario", 0, 3900);
+            run("1.3.1: la animacion sin nombre larga (1,2 s) tras el HOME atenuado: no es \"ningun juego seleccionado\"",
+                null, "H=Ocarina 2; D 0.2; L 1.2; N 6", "Ocarina", "sin pantalla de usuario", 0, 3900);
+            run("1.3.1: un juego nuevo de verdad sin nombre leido, visto con el HOME quieto tras uno reconocido: sigue siendo nuevo",
+                null, "H=Ocarina 2; H=? 1.5; N 6", "", "sin pantalla de usuario", 0, 3900);
+            run("1.3.1: Rocket League y enseguida otro sin nombre (02-11, Mario Kart World) y A: nuevo, no Rocket League",
+                null, "H=RL 2; H=? 0.6; D 0.2; N 6", "", "sin pantalla de usuario", 0, 3900);
+            run("1.3.1: el cursor a la barra de abajo (sin nombre) con el HOME quieto: ningun juego, no se entra al abrir algo de la consola",
+                "Ocarina", "H=Ocarina* 1; L 2; U 1; J 4", null, null, 0, 0);
             // Vuelta rapida al mismo juego
             run("Vuelta rapida al mismo juego (en uso)",
                 "Ocarina", "H=Ocarina* 2; J 2", "Ocarina", "estaba en uso", 700, 0);
@@ -7568,6 +7662,7 @@ namespace ConsoleEnhancer
                 curGame = cur;
                 pendingChecked = true;
                 noLabel = 0; labelNoName = false; homeSeen = now; homeGame = null; homeIcon = null; homeInUse = false; homeDock = false;
+                ultimaSel = null; ultimaSelAt = sinNombreAntesAt = DateTime.MinValue; sinNombreAntes = null; sinNombreQuieto = 0; animSalidaDesde = DateTime.MinValue;   // (1.3.1, SWITCH2)
                 ResetOut(null, now);
                 string shape = null; // (la casilla de la captura anterior del HOME: homeShape en AnalyzeGrab)
                 DateTime lastG = DateTime.MinValue;
@@ -7602,6 +7697,7 @@ namespace ConsoleEnhancer
         void SimGrab(string s, ref string shape, DateTime now)
         {
             if (s == "NS") return; // (AnalyzeGrab no mira el HOME con "No Signal")
+            bool saliendo = noLabel > 0 && outSince != DateTime.MinValue;   // (1.3.1, SWITCH2: como en AnalyzeGrab)
             if (s.StartsWith("L="))
             {
                 // La biblioteca con la pastilla del nombre (lab != null, library): sin icono ni "Cambiar de usuario"
@@ -7638,7 +7734,8 @@ namespace ConsoleEnhancer
                     homeGame = null; homeIcon = null; homeShape = null; labelNoName = false; homeInUse = false; homeDock = true;
                     shape = null;
                 }
-                if (++homeNoSel >= 3)
+                if (s == "L" && AnimacionDeSalida(saliendo, now)) { }   // (1.3.1, SWITCH2: la animacion de arranque, como en AnalyzeGrab)
+                else if (++homeNoSel >= 3)
                 {
                     if (homeGame != null || labelNoName) Log.Write("HOME: ningun juego seleccionado");
                     homeGame = null; homeIcon = null; homeShape = null; labelNoName = false; homeDock = true; noLabel = 0;
@@ -7664,12 +7761,33 @@ namespace ConsoleEnhancer
                 if (inUseNow) inUseAt = now;
                 homeInUse = inUseNow || (sameSel && homeInUse && (now - inUseAt).TotalSeconds < 1.2);
                 powerTile = false;
+                bool mantener = false;
+                animSalidaDesde = DateTime.MinValue;   // (1.3.1, SWITCH2)
                 if (sys) { homeGame = null; labelNoName = false; homeDock = true; homeInUse = false; powerTile = HomeHints.IsPowerMenu(tile); }
-                else if (tile == "?") { homeGame = null; labelNoName = true; }
+                else if (tile == "?")
+                {
+                    // (1.3.1, SWITCH2: como en AnalyzeGrab: saliendo del HOME con el reconocido de hace nada, se mantiene; si no, otro sin
+                    // nombre, con el reconocido al que sustituye y sus capturas con el HOME quieto)
+                    if (SalidaConElReconocido(saliendo, false, now))
+                    {
+                        mantener = true;
+                        Log.Write("HOME: un nombre sin leer a la vista justo al salir del HOME (la animacion de arranque o un aviso encima): no es otro juego, sigue \"" + homeGame + "\"");
+                    }
+                    else if (homeGame != null || !labelNoName)
+                    {
+                        sinNombreAntes = homeGame; sinNombreAntesAt = ultimaSelAt; sinNombreQuieto = saliendo ? 0 : 1;
+                        homeGame = null; labelNoName = true;
+                    }
+                    else if (!saliendo) sinNombreQuieto++;
+                }
                 else { homeGame = tile; labelNoName = false; }
                 homeLib = false;
-                shape = tile;
-                homeShape = SimShape(tile); // (16-11 tarde: la forma del nombre azul, para LaunchCancelCheck)
+                if (!mantener)
+                {
+                    shape = tile;
+                    homeShape = SimShape(tile); // (16-11 tarde: la forma del nombre azul, para LaunchCancelCheck)
+                }
+                if (homeGame != null && !homeDock && !mantener) { ultimaSel = homeGame; ultimaSelAt = now; }
                 LaunchCancelCheck(now);
                 return;
             }
@@ -7730,6 +7848,7 @@ namespace ConsoleEnhancer
                 curGame = cur;
                 pendingChecked = true;
                 noLabel = 0; labelNoName = false; homeSeen = now; homeGame = null; homeIcon = null; homeInUse = false; homeDock = false;
+                ultimaSel = null; ultimaSelAt = sinNombreAntesAt = DateTime.MinValue; sinNombreAntes = null; sinNombreQuieto = 0; animSalidaDesde = DateTime.MinValue;   // (1.3.1, SWITCH2)
                 ResetOut(null, now);
                 cfg.HomeNative = true;  // (16-11 tarde: en el HOME a 4K nativo, InHome)
                 homeArrivedAt = now;    // (recien vuelto de un juego, como tras EnterHomeNative)
@@ -8071,6 +8190,7 @@ namespace ConsoleEnhancer
                 string screen = null;
                 double[] thumb = null;
                 Rectangle labBox = Rectangle.Empty;
+                double animDiff = -1;   // (1.3.1, SWITCH2: el icono de la ultima seleccion reconocida en su sitio, sin el nombre a la vista)
                 // Jugando (con el HOME a 4K) solo importa si es el HOME: sin OCR (100-300 ms), el nombre se lee ya en el HOME
                 // (10-11: en el HOME con LS aun escalando, homeGrace, todo como en el HOME a 4K)
                 bool inHomeNow = InHome;
@@ -8091,6 +8211,14 @@ namespace ConsoleEnhancer
                     strips = HomeLabel.Strips(small);
                     noSignal = HomeLabel.IsNoSignal(small);
                     if (noSignal) lab = null;
+                    // 1.3.1 (SWITCH2): con el HOME atenuado (un aviso de la consola encima, el menu de apagado, el principio de la animacion de
+                    // arranque) no cambia la seleccion: un texto cian de ahi no es el nombre de otro juego (su icono, oscurecido, ya no casaba con
+                    // ninguno). Cuenta como el HOME atenuado (fuera del HOME), como sin el texto
+                    if (lab != null && conHome && homeRef != null)
+                    {
+                        double dk0, dc0;
+                        if (HomeLabel.DimHome(strips, homeRef, out dk0, out dc0)) { lab = null; label = null; box = Rectangle.Empty; labBox = box; }
+                    }
                     // 1.2.05: captura del relevo de motor (MenuCiegoCaptura): solo para el menu de la consola; lo demas, como antes: nada
                     // (1.2.2: y mientras Magpie prepara, CapturaPreparando, src\VueltaJuego.cs)
                     if (!lsReady && (relevo != null || (passesBusy && Consolas.Actual.MenuPropio)))
@@ -8240,6 +8368,9 @@ namespace ConsoleEnhancer
                         }
                     }
                     if ((homeGrace || (inGame && (lab != null || relojHome))) && !noSignal) { double litG; homeThumb = HomeLabel.Thumb(small, out litG); }
+                    // (1.3.1, SWITCH2: sin el nombre, el icono donde estaba la ultima seleccion reconocida: en la animacion de arranque de su casilla sigue
+                    // casando -23-11 20:22:47: a 11 de la captura del HOME quieto-; solo para el log de AnimacionDeSalida)
+                    if (conHome && lab == null && !noSignal && inHomeNow && ultimaSelIcon != null && ultimaSelCx > 0) animDiff = HomeLabel.Diff(HomeLabel.Icon(small, ultimaSelCx), ultimaSelIcon);
                     if (conHome && inHomeNow && lab == null && !noSignal && !library) // (19-11: no en el menu de la PS5: MenuPs5Captura)
                     {
                         double[] rf = homeRef;
@@ -8307,6 +8438,9 @@ namespace ConsoleEnhancer
                 {
                     double hd = HomeLabel.HomeDiff(strips, homeRef);
                     bool looksHome = (homeRef != null && hd <= HomeLabel.IsHome) || relojHome; // (19-11: o su hora, DETECCION)
+                    // 1.3.1 (SWITCH2): la captura anterior era ya de fuera del HOME (se esta saliendo: el HOME atenuado, negro...). Lo que se vea
+                    // ahora del HOME es la animacion de arranque de la casilla elegida (23-11 20:22:47) o el HOME de paso: no es otra seleccion
+                    bool saliendo = inHomeNow && noLabel > 0 && outSince != DateTime.MinValue;
                     // 09-11: movimiento respecto a la captura anterior fuera del HOME; recien abierta la app, "No Signal" = la
                     // consola aun no se ve (al encenderla se espera mas imagen de juego antes de decidir que ya se jugaba)
                     bool moved = false;
@@ -8365,6 +8499,8 @@ namespace ConsoleEnhancer
                     }
                     else if (lab != null)
                     {
+                        bool mantenerSel = false;   // (1.3.1, SWITCH2: la seleccion reconocida sigue, ver SalidaConElReconocido)
+                        animSalidaDesde = DateTime.MinValue;
                         homeSeen = DateTime.Now;
                         // La referencia del HOME solo con el HOME (no con la biblioteca u otras pantallas con texto azul)
                         if (inHomeNow && !library && (homeRef == null || looksHome)) { homeRef = strips; SaveRef(strips); }
@@ -8416,17 +8552,37 @@ namespace ConsoleEnhancer
                         }
                         else if (library ? freshSel : HomeLabel.Diff(icon, homeIcon) > HomeLabel.SameIcon)
                         {
-                            // Otro juego seleccionado, sin icono conocido y sin nombre leido: el de antes ya no vale (02-11: se
-                            // entro en Mario Kart World con los ajustes de Rocket League). Al entrar se guarda con su icono
-                            // (16-11: en la biblioteca, otra casilla = otro sitio de la pastilla; sin icono)
-                            if (homeGame != null) Log.Write("HOME: otro juego seleccionado" + (library ? " en la biblioteca" : "") + " (nuevo, sin leer su nombre todavia)");
-                            homeGame = null;
-                            labelNoName = true;
+                            // 1.3.1 (SWITCH2): saliendo ya del HOME (la captura anterior era de fuera) y con un juego reconocido hace nada, un
+                            // nombre sin leer con otro icono es la animacion de arranque de ESE juego (su casilla se amplia) o un aviso encima,
+                            // no otra seleccion (23-11 20:22:47: Ocarina de Time arranco como "Juego 1"). Se mantiene el reconocido
+                            if (SalidaConElReconocido(saliendo, library, DateTime.Now))
+                            {
+                                mantenerSel = true;
+                                Log.Write("HOME: un nombre sin leer a la vista justo al salir del HOME (la animacion de arranque o un aviso encima): no es otro juego, sigue \"" +
+                                          homeGame + "\" (reconocido hace " + Ms((DateTime.Now - ultimaSelAt).TotalSeconds) + " s)");
+                            }
+                            else
+                            {
+                                // Otro juego seleccionado, sin icono conocido y sin nombre leido: el de antes ya no vale (02-11: se
+                                // entro en Mario Kart World con los ajustes de Rocket League). Al entrar se guarda con su icono
+                                // (16-11: en la biblioteca, otra casilla = otro sitio de la pastilla; sin icono)
+                                if (homeGame != null) Log.Write("HOME: otro juego seleccionado" + (library ? " en la biblioteca" : "") + " (nuevo, sin leer su nombre todavia)");
+                                // (1.3.1, SWITCH2: el reconocido al que sustituye, y si esta seleccion se ve con el HOME quieto o solo saliendo)
+                                sinNombreAntes = homeGame;
+                                sinNombreAntesAt = ultimaSelAt;
+                                sinNombreQuieto = saliendo ? 0 : 1;
+                                homeGame = null;
+                                labelNoName = true;
+                            }
                         }
+                        else if (labelNoName && homeGame == null && !saliendo) sinNombreQuieto++;
                         // (16-11: de la biblioteca ningun icono: el de una casilla del HOME vista antes seria el de otro juego)
-                        if (library) homeIcon = null;
+                        if (mantenerSel) { }
+                        else if (library) homeIcon = null;
                         else if (icon != null) homeIcon = icon;
-                        homeShape = lab;
+                        if (!mantenerSel) homeShape = lab;
+                        // (1.3.1, SWITCH2: la ultima seleccion reconocida, con su icono y cuando se vio)
+                        if (homeGame != null && !homeDock && !mantenerSel) { ultimaSel = homeGame; ultimaSelIcon = homeIcon; ultimaSelAt = DateTime.Now; ultimaSelCx = labBox.X + labBox.Width / 2; }
                         if (library != homeLib)
                             Log.Write(library ? "HOME: en la biblioteca (Programas): el juego por el nombre de su pastilla, sin icono; en uso solo si es el que esta en marcha"
                                               : "HOME: fuera de la biblioteca, en el HOME");
@@ -8475,7 +8631,15 @@ namespace ConsoleEnhancer
                             }
                             // Sigue el HOME sin juego seleccionado (cursor en la barra de abajo: eShop, ajustes...). Solo tras 3
                             // capturas seguidas (al pulsar A en un juego, el HOME se ve un instante sin el nombre y se olvidaba)
-                            if (++homeNoSel >= 3)
+                            // (1.3.1, SWITCH2: y no una que llega saliendo del HOME, como la animacion de arranque de la casilla elegida sin
+                            // su nombre: el cursor no se ha ido a la barra, se esta entrando en el juego seleccionado)
+                            if (AnimacionDeSalida(saliendo, DateTime.Now))
+                            {
+                                if (saliendo)
+                                    Log.Write("HOME: saliendo hacia " + (homeGame != null ? "\"" + homeGame + "\"" : "el juego sin nombre") + ", el HOME sin su nombre (la animacion de arranque de su casilla" +
+                                              (animDiff >= 0 ? ", su icono a " + animDiff.ToString("0", CultureInfo.InvariantCulture) + (animDiff <= HomeLabel.SameIcon ? ": el mismo" : "") : "") + "): sigue seleccionado");
+                            }
+                            else if (++homeNoSel >= 3)
                             {
                                 if (homeGame != null || labelNoName) Log.Write("HOME: ningun juego seleccionado");
                                 homeGame = null;
@@ -9058,6 +9222,17 @@ namespace ConsoleEnhancer
                 Log.Write("Al entrar: " + (name.Length > 0 ? "\"" + name + "\"" : "un juego sin nombre") + " no esta guardado y no se crea (" + noCrear + ")");
                 return CurrentProfile(null);
             }
+            // 1.3.1 (SWITCH2): un juego nuevo de la PS5 / Xbox con un nombre que parece una lectura mala del OCR (23-11 20:22:03, "mn noo": el juego en
+            // foco leido con el menu de la PS5 abriendose; antes quedo "PS5: PLAYÑOOM"): sin perfil nuevo, el de toda la consola
+            if (p == null && name.Length > 0 && JuegoConsola.TagConsola(name) != null && PareceBasuraOcr(JuegoConsola.SinTag(name)))
+            {
+                GameProfile pc = GameProfiles.Find(Consolas.Actual.PerfilConsola);
+                if (pc != null && pc.Name == Consolas.Actual.PerfilConsola)
+                {
+                    Log.Write("Al entrar: \"" + name + "\" parece una lectura mala del nombre (palabras cortas en minusculas): sin perfil nuevo, el de toda la consola, \"" + pc.Name + "\"");
+                    return pc;
+                }
+            }
             // 16-11: un juego nuevo solo con su nombre firme (NameReads.Firm); si no ("LLó" a las 00:45:56, una lectura del arte de Fall Guys),
             // como sin nombre: "Juego N" con su icono del HOME (se le reconocera por el y su nombre se leera en el HOME), y sin icono (elegido
             // en la biblioteca) sin perfil: los ajustes de ahora, sin recordar nada
@@ -9069,16 +9244,25 @@ namespace ConsoleEnhancer
             }
             if (p == null && (name.Length > 0 || icon != null))
             {
-                p = CurrentProfile(name.Length > 0 ? name : GameProfiles.NewName());
+                // 1.3.1 (SWITCH2): de partida, los de ahora solo si son de esta consola; si son de otra (23-11 20:22:52: los de la PS5 en el primer
+                // juego de la Switch 2), los de partida de esta (src\Lanzador\AjustesDeConsola.cs)
+                string de;
+                p = PerfilDePartida(name.Length > 0 ? name : GameProfiles.NewName(), out de);
                 p.NameSure = confirmed;
                 p.AddIcon(icon);
                 GameProfiles.Save(p);
                 Log.Write("Juego nuevo: \"" + p.Name + "\"" + (icon != null ? " (guardado con su icono del HOME)" : "") +
                           (name.Length == 0 ? " (sin nombre leido: se leera la proxima vez que se seleccione en el HOME)" :
                            sure ? "" : " (nombre sin confirmar: se seguira leyendo en el HOME)") +
-                          ". Se recordaran sus ajustes (de partida, los de ahora: " + p.Summary() + ")");
+                          ". Se recordaran sus ajustes (de partida, " + (de ?? "los de ahora") + ": " + p.Summary() + ")");
             }
-            if (p == null) p = CurrentProfile(null); // sin nombre ni icono: lo ultimo elegido
+            if (p == null)
+            {
+                // sin nombre ni icono: lo ultimo elegido (1.3.1: si es de otra consola, los de partida de esta, sin guardar nada)
+                string de;
+                p = PerfilDePartida(null, out de);
+                if (de != null) Log.Write("Al entrar: juego sin identificar: " + de + ": " + p.Summary());
+            }
             return p;
         }
 
@@ -9124,6 +9308,7 @@ namespace ConsoleEnhancer
                 SaveText(Paths.FgFile, p.Fg ? "1" : "0");
                 SetPicks(p.Pick60, p.Pick30); // (19-11, GENERACION: el tipo de generacion elegido con L3 en este juego)
             }
+            JuegoPuestoDeConsola(p);   // (1.3.1, SWITCH2: los ajustes de ahora son de esta consola; su ultimo juego)
             ClearPending();
             lock (homeSync) { homeHits = 0; homeGame = null; homeShape = null; selReads = null; }
             if (MenuPs5SalirConMotor(curGame ?? "Juego", p.Summary())) return; // (19-11: PS5, el juego con Smooth Motion: una sola reapertura)
@@ -9168,6 +9353,7 @@ namespace ConsoleEnhancer
                 SaveText(Paths.FgFile, p.Fg ? "1" : "0");
                 SetPicks(p.Pick60, p.Pick30); // (19-11, GENERACION: el tipo de generacion elegido con L3 en este juego)
                 SetScalerChoice(p.Scaler, p.ScalerPick);
+                JuegoPuestoDeConsola(p);   // (1.3.1, SWITCH2)
                 // Otra ventana (la captura de 4K): mpv y Magpie se reabren y Magpie coge ya todo lo de arriba
                 if (newWindow)
                 {
@@ -9430,13 +9616,20 @@ namespace ConsoleEnhancer
             if (p == null && !sure) { Log.Write("Al entrar: \"" + name + "\" no es un juego conocido y su nombre no esta confirmado: sin perfil"); return; }
             if (p == null)
             {
-                p = CurrentProfile(name);
+                // (1.3.1, SWITCH2: los de ahora si son de esta consola; si no, los de partida de esta, y se ponen como los de un juego guardado)
+                string de;
+                p = PerfilDePartida(name, out de);
                 p.NameSure = confirmed;
                 GameProfiles.Save(p);
-                lock (profileSync) { curGame = p.Name; curGameGuess = false; }
-                ClearPending();
-                Log.Write("Juego nuevo: \"" + name + "\". Se recordaran sus ajustes (ahora: " + p.Summary() + ")");
-                return;
+                if (de == null)
+                {
+                    lock (profileSync) { curGame = p.Name; curGameGuess = false; }
+                    ClearPending();
+                    JuegoPuestoDeConsola(p);
+                    Log.Write("Juego nuevo: \"" + name + "\". Se recordaran sus ajustes (ahora: " + p.Summary() + ")");
+                    return;
+                }
+                Log.Write("Juego nuevo: \"" + name + "\". Se recordaran sus ajustes (" + de + ": " + p.Summary() + ")");
             }
             // (15-11: applying antes de cambiar curGame, con profileSync: ver LeaveHomeGrace)
             lock (profileSync) { applying = true; curGame = p.Name; curGameGuess = false; }
@@ -9467,6 +9660,7 @@ namespace ConsoleEnhancer
                 if (!newWindow && cfg.EngineNow != Config.EngineActive) pendingPassesRestart = true;
             }
             finally { applying = false; }
+            JuegoPuestoDeConsola(p);   // (1.3.1, SWITCH2)
         }
 
 
@@ -12441,6 +12635,7 @@ namespace ConsoleEnhancer
                                     bool hint;
                                     HomeLabel.LabelText label;
                                     byte[] lab = HomeLabel.Selected(small, out box, out hint, out label);
+                                    Rectangle fuera = HomeLabel.FueraDeFila;   // (1.3.1, SWITCH2)
                                     // 16-11: la biblioteca: el nombre de su pastilla, como AnalyzeGrab
                                     bool lib = HomeLabel.IsLibrary(small);
                                     if (lib) { lab = HomeLabel.LibraryLabel(small, out box, out label); hint = false; }
@@ -12456,6 +12651,8 @@ namespace ConsoleEnhancer
                                     }
                                     sb.Append(Path.GetFileName(f)).Append(": ").Append(lib ? "biblioteca, " : "")
                                       .Append(lab == null ? "sin nombre" : "nombre \"" + name + "\" en " + box)
+                                      .Append(lab != null && label != null && !lib ? " (centro y " + ((label.Y0 + label.Y1) / 2) + " de " + label.H + ")" : "")
+                                      .Append(!fuera.IsEmpty && !lib ? " (descartado un texto cian fuera de la fila de los nombres en " + fuera + ")" : "")
                                       .Append(hint ? " (saltado un texto conocido)" : "");
                                     if (label != null)
                                         sb.Append(" [OCR \"").Append((raw ?? "").Replace("\r", " ").Replace("\n", " ")).Append("\"; texto ").Append(label.Width)

@@ -37,6 +37,8 @@ namespace ConsoleEnhancer
             Consolas.Cambiada += OnConsolaCambiada;
             obsStart = DateTime.Now;
             ConsolaPerfil c = Consolas.Actual;
+            // (1.3.1, SWITCH2: los ajustes guardados en games\*.txt son de la ultima consola vista: src\Lanzador\AjustesDeConsola.cs)
+            AjustesSonDe(c);
             // (19-11: la PS5 tambien, con su menu propio: src\MenuPs5.cs; se empieza en su menu a 4K nativo, como en el HOME)
             // 20-11 (CE-PERFILES): las consolas con menu propio (PS5, Xbox) necesitan su menu a 4K nativo para reconocer cada juego en el
             // centro de control / conmutador y guardar y re-aplicar su perfil; eso NO depende de home_4k_nativo (clave pensada para el HOME de
@@ -54,12 +56,14 @@ namespace ConsoleEnhancer
             GameProfile p = GameProfiles.Find(c.PerfilConsola);
             if (p != null && p.Name != c.PerfilConsola) p = null; // (solo ese nombre: Find tambien casa nombres parecidos de juegos)
             bool nuevo = p == null;
+            string deOtra = null;
             if (nuevo)
             {
-                p = CurrentProfile(c.PerfilConsola);
+                // (1.3.1, SWITCH2: con los ajustes de ahora de otra consola -la Switch 2 antes de la PS5-, los de partida de esta, no esos)
+                p = PerfilDePartida(c.PerfilConsola, out deOtra);
                 // 1.2.3 (JUEGO; lo vio MULTI en la 1.2.2): al abrir la app esto va antes de leer games\mode.txt (Worker): el perfil nuevo salia
-                // con el modo 60 de partida y, abajo, pisaba el modo guardado. El modo guardado manda
-                if (ModoGuardado(p)) Log.Write("Consola " + c.Corto + ": perfil \"" + p.Name + "\" nuevo con el modo guardado (" + (p.Mode120 ? "120" : p.Cap ? "30" : "60") + ")");
+                // con el modo 60 de partida y, abajo, pisaba el modo guardado. El modo guardado manda (1.3.1: si es de esta consola)
+                if (deOtra == null && ModoGuardado(p)) Log.Write("Consola " + c.Corto + ": perfil \"" + p.Name + "\" nuevo con el modo guardado (" + (p.Mode120 ? "120" : p.Cap ? "30" : "60") + ")");
                 p.NameSure = true;
                 p.Capture = c.CapturaCercana(p.Capture);
                 GameProfiles.Save(p);
@@ -84,10 +88,13 @@ namespace ConsoleEnhancer
                 SetScalerChoice(p.Scaler, p.ScalerPick);
                 fgWanted = p.Fg;
                 SaveText(Paths.FgFile, p.Fg ? "1" : "0");
+                // (1.3.1, SWITCH2: y su tipo de generacion, como LeaveHome: si no, seguia el del juego de la consola de antes hasta el primer juego)
+                SetPicks(p.Pick60, p.Pick30);
             }
+            AjustesSonDe(c);   // (1.3.1, SWITCH2)
             Log.Write("Consola " + c.Corto + (c.MenuPropio ? " (su menu a 4K nativo por su hora; cada juego con su perfil por su nombre en el centro de control / conmutador si " + (JuegoConsola.Activo(c, cfg) ? "esta encendido" : "se enciende " + (c.Familia == "xbox" ? "xbox" : "ps5") + "_reconocer_juegos") + ")" : " (su menu no se reconoce: sin HOME a 4K ni juegos por su icono)") +
                       ": los ajustes de toda la consola de partida, \"" +
-                      p.Name + "\"" + (nuevo ? " (nuevo, con los de ahora)" : "") + ": " + p.Summary());
+                      p.Name + "\"" + (nuevo ? (deOtra != null ? " (nuevo, " + deOtra + ")" : " (nuevo, con los de ahora)") : "") + ": " + p.Summary());
         }
 
         // consola=auto: ha cambiado en marcha (lo dice Consolas.Pista desde el hilo que sea; al log ya lo ha escrito). Sin aviso en
