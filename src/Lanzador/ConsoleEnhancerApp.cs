@@ -318,7 +318,9 @@ namespace ConsoleEnhancer
         // (1.2.4 ronda 6, INTEGRA6) la marca de la puesta al dia: la 1.2.4 retirada y la de prueba ya escribieron "1.2.4" (con DLSS FG, Magpie y
         // mpv); con esta los ini de esas tambien se ponen al dia (base.ini sin DLSS FG / Magpie / mpv, la generacion del plan con Smooth Motion
         // y las claves quitadas fuera). IniAnteriorA lee de ella la 1.2.4
-        public const string IniMarca = "1.2.4-r6";
+        // (1.2.4 ronda 7, INTEGRA7) "1.2.4-r7": el modelo de DLSS SR de serie con DLSS 5 a 1440p / 1080p / 720p pasa de K a M (SRBLUR: medido con
+        // video real); esas tablas las escribe el plan (tabla_modelo_30_fg_*, Escalas.cs) y en los ini de antes seguian con K: se escriben otra vez
+        public const string IniMarca = "1.2.4-r7";
         static readonly string[] ClavesGenPlan = { "generacion_tipo", "generacion_tipo_60", "generacion_tipo_30", "motor_generacion_60", "motor_generacion_30",
                                                    // (1.2.2, UNIVERSAL: el modo ligero de Magpie en el 30 con una grafica bastante mas lenta que la de referencia)
                                                    "tabla_ligero_30_fg", "tabla_ligero_30", "tabla_ligero_30_fg_4k", "tabla_ligero_30_4k",
@@ -328,7 +330,9 @@ namespace ConsoleEnhancer
                                                    // capturas_120 (sin ella no hay modo 120): se ponen tambien al dia (con la capturadora abierta para leer sus formatos)
                                                    "capturas_120", "framerate_120",
                                                    // (1.0.9: XeSS / FSR 4 de serie sin DLSS; con RTX sale igual que antes, dlss)
-                                                   "escalador", "escalador_alternativo" };
+                                                   "escalador", "escalador_alternativo",
+                                                   // (1.2.4 ronda 7, INTEGRA7: con DLSS 5 a 1440p / 1080p / 720p, M y no K -SRBLUR-)
+                                                   "tabla_modelo_30_fg_1440", "tabla_modelo_30_fg_1080", "tabla_modelo_30_fg_720" };
         static void ActualizarIni()
         {
             try
@@ -366,7 +370,9 @@ namespace ConsoleEnhancer
                 StringBuilder gen = new StringBuilder();
                 try
                 {
-                    Hardware hw = Detectar(true);   // (1.0.9: abriendo la capturadora: sus formatos a 120 para capturas_120)
+                    // (1.0.9: abriendo la capturadora: sus formatos a 120 para capturas_120. 1.2.4 ronda 7, INTEGRA7: con la fuente de prueba
+                    // -test_source=, las pruebas con video- sin abrirla: la capturadora de verdad puede estar en uso)
+                    Hardware hw = Detectar(string.IsNullOrEmpty(IniLeer("test_source")));
                     PreferenciasPlan pref = new PreferenciasPlan();
                     pref.Consola = "";
                     CeImagen.Preferencias(pref, hw.Pantallas.Find(delegate(PantallaInfo x) { return x.Principal; }));
