@@ -171,6 +171,10 @@ namespace ConsoleEnhancer.Motor
                         long hi = fmhPrevReal + (long)((realMs + 4) / Clock.TickMs);
                         if (R > hi) { R = Math.Max(hi, g + (long)(0.75 * full / Clock.TickMs)); fmhSqueezed++; }
                     }
+                    // sin inventadas (corte de escena, la 1a, con aviso) pero con la generacion puesta: la real a su cadencia (la anterior + un
+                    // intervalo real) y no al momento: si no, sale pegada a la anterior (medido: dos reales a 0,6 ms y luego 33 ms sin nada)
+                    if (!gen && k > 1 && fmhPrevReal != 0 && Clock.Ms(fmhPrevReal, g) < 2 * realMs)
+                        R = Math.Max(R, fmhPrevReal + (long)((realMs - 1) / Clock.TickMs));
                     double s2 = gen && k > 1 ? Math.Min(step, Math.Max(0, Clock.Ms(g, R)) / (k - 1)) : 0;
                     int hr = 0;
                     if (gen)
