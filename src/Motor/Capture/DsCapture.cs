@@ -515,6 +515,11 @@ namespace ConsoleEnhancer.Motor.Capture
         IGraphBuilder graph;
         IBaseFilter capFilter, grabFilter, nullFilter;
         IPin capOut, grabIn, grabOut, nullIn;
+        // 23-11 (1.2.4, SINMPV): MJPEG (las capturadoras USB 2.0 tipo MS2109 a 1080p, antes por mpv): el "MJPEG Decompressor" de Windows
+        // (quartz.dll) entre la capturadora y el Sample Grabber, que recibe RGB32 (o lo que el decompresor de: RGB24 / YUY2)
+        IBaseFilter decFilter;
+        IPin decIn, decOut;
+        static readonly Guid CLSID_MjpegDec = new Guid("301056D0-6DFF-11D2-9EEB-006008039E37");
         ISampleGrabber grabber;
         IReferenceClock clock;
         DsGrabberCallback callback;
@@ -688,11 +693,13 @@ namespace ConsoleEnhancer.Motor.Capture
                 MfHr.Check(sc.SetFormat(pmt), "IAMStreamConfig.SetFormat(" + best.Info.SubtypeName + " " + best.Info.Width + "x" + best.Info.Height + ")");
 
                 // Sample Grabber: accepts exactly this major/subtype/format type; callback mode, no internal buffer copy
+                // (23-11, SINMPV: con MJPEG, lo que sale del decompresor: RGB32, de tamaño fijo)
+                bool mjpg = best.Info.Format == CaptureFormat.MJPG;
                 grabFilter = (IBaseFilter)DsApi.CoCreate(DsApi.CLSID_SampleGrabber);
                 grabber = (ISampleGrabber)grabFilter;
                 AM_MEDIA_TYPE g = new AM_MEDIA_TYPE();
-                g.majortype = DsApi.MEDIATYPE_Video; g.subtype = mt.subtype; g.formattype = mt.formattype;
-                g.bFixedSizeSamples = mt.bFixedSizeSamples; g.lSampleSize = mt.lSampleSize;
+                g.majortype = DsApi.MEDIATYPE_Video; g.subtype = mjpg ? DsApi.MEDIASUBTYPE_RGB32 : mt.subtype; g.formattype = mjpg ? DsApi.FORMAT_VideoInfo : mt.formattype;
+                g.bFixedSizeSamples = mjpg ? 1 : mt.bFixedSizeSamples; g.lSampleSize = mjpg ? (uint)(best.Info.Width * best.Info.Height * 4) : mt.lSampleSize;
                 gmt = Marshal.AllocHGlobal(Marshal.SizeOf(typeof(AM_MEDIA_TYPE)));
                 Marshal.StructureToPtr(g, gmt, false);
                 MfHr.Check(grabber.SetMediaType(gmt), "ISampleGrabber.SetMediaType");
@@ -709,7 +716,27 @@ namespace ConsoleEnhancer.Motor.Capture
                 grabOut = DsApi.FindPin(grabFilter, DsApi.PINDIR_OUTPUT);
                 nullIn = DsApi.FindPin(nullFilter, DsApi.PINDIR_INPUT);
                 if (grabIn == null || grabOut == null || nullIn == null) throw new CaptureException("grabber/null renderer pins not found");
-                MfHr.Check(graph.ConnectDirect(capOut, grabIn, pmt), "ConnectDirect(capture -> grabber)");
+                if (mjpg)
+                {
+                    // capturadora (MJPEG) -> MJPEG Decompressor -> grabber (RGB32: el decompresor lo da sin convertidores de por medio)
+                    decFilter = (IBaseFilter)DsApi.CoCreate(CLSID_MjpegDec);
+                    MfHr.Check(graph.AddFilter(decFilter, "MJPEG"), "AddFilter(MJPEG Decompressor)");
+                    decIn = DsApi.FindPin(decFilter, DsApi.PINDIR_INPUT);
+                    decOut = DsApi.FindPin(decFilter, DsApi.PINDIR_OUTPUT);
+                    if (decIn == null || decOut == null) throw new CaptureException("MJPEG Decompressor pins not found");
+                    MfHr.Check(graph.ConnectDirect(capOut, decIn, pmt), "ConnectDirect(capture MJPG -> MJPEG Decompressor)");
+                    int ch = graph.ConnectDirect(decOut, grabIn, IntPtr.Zero);
+                    if (ch < 0)
+                    {
+                        // (si no da RGB32 directo: lo que acepte, YUY2 / RGB24, con el grabber sin subtipo fijo)
+                        AM_MEDIA_TYPE g2 = new AM_MEDIA_TYPE(); g2.majortype = DsApi.MEDIATYPE_Video;
+                        Marshal.StructureToPtr(g2, gmt, false);
+                        MfHr.Check(grabber.SetMediaType(gmt), "ISampleGrabber.SetMediaType(video)");
+                        MfHr.Check(graph.ConnectDirect(decOut, grabIn, IntPtr.Zero), "ConnectDirect(MJPEG Decompressor -> grabber)");
+                    }
+                    Raise(CaptureEvent.Opening, "MJPEG: decompressed by the Windows MJPEG Decompressor");
+                }
+                else MfHr.Check(graph.ConnectDirect(capOut, grabIn, pmt), "ConnectDirect(capture -> grabber)");
                 MfHr.Check(graph.ConnectDirect(grabOut, nullIn, IntPtr.Zero), "ConnectDirect(grabber -> null)");
 
                 // what was really connected
@@ -717,7 +744,8 @@ namespace ConsoleEnhancer.Motor.Capture
                 for (int i = 0; i < Marshal.SizeOf(typeof(AM_MEDIA_TYPE)); i += 8) Marshal.WriteInt64(cmt, i, 0);
                 DsType ct = null;
                 if (grabber.GetConnectedMediaType(cmt) >= 0) ct = ParseVideoType(cmt, IntPtr.Zero, best.CapsIndex);
-                if (ct == null || ct.Info.Width == 0) ct = best;
+                if (ct == null || ct.Info.Width == 0) { if (mjpg) throw new CaptureException("MJPEG Decompressor: unknown output type"); ct = best; }
+                if (mjpg) { ct.DefaultInterval = best.DefaultInterval; ct.MinInterval = best.MinInterval; ct.MaxInterval = best.MaxInterval; }
                 ct.Info.FpsMin = best.Info.FpsMin; ct.Info.FpsMax = best.Info.FpsMax;
                 ApplyType(ct);
             }
@@ -1084,7 +1112,7 @@ namespace ConsoleEnhancer.Motor.Capture
             if (grabber != null) { try { grabber.SetCallback(null, 0); } catch { } }
             if (graph != null)
             {
-                IBaseFilter[] fs = new IBaseFilter[] { nullFilter, grabFilter, capFilter };
+                IBaseFilter[] fs = new IBaseFilter[] { nullFilter, grabFilter, decFilter, capFilter };
                 foreach (IBaseFilter f in fs) if (f != null) { try { graph.RemoveFilter(f); } catch { } }
             }
             graphEvent = null;   // handle belongs to the graph
@@ -1094,6 +1122,9 @@ namespace ConsoleEnhancer.Motor.Capture
             MfApi.Release(grabOut); grabOut = null;
             MfApi.Release(grabIn); grabIn = null;
             MfApi.Release(capOut); capOut = null;
+            MfApi.Release(decIn); decIn = null;
+            MfApi.Release(decOut); decOut = null;
+            MfApi.Release(decFilter); decFilter = null;
             MfApi.Release(nullFilter); nullFilter = null;
             MfApi.Release(grabFilter); grabFilter = null; grabber = null;
             MfApi.Release(capFilter); capFilter = null;

@@ -198,7 +198,8 @@ namespace ConsoleEnhancer.Deteccion
 
         // (1.2.2) Los formatos que el motor propio sabe abrir (src\Motor\Engine\CaptureSource.cs: RGB24, RGB32, YUY2, NV12). Con otro
         // (MJPEG, H.264, UYVY, P010...) la imagen va por mpv (que los descomprime / convierte) + Magpie
-        public static bool MotorLoAbre(string subtipo) { return subtipo == "YUY2" || subtipo == "NV12" || subtipo == "RGB24" || subtipo == "RGB32"; }
+        // (23-11, 1.2.4 SINMPV: y MJPEG, con el MJPEG Decompressor de Windows en el motor; antes iba por mpv)
+        public static bool MotorLoAbre(string subtipo) { return subtipo == "YUY2" || subtipo == "NV12" || subtipo == "RGB24" || subtipo == "RGB32" || subtipo == "MJPG" || subtipo == "MJPEG"; }
     }
 
     public static class DetectorCapturadoras

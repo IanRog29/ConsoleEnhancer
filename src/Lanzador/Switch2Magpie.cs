@@ -1450,7 +1450,7 @@ namespace ConsoleEnhancer
                             if (c.ParseRelevo(key, val)) break; // (1.2.4 arreglos, RELEVO: relevo_motor_espera, relevo_xess_magpie, src\Lanzador\RelevoMotor.cs)
                             if (c.ParseSonidoDoble(key, val)) break; // (21-11: sonido_doble, src\SonidoDoble.cs)
                             if (c.ParseCapturaSegura(key, val)) break; // (21-11, 1.2.1: captura_segura, src\Lanzador\CapturaSegura.cs)
-                            if (MarcoMpv.Parse(key, val)) break; // (22-11, 1.2.1: mpv_sin_marco, src\Lanzador\MarcoMpv.cs)
+                            if (key == "mpv_sin_marco") break; // (22-11, 1.2.1: la ventana de mpv sin marco para Magpie; 23-11, 1.2.4 SINMPV: sin mpv, no cuenta)
                             if (c.ParseTiempos(key, val)) break; // (22-11, 1.2.2: motor_en_espera_al_abrir_ms, magpie_dlss_sr_solo_cadena; src\Lanzador\TiemposCarga.cs)
                             if (key.StartsWith("mando_") && PadOptions.Parse(key, val)) break; // (18-11, MANDOS: modo PC, src\Mandos.cs)
                             Log.Write("Aviso: clave desconocida en ini: " + key); break;
@@ -6586,7 +6586,8 @@ namespace ConsoleEnhancer
             if (InHome || homeBusy) { if (!applying) Osd(MenuTexto + " · el filtro de tramado se cambia dentro de cada juego"); return; }
             if (cfg.StrongDither <= 0 || !File.Exists(Paths.EdgeAaShaderStrong) || !cfg.EdgeAa || !cfg.Dedither)
             {
-                Osd("Filtro de tramado nuevo desactivado en el ini");
+                // (23-11, 1.2.4 SINMPV: el filtro fuerte era un shader de mpv -scripts\\s2_aa_strong.glsl-; el motor lleva el normal)
+                Osd(File.Exists(Paths.EdgeAaShaderStrong) ? "Filtro de tramado nuevo desactivado en el ini" : "Filtro de tramado fuerte: era de mpv; el motor lleva el normal");
                 return;
             }
             cfg.StrongDitherOn = !cfg.StrongDitherOn;
@@ -9791,7 +9792,7 @@ namespace ConsoleEnhancer
         static string EngineFormat(Config cfg)
         {
             string pf = CapturaSegura.Efectivo(cfg).Pix;   // (21-11, 1.2.1: el de lo que se abre de verdad; sin repuesto, PixelFormatNow)
-            return pf == "bgr24" ? "rgb24" : pf == "yuyv422" ? "yuy2" : pf == "nv12" ? "nv12" : "auto";
+            return pf == "bgr24" ? "rgb24" : pf == "yuyv422" ? "yuy2" : pf == "nv12" ? "nv12" : pf == "mjpeg" ? "mjpg" : "auto";   // (23-11, SINMPV: mjpeg)
         }
 
         // Si la sesion va con mpv + Magpie y no hay motor: uno arrancado ya en espera (standby=1), una vez por sesion, en el HOME a 4K nativo
@@ -11730,7 +11731,6 @@ namespace ConsoleEnhancer
                         return int.MinValue;
                     }
                     Process started = p; // copia para el hilo (p cambia al relanzar)
-                    if (!eng) MarcoMpv.Vigilar(started); // (22-11, 1.2.1: sin titulo ni marco, Magpie captura la imagen entera; src\Lanzador\MarcoMpv.cs)
                     bool linkNow = woke != null; // (16-11: el despertado ya tiene su tuberia: el enlace al momento)
                     // Audio de Streaming Center + vigilancia de fotogramas
                     Thread link = new Thread(delegate () { MpvLinkLoop(started, ipc, linkNow); });
@@ -11769,13 +11769,10 @@ namespace ConsoleEnhancer
                         continue;
                     }
                     // 15-11: el motor propio no llega a dar imagen 2 veces: el resto de la sesion, mpv sin el motor (1.2.4 ronda 6: sin Magpie)
-                    if (eng && salida != 0 && ++engineFails >= 2)
-                    {
-                        Log.Write("El motor propio no arranca (codigo " + salida + ", ver data\\logs\\engine.log): mpv sin el motor el resto de la sesion");
-                        cfg.Engine = "magpie";
-                        Config.EngineActive = false;
-                        continue;
-                    }
+                    // (23-11, 1.2.4 SINMPV: sin mpv no hay otro camino: se apunta y se sigue con los reintentos de abajo -2 s, a las 5 cada 10 s y a
+                    // las 20 el aviso, que entonces dice que es el motor-)
+                    if (eng && salida != 0 && ++engineFails == 2)
+                        Log.Write("El motor propio no arranca (codigo " + salida + ", " + engineFails + " veces; ver data\\logs\\engine.log): se vuelve a intentar (sin mpv no hay otro camino)");
                     // Cerrado por el usuario (codigo 0): se sale como siempre. 20-11 (CIERRES): el motor con 0 sin que el usuario saliera
                     // (03:54:38, el relanzado tras un reinicio de la grafica) se vuelve a abrir (src\Cierres.cs, EngineZeroExitRetry)
                     if (salida == 0) { if (EngineZeroExitRetry(eng, p)) continue; return 0; }
@@ -11786,6 +11783,12 @@ namespace ConsoleEnhancer
                     string otros = mpvFails == 5 || mpvFails >= 20 ? ProgramasConCaptura() : "";
                     if (mpvFails >= 20)
                     {
+                        if (engineFails >= 2)
+                        {
+                            Fatal(Deteccion.Tx.T("El motor de imagen no arranca (" + mpvFails + " intentos; codigo " + salida + "). ¿Tu gráfica tiene Direct3D 12 y su driver al día? Mira data\\logs\\engine.log.",
+                                                 "The image engine does not start (" + mpvFails + " tries; code " + salida + "). Does your GPU have Direct3D 12 and an up-to-date driver? See data\\logs\\engine.log."));
+                            return int.MinValue;
+                        }
                         Fatal(Deteccion.Tx.T("No se puede abrir la capturadora (" + mpvFails + " intentos). " +
                                              (otros.Length > 0 ? "Ciérralo y vuelve a abrir la app: " + otros + " puede estar usándola." : "¿Está conectada? ¿La usa otro programa?"),
                                              "The capture card can't be opened (" + mpvFails + " tries). " +
@@ -11793,7 +11796,7 @@ namespace ConsoleEnhancer
                         return int.MinValue;
                     }
                     int pausa = mpvFails >= 5 ? 10000 : 2000;
-                    Log.Write("mpv fallo sin mostrar imagen (codigo " + salida + ", " + mpvFails + " seguidas); se relanza en " + pausa / 1000 + " s" +
+                    Log.Write("El motor se ha cerrado sin mostrar imagen (codigo " + salida + ", " + mpvFails + " seguidas); se relanza en " + pausa / 1000 + " s" +
                               (otros.Length > 0 ? " (abiertos que pueden tener la capturadora: " + otros + ")" : ""));
                     Thread.Sleep(pausa);
                     if (userExit) return int.MinValue;

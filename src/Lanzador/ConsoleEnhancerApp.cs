@@ -519,7 +519,8 @@ namespace ConsoleEnhancer
                 sb.AppendLine("device_path=" + p.Captura.DevicePath);
                 sb.AppendLine("video_size=" + Tamano(p.CapW, p.CapH));
                 sb.AppendLine("framerate=" + p.CapFps);
-                string pf = p.CapFormato == "NV12" ? "nv12" : p.CapFormato == "YUY2" ? "yuyv422" : p.CapFormato == "RGB24" ? "bgr24" : p.CapFormato == "RGB32" ? "bgr0" : "";
+                string pf = p.CapFormato == "NV12" ? "nv12" : p.CapFormato == "YUY2" ? "yuyv422" : p.CapFormato == "RGB24" ? "bgr24" : p.CapFormato == "RGB32" ? "bgr0" :
+                            p.CapFormato == "MJPG" ? "mjpeg" : "";   // (23-11, 1.2.4 SINMPV: MJPEG lo descomprime el motor)
                 sb.AppendLine("pixel_format=" + pf);
                 // (fusion I, modo 120 de Prisma) las capturas que ESTA capturadora lista a 120 (Plan.Capturas120); vacio = sin modo 120
                 string fr120;

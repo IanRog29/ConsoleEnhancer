@@ -1,23 +1,21 @@
 ﻿# descargar_dependencias.ps1 - baja los programas de terceros que usa ConsoleEnhancer (versiones fijas, de sus releases oficiales de
 # GitHub, comprobando el SHA-256) y los deja donde los buscan build.bat, build_motor.bat y empaquetar.ps1:
 #
-#   terceros\mpv\          mpv (mpv-player/mpv, build oficial x86_64-w64-mingw32 "full": FFmpeg con dshow dentro) + su
-#                          portable_config\mpv.conf (resources\mpv.conf: asi el mpv.conf del usuario, si tiene, no cambia nada)
 #   terceros\xess\         Intel XeSS SDK (intel/xess): libxess.dll, libxess_fg.dll, libxell.dll y su licencia (XeSS y XeSS FG del motor)
 #   terceros\fsr\          AMD FSR SDK (GPUOpen FidelityFX-SDK): las amd_fidelityfx_*_dx12.dll firmadas (FSR 3.1 / 4 y FSR 3 FG del motor)
-#                          (1.2.4 ronda 6: sin Magpie, que antes traia estas DLL)
+#                          (1.2.4 ronda 6: sin Magpie, que antes traia estas DLL; y sin mpv: la imagen y el sonido son del motor)
 #   terceros\streamline\   NVIDIA Streamline SDK (NVIDIA-RTX/Streamline): solo bin\x64\ (las DLL de produccion) y las licencias
 #
-# Versiones, URL, SHA-256 y que se coge de cada zip: scripts\components.json (la misma tabla que usa la app para bajar mpv, XeSS y FSR
+# Versiones, URL, SHA-256 y que se coge de cada zip: scripts\components.json (la misma tabla que usa la app para bajar XeSS y FSR
 # la primera vez que se abre). Las descargas se guardan en terceros\_descargas (si ya estan y el hash cuadra, no se bajan otra vez).
 # Nada de esto va al repositorio (.gitignore). Solo PowerShell 5.1 de Windows, nada que instalar.
 #
-# Uso: powershell -ExecutionPolicy Bypass -File scripts\descargar_dependencias.ps1 [-Solo mpv,xess,fsr,streamline] [-Forzar]
+# Uso: powershell -ExecutionPolicy Bypass -File scripts\descargar_dependencias.ps1 [-Solo xess,fsr,streamline] [-Forzar]
 #        [-Destino <carpeta>] [-Cache <carpeta>] [-ConservarNoOficial]
 #  -Forzar               rehace las carpetas aunque ya esten en la version buena
 #  -ConservarNoOficial   (de antes, con Magpie: ya no hace nada)
 param(
-    [string[]]$Solo = @('mpv', 'xess', 'fsr', 'streamline'),
+    [string[]]$Solo = @('xess', 'fsr', 'streamline'),
     [string]$Raiz = (Split-Path -Parent $PSScriptRoot),
     [string]$Destino = '',
     [string]$Cache = '',
@@ -99,16 +97,12 @@ function Preparar([string]$nombre) {
     Write-Host "$nombre $($d.version):"
     $zip = Bajar $d
     if (Test-Path $dir) {
-        # (puede ser el destino de una union bin\mpv, bin\xess o bin\fsr: se vacia por dentro, la carpeta se queda)
+        # (puede ser el destino de una union bin\xess o bin\fsr: se vacia por dentro, la carpeta se queda)
         Get-ChildItem -LiteralPath $dir -Force | Remove-Item -Recurse -Force
     }
     New-Item -ItemType Directory -Force $dir | Out-Null
     $n = Sacar $d $zip $dir
     if (-not (Test-Path (Join-Path $dir $d.comprobar.Replace('/', '\')))) { throw "$($nombre): no esta $($d.comprobar) en el zip" }
-    if ($nombre -eq 'mpv') {
-        $conf = Join-Path $Raiz 'resources\mpv.conf'
-        if (Test-Path $conf) { New-Item -ItemType Directory -Force "$dir\portable_config" | Out-Null; Copy-Item -LiteralPath $conf "$dir\portable_config\mpv.conf" -Force; $n++ }
-    }
     if ($nombre -eq 'streamline') {
         foreach ($f in @('sl.interposer.dll', 'sl.common.dll', 'sl.dlss.dll', 'sl.reflex.dll', 'sl.pcl.dll', 'nvngx_dlss.dll')) {   # (1.2.4 ronda 6: sin DLSS-G)
             if (-not (Test-Path "$dir\bin\x64\$f")) { throw "Streamline: no esta bin\x64\$f en el zip" }

@@ -143,7 +143,7 @@ jobs:
           }
           if ($notas.Count -eq 0) { $notas.Add("ConsoleEnhancer $tag") }
           $notas.Add('')
-          $notas.Add('**Download / Descarga:** `ConsoleEnhancer-' + $tag + '.zip` (below / abajo). Unzip and open `ConsoleEnhancer.exe`: on first start it downloads mpv and Magpie from their official pages, then the wizard runs. / Descomprime y abre `ConsoleEnhancer.exe`: la primera vez baja mpv y Magpie de sus paginas oficiales y luego sale el asistente.')
+          $notas.Add('**Download / Descarga:** `ConsoleEnhancer-' + $tag + '.zip` (below / abajo). Unzip and open `ConsoleEnhancer.exe`: on first start it downloads Intel XeSS and AMD FSR from their official pages, then the wizard runs. / Descomprime y abre `ConsoleEnhancer.exe`: la primera vez baja Intel XeSS y AMD FSR de sus paginas oficiales y luego sale el asistente.')
           $notas.Add('')
           $notas.Add('SHA-256: `' + ((Get-Content "dist/ConsoleEnhancer-$tag.zip.sha256" -Raw).Split(' ')[0]) + '` (each file inside / cada fichero de dentro: `ConsoleEnhancer-' + $tag + '.files.sha256`)')
           $notas.Add('')

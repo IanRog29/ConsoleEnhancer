@@ -156,7 +156,7 @@ namespace ConsoleEnhancer
                 PrepareCfg();
                 bool engine = cfg.EngineNow;
                 Log.Write("Mando: generacion " + GenLabel(t, engine) + " en el modo " + (cfg.CapMode ? "30" : "60") + " (antes " + GenLabel(cur, Config.EngineActive) + ")" +
-                          (engine != Config.EngineActive ? (engine ? ": al motor propio" : ": a mpv sin el motor") : ReopenNote) +
+                          (engine != Config.EngineActive ? ": al motor propio" : ReopenNote) +
                           " · " + cfg.ProfileText);
                 SaveCurProfile();
                 string title = t == "no" ? "Generación de fotogramas desactivada" : "Generación: " + GenLabel(t, engine);

@@ -92,10 +92,12 @@ namespace ConsoleEnhancer.Deteccion
         }
 
         // Cuanto MJPEG se puede descomprimir en la CPU (mpv, un hilo): el alto maximo de una captura comprimida
+        // 23-11 (1.2.4, SINMPV): sin mpv, el MJPEG lo descomprime el motor con el MJPEG Decompressor de Windows: medido (Ryzen 5 2600, un
+        // nucleo) 33 ms por imagen de 1080p -como mucho ~30 por segundo, frente a ~7 ms de mpv-, ~15 ms a 720p. Asi, 720p como mucho
+        // (60 fps); con un formato sin comprimir a 1080p la capturadora no pasa por aqui
         public static int TopeComprimido(Hardware hw)
         {
-            int hilos = hw != null && hw.Sistema != null ? hw.Sistema.Hilos : 0;
-            return hilos == 0 || hilos >= 6 ? 1080 : 720;
+            return 720;
         }
 
         // Los fps que se piden a la capturadora con este formato: 59,94 si su rango lo admite; si solo lista 60,000 exactos (muchas UVC
@@ -134,6 +136,8 @@ namespace ConsoleEnhancer.Deteccion
         // El motor abre RGB24 / RGB32 / YUY2 / NV12 (src\Motor\Engine\CaptureSource.cs). Una capturadora que a esa resolucion solo da MJPEG
         // (MS2109 y casi todas las de USB 2.0) o H.264: el motor elegia el YUY2 del mismo tamaño a 5-10 fps (lo mas parecido que habia).
         // Entonces la imagen va por mpv (descomprime) + Magpie (escalado y generacion: los mismos de la grafica)
+        // (23-11, 1.2.4 SINMPV: MJPEG ya lo abre el motor -lo descomprime el MJPEG Decompressor de Windows-; H.264 / HEVC no: sin mpv no hay
+        // camino para ellos, se avisa para elegir otro formato)
         static void MotorSegunCaptura(PlanImagen p)
         {
             if (p.Motor != "propio" || p.Captura == null) return;
@@ -141,9 +145,8 @@ namespace ConsoleEnhancer.Deteccion
             if (f == "MJPEG") f = "MJPG";
             bool conocido = f.Length > 0 && f != "AUTO";
             if (!conocido || CapturadoraInfo.MotorLoAbre(f)) return;
-            p.Motor = "mpv";
-            p.Motivos.Add(Tx.T("La captura llega en " + f + " (el motor propio solo abre YUY2 / NV12 / RGB): la imagen va por mpv (lo descomprime), sin el motor",
-                               "Capture arrives as " + f + " (the own engine only takes YUY2 / NV12 / RGB): picture goes through mpv (decodes it), without the engine"));
+            p.Avisos.Add(Tx.T("La captura llega en " + f + ": el motor de imagen solo abre YUY2 / NV12 / RGB / MJPEG. Elige otro formato de la capturadora en el asistente",
+                              "Capture arrives as " + f + ": the image engine only takes YUY2 / NV12 / RGB / MJPEG. Pick another capture format in the wizard"));
         }
 
         // (asistente) El formato elegido a mano en la lista: los fps que se le piden (59,94 o 60 segun su rango) y si el motor propio puede

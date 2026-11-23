@@ -706,10 +706,10 @@ namespace ConsoleEnhancer
                         "third-party components: the licenses\\ folder (README.txt).") + "\r\n\r\n" +
                    Tx.T("Usa: NVIDIA DLSS, NVIDIA Reflex y NVIDIA Streamline (© NVIDIA Corporation, con sus licencias); " +
                         "AMD FidelityFX Super Resolution 1 y CAS (© Advanced Micro Devices, Inc., MIT); NVIDIA FXAA 3.11 (© NVIDIA Corporation, BSD); " +
-                        "mpv (GPL), Intel XeSS (Intel Simplified Software License) y AMD FSR SDK (MIT), bajados de sus páginas oficiales.",
+                        "Intel XeSS (Intel Simplified Software License) y AMD FSR SDK (MIT), bajados de sus páginas oficiales.",
                         "Uses: NVIDIA DLSS, NVIDIA Reflex and NVIDIA Streamline (© NVIDIA Corporation, under their " +
                         "licenses); AMD FidelityFX Super Resolution 1 and CAS (© Advanced Micro Devices, Inc., MIT); NVIDIA FXAA 3.11 (© NVIDIA " +
-                        "Corporation, BSD); mpv (GPL), Intel XeSS (Intel Simplified Software License) and the AMD FSR SDK (MIT), downloaded from their official pages.") + "\r\n\r\n" +
+                        "Corporation, BSD); Intel XeSS (Intel Simplified Software License) and the AMD FSR SDK (MIT), downloaded from their official pages.") + "\r\n\r\n" +
                    Tx.T("NVIDIA, DLSS, Reflex, GeForce RTX, AMD, FidelityFX, Intel, XeSS, Nintendo, PlayStation, Xbox y las demás marcas son de " +
                         "sus dueños. ConsoleEnhancer no está afiliado a ninguno de ellos.",
                         "NVIDIA, DLSS, Reflex, GeForce RTX, AMD, FidelityFX, Intel, XeSS, Nintendo, PlayStation, Xbox and other marks belong to " +

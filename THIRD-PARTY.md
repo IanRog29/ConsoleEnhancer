@@ -9,9 +9,10 @@ del repositorio. En el zip, las licencias completas van en `licenses\`.
 > permissively licensed shader ports (AMD FidelityFX FSR 1 / CAS, MIT; NVIDIA FXAA 3.11, BSD-3-Clause) and one shader adapted from
 > Magpie (GPL-3.0). No third-party binaries are in the repository. The release zip contains only ConsoleEnhancer's own executables plus
 > the unmodified, NVIDIA-signed Streamline / DLSS Super Resolution / Reflex DLLs, which NVIDIA allows applications to redistribute.
-> **mpv, the Intel XeSS SDK and the AMD FSR SDK are not redistributed**: on first start the app downloads them from their official
+> **The Intel XeSS SDK and the AMD FSR SDK are not redistributed**: on first start the app downloads them from their official
 > GitHub releases (pinned versions, SHA-256 checked). Since 1.2.4 everything runs in ConsoleEnhancer's own engine: the app no longer
-> uses or downloads Magpie, and NVIDIA DLSS Frame Generation (and the community `dlssg_sm86` package) is gone. The community-modified
+> uses or downloads Magpie or mpv (picture, detection grabs and console sound are the engine's), and NVIDIA DLSS Frame Generation
+> (and the community `dlssg_sm86` package) is gone. The community-modified
 > `nvngx_dlssnr.dll` ("DLSS 5") is never distributed, downloaded or recommended; the app only uses it if you add it yourself. The
 > repository and the zip carry the engine's own native piece `PrismaNr` (own code, GPL-3.0), which loads that user-added file without
 > going through NVIDIA's check (NGX); NVIDIA's terms do not allow that, and the user decided to publish it knowing it. PrismaNr is
@@ -50,15 +51,13 @@ Lo que pide NVIDIA y cómo se cumple:
 
 ## 2. Lo que la app baja la primera vez (no va en el zip)
 
-ConsoleEnhancer **no reparte** mpv ni las DLL de Intel XeSS y AMD FSR. La primera vez que se abre, con permiso del usuario, los baja de
+ConsoleEnhancer **no reparte** las DLL de Intel XeSS y AMD FSR. La primera vez que se abre, con permiso del usuario, las baja de
 sus releases oficiales de GitHub a la carpeta de la app y comprueba su SHA-256 (`scripts\components.json`, `src\Lanzador\Componentes.cs`).
-Así no hace falta repartir el código fuente de mpv y de todas las librerías GPL que lleva su build (FFmpeg, libplacebo...): el usuario
-lo recibe de quien lo reparte, con su oferta de código fuente. De los SDK de Intel y AMD solo se sacan sus DLL de ejecución (y, de Intel,
-su licencia).
+De los SDK de Intel y AMD solo se sacan sus DLL de ejecución (y, de Intel, su licencia). Desde la 1.2.4 la app ya no usa ni baja mpv:
+la imagen, las capturas para la detección, los telones, la sonda de la espera y el sonido de la consola los hace el motor propio.
 
 | Componente | Versión y descarga | Licencia | Código fuente / web |
 |---|---|---|---|
-| **mpv** (`mpv\mpv.exe`, build "full" con FFmpeg y otras librerías dentro) | v0.42.0, `mpv-v0.42.0-x86_64-w64-mingw32-full.zip` de https://github.com/mpv-player/mpv/releases | GPL-2.0 o posterior (`mpv\LICENSE.GPL`) | https://github.com/mpv-player/mpv/releases/tag/v0.42.0 |
 | **Intel XeSS SDK** (`xess\libxess.dll`, `libxess_fg.dll`, `libxell.dll`: XeSS de escalador, XeSS Frame Generation y XeLL del motor) | v3.0.2, `XeSS_SDK_3.0.2.zip` de https://github.com/intel/xess/releases | Intel Simplified Software License (`xess\LICENSE.txt`, `xess\third-party-programs.txt`) | https://github.com/intel/xess/releases/tag/v3.0.2 |
 | **AMD FSR SDK** (`fsr\amd_fidelityfx_loader_dx12.dll`, `_upscaler_dx12.dll`, `_framegeneration_dx12.dll`: FSR 3.1 / 4 de escalador y FSR Frame Generation del motor; firmadas por AMD) | v2.3.0, `FidelityFX-Samples-v2.3.0-prebuilt.zip` de https://github.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK/releases | MIT (AMD FidelityFX SDK) | https://github.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK/releases/tag/v2.3.0 |
 

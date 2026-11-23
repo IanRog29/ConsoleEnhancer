@@ -200,7 +200,7 @@ namespace ConsoleEnhancer
                               " nits, gris " + cfg.RtxHdrGray + ", contraste " + cfg.RtxHdrContrast + ", saturacion " + cfg.RtxHdrSaturation + ")");
                     if (hechos.Count > 0) VigilarRtxHdr();
                 }
-                else if (magpie) Log.Write("RTX HDR de Magpie (rtx_hdr_metodo=magpie): solo con mpv + Magpie, pico " + cfg.RtxHdrNits + " nits");
+                else if (magpie) Log.Write("RTX HDR: rtx_hdr_metodo=magpie ya no existe (sin Magpie ni mpv): el del driver");
                 if (VrrAhora && !Ce.NoNvidia)
                 {
                     List<string> hechos = NvDrsCe.PonerVrrVentana(Exes);
