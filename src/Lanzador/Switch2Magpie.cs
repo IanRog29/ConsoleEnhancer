@@ -11769,7 +11769,7 @@ namespace ConsoleEnhancer
                     Thread guard = new Thread(delegate () { LsFocusGuard(started); });
                     guard.IsBackground = true;
                     guard.Start();
-                    if (WaitForSignal(p, woke != null ? 4 : 30, woke != null))
+                    if (WaitForSignal(p, woke != null ? 4 : eng ? 60 : 30, woke != null))   // (1.2.4 ronda 6, INTEGRA6: el motor, 60 s: la primera vez, sin la cache de shaders y con Enhanced FG, pasa de 30 -sesion c1 del 23-11-)
                     {
                         if (eng) engineFails = 0;
                         if (wakeSw != null) Log.Write("Motor en espera: despierto en " + wakeSw.ElapsedMilliseconds + " ms (pid " + p.Id + ")");
