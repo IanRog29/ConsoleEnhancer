@@ -12,7 +12,7 @@ del repositorio. En el zip, las licencias completas van en `licenses\`.
 > `engine\CeFsrFg.dll` (FSR 3 FG ×3 / ×4), built by ConsoleEnhancer from AMD's MIT-licensed FidelityFX SDK 1.1.4 frame interpolation with
 > its own patch (`parches\fidelityfx-fi-multi.patch`; AMD's notice in `licenses\`). Enhanced FG is ConsoleEnhancer's own code.
 > **The Intel XeSS SDK and the AMD FSR SDK are not redistributed**: on first start the app downloads them from their official
-> GitHub releases (pinned versions, SHA-256 checked). Since 1.2.4 everything runs in ConsoleEnhancer's own engine: the app no longer
+> GitHub releases (pinned versions, SHA-256 checked). Since 1.3 everything runs in ConsoleEnhancer's own engine: the app no longer
 > uses or downloads Magpie or mpv (picture, detection grabs and console sound are the engine's), and NVIDIA DLSS Frame Generation
 > (and the community `dlssg_sm86` package) is gone. The community-modified
 > `nvngx_dlssnr.dll` ("DLSS 5") is never distributed, downloaded or recommended; the app only uses it if you add it yourself. The
@@ -25,8 +25,8 @@ del repositorio. En el zip, las licencias completas van en `licenses\`.
 | Componente | Versión y origen | Licencia | ¿Se puede repartir? |
 |---|---|---|---|
 | **ConsoleEnhancer** (`ConsoleEnhancer.exe`, `engine\ConsoleEnhancerEngine.exe`, `scripts\`, `resources\`, `languages\`) | este repositorio | GPL-3.0 + `LICENSE-EXCEPTION.txt` | Sí. El código fuente de cada versión está en GitHub, junto a su release |
-| **Pieza propia del motor** (`engine\PrismaNr.dll`, desde la 1.2.4) | este repositorio (`src\PrismaNr`, C++); se compila con las cabeceras públicas de NGX del SDK de DLSS v310.9.16 (`scripts\descargar_cabeceras_ngx.ps1`, no van a git) | GPL-3.0 + `LICENSE-EXCEPTION.txt` (código propio) | Es código propio. Pero carga la `nvngx_dlssnr.dll` que pone el usuario sin pasar por la comprobación de NGX de NVIDIA, cosa que los términos de NVIDIA no permiten (ver abajo); el usuario decidió publicarla sabiéndolo |
-| **FSR FG de varios instantes** (`engine\CeFsrFg.dll`, desde la 1.2.4) | Compilada por ConsoleEnhancer (`build_fsrfg.bat`) desde el código de AMD FidelityFX SDK v1.1.4 (https://github.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK, etiqueta `v1.1.4`, commit `c6efa6bf7f2027b3ec94f28578bb5965eabb9e55`, que `build_fsrfg.bat` comprueba: interpolación de imágenes y flujo óptico de FSR 3.1, backend DX12) **modificado** con `parches\fidelityfx-fi-multi.patch` (inventar en cualquier instante, para x3 / x4) + `src\CeFsrFg\CeFsrFg.cpp` | MIT, Copyright (C) 2024 Advanced Micro Devices, Inc. (texto abajo y en `licenses\`) | Sí (MIT). No es la DLL firmada de AMD (esa, `amd_fidelityfx_framegeneration_dx12.dll`, sigue haciendo la FSR 3 FG x2) |
+| **Pieza propia del motor** (`engine\PrismaNr.dll`, desde la 1.3) | este repositorio (`src\PrismaNr`, C++); se compila con las cabeceras públicas de NGX del SDK de DLSS v310.9.16 (`scripts\descargar_cabeceras_ngx.ps1`, no van a git) | GPL-3.0 + `LICENSE-EXCEPTION.txt` (código propio) | Es código propio. Pero carga la `nvngx_dlssnr.dll` que pone el usuario sin pasar por la comprobación de NGX de NVIDIA, cosa que los términos de NVIDIA no permiten (ver abajo); el usuario decidió publicarla sabiéndolo |
+| **FSR FG de varios instantes** (`engine\CeFsrFg.dll`, desde la 1.3) | Compilada por ConsoleEnhancer (`build_fsrfg.bat`) desde el código de AMD FidelityFX SDK v1.1.4 (https://github.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK, etiqueta `v1.1.4`, commit `c6efa6bf7f2027b3ec94f28578bb5965eabb9e55`, que `build_fsrfg.bat` comprueba: interpolación de imágenes y flujo óptico de FSR 3.1, backend DX12) **modificado** con `parches\fidelityfx-fi-multi.patch` (inventar en cualquier instante, para x3 / x4) + `src\CeFsrFg\CeFsrFg.cpp` | MIT, Copyright (C) 2024 Advanced Micro Devices, Inc. (texto abajo y en `licenses\`) | Sí (MIT). No es la DLL firmada de AMD (esa, `amd_fidelityfx_framegeneration_dx12.dll`, sigue haciendo la FSR 3 FG x2) |
 | **NVIDIA Streamline** (`engine\sl.interposer.dll`, `sl.common.dll`, `sl.dlss.dll`, `sl.reflex.dll`, `sl.pcl.dll`, `sl.deepdvc.dll`) | v2.14.16, DLL de producción firmadas por NVIDIA, de `streamline-sdk-v2.14.16.zip` (https://github.com/NVIDIA-RTX/Streamline/releases) | MIT (`licenses\streamline\license.txt`, `3rd-party-licenses.md`) | Sí (MIT) |
 | **NVIDIA DLSS Super Resolution, RTX Dynamic Vibrance** (`engine\nvngx_dlss.dll`, `engine\nvngx_deepdvc.dll`) | Las del mismo SDK de Streamline 2.14.16, sin cambios | NVIDIA RTX SDKs License (`licenses\streamline\nvngx_dlss.license.txt`) | Sí, en código objeto y como parte de una aplicación con funciones propias (punto 1.c y 2 de su licencia), con condiciones al menos igual de protectoras para NVIDIA: `licenses\NVIDIA-NOTICE.txt` |
 | **NVIDIA Reflex** (dentro de `sl.reflex.dll`, `sl.pcl.dll`) | Streamline 2.14.16 | Licencia de los SDK de NVIDIA (`licenses\streamline\reflex.license.txt`) | Sí, como parte de la aplicación (1.2 de su licencia) |
@@ -43,11 +43,10 @@ Lo que pide NVIDIA y cómo se cumple:
 - *Aviso a NVIDIA antes de un lanzamiento comercial* (suplemento, 4): ConsoleEnhancer es gratuito y no comercial; quien lo venda o lo
   meta en un producto comercial debe avisar a NVIDIA (https://developer.nvidia.com/sw-notification).
 - *No eludir mecanismos de autenticación* (4.d): el motor usa Streamline tal cual, con su identificador de aplicación de serie (0), y
-  solo pide lo que el runtime de NVIDIA ofrece. **Excepción, desde la 1.2.4**: **PrismaNr** (carga la `nvngx_dlssnr.dll` del usuario
+  solo pide lo que el runtime de NVIDIA ofrece. **Excepción, desde la 1.3**: **PrismaNr** (carga la `nvngx_dlssnr.dll` del usuario
   para "DLSS 5" en el motor) se salta la comprobación de NGX: eso no cumple este punto. Va en el repositorio y en el zip por decisión del
-  usuario, que asume el riesgo. Sin el archivo del usuario no hace nada, y la app no reparte ni baja ese archivo. (La 1.2.4 retirada y
-  la de prueba llevaban también PrismaFg, para DLSS FG x3 / x4 en RTX 40 / 30 con el paquete `dlssg_sm86`: fuera junto con DLSS FG.)
-- *Intel XeSS / XeSS FG / XeLL y AMD FSR en el motor* (1.2.4): `libxess.dll`, `libxess_fg.dll`, `libxell.dll` del SDK oficial de Intel
+  usuario, que asume el riesgo. Sin el archivo del usuario no hace nada, y la app no reparte ni baja ese archivo.
+- *Intel XeSS / XeSS FG / XeLL y AMD FSR en el motor* (1.3): `libxess.dll`, `libxess_fg.dll`, `libxell.dll` del SDK oficial de Intel
   y las `amd_fidelityfx_*_dx12.dll` firmadas del SDK oficial de AMD, sin cambios y por su API pública (ver el punto 2); fuera de las
   gráficas Intel XeSS FG va en x2, como dice el runtime de Intel (su licencia no permite modificar la DLL ni su funcionamiento, tampoco
   en memoria). Los x3 / x4 que ofrece la app son legales: FSR 3 FG x3 / x4 con el código MIT de AMD (que sí permite cambiarlo),
@@ -57,7 +56,7 @@ Lo que pide NVIDIA y cómo se cumple:
 
 ConsoleEnhancer **no reparte** las DLL de Intel XeSS y AMD FSR. La primera vez que se abre, con permiso del usuario, las baja de
 sus releases oficiales de GitHub a la carpeta de la app y comprueba su SHA-256 (`scripts\components.json`, `src\Lanzador\Componentes.cs`).
-De los SDK de Intel y AMD solo se sacan sus DLL de ejecución (y, de Intel, su licencia). Desde la 1.2.4 la app ya no usa ni baja mpv:
+De los SDK de Intel y AMD solo se sacan sus DLL de ejecución (y, de Intel, su licencia). Desde la 1.3 la app ya no usa ni baja mpv:
 la imagen, las capturas para la detección, los telones, la sonda de la espera y el sonido de la consola los hace el motor propio.
 
 | Componente | Versión y descarga | Licencia | Código fuente / web |
@@ -65,7 +64,7 @@ la imagen, las capturas para la detección, los telones, la sonda de la espera y
 | **Intel XeSS SDK** (`xess\libxess.dll`, `libxess_fg.dll`, `libxell.dll`: XeSS de escalador, XeSS Frame Generation y XeLL del motor) | v3.0.2, `XeSS_SDK_3.0.2.zip` de https://github.com/intel/xess/releases | Intel Simplified Software License (`xess\LICENSE.txt`, `xess\third-party-programs.txt`) | https://github.com/intel/xess/releases/tag/v3.0.2 |
 | **AMD FSR SDK** (`fsr\amd_fidelityfx_loader_dx12.dll`, `_upscaler_dx12.dll`, `_framegeneration_dx12.dll`: FSR 3.1 / 4 de escalador y FSR Frame Generation del motor; firmadas por AMD) | v2.3.0, `FidelityFX-Samples-v2.3.0-prebuilt.zip` de https://github.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK/releases | MIT (AMD FidelityFX SDK) | https://github.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK/releases/tag/v2.3.0 |
 
-Son las mismas versiones de esas DLL que traía Magpie hasta la 1.2.3 (desde la 1.2.4 la app no usa Magpie; si en la carpeta de la app
+Son las mismas versiones de esas DLL que traía Magpie hasta la 1.2.3 (desde la 1.3 la app no usa Magpie; si en la carpeta de la app
 queda un `magpie\` de antes, la app copia de ahí esas DLL de Intel y AMD a `xess\` / `fsr\` y no baja nada). Sin internet, valen los
 mismos zip puestos a mano en `<app>\downloads\` (se comprueba igual su SHA-256).
 
@@ -78,7 +77,7 @@ Para desarrollar, `scripts\descargar_dependencias.ps1` baja lo mismo (y Streamli
   La app solo la usa si el usuario la añade él mismo con su propio archivo (bandeja > *Añadir DLSS 5*, que comprueba que es una DLL
   x64 y la copia a `extras\`, o a mano en `extras\`), y avisa de que no es oficial. La app no enlaza ni dice de dónde sacarla.
 - `runtimes\dlssg_sm86`: paquete de la comunidad que hacía que NGX cargara DLSS FG saltándose la comprobación de NVIDIA. No va en el
-  zip, la app no lo baja (de la 1.2.07 a la 1.2.3 lo bajaba sola) y, desde la 1.2.4, sin DLSS FG, tampoco lo usa.
+  zip, la app no lo baja (de la 1.2.07 a la 1.2.3 lo bajaba sola) y, desde la 1.3, sin DLSS FG, tampoco lo usa.
 - Las cabeceras del SDK de DLSS de NVIDIA (`terceros\dlss_sdk`, las dos de NGX con las que se compila PrismaNr): solo para compilar,
   fuera de git y del zip (`scripts\descargar_cabeceras_ngx.ps1` las baja de github.com/NVIDIA/DLSS con su SHA-256).
 

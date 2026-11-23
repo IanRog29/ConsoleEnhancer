@@ -1,7 +1,7 @@
 Source code patches for third-party code, not binaries. Optional. Each patch keeps the license of the code it changes, and each change
 carries its date in a comment, as section 5 of the GPL asks.
 
-PrismaNr ("DLSS 5" inside the engine, C++) is not a patch: its source is in src\PrismaNr (since 1.2.4). It is built with NVIDIA's two
+PrismaNr ("DLSS 5" inside the engine, C++) is not a patch: its source is in src\PrismaNr (since 1.3). It is built with NVIDIA's two
 public NGX headers (scripts\descargar_cabeceras_ngx.ps1, not in git) and loads the unofficial DLL in a way the NVIDIA RTX SDKs license
 does not allow (see THIRD-PARTY.md). Without PrismaNr.dll the engine works the same (src\Motor\Engine\EngineDlss5.cs only uses it if
 it is there).
@@ -11,7 +11,7 @@ it is there).
 Parches de codigo fuente para codigo de terceros, no binarios. Opcionales. Cada parche lleva la licencia del codigo que cambia, y cada
 cambio su fecha en un comentario, como pide la seccion 5 de la GPL.
 
-PrismaNr ("DLSS 5" dentro del motor, C++) no es un parche: su codigo esta en src\PrismaNr (desde la 1.2.4). Se compila con las dos
+PrismaNr ("DLSS 5" dentro del motor, C++) no es un parche: su codigo esta en src\PrismaNr (desde la 1.3). Se compila con las dos
 cabeceras publicas de NGX de NVIDIA (scripts\descargar_cabeceras_ngx.ps1, no van a git) y carga la DLL no oficial de un modo que la
 licencia de los SDK de NVIDIA RTX no permite (ver THIRD-PARTY.md). Sin PrismaNr.dll el motor funciona igual
 (src\Motor\Engine\EngineDlss5.cs solo la usa si esta).

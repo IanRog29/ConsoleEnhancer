@@ -295,7 +295,7 @@ namespace ConsoleEnhancer.Deteccion
                 f.Motor.Pon(false, Tx.T("grafica por software (sin driver de grafica): solo imagen sin escalar", "software adapter: no scaling"));
                 return;
             }
-            f.Motor.Pon(d3d12, d3d12 ? Tx.T("Direct3D 12 ", "Direct3D 12 ") + NivelTexto(g.NivelD3D12) : Tx.T("sin Direct3D 12 nivel 12_0: el motor propio no arranca (solo mpv)", "no Direct3D 12 FL 12_0"));
+            f.Motor.Pon(d3d12, d3d12 ? Tx.T("Direct3D 12 ", "Direct3D 12 ") + NivelTexto(g.NivelD3D12) : Tx.T("sin Direct3D 12 nivel 12_0: el motor de imagen no arranca", "no Direct3D 12 FL 12_0: the image engine cannot start"));
             f.Fsr1.Pon(true, Tx.T("shader propio (EASU + RCAS), cualquier grafica", "own shader, any GPU"));
             f.Fsr3Fg.Pon(d3d12 && sm62, d3d12 && sm62 ? Tx.T("FSR 3 FG x2 (motor propio, AMD FSR SDK)", "FSR 3 FG x2 (own engine, AMD FSR SDK)") : Tx.T("pide D3D12 12_0 y SM 6.2", "needs D3D12 FL 12_0 + SM 6.2"));
             f.Fsr3Fg.Dudoso = g.ShaderModel == 0;

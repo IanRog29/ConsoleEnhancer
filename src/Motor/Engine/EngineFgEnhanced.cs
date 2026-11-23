@@ -65,7 +65,10 @@ namespace ConsoleEnhancer.Motor
                                                 // daba -1 %, pero en la tele (otra sesion) salio algo peor y no pude repetirlo: queda para probar
         public bool EfgStamps = true;           // efg_tiempos=0: sin las marcas de tiempo de la grafica (prueba)
         public bool EfgPrecompile = true;       // (1.2.4 ronda 7, EFGFIX) efg_precompilar=0: sin compilar sus sombreadores de fondo (EfgPrecompilar)
-        public bool EfgSaltoFino = true;        // (1.2.4 ronda 7, EFGFIX) efg_salto_fino=0: con otra real en la cola se saltan las inventadas de despues de la real (como antes)
+        public bool EfgSaltoFino = false;       // (1.2.4 ronda 7, EFGFIX) efg_salto_fino=1: con otra real en la cola solo se saltan las inventadas que llegarian a
+                                                // la siguiente real. (1.3, RELEASE13) de serie 0 = como antes: medido con video real, x4 baja latencia + DLSS 5 al 65 %
+                                                // a 4K, sin saltos pero la grafica se colgo a los 37 s (DXGI_ERROR_DEVICE_HUNG, nvlddmkm 153); con 0, sin cuelgue y
+                                                // el vigilante de x4 + DLSS 5 baja DLSS 5 al 35 % (EngineX4D5.cs)
 
         bool ApplyEfg(string key, string val)
         {

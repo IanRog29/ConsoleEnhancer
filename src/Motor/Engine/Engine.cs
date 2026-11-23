@@ -851,7 +851,7 @@ namespace ConsoleEnhancer.Motor
             if (s.Fg && !fgSinTipoSaid && s.FgTipo != "xess" && s.FgTipo != "xefg" && s.FgTipo != "fsr3")
             {
                 fgSinTipoSaid = true;
-                Log.Write("fg=1 sin fg_tipo" + (s.FgTipo.Length > 0 ? " (fg_tipo=" + s.FgTipo + ")" : "") + ": sin generacion (DLSS FG quitado en la 1.2.4)");
+                Log.Write("fg=1 sin fg_tipo" + (s.FgTipo.Length > 0 ? " (fg_tipo=" + s.FgTipo + ")" : "") + ": sin generacion (DLSS FG quitado en la 1.3)");
             }
         }
 

@@ -31,7 +31,7 @@ Created and maintained by **IanRog29** · [Source and downloads](https://github.
 
 ## Quick start
 
-1. Download the latest **`ConsoleEnhancer-v1.2.4.zip`** (or newer) from
+1. Download the latest **`ConsoleEnhancer-v1.3.zip`** (or newer) from
    **[Releases](https://github.com/IanRog29/ConsoleEnhancer/releases)** (not the green "Code" button: that is the source code).
 2. **Unzip** it into one of your own folders: Documents, the Desktop, `D:\Juegos`... (not in *Program Files*).
 3. Open **`ConsoleEnhancer.exe`** and follow the wizard. Done: turn the console on.
@@ -138,7 +138,7 @@ with help a lot too.
   at 119.88 Hz or a driver without Smooth Motion; XeSS FG and Enhanced FG in the selector); RTX 20/30, DLSS SR + Reflex
   (XeSS FG optional); without DLSS, **XeSS** on GTX and Intel Arc and **FSR 4** on AMD RX 6000 / 7000 / 9000 (official on
   RX 9000; on RX 6000 / 7000 through the FSR 4.1.1 unlock, experimental; otherwise FSR 3.1), plus whatever frame generation each one
-  has (driver AFMF, XeSS FG). Enhanced FG is never picked by default: it is experimental. **FSR 3 FG is no longer offered** (1.2.4):
+  has (driver AFMF, XeSS FG). Enhanced FG is never picked by default: it is experimental. **FSR 3 FG is no longer offered** (1.3):
   measured against real gameplay video it was the worst of all, with generated frames that barely move; `generacion_fsr3=1` in the ini
   brings it back as "FSR 3 FG (experimental)".
 - **Everything in the built-in image engine** (D3D12, `src\Motor`; there is nothing to choose): DirectShow capture; upscaling with
@@ -146,21 +146,22 @@ with help a lot too.
   your own file (1 to 3 passes, with any frame generation type); frame generation with **Smooth Motion** (NVIDIA driver, RTX 40 / 50),
   **XeSS FG** and **Enhanced FG** (experimental; FSR 3 FG only with `generacion_fsr3=1`); Reflex / XeLL; and, optionally, NVIDIA RTX
   Dynamic Vibrance (`motor_extra=vibrancia=1`). Colour from YUY2 / NV12 capture cards is properly reconstructed, without blocky red
-  edges (`croma=2` in `motor_extra`; `croma=0` = as before). Since 1.2.4 the app no longer uses or downloads Magpie or mpv, and NVIDIA
+  edges (`croma=2` in `motor_extra`; `croma=0` = as before). Since 1.3 the app no longer uses or downloads Magpie or mpv, and NVIDIA
   DLSS Frame Generation is gone.
 - **Frame generation ×3 / ×4, legally** (30 fps mode, settings menu > *Multiplier*):
   - **FSR 3 FG ×3 / ×4** on any GPU (experimental, only with `generacion_fsr3=1`: with real gameplay video its generated frames barely
     move, so FSR 3 FG left the menu): ×2 is AMD's FSR 3 FG as always; ×3 / ×4 use the app's own build of AMD's MIT-licensed FSR 3.1
     frame interpolation (`engine\CeFsrFg.dll`), changed to generate frames at 1/3, 2/3 or 1/4, 2/4, 3/4 between two real frames from one
     optical-flow pass. Measured on an RTX 4060 Ti with a 4K 120 Hz VRR TV and real console captures: ×4 keeps all 30 real frames, 98.6 %
-    of the frames last exactly one refresh, the real frame is on screen 41 ms after it arrives and the first new image 17 ms (×4 through
-    Magpie in 1.2.3: ~70 ms). Still parts (HUD, text) are kept from the real frames; on-screen text and the character's outline smear more
-    than with DLSS FG. Also with DLSS 5 (measured at 4K with DLSS 5: ×4 keeps the 30 real frames, 118 fps, 99 % at one refresh, first new image 34 ms / real frame 59 ms from capture, against 33 / 50 ms with Smooth Motion ×2; `motor_fsr_multi_dlss5=0` = only without DLSS 5).
+    of the frames last exactly one refresh, the real frame is on screen 41 ms after it arrives and the first new image 17 ms. Still parts
+    (HUD, text) are kept from the real frames. Also with DLSS 5 (measured at 4K with DLSS 5: ×4 keeps the 30 real frames, 118 fps, 99 % at one refresh, first new image 34 ms / real frame 59 ms from capture, against 33 / 50 ms with Smooth Motion ×2; `motor_fsr_multi_dlss5=0` = only without DLSS 5).
   - **Smooth Motion ×4** (RTX 40 / 50, a 120 Hz VRR screen; off by default): the engine runs XeSS FG ×2 underneath and the driver's
-    Smooth Motion doubles it, 30 → 120: measured 118.7 frames/s, 97.7 % of them for exactly one refresh, all real frames, first new image
-    14 ms and real frame 40 ms after it arrives (Smooth Motion ×2: 20 / 37 ms). Smooth Motion alone is ×2 in every driver; there is no
+    Smooth Motion doubles it, 30 → 120: measured with real gameplay video at 4K, 30 real frames, 119.7 frames/s, 99.4 % of them for
+    exactly one refresh; first new image 14 ms and real frame 40 ms after it arrives (Smooth Motion ×2: 20 / 37 ms). Smooth Motion alone is ×2 in every driver; there is no
     good ×3 (90 frames/s can't be even on a 120 Hz screen). Also with DLSS 5: the engine lowers DLSS 5's scale (down to 25 %) until ×4
-    keeps the 30 real frames and says the %; if it can't, ×2 for the session, saying so (`smooth_x4_dlss5=0` = ×2 with DLSS 5). On real gameplay video its generated frames at 1/4 and 2/4 are about as good as ×2's and the one at
+    keeps the 30 real frames and says the % (4K, DLSS 5 level 4: 30 real frames at 35 %); if it can't, ×2 for the session, saying so
+    (`smooth_x4_dlss5=0` = ×2 with DLSS 5). With a 1440p capture (+ DLSS M) and DLSS 5 an RTX 4060 Ti doesn't fit it even at 25 % and it
+    goes ×2 after 20-25 s; Enhanced FG ×4 does fit there. On real gameplay video its generated frames at 1/4 and 2/4 are about as good as ×2's and the one at
     3/4 worse; with 3 of every 4 frames generated, artifacts show more often than with ×2.
   - **Enhanced FG ×2 / ×3 / ×4** (below).
   - Interpolating always waits for the next real frame: ×4 shows the real frame ~8 ms later than ×2. Smooth Motion ×3 / ×4 on its own and
@@ -196,7 +197,7 @@ with help a lot too.
 - **The character's head no longer vanishes when the camera turns** (XeSS FG / FSR 3 FG and FSR 3 FG ×3 / ×4): the engine tells the
   character and the HUD apart from the background, gives each its own motion and puts the character in front in the depth (with FSR 3
   FG: head error −84 %, outline −73 %, HUD text −91 %; about 0.6 ms of GPU at 4K; `fg_cabeza=0` = as before).
-- **No mpv any more** (1.2.4): the engine does everything mpv used to do. The console menu at native 4K, the grabs the app reads to
+- **No mpv any more** (1.3): the engine does everything mpv used to do. The console menu at native 4K, the grabs the app reads to
   detect the menu, the game and *No Signal* (now in colour, as mpv's were), the frozen-picture curtain, the low-power probe and the
   wizard's picture / sound tests. The **console sound** is the engine too, in a separate sound-only process
   (`ConsoleEnhancerEngine.exe --audio`): same capture pin, format and 20 ms blocks, Windows audio output (WASAPI), the same 7.1 →
@@ -243,7 +244,7 @@ with help a lot too.
   through the types your GPU has (Smooth Motion, XeSS FG, and Enhanced FG last; FSR 3 FG only with `generacion_fsr3=1`) and remembers
   the choice per game. Only what can keep pace is offered. Smooth Motion and XeSS FG are ×2 (Smooth Motion ×4 as an option, see above);
   Enhanced FG (and FSR 3 FG, if brought back) has ×2 / ×3 / ×4 in the settings menu's *Multiplier* row. If the real frames can't be held, the first step down is the multiplier
-  (×4 → ×3 → ×2). Since 1.2.4 there is no DLSS Frame Generation and no old ×3 / ×4 (they didn't work well); game profiles and settings
+  (×4 → ×3 → ×2). Since 1.3 there is no DLSS Frame Generation and no old ×3 / ×4 (they didn't work well); game profiles and settings
   that used them switch by themselves to the closest type (on NVIDIA, Smooth Motion) and keep everything else. If a frame generation
   type loses the GPU in the engine, the rest of the session uses another one (FSR 3 FG ×3 / ×4: ×2), still in the engine.
 - **120 fps mode (esports)**: for the console's 120 Hz games, it captures at 120 with no frame generation and the lowest latency. The
@@ -305,7 +306,7 @@ with help a lot too.
 - **Updates keep your data**: the first time a new version opens, it copies the settings, per-game profiles and recognised console from
   the previous version's folder (noted in `data\inherited.txt`), reuses the downloaded components and the compiled shaders (first start
   ~11 s instead of ~1 min) and applies the new general settings while keeping what the wizard chose (backup in `.antes-*`). From
-  1.2.4 on, settings that no longer exist (DLSS FG, the old ×3 / ×4, Magpie and mpv) are removed from your ini at that point.
+  1.3 on, settings that no longer exist (DLSS FG, the old ×3 / ×4, Magpie and mpv) are removed from your ini at that point.
 - **Portable**: with `portable.txt` next to the exe (included in the zip), everything is stored in `data\`; if you delete it, in
   `%LOCALAPPDATA%\ConsoleEnhancer`.
 - **Interface in English and Spanish**, chosen in the wizard's first step.
@@ -375,7 +376,7 @@ To remove it: tray icon > **Remove DLSS 5** (deletes the copy in `extras\`; your
 
 Your DLSS 5 files are also kept in `%LOCALAPPDATA%\ConsoleEnhancer\extras`, so a new version unzipped into a new folder picks them up
 by itself. With your file, DLSS 5 always runs inside the app's own engine (`engine\PrismaNr.dll`, which ships with the app since
-1.2.4; 1 to 3 passes, with any frame generation type): much lower latency than through Magpie in 1.2.3 (measured at 4K, 30 fps mode +
+1.3; 1 to 3 passes, with any frame generation type): much lower latency than through Magpie in 1.2.3 (measured at 4K, 30 fps mode +
 frame generation ×2: 43 ms instead of ~72 ms for the real frame; 1080p → 4K with 2 passes: 37 instead of ~52) and a steadier pace.
 There is nothing to choose. Without `engine\PrismaNr.dll` the engine runs without DLSS 5. With DLSS 5 on, Smooth Motion ×4 and
 Enhanced FG ×3 / ×4 lower DLSS 5's scale until they keep 30 real frames (×2 for the session if they can't); FSR 3 FG, if brought back with `generacion_fsr3=1`, offers ×3 / ×4 too (`motor_fsr_multi_dlss5=0` =
@@ -389,7 +390,7 @@ Short and neutral (this is what the licences say; it is not legal advice):
   DLLs, unmodified, which NVIDIA allows apps to redistribute, and `engine\CeFsrFg.dll` (AMD's FidelityFX SDK 1.1.4 frame
   interpolation, MIT-licensed, which allows changes; built and modified by ConsoleEnhancer for FSR 3 FG ×3 / ×4, with AMD's notice). It
   downloads Intel's and AMD's XeSS / FSR files from their official pages.
-- **Since 1.2.4 the repository and the zip also carry `PrismaNr`**, the engine's own native piece (own code). It loads the file you
+- **Since 1.3 the repository and the zip also carry `PrismaNr`**, the engine's own native piece (own code). It loads the file you
   add yourself (`nvngx_dlssnr.dll`) without going through NVIDIA's check (NGX), which NVIDIA's terms do not allow. The user decided to
   publish it knowing that. Without your file it does nothing. It is compiled with NVIDIA's public NGX headers, which are only used to
   build it and are not in the repository.
@@ -401,7 +402,7 @@ Short and neutral (this is what the licences say; it is not legal advice):
   circulates for RTX 20 / 30 / 40 is a modified NVIDIA binary.
 - What every RTX gets officially in the engine: DLSS Super Resolution, Reflex, the driver's Smooth Motion (RTX 40 / 50) and,
   optionally, RTX Dynamic Vibrance (it is not DLSS 5: it adds colour and clarity, it doesn't relight).
-- **No NVIDIA DLSS Frame Generation and no `dlssg_sm86`** since 1.2.4: the app neither uses nor looks for that community package.
+- **No NVIDIA DLSS Frame Generation and no `dlssg_sm86`** since 1.3: the app neither uses nor looks for that community package.
   The ×3 / ×4 it offers are legal: FSR 3 FG ×3 / ×4 from AMD's MIT code, Smooth Motion ×4 as two official features stacked (engine
   XeSS FG ×2 + the driver's Smooth Motion) and Enhanced FG, which is the app's own code. Smooth Motion ×3 / ×4 on its own and XeSS FG
   ×3 / ×4 outside Intel GPUs would need patching NVIDIA's driver or Intel's library (Intel's licence forbids it), so they are not offered.
@@ -433,7 +434,7 @@ off in the console (PS5: Settings > System > HDMI > *Enable HDCP*). ConsoleEnhan
 only shows with a truly black picture and a silent console for 20 s in a row (`hdcp_aviso_s`; `hdcp_aviso=0` turns it off): a dark
 scene or a fade no longer triggers it.
 
-**No sound.** Since 1.2.4 the console sound goes through the engine (`ConsoleEnhancerEngine.exe --audio`). Look at
+**No sound.** Since 1.3 the console sound goes through the engine (`ConsoleEnhancerEngine.exe --audio`). Look at
 `data\logs\audio.log`: when it works it says which capture device, pin and format it opened (for example *48000 Hz 16 bits 8
 channels, 20 ms blocks*); when it can't open it, it lists the pins and formats the capture card offers. In the wizard's sound step, try
 another input with *Test sound* (some capture cards provide audio through the video device itself, others as a separate microphone),
@@ -462,8 +463,8 @@ why ("NO es la consola apagada: ...").
 
 **Black screens of a few seconds, and `DXGI_ERROR_DEVICE_HUNG` / "grafica perdida" in `engine.log`.** That is the graphics card
 resetting under load (Windows logs it as `nvlddmkm` event 153 in *Event Viewer > System*). A **video memory overclock** (for example a
-memory clock offset in MSI Afterburner) can do it with DLSS 5 plus frame generation even when games look fine: set the memory clock back
-to stock and test again. Since 1.2.4 the app keeps the last picture on screen while it recovers, and if it happens with XeSS FG or
+memory clock offset in an overclocking tool) can do it with DLSS 5 plus frame generation even when games look fine: set the memory clock back
+to stock and test again. Since 1.3 the app keeps the last picture on screen while it recovers, and if it happens with XeSS FG or
 Enhanced FG, the rest of the session uses another frame generation type in the engine (with FSR 3 FG ×3 / ×4, ×2).
 
 **My desktop is stuck black.** `ConsoleEnhancer.exe --restaurar-escritorio`.
@@ -500,7 +501,7 @@ low-power mode in `ConsoleEnhancer Settings.exe` > *Test standby*.
   signed by NVIDIA, which NVIDIA allows to be redistributed inside an application; their terms (no selling them on their own, no
   reverse engineering...) are in `licenses\NVIDIA-NOTICE.txt` and also apply to you.
 - **Intel XeSS and AMD FSR are not redistributed by ConsoleEnhancer**: the app downloads them from their official releases, with
-  their licenses (XeSS: Intel Simplified Software License; FSR: MIT). Since 1.2.4 the app neither uses nor downloads Magpie or mpv.
+  their licenses (XeSS: Intel Simplified Software License; FSR: MIT). Since 1.3 the app neither uses nor downloads Magpie or mpv.
 - **"DLSS 5" is not included.** `nvngx_dlssnr.dll` is a community-modified NVIDIA DLL with no signature or license, and
   it is not in the repository or the zip, the app doesn't download it, and using it may go against NVIDIA's terms. If you already have
   it, you can add it yourself (tray > *Add DLSS 5*, which copies it to `extras\`) at your own risk: the app warns that it is not
@@ -533,7 +534,7 @@ build_prismanr.bat              :: bin\engine\PrismaNr.dll (C++, Visual Studio)
 build_fsrfg.bat                 :: bin\engine\CeFsrFg.dll (C++, Visual Studio, git; AMD FidelityFX SDK v1.1.4 + parches\fidelityfx-fi-multi.patch)
 tests\build_deteccion.bat       :: tests\bin\DeteccionTest.exe
 tests\bin\DeteccionTest.exe --simula=todo --sin-d3d12 --salida=deteccion.txt   :: 23 PCs simulados
-powershell -ExecutionPolicy Bypass -File scripts\empaquetar.ps1 -Zip -Version v1.2.4   :: dist\ConsoleEnhancer\ y dist\ConsoleEnhancer-v1.2.4.zip
+powershell -ExecutionPolicy Bypass -File scripts\empaquetar.ps1 -Zip -Version v1.3   :: dist\ConsoleEnhancer\ y dist\ConsoleEnhancer-v1.3.zip
 ```
 
 - **The engine's own native pieces** (C++; Visual Studio 2022 or its Build Tools with C++). `src\PrismaNr` needs NVIDIA's two public
@@ -622,7 +623,7 @@ Creado y mantenido por **IanRog29** · [Código y descargas](https://github.com/
 
 ## Inicio rápido
 
-1. Baja el último **`ConsoleEnhancer-v1.2.4.zip`** (o uno más nuevo) de
+1. Baja el último **`ConsoleEnhancer-v1.3.zip`** (o uno más nuevo) de
    **[Releases](https://github.com/IanRog29/ConsoleEnhancer/releases)** (no el botón verde "Code": eso es el código fuente).
 2. **Descomprímelo** en una carpeta tuya: Documentos, el Escritorio, `D:\Juegos`... (no en *Archivos de programa*).
 3. Abre **`ConsoleEnhancer.exe`** y sigue el asistente. Ya está: enciende la consola.
@@ -729,7 +730,7 @@ y contar en qué PC y con qué consola lo usas.
   a 119,88 Hz o un driver sin Smooth Motion; XeSS FG y Enhanced FG en el selector); RTX 20/30, DLSS SR + Reflex (XeSS FG
   opcional); sin DLSS, **XeSS** en GTX e Intel Arc y **FSR 4** en AMD RX 6000 / 7000 / 9000 (oficial en las RX 9000; en RX
   6000 / 7000 con el desbloqueo de FSR 4.1.1, experimental; si no, FSR 3.1), y la generación que tenga cada una (AFMF del driver, FSR 3
-  FG, XeSS FG). Enhanced FG nunca se pone de serie: es experimental. **FSR 3 FG ya no se ofrece** (1.2.4): medida
+  FG, XeSS FG). Enhanced FG nunca se pone de serie: es experimental. **FSR 3 FG ya no se ofrece** (1.3): medida
   con vídeo real de juego era la peor de todas, con inventadas que casi no se mueven; `generacion_fsr3=1` en el ini la vuelve a poner
   como «FSR 3 FG (experimental)».
 - **Todo en el motor de imagen propio** (D3D12, `src\Motor`; no hay nada que elegir): captura DirectShow; escalado con DLSS, XeSS,
@@ -737,21 +738,22 @@ y contar en qué PC y con qué consola lo usas.
   archivo (1 a 3 pasadas, con cualquier tipo de generación); generación de fotogramas con **Smooth Motion** (driver de NVIDIA, RTX 40 /
   50), **XeSS FG** y **Enhanced FG** (experimental; FSR 3 FG solo con `generacion_fsr3=1`); Reflex / XeLL; y, si quieres,
   la Vibrancia RTX de NVIDIA (`motor_extra=vibrancia=1`). El color de las capturadoras YUY2 / NV12 se reconstruye bien, sin bordes rojos
-  en escalones (`croma=2` en `motor_extra`; `croma=0` = como antes). Desde la 1.2.4 la app ya no usa ni baja Magpie ni mpv, y DLSS
+  en escalones (`croma=2` en `motor_extra`; `croma=0` = como antes). Desde la 1.3 la app ya no usa ni baja Magpie ni mpv, y DLSS
   Frame Generation de NVIDIA ya no está.
 - **Generación ×3 / ×4, de forma legal** (modo 30, menú de ajustes > *Multiplicador*):
   - **FSR 3 FG ×3 / ×4** en cualquier gráfica (experimental, solo con `generacion_fsr3=1`: con vídeo real de juego sus inventadas casi
     no se mueven y FSR 3 FG salió del menú): ×2 es la FSR 3 FG de AMD de siempre; ×3 / ×4 usan una compilación propia de la
     interpolación de FSR 3.1 de AMD (código MIT, `engine\CeFsrFg.dll`) cambiada para inventar en 1/3, 2/3 o 1/4, 2/4, 3/4 entre dos
     reales con un solo flujo óptico. Medido en una RTX 4060 Ti con una tele 4K 120 Hz con VRR y capturas reales de la consola: ×4 mantiene
-    las 30 reales, el 98,6 % de las imágenes dura justo un refresco, la real se ve a 41 ms de llegar y la primera imagen nueva a 17 ms (×4
-    por Magpie en la 1.2.3: ~70 ms). Lo quieto (interfaz, texto) sale de las reales; el texto en pantalla y el contorno del personaje se
-    emborronan más que con DLSS FG. También con DLSS 5 (medido a 4K con DLSS 5: ×4 mantiene las 30 reales, 118 imágenes/s, el 99 % a un refresco, la primera imagen nueva a 34 ms y la real a 59 de la captura, frente a 33 / 50 con Smooth Motion ×2; `motor_fsr_multi_dlss5=0` = solo sin DLSS 5).
+    las 30 reales, el 98,6 % de las imágenes dura justo un refresco, la real se ve a 41 ms de llegar y la primera imagen nueva a 17 ms. Lo
+    quieto (interfaz, texto) sale de las reales. También con DLSS 5 (medido a 4K con DLSS 5: ×4 mantiene las 30 reales, 118 imágenes/s, el 99 % a un refresco, la primera imagen nueva a 34 ms y la real a 59 de la captura, frente a 33 / 50 con Smooth Motion ×2; `motor_fsr_multi_dlss5=0` = solo sin DLSS 5).
   - **Smooth Motion ×4** (RTX 40 / 50, una pantalla de 120 Hz con VRR; apagado de serie): el motor hace XeSS FG ×2 debajo y el Smooth
-    Motion del driver lo dobla, de 30 a 120: medido 118,7 imágenes/s, el 97,7 % a un refresco justo, todas las reales, la primera imagen
-    nueva a 14 ms y la real a 40 ms de llegar (Smooth Motion ×2: 20 / 37 ms). Smooth Motion solo es ×2 en todos los drivers; ×3 bueno no
+    Motion del driver lo dobla, de 30 a 120: medido con vídeo real de juego a 4K, 30 reales, 119,7 imágenes/s, el 99,4 % a un refresco
+    justo; la primera imagen nueva a 14 ms y la real a 40 ms de llegar (Smooth Motion ×2: 20 / 37 ms). Smooth Motion solo es ×2 en todos los drivers; ×3 bueno no
     hay (90 imágenes/s no salen parejas en una pantalla de 120 Hz). También con DLSS 5: el motor baja la escala de DLSS 5 (hasta el 25 %) hasta que ×4
-    mantiene las 30 reales y dice el %; si no llega, ×2 esa sesión y lo dice (`smooth_x4_dlss5=0` = ×2 con DLSS 5). Con
+    mantiene las 30 reales y dice el % (4K, DLSS 5 nivel 4: 30 reales al 35 %); si no llega, ×2 esa sesión y lo dice
+    (`smooth_x4_dlss5=0` = ×2 con DLSS 5). Con captura a 1440p (+ DLSS M) y DLSS 5 una RTX 4060 Ti no llega ni al 25 % y pasa a ×2 a
+    los 20-25 s; Enhanced FG ×4 sí cabe ahí. Con
     vídeo real de juego sus inventadas a 1/4 y 2/4 salen como la de ×2 y la de 3/4 peor; con 3 de cada 4 imágenes inventadas, los fallos
     se ven más que con ×2.
   - **Enhanced FG ×2 / ×3 / ×4** (abajo).
@@ -788,7 +790,7 @@ y contar en qué PC y con qué consola lo usas.
 - **La cabeza del personaje ya no desaparece al girar la cámara** (XeSS FG / FSR 3 FG y FSR 3 FG ×3 / ×4): el motor separa el
   personaje y la interfaz del fondo, da a cada uno su movimiento y pone el personaje delante en la profundidad (con FSR 3 FG: error de la
   cabeza −84 %, del contorno −73 %, del texto de la interfaz −91 %; unos 0,6 ms de gráfica a 4K; `fg_cabeza=0` = como antes).
-- **Ya sin mpv** (1.2.4): el motor hace todo lo que hacía mpv. El menú de la consola a 4K nativo, las capturas que lee la app para
+- **Ya sin mpv** (1.3): el motor hace todo lo que hacía mpv. El menú de la consola a 4K nativo, las capturas que lee la app para
   ver el menú, el juego y *No Signal* (ahora en color, como las de mpv), el telón con la imagen congelada, la sonda del modo de bajo
   consumo y las pruebas de imagen y sonido del asistente. El **sonido de la consola** también es del motor, en un proceso aparte solo
   de sonido (`ConsoleEnhancerEngine.exe --audio`): el mismo pin de la capturadora, formato y trozos de 20 ms, la salida de sonido de
@@ -835,7 +837,7 @@ y contar en qué PC y con qué consola lo usas.
   recorre los tipos que tiene tu gráfica (Smooth Motion, XeSS FG y, la última, Enhanced FG; FSR 3 FG solo con `generacion_fsr3=1`) y lo
   recuerda por juego. Solo se ofrece lo que llega a ritmo. Smooth Motion y XeSS FG van ×2 (Smooth Motion ×4 como opción, ver arriba);
   Enhanced FG (y FSR 3 FG, si se vuelve a poner) tiene ×2 / ×3 / ×4 en la fila *Multiplicador* del menú de ajustes. Si no se llega a las reales, lo primero que baja es el multiplicador
-  (×4 → ×3 → ×2). Desde la 1.2.4 no hay DLSS Frame Generation ni los ×3 / ×4 de antes (no iban bien); los perfiles y ajustes que los
+  (×4 → ×3 → ×2). Desde la 1.3 no hay DLSS Frame Generation ni los ×3 / ×4 de antes (no iban bien); los perfiles y ajustes que los
   usaban pasan solos al tipo más parecido (en NVIDIA, Smooth Motion) y conservan todo lo demás. Si un tipo de generación pierde la
   gráfica en el motor, el resto de la sesión va otro (FSR 3 FG ×3 / ×4: ×2), también en el motor.
 - **Modo 120 fps (esports)**: para los juegos de 120 Hz de la consola, captura a 120 sin generación de fotogramas y con el menor
@@ -896,7 +898,7 @@ y contar en qué PC y con qué consola lo usas.
 - **Al actualizar no pierdes nada**: la primera vez que se abre una versión nueva, copia los ajustes, los perfiles de cada juego y la
   consola reconocida de la carpeta de la versión anterior (se apunta en `data\inherited.txt`), reutiliza los componentes ya bajados y
   los shaders ya compilados (primer arranque de ~1 min a ~11 s) y pone los ajustes generales nuevos sin tocar lo que eligió el asistente
-  (copia en `.antes-*`). Desde la 1.2.4, en ese momento se quitan del ini los ajustes que ya no existen (DLSS FG, los ×3 / ×4 de antes,
+  (copia en `.antes-*`). Desde la 1.3, en ese momento se quitan del ini los ajustes que ya no existen (DLSS FG, los ×3 / ×4 de antes,
   Magpie y mpv).
 - **Portable**: con `portable.txt` junto al exe (viene en el zip), todo se guarda en `data\`; si lo borras, en
   `%LOCALAPPDATA%\ConsoleEnhancer`.
@@ -967,7 +969,7 @@ Para quitarlo: icono de la bandeja > **Quitar DLSS 5** (borra la copia de `extra
 
 Tus archivos de DLSS 5 se guardan también en `%LOCALAPPDATA%\ConsoleEnhancer\extras`, así que una versión nueva descomprimida en otra
 carpeta los recoge sola. Con tu archivo, DLSS 5 va siempre dentro del motor propio (`engine\PrismaNr.dll`, que viene con la app desde
-la 1.2.4; 1 a 3 pasadas, con cualquier tipo de generación): mucho menos retraso que por Magpie en la 1.2.3 (medido a 4K, modo 30 +
+la 1.3; 1 a 3 pasadas, con cualquier tipo de generación): mucho menos retraso que por Magpie en la 1.2.3 (medido a 4K, modo 30 +
 generación ×2: 43 ms en vez de ~72 la imagen real; 1080p → 4K con 2 pasadas: 37 en vez de ~52) y un ritmo más regular. No hay nada que
 elegir. Sin `engine\PrismaNr.dll` el motor va sin DLSS 5. Con DLSS 5 encendido, Smooth Motion ×4 y
 Enhanced FG ×3 / ×4 bajan la escala de DLSS 5 hasta mantener las 30 reales (×2 esa sesión si no llegan); FSR 3 FG, si se vuelve a poner con `generacion_fsr3=1`, ofrece también ×3 / ×4
@@ -981,7 +983,7 @@ En corto y neutro (es lo que dicen las licencias; no es asesoramiento legal):
   Vibrancia RTX, sin cambios, que NVIDIA deja repartir dentro de una app, y `engine\CeFsrFg.dll` (la interpolación del FidelityFX SDK
   1.1.4 de AMD, con licencia MIT, que permite cambiarla; compilada y cambiada por ConsoleEnhancer para FSR 3 FG ×3 / ×4, con el aviso de
   AMD). Los archivos de XeSS / FSR de Intel y AMD los baja de sus páginas oficiales.
-- **Desde la 1.2.4 el repositorio y el zip llevan también `PrismaNr`**, la pieza nativa propia del motor (código propio). Carga el
+- **Desde la 1.3 el repositorio y el zip llevan también `PrismaNr`**, la pieza nativa propia del motor (código propio). Carga el
   archivo que pones tú (`nvngx_dlssnr.dll`) sin pasar por la comprobación de NVIDIA (NGX), cosa que los términos de NVIDIA no permiten.
   El usuario decidió publicarla sabiéndolo. Sin tu archivo no hace nada. Se compila con las cabeceras públicas de NGX de NVIDIA, que
   solo se usan para compilar y no van en el repositorio.
@@ -993,7 +995,7 @@ En corto y neutro (es lo que dicen las licencias; no es asesoramiento legal):
   circula para RTX 20 / 30 / 40 es un binario de NVIDIA modificado.
 - Lo que tiene cualquier RTX de forma oficial en el motor: DLSS Super Resolution, Reflex, el Smooth Motion del driver (RTX 40 / 50) y,
   si quieres, la Vibrancia RTX (no es DLSS 5: da color y claridad, no cambia la luz).
-- **Sin DLSS Frame Generation de NVIDIA ni `dlssg_sm86`** desde la 1.2.4: la app no usa ni busca ese paquete de la comunidad. Los
+- **Sin DLSS Frame Generation de NVIDIA ni `dlssg_sm86`** desde la 1.3: la app no usa ni busca ese paquete de la comunidad. Los
   ×3 / ×4 que ofrece son legales: FSR 3 FG ×3 / ×4 con el código MIT de AMD, Smooth Motion ×4 como dos funciones oficiales una encima de
   otra (XeSS FG ×2 del motor + el Smooth Motion del driver) y Enhanced FG, que es código propio de la app. Para Smooth Motion ×3 / ×4
   por sí solo y XeSS FG ×3 / ×4 fuera de las gráficas Intel haría falta parchear el driver de NVIDIA o la librería de Intel (su licencia
@@ -1027,7 +1029,7 @@ negra: apágalo en la consola (PS5: Ajustes > Sistema > HDMI > *Activar HDCP*). 
 El aviso de HDCP solo sale con la imagen negra de verdad y la consola en silencio 20 s seguidos (`hdcp_aviso_s`; `hdcp_aviso=0` lo
 quita): una escena oscura o un fundido ya no lo hacen saltar.
 
-**No hay sonido.** Desde la 1.2.4 el sonido de la consola va por el motor (`ConsoleEnhancerEngine.exe --audio`). Mira
+**No hay sonido.** Desde la 1.3 el sonido de la consola va por el motor (`ConsoleEnhancerEngine.exe --audio`). Mira
 `data\logs\audio.log`: cuando va, dice qué capturadora, pin y formato ha abierto (por ejemplo *48000 Hz 16 bits 8 canales, trozos de
 20 ms*); cuando no puede abrirla, enseña los pines y formatos que da la capturadora. En el asistente, paso del sonido: prueba otra
 entrada con *Probar sonido* (algunas capturadoras dan el audio por el propio dispositivo de vídeo y otras como un micrófono aparte), o
@@ -1056,8 +1058,8 @@ dice el motivo ("NO es la consola apagada: ...").
 
 **Pantallazos negros de unos segundos y `DXGI_ERROR_DEVICE_HUNG` / "grafica perdida" en `engine.log`.** Es la gráfica reiniciándose con
 la carga (Windows lo apunta como el evento 153 de `nvlddmkm` en *Visor de eventos > Sistema*). Un **overclock de la memoria de la
-gráfica** (por ejemplo, subir el reloj de la memoria en MSI Afterburner) puede provocarlo con DLSS 5 y la generación de fotogramas aunque
-los juegos vayan bien: deja la memoria a su velocidad de serie y vuelve a probar. Desde la 1.2.4 la app deja la última imagen en pantalla
+gráfica** (por ejemplo, subir el reloj de la memoria con un programa de overclock) puede provocarlo con DLSS 5 y la generación de fotogramas aunque
+los juegos vayan bien: deja la memoria a su velocidad de serie y vuelve a probar. Desde la 1.3 la app deja la última imagen en pantalla
 mientras se recupera y, si pasa con XeSS FG o Enhanced FG, el resto de la sesión va con otro tipo de generación en el motor (con FSR 3 FG
 ×3 / ×4, ×2).
 
@@ -1095,7 +1097,7 @@ consumo en `ConsoleEnhancer Settings.exe` > *Probar el modo espera*.
   firmadas por NVIDIA, que NVIDIA deja repartir dentro de una aplicación; sus condiciones (no venderlas sueltas, no hacer ingeniería
   inversa...) están en `licenses\NVIDIA-NOTICE.txt` y valen también para ti.
 - **Intel XeSS y AMD FSR no los reparte ConsoleEnhancer**: los baja la app de sus releases oficiales, con sus licencias (XeSS: Intel
-  Simplified Software License; FSR: MIT). Desde la 1.2.4 la app ya no usa ni baja Magpie ni mpv.
+  Simplified Software License; FSR: MIT). Desde la 1.3 la app ya no usa ni baja Magpie ni mpv.
 - **"DLSS 5" no se incluye.** `nvngx_dlssnr.dll` es una DLL de NVIDIA modificada por la comunidad, sin firma ni licencia, y
   no está en el repositorio ni en el zip, la app no la baja, y su uso puede ir contra las condiciones de NVIDIA. Si ya la tienes, puedes
   añadirla tú (bandeja > *Añadir DLSS 5*, que la copia a `extras\`) bajo tu responsabilidad: la app avisa de que no es oficial. Mira
@@ -1127,7 +1129,7 @@ build_prismanr.bat              :: bin\engine\PrismaNr.dll (C++, Visual Studio)
 build_fsrfg.bat                 :: bin\engine\CeFsrFg.dll (C++, Visual Studio, git; AMD FidelityFX SDK v1.1.4 + parches\fidelityfx-fi-multi.patch)
 tests\build_deteccion.bat       :: tests\bin\DeteccionTest.exe
 tests\bin\DeteccionTest.exe --simula=todo --sin-d3d12 --salida=deteccion.txt   :: 23 PCs simulados
-powershell -ExecutionPolicy Bypass -File scripts\empaquetar.ps1 -Zip -Version v1.2.4   :: dist\ConsoleEnhancer\ y dist\ConsoleEnhancer-v1.2.4.zip
+powershell -ExecutionPolicy Bypass -File scripts\empaquetar.ps1 -Zip -Version v1.3   :: dist\ConsoleEnhancer\ y dist\ConsoleEnhancer-v1.3.zip
 ```
 
 - **Las piezas nativas propias del motor** (C++; Visual Studio 2022 o sus Build Tools con C++). `src\PrismaNr` necesita las dos

@@ -314,13 +314,15 @@ namespace ConsoleEnhancer
         // dlss5_escala_grafica=92 y motor_uso_grafica=90 (XEFG)
         // 22-11 (1.2.3): motor_dlss5=auto y motor_dlss5_pasadas (DLSS 5 en el motor con engine\PrismaNr.dll), la escala de DLSS 5 por el hilo de
         // Magpie (dlss5_escala_hilo / dlss5_escala_grafica / generacion_dlss5_minimo) y comentarios del ritmo (magpie_fijo_30*)
-        public const string IniVersion = "1.2.4";
+        public const string IniVersion = "1.3";
         // (1.2.4 ronda 6, INTEGRA6) la marca de la puesta al dia: la 1.2.4 retirada y la de prueba ya escribieron "1.2.4" (con DLSS FG, Magpie y
         // mpv); con esta los ini de esas tambien se ponen al dia (base.ini sin DLSS FG / Magpie / mpv, la generacion del plan con Smooth Motion
         // y las claves quitadas fuera). IniAnteriorA lee de ella la 1.2.4
         // (1.2.4 ronda 7, INTEGRA7) "1.2.4-r7": el modelo de DLSS SR de serie con DLSS 5 a 1440p / 1080p / 720p pasa de K a M (SRBLUR: medido con
         // video real); esas tablas las escribe el plan (tabla_modelo_30_fg_*, Escalas.cs) y en los ini de antes seguian con K: se escriben otra vez
-        public const string IniMarca = "1.2.4-r7";
+        // (1.3, RELEASE13) "1.3": la version publicada que sustituye a la 1.2.4 (nunca publicada como tal); se ponen al dia los ini de la 1.2.3 y
+        // de antes y los de las pruebas de la 1.2.4 (marcas 1.2.4, 1.2.4-r6, 1.2.4-r7): cualquier marca distinta de esta. Copia: .antes-1.3
+        public const string IniMarca = "1.3";
         static readonly string[] ClavesGenPlan = { "generacion_tipo", "generacion_tipo_60", "generacion_tipo_30", "motor_generacion_60", "motor_generacion_30",
                                                    // (1.2.2, UNIVERSAL: el modo ligero de Magpie en el 30 con una grafica bastante mas lenta que la de referencia)
                                                    "tabla_ligero_30_fg", "tabla_ligero_30", "tabla_ligero_30_fg_4k", "tabla_ligero_30_4k",

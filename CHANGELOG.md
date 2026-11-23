@@ -5,52 +5,13 @@ publicada es una etiqueta `vX.Y.Z` de git; GitHub Actions monta su zip y copia a
 
 ## [Sin publicar]
 
-### English
+## [1.3] - 2026-11-23
 
-#### Fixed
-- **Nintendo Switch 2 recognised as soon as it is on screen.** With the PS5 remembered as the last console, the Switch 2 took ~16 s
-  to be recognised and, meanwhile, the PS5 logic matched a PS5 game cover against the Switch 2 HOME. Now the Switch 2 HOME (the game
-  name in cyan plus the clock with the battery icon) switches to the Switch 2 on the second capture (~0.5 s), and while the picture
-  points to another console nothing of the PS5 game recognition (covers, icons, names) runs. A PS5 cover wrongly memorised from the
-  Switch 2 HOME is removed by itself.
-- **Switch 2 game names read in the HOME are kept for the game profile.** The reads of each game were lost when the cursor moved to
-  another game, so entering it after coming back saved it as "Game 1". Now the reads of each game icon last the whole session; the
-  "Game N" profiles saved by this bug get their real name (from the log of that session), and the Switch 2 games and settings of the
-  older Switch-2-only version of the app are imported once (with their HOME icons).
-- **The same in every direction (PS5, Switch 2, Xbox).** A strong proof of the console on screen (the Switch 2 HOME, the PS5 menu
-  clock or its home tabs, the Xbox home or guide with two of its phrases) switches on the second capture; loose hints of the Xbox
-  ("Xbox", "Game Pass", its clock) still need 3 proofs in 20 s. The console remembered from last time does not create games, "Game N",
-  icons, covers or names until the picture confirms it, and nothing is created while the picture points to another console. A "Game N"
-  created from another console's picture this way is removed by itself.
-
-### Castellano
-
-#### Arreglado
-- **La Nintendo Switch 2 se reconoce en cuanto se ve.** Con la PS5 como ultima consola, la Switch 2 tardaba ~16 s en reconocerse y,
-  mientras, la PS5 casaba la portada de uno de sus juegos con el HOME de la Switch 2. Ahora su HOME (el nombre del juego en cian y la
-  hora con la bateria) cambia a la Switch 2 a la segunda captura (~0,5 s) y, mientras la imagen apunte a otra consola, no actua nada
-  del reconocimiento de juegos de la PS5 (portadas, iconos, nombres). La portada de la PS5 memorizada por error del HOME de la Switch 2
-  se quita sola.
-- **El nombre de cada juego de la Switch 2 leido en el HOME sirve para su perfil.** Las lecturas se perdian al mover el cursor a otro
-  juego y, al volver a el y entrar, se guardaba como "Juego 1". Ahora las lecturas de cada icono duran toda la sesion; los "Juego N"
-  guardados por este fallo pasan a su nombre (del log de esa sesion) y los juegos de la Switch 2 de la version de antes de la app (la
-  que era solo para la Switch 2) se importan una vez, con sus ajustes y sus iconos del HOME.
-- **Lo mismo en todas las direcciones (PS5, Switch 2, Xbox).** Una prueba fuerte de la consola en pantalla (el HOME de la Switch 2, la
-  hora del menu de la PS5 o las pestañas de su inicio, el Inicio o la guia de la Xbox con dos frases suyas) cambia a la segunda captura;
-  lo suelto de la Xbox ("Xbox", "Game Pass", su hora) sigue pidiendo 3 pruebas en 20 s. La consola recordada de la vez anterior no crea
-  juegos, "Juego N", iconos, portadas ni nombres hasta que la imagen la confirme, y nada se crea mientras la imagen apunte a otra
-  consola. El "Juego N" creado asi con la imagen de otra consola se quita solo.
-
-## [1.2.4] - 2026-11-23
-
-**Everything in ConsoleEnhancer's own engine, without Magpie, mpv or NVIDIA DLSS Frame Generation.** (The 1.2.4 build published
-on 22-11 was withdrawn after a test with the console; this one was rebuilt from that test and the next one.) Measured without the
-console on an RTX 4060 Ti with a 4K 120 Hz VRR TV: a file source that plays real PS5 captures into the engine like the capture card
-(`test=archivo`) and test scenes built from real console captures; in the last round also **real gameplay video** (public-domain and
-Creative Commons recordings) played through the engine like the capture card, with the user's settings (DLSS 5 level 4, 4K and
-1440p + DLSS M, 30 fps mode, 120 Hz VRR).
-*Todo en el motor propio de ConsoleEnhancer, sin Magpie, sin mpv y sin DLSS Frame Generation de NVIDIA (la 1.2.4 publicada el 22-11 se
-retiró tras probarla con la consola; esta se ha rehecho con esa prueba, la siguiente y vídeo real de juego). En castellano, abajo.*
+**Everything in ConsoleEnhancer's own engine, without Magpie, mpv or NVIDIA DLSS Frame Generation**, with a new frame generation of
+its own (Enhanced FG, experimental), Smooth Motion ×4, sharper upscaling in motion and faster console switching. Measured without the
+console on an RTX 4060 Ti with a 4K 120 Hz VRR TV, with **real gameplay video** (public-domain and Creative Commons recordings, only
+for testing) played through the engine like the capture card and the settings of the person who tests it with the console (DLSS 5
+level 4, 4K and 1440p + DLSS M, 30 fps mode, 120 Hz VRR). Compared with 1.2.3. *En castellano, más abajo.*
 
 ### English
 
@@ -58,414 +19,330 @@ retiró tras probarla con la consola; esta se ha rehecho con esa prueba, la sigu
 - **The whole app runs in the built-in engine.** Magpie and mpv are no longer used or downloaded: the picture, the console menu at
   native 4K, the detection grabs, the curtains, the low-power probe, the wizard's picture and sound tests and the console sound are all
   done by `ConsoleEnhancerEngine.exe`. **DLSS 5** (with your own `nvngx_dlssnr.dll`) always runs in the engine through
-  `engine\PrismaNr.dll`, with 1 to 3 passes and any frame generation type (also XeSS FG); FSR 3 FG also works with DLSS as the upscaler.
-  The first start downloads only the **Intel XeSS SDK 3.0.2** and the **AMD FSR SDK 2.3.0** (about 205 MB instead of ~670 MB); an old
-  `magpie\` folder is reused for the Intel and AMD files. If a frame generation type loses the GPU in the engine, the rest of the session
-  uses another one, still in the engine, and the last picture stays on screen while it recovers.
-- **You only pick the frame generation type**: Smooth Motion (RTX 40 / 50, the default there), XeSS FG or the new Enhanced FG
-  (experimental, never the default), or none. Old profiles and settings with DLSS FG, FSR 3 FG or the old ×3 / ×4 move by themselves to
-  the closest type (Smooth Motion on NVIDIA), keeping everything else, and the menu says why.
-- **FSR 3 FG (×2 / ×3 / ×4) is no longer offered.** Tested with the console and measured against real gameplay video, it was the worst
-  of all (artifacts and poor smoothness: its generated frames barely move; with ×4, 311 of 383 frames seen looked like a real one).
-  `generacion_fsr3=1` in the ini brings it back as "FSR 3 FG (experimental)". With real gameplay video Smooth Motion ×2 and XeSS FG ×2
-  generate about as well as each other (each one better in one of two games) and both stay.
-- **Enhanced FG is marked experimental** ("Enhanced FG (experimental)" in the menu, L3 and the tray): on real gameplay video its
-  generated frames are close to a plain blend of the two real ones in a third-person driving game (close to Smooth Motion in a
-  first-person one); the low-latency mode keeps its very low latency. Its optical flow now searches twice as far (5 pyramid levels,
-  stray vectors cleaned on every level), so fast camera turns no longer fall back to a blend: ×2 error against the true in-between frames
-  of real gameplay video GTA V 5.37 → 4.61, Counter-Strike 2 3.63 → 3.14, The Witcher 3 4.10 → 4.02, Fallout 4 8.34 → 6.59 (Smooth
-  Motion ×2: 5.56 / 3.21 / 4.20 / 8.85). ×3 / ×4 also run with DLSS 5 (see *Fixed*).
+  `engine\PrismaNr.dll`, with 1 to 3 passes and any frame generation type. The first start downloads only the **Intel XeSS SDK 3.0.2**
+  and the **AMD FSR SDK 2.3.0** (about 205 MB instead of ~670 MB); an old `magpie\` folder is reused for the Intel and AMD files. If a
+  frame generation type loses the GPU, the rest of the session uses another one and the last picture stays on screen while it recovers.
+- **You only pick the frame generation type**: Smooth Motion (RTX 40 / 50, the default there), XeSS FG, the new **Enhanced FG**
+  (experimental, never the default) or none. Smooth Motion has a ×2 / ×4 **Multiplier** and Enhanced FG ×2 / ×3 / ×4 (30 fps mode);
+  XeSS FG is ×2. Old profiles and settings with DLSS FG, FSR 3 FG or the old ×3 / ×4 move by themselves to the closest type (Smooth
+  Motion on NVIDIA), keeping everything else, and the menu says why.
+- **FSR 3 FG is no longer offered.** Measured against real gameplay video it was the worst of all (artifacts and poor smoothness: its
+  generated frames barely move). `generacion_fsr3=1` in the ini brings it back as "FSR 3 FG (experimental)", with ×2 (AMD's) and
+  ×3 / ×4 (`engine\CeFsrFg.dll`: our build of AMD's MIT-licensed FSR 3.1 frame interpolation, changed to generate several frames between
+  two real ones). With real gameplay video Smooth Motion ×2 and XeSS FG ×2 generate about as well as each other, and both stay.
 - **On-screen notices say what is really running**, taken from what the engine and the driver get, not from what was asked: the
   settings menu "Apply" lists only what changed (capture, frame generation type with its real multiplier and "30 → 120 fps", DLSS 5,
   upscaler) and, when something asked can't run, why (e.g. "Smooth Motion x2 · 30 → 60 fps · x4 unavailable: no VRR (G-SYNC) on the
-  screen"). Gone: "DLSS-G + Reflex", the fixed "30 → 60", "DLSS 5 does not fit" with DLSS 5 on, "Catmull-Rom", "own engine". The same
-  for the View / Menu / A / R3 / L3 / level / passes buttons, the D-pad capture, the tray and Ctrl+I. One notice per change: when the
-  engine is swapped it shows on the new engine as it comes to the front (the old one only says "getting ready" if the swap is slow); the
-  Menu button and the automatic step-downs when the real frame rate isn't held no longer show two notices. Generation type names in the
-  menu no longer carry the saved multiplier; every on-screen notice is written to the log; the engine's notice pill can be wider at 4K
-  (3600 px: notices with several changes were cut off).
-- **The engine reserves GPU time for its own frame generation** (FSR, and XeSS FG under Smooth Motion ×4), so the DLSS 5 scale makes room
-  for it; XeSS FG and Smooth Motion ×2 reserve the same as before.
+  screen"). The same for the View / Menu / A / R3 / L3 / level / passes buttons, the D-pad capture, the tray and Ctrl+I. One notice per
+  change: when the engine is swapped it shows on the new engine as it comes to the front; the automatic step-downs when the real frame
+  rate isn't held show a single notice. Every on-screen notice is written to the log, and the notice pill can be wider at 4K.
+- **Console switching is recognised at once.** A strong proof of the console on screen (the Switch 2 HOME with the game name in cyan
+  and the clock with the battery, the PS5 menu clock or its home tabs, the Xbox home or guide with two of its phrases) switches on the
+  second capture (~0.5 s; the Switch 2 after a PS5 took ~16 s); loose hints of the Xbox still need 3 proofs in 20 s. While the picture
+  points to another console, nothing of the previous console's game recognition (covers, icons, names) runs, and the console remembered
+  from last time creates no games, "Game N", icons, covers or names until the picture confirms it.
+- **The engine reserves GPU time for its own frame generation** (FSR, and XeSS FG under Smooth Motion ×4), so the DLSS 5
+  scale makes room for it.
 - With DLSS 5 at 1440p / 1080p / 720p the default DLSS model is **M instead of K** (K is the blurriest model in motion on real game
   video); the model you pick in the menu still rules.
-- **Smooth Motion: lower latency right after the picture starts.** With Smooth Motion the engine drops a real frame when it would wait
-  in the TV queue (the "every 2 refreshes" pacing only drains 1 ms per second); it now also counts when the GPU really finishes each
-  frame: the first frame after starting or waking with DLSS 5 takes 0.6-0.8 s on the GPU and the ones behind it reached the TV together,
-  leaving 10-30 ms of extra latency for 15-25 s (8 of 12 start-ups, 4K 30 fps mode). Now 0 of 6 start-ups with that queue, the same
-  steady latency (real frame ~50 ms, generated ~33 ms with DLSS 5 at 4K; 35 / 18 ms at 1440p without DLSS 5; 60 fps mode 19 / 11 ms) and
-  every frame on screen for 2 refreshes. Reflex stays on with Smooth Motion (the driver allows both; no measured difference), and the
-  pacing stays "every 2 refreshes" + VRR in the 30 fps mode (forced vsync, the driver's frame limiter or a fixed refresh measured worse
-  or equal).
-- **Console sound through the engine** (`ConsoleEnhancerEngine.exe --audio`, a separate sound-only process like the old audio player):
-  the same capture pin, format and 20 ms blocks, Windows audio output (WASAPI), the same 7.1 → stereo mix with a peak limiter, and
-  clock-drift correction inside it (no growing delay). Measured with a test source paced like the capture card: click → output 78.5 ms,
-  no dropouts, ±500 ppm drift corrected. Log: `data\logs\audio.log`; `audio_motor_extra=` passes it `audio_cola_ms`, `audio_salida_ms`,
-  `audio_deriva`.
-- **Detection grabs in colour**: with YUY2 / NV12 capture the engine handed the app grey (luma only) pictures; now colour (BT.709), so
-  the Switch 2 HOME (blue game name) is recognised again and the frozen-picture curtains are in colour. Menu / game / PS5 clock
-  detection on the saved real captures gives the same results as the original pictures; learned game icons still match.
-- **MJPEG capture** (USB 2.0 cards such as MS2109) is decoded in the engine with Windows' MJPEG decoder, up to 720p. H.264 / HEVC
-  capture is no longer supported (pick an uncompressed format). If the engine fails to start or crashes, the app keeps retrying it
-  and says so clearly.
-- **R3's alternative upscaler is FSR 1** (RTX Video was Magpie's; the engine was already doing FSR 1 without saying so). Old profiles
-  saved with the alternative upscaler get FSR 1, and the settings menu now shows FSR 1 for them instead of DLSS.
-- **The ini is brought up to date once** (also after the withdrawn 1.2.4 or the test build): the new `base.ini` on top, the plan's frame
-  generation with Smooth Motion, the plan's DLSS model tables with DLSS 5 (now M), and every setting that no longer exists (DLSS FG,
-  the old ×3 / ×4, Magpie, mpv) removed; a copy stays in `consoleenhancer.ini.antes-1.2.4-r7`.
-- Kept from the first 1.2.4 builds: engine switches in ~0.5 s without black (the leaving engine goes to standby, the cut waits for the
-  new engine's 4th painted frame, `relevo_pintadas=4`); DLSS 5 in the engine without flashes or sudden colour changes when it is rebuilt
-  (`dlss5_suave`); XeSS FG / FSR 3 FG with DLSS SR present through Streamline's swap-chain proxy (no warning or crash dump when the
-  engine closes, `sl_proxy_present`); the engine's GPU margin at 90 % (`motor_uso_grafica`).
+- **Smooth Motion: lower latency right after the picture starts.** The engine now also counts when the GPU really finishes each frame
+  before it queues one for the TV: the first frame after starting or waking with DLSS 5 takes 0.6-0.8 s on the GPU and the ones behind
+  it reached the TV together, adding 10-30 ms of latency for 15-25 s (8 of 12 start-ups; now 0 of 6). Reflex stays on with Smooth
+  Motion.
+- **Console sound through the engine** (`ConsoleEnhancerEngine.exe --audio`, a separate sound-only process): the same capture pin,
+  format and 20 ms blocks, Windows audio output (WASAPI), the same 7.1 → stereo mix with a peak limiter, and clock-drift correction
+  (no growing delay; measured click → output 78.5 ms, no dropouts). Log: `data\logs\audio.log`.
+- **Detection grabs in colour** (with YUY2 / NV12 capture the engine gave the app grey pictures): the Switch 2 HOME is recognised again
+  and the frozen-picture curtains are in colour.
+- **MJPEG capture** (USB 2.0 cards such as MS2109) is decoded in the engine, up to 720p. H.264 / HEVC capture is no longer supported
+  (pick an uncompressed format).
+- **R3's alternative upscaler is FSR 1**; old profiles saved with the alternative upscaler get FSR 1, and the menu shows it.
+- **Engine switches without black**: the leaving engine goes to standby and the cut waits for the new engine's 4th painted frame
+  (~0.5 s); DLSS 5 is rebuilt without flashes or sudden colour changes; XeSS FG with DLSS SR presents through Streamline's swap-chain
+  proxy (no warning or crash dump when the engine closes); the engine's GPU margin is 90 %.
+- **The ini is brought up to date once** (from 1.2.3 or older, and from the 1.2.4 test builds): the new `base.ini` on top, the plan's
+  frame generation with Smooth Motion, the plan's DLSS model tables with DLSS 5 (now M), and every setting that no longer exists removed;
+  a copy stays in `consoleenhancer.ini.antes-1.3`.
 
 #### Added
-- **FSR 3 FG ×3 / ×4 (legal, any GPU; experimental, only with `generacion_fsr3=1`, see above)**: with FSR 3 FG back, the settings menu
-  has a **Multiplier** row for it (×2 / ×3 / ×4; 30 fps mode). ×2 is
-  AMD's FSR 3 FG as before; ×3 / ×4 use our own build of AMD's MIT-licensed FSR 3.1 frame interpolation (FidelityFX SDK 1.1.4,
-  `engine\CeFsrFg.dll`) changed to generate frames at 1/3, 2/3 or 1/4, 2/4, 3/4 between two real frames from one optical-flow pass.
-  Measured on real console captures: **×4 keeps all 30 real frames, 98.6 % of the frames last exactly one refresh, real frame 41 ms /
-  first new image 17 ms from capture** (Magpie ×4 in 1.2.3: 29.1-29.6 real fps, 90 % at one refresh, ~70 ms). Image quality on a
-  real-capture test scene is better overall than DLSS FG ×4 through Magpie in 1.2.3, but on-screen text and the character's outline smear
-  more than with DLSS FG; still parts (HUD, text) are kept from the real frames. Also with DLSS 5 (measured at 4K with DLSS 5: ×4 keeps the 30 real frames, 118 fps, 99 % at one refresh, first new image 34 ms / real frame 59 ms from capture, against 33 / 50 ms with Smooth Motion ×2; `motor_fsr_multi_dlss5=0` = only without DLSS 5). If the real frame rate can't be held, the first step down is the multiplier
-  (×4 → ×3 → ×2); if the GPU is lost with ×3 / ×4, the rest of the session is ×2. On real gameplay video its generated frames barely move
-  (see above).
-- **Smooth Motion ×4 (optional, 30 fps mode, 120 Hz VRR screens, RTX 40 / 50)**: Smooth Motion only ever adds one frame between two (no
-  driver up to 621.24 offers more, and the driver's DLSS multi-frame override doesn't change it). With the **Multiplier ×4** row
-  (`smooth_x4=1`, off by default) the engine runs XeSS FG ×2 underneath and Smooth Motion doubles it, 30 → 120: measured 118.7 fps,
-  97.7 % of the frames shown for exactly one refresh, all real frames kept, first new frame 14 ms and real frame 40 ms after it arrives
-  (Smooth Motion ×2: 20 / 37 ms; DLSS FG ×4 through Magpie in 1.2.3: 72 / 81 ms). It needs VRR and XeSS FG in the engine; otherwise it
-  stays at ×2 and the row says why. Also with DLSS 5: the engine lowers DLSS 5's scale until ×4 keeps the 30 real frames, says the % it
-  settled on ("Smooth Motion x4 with DLSS 5: DLSS 5 at N % so it fits") and, if it can't even at 25 %, runs ×2 for the session and says
-  so (`smooth_x4_dlss5=0` = ×2 with DLSS 5, as before). On real gameplay video its generated
-  frames at 1/4 and 2/4 are about as good as ×2's and the one at 3/4 worse; 3 of every 4 frames are generated, so artifacts show twice as
-  often as with ×2. There is no good ×3 (90 fps on a 120 Hz screen can't be even).
-- **Enhanced FG (new, experimental): ConsoleEnhancer's own frame generation ×2 / ×3 / ×4 for any GPU with Direct3D 12**,
-  written from scratch for the engine (no NVIDIA, AMD or Intel SDK or library): its own optical flow in both directions (hierarchical,
-  with a forward / backward check to find what gets covered and uncovered), a per-pixel choice of motion in every generated frame, the
-  still HUD kept sharp without touching the background, no blended frame on scene cuts, and the flow of each pair of real frames reused
-  for ×3 / ×4. Its own present thread on its own GPU queue shows every frame at a fixed time counted from the capture's arrival. Two
-  modes: quality (interpolation) and **low latency** (the generated frames go forward from the latest real frame, which is shown as soon
-  as it is ready: measured at 4K, 30 fps mode, ×2, 60 fps with every frame on screen for exactly 2 refreshes and the real frame 9-10 ms
-  after it arrives, against 35 ms with Smooth Motion ×2 and 31 ms with the engine's XeSS FG ×2). An extra choice in *Frame generation
-  type* (never the default), with *Multiplier* ×2 / ×3 / ×4 (30 fps mode) and *Enhanced FG: low latency*. Measured again in this build (4K, 30 fps mode, real PS5 captures): ×2 quality 60 fps evenly, real frame 33 ms / first new 16 ms; ×2 low latency real 9 ms (with DLSS 5: 33 ms, against 50 ms with Smooth Motion ×2); ×4 120 fps evenly but the real frame 62 ms after it arrives (with DLSS 5 ×4 now holds 120: see *Fixed*). It needs a screen at 100 Hz or more (at 60 Hz it was measured broken, so it is not offered there). Its shaders are compiled in the background by the first engine that starts, so picking it later doesn't wait for them (before, ~25 s the first time).
-- **XeSS upscaling in the settings menu and in game profiles**, through the engine (also on NVIDIA), with the refined vectors below and
-  the full motion vectors like DLSS. XeSS and FSR 1 keep their sharpening when the DLSS model picked is a transformer one.
-- For developers: `build_fsrfg.bat` downloads only what it needs of AMD FidelityFX SDK v1.1.4 (commit `c6efa6b`), applies
-  `parches\fidelityfx-fi-multi.patch` and builds `engine\CeFsrFg.dll` (AMD's MIT licence in THIRD-PARTY.md and `licenses\`); the CI
-  builds it too. `--test-tipos-generacion`, `--test-smooth-x4`; engine test hooks `mvverdad=8` (true vectors with `test=zoom
-  test_zoom=1`), `S2_VOLCADO_SR=1` / `S2_VOLCADO_FG=1` (dump what the upscaler / frame generation get). The engine's file test source (`test=archivo:`,
-  the capture card's stand-in) also plays compressed video (mp4 / mkv / webm: H.264, HEVC, VP9, AV1) decoded on the GPU through Media
-  Foundation and delivered like the capture card (YUY2 at the capture size, 59.94, shared clock), so real game footage can drive the
-  whole app without the console: `test_archivo_paso` (one of every N file frames reaches the game, the others are the truth of the
-  generated frames), `test_archivo_desde` / `_hasta` / `_quieto` / `_codigo` / `_filtro` / `_hw` / `_registro`. `--test-avisos` checks
-  the notice of every settings-menu combination against what the engine really gets.
+- **Enhanced FG (experimental): ConsoleEnhancer's own frame generation ×2 / ×3 / ×4 for any GPU with Direct3D 12**, written from
+  scratch for the engine (no NVIDIA, AMD or Intel SDK or library): its own hierarchical optical flow in both directions (5 levels, with
+  a forward / backward check for what gets covered and uncovered), a per-pixel choice of motion in every generated frame, the still HUD
+  kept sharp, no blended frame on scene cuts, and its own present thread on its own GPU queue that shows every frame at a fixed time
+  counted from the capture's arrival. Two modes: quality (interpolation) and **low latency** (the generated frames go forward from the
+  latest real frame, shown as soon as it is ready: at 4K ×2 the real frame is on screen 9-10 ms after it arrives, against ~35 ms with
+  Smooth Motion ×2). Measured with real gameplay video, 30 fps mode, 30 real frames in every case: ×2 60 fps, every frame for 2
+  refreshes; **×4 120 fps, every frame for one refresh, also with DLSS 5** (4K with DLSS 5 at 65-80 %, and 1440p + DLSS M with DLSS 5
+  at 90 %). Its generated frames against the true in-between frames of real gameplay video: GTA V 4.61, Counter-Strike 2 3.14, The
+  Witcher 3 4.02, Fallout 4 6.59 (Smooth Motion ×2: 5.56 / 3.21 / 4.20 / 8.85), but in a third-person driving game they look close to a
+  blend of the two real frames, so it is marked experimental. It needs a screen at 100 Hz or more (at 60 Hz it is not offered); its
+  shaders are compiled in the background by the first engine that starts, so picking it is ready in ~5 s. If the GPU fails with it, it
+  stays in the menu with the reason and the time, and picking it again retries.
+- **Smooth Motion ×4** (30 fps mode, 120 Hz VRR screens, RTX 40 / 50; *Multiplier* ×4, off by default): Smooth Motion only ever adds
+  one frame between two, so the engine runs XeSS FG ×2 underneath and Smooth Motion doubles it, 30 → 120. Measured with real gameplay
+  video at 4K: **30 real frames, 119.7 frames/s, 99.4 % of them for exactly one refresh**. Also with DLSS 5: the engine lowers DLSS 5
+  (down to 25 %) until ×4 keeps 30 real frames and says the % (4K, DLSS 5 level 4: 30 real frames at 35 %, 119 frames/s, 92 % for one
+  refresh); if it can't, ×2 for the session with that capture, saying so (see *Known issues*). It needs VRR and XeSS FG in the engine;
+  otherwise the row shows ×2 and why, and keeps your ×4, which comes back by itself when it can run. There is no good ×3 (90 fps can't
+  be even on a 120 Hz screen).
+- **×4 with DLSS 5 can be picked** (Smooth Motion ×4, Enhanced FG ×3 / ×4): a guard in the engine watches the real frames actually shown
+  and lowers DLSS 5 10 points at a time until ×4 fits; the notice says the %. If the real frame rate can't be held, the first step down
+  is the multiplier (×4 → ×2).
+- **XeSS upscaling in the settings menu and in game profiles**, through the engine (also on NVIDIA).
+- **The Switch 2 games of the older Switch-2-only version of the app are imported once** (with their settings and HOME icons), and the
+  HOME screen reference if it was missing.
+- For developers: the engine's file test source (`test=archivo:`, the capture card's stand-in) also plays compressed video (mp4 / mkv /
+  webm: H.264, HEVC, VP9, AV1) decoded on the GPU and delivered like the capture card, so real game footage can drive the whole app
+  without the console (`test_archivo_paso`, `test_archivo_desde` / `_hasta` / ...); `--test-avisos` checks the notice of every
+  settings-menu combination against what the engine really gets; `--test-tipos-generacion`, `--test-smooth-x4`, `--test-switch2`;
+  `build_fsrfg.bat` downloads only what it needs of AMD FidelityFX SDK v1.1.4 (commit `c6efa6b`), applies
+  `parches\fidelityfx-fi-multi.patch` and builds `engine\CeFsrFg.dll`; the CI builds `PrismaNr.dll` and `CeFsrFg.dll` too.
 
 #### Fixed
-- **Enhanced FG with DLSS 5 hung the GPU (a black screen) and then vanished from the menu.** With DLSS 5 on, Enhanced FG hung the GPU
-  after 20-45 s (DXGI_ERROR_DEVICE_HUNG; in the user's session at 4K, ×2, and reproduced here with real GTA V video and DLSS 5 level 4
-  at 4K after 45 s): its own present queue ran at high priority and the engine's at normal. Both now run at high priority: ×2 and ×4
-  with DLSS 5 ran for minutes without a hang, ×2 with 99.7 % of the frames for exactly 2 refreshes and ×4 with all 30 real frames, 120 fps,
-  every frame for one refresh and DLSS 5 at 80 %. The engine's Enhanced FG thread also had a lost wake-up that could freeze the picture for
-  ~1 s (up to 3 s) when it came to the front. After a GPU loss with it, Enhanced FG no longer disappears from the menu and L3 without a
-  word: it stays listed, the menu says when the GPU failed with it, and picking it again retries. When the GPU is lost the frozen-picture
-  curtain goes up at once instead of after the engine finishes closing (3.5 s in the user's session).
-- **×4 can be picked with DLSS 5** (Smooth Motion ×4 and Enhanced FG ×3 / ×4). The engine watches the real frames (its own GPU time
-  doesn't see XeSS FG or the driver's Smooth Motion) and lowers DLSS 5 10 points at a time, down to 25 %, until ×4 keeps 30; the notice says
-  the %. If it can't, ×2 for the session with that capture and DLSS 5, and the menu says why. With DLSS 5, Smooth Motion ×4 also runs the engine's GPU
-  queue at high priority (measured with DLSS 5 at 45 %: 27.6 → 29.6 real frames) and starts DLSS 5 at 35 % the first time (in the whole app
-  at 4K: 30 real frames, 119 frames/s seen, 92 % for one refresh).
-- **Smooth Motion ×4 showed as chosen but ran ×2, and then looked locked.** Picking "Smooth Motion, ×4, DLSS 5 On" in one go saved ×4
-  (its lock looked at DLSS 5 as it was, off) and the engine ran ×2 because of DLSS 5 without saying so; after picking ×2, ×4 showed a
-  lock. The Multiplier row now follows the DLSS 5 and capture chosen in the same menu, shows what will really run (×2 with the reason)
-  and keeps your ×4 choice, which comes back by itself when it can run (e.g. DLSS 5 off). If ×4 can't keep 30 real fps, the first step
-  down is ×4 → ×2 (this session, that capture / DLSS 5), and the row says so.
-- **Upscalers no longer smear dark or low-detail areas (DLSS SR, also with DLSS 5)**: measured on real 4K game video scaled down to
-  1440p and back up, against the original. The engine's refined upscaler vectors (below) drifted up to 1.5 px every frame in noisy,
-  low-detail areas even with a still camera, and DLSS kept resampling its history: a dark night scene went from sharpness 0.83 to 0.15
-  in two seconds. A correction is now used only when it is reliable: DLSS M 0.42 → 0.82, DLSS 5 + DLSS M 0.52 → 0.89 (XeSS / FSR keep
-  the vectors as they were: XeSS measured better with them).
-- **Less blur when the camera turns with DLSS 4 / 4.5 (K, L, M)**: these models had no sharpening at all; they now get a light CAS only
-  where the picture moves (still scenes and their shimmer unchanged, no halos on HUD text): moving DLSS M sharpness 0.75 → 0.84,
-  DLSS 5 + M 0.73 → 0.87.
-- **DLSS (all models: DLSS 4 / 4.5 K, L, M and also E) no longer blurs when the camera moves, and XeSS / FSR neither**: the engine's
-  motion vectors (an 8×8 block search on the console picture) were 0.5-1 px off where there is texture and stuck to zero with slow camera
-  moves, so the upscaler blended a misaligned history: blurry and doubled. Now each 8×8 tile refines its vector to a fraction of a pixel
-  (Lucas-Kanade on a lightly blurred luma) for the upscaler only. Measured against the true picture, 1440p → 4K in motion: K 1.32 → 0.82,
-  M 0.92 → 0.44, L 0.79 → 0.44, E 1.05 → 0.72; 1080p K 1.75 → 1.00; on a video of real console captures K 1.29 → 0.78 and M 0.66 → 0.48.
-  DLSS 5, its anti-flicker and frame generation keep their vectors unchanged. About +1.3 ms of GPU at 1440p.
-- **Fine low-contrast textures (floors) are no longer smeared, even with the camera still**: without DLSS 5, the edge smoothing (FXAA),
-  dither removal and flat denoise that ran on the capture before the upscaler took floor texture for edges; with DLSS SR / XeSS / FSR
-  the input now goes untouched (still floor, K: error 0.76 → 0.58, sharpness 0.88 → 0.91). Now also before DLSS 5 when an upscaler
-  follows (1440p / 1080p / 720p): the result is closer to DLSS 5 at native 4K (still scene: error 2.83 → 2.64, sharpness 0.80 → 0.85);
-  DLSS 5 at native 4K is unchanged.
+- **Upscalers no longer blur in motion or smear dark and low-detail areas (DLSS SR K / L / M / E, also with DLSS 5; XeSS, FSR).** The
+  engine's motion vectors (an 8×8 block search on the console picture) were 0.5-1 px off where there is texture and stuck at zero with
+  slow camera moves, so the upscaler blended a misaligned history. Each 8×8 tile now refines its vector to a fraction of a pixel for the
+  upscaler, and a correction is used only where it is reliable (measured against the true picture, 1440p → 4K in motion: K 1.32 → 0.82,
+  M 0.92 → 0.44, L 0.79 → 0.44, E 1.05 → 0.72; a dark night scene of real game video: DLSS M sharpness 0.42 → 0.82, DLSS 5 + M 0.52 →
+  0.89). The transformer models (K, L, M) get a light CAS only where the picture moves (moving DLSS M 0.75 → 0.84, DLSS 5 + M 0.73 →
+  0.87; still scenes unchanged). The capture goes to a temporal upscaler (and to DLSS 5 when an upscaler follows) without the edge
+  smoothing / dither removal / flat denoise that smeared fine floor textures even with the camera still. About +1.3 ms of GPU at 1440p.
 - **The DLSS model you pick is the one you get**: the engine replaced it with the model "learned last time" even when it was a more
-  expensive one (picking K or E at 1440p gave M) or a cheaper one for no reason (picking M gave E). Now it only steps down from what you
-  asked for when that did not fit, and no longer because of the GPU spike of rebuilding DLSS 5 (right after DLSS 5 changed size, M was
-  swapped for K and remembered); with DLSS 5 the engine lowers the DLSS 5 percentage first, as intended. (The DLSS model is still one
-  choice for all games.)
-- **Frame generation no longer makes the character's head disappear when the camera turns (XeSS FG / FSR 3 FG, also FSR 3 FG ×3 / ×4)**:
-  the engine gave the frame generation one camera vector for the whole picture and zero only on still, textured points, so the smooth
-  parts of a third-person character (skin, hair, clothes), and all of it when it sways a little, were dragged half a camera step in the
-  generated frame, and FSR 3 FG got an all-zero depth, so the moving background was drawn over the head and over HUD text. The engine
-  now tells the character (and the HUD) apart from the background, gives each its own motion (the background with the camera's pan,
-  zoom and roll) and puts the character in front in the depth. Measured on real console captures (4K, 30 fps mode, camera turning around
-  a third-person character): with FSR 3 FG the head error drops 84 %, the character's outline 73 %, HUD text 91 %; XeSS FG already kept
-  the head and stays as good or slightly better. About 0.6 ms of GPU at 4K.
-- **Smooth Motion no longer freezes the picture for 1-3 s after changing the capture (4K ↔ 1440p) or when an engine wakes up**: the TV
-  queue estimate grew with the notice repaints and every real frame was dropped until the notice went away. Now the repaints don't
-  count when the queue is already full and at most two real frames are dropped in a row (simulated with the same loop: longest gap
-  3.0 s → 0.3 s).
-- **The 120 fps mode no longer reopens the engine with G-SYNC off** (Rocket League at 120 took 7-10 s more to show its settings when
-  coming from the console menu, and then played with a fixed refresh and tearing allowed instead of VRR).
-- **The XeSS upscaler entry** looked for Intel's DLL in the old `magpie\` folder; it now uses `xess\`.
-- Kept from the first 1.2.4 builds: launching another game from the console menu switches the title and settings right away; a game
-  name read with the ™ / ® mark no longer overwrites the good one; *Add DLSS 5* finds your own file if it is already on your PC (only
-  locally) and says whether it is NVIDIA's signed original or the community-modified one.
+  expensive one or a cheaper one for no reason, and the GPU spike of rebuilding DLSS 5 swapped M for K. Now it only steps down from
+  what you asked for when that did not fit; with DLSS 5 the engine lowers the DLSS 5 percentage first.
+- **The engine's frame generation keeps the character's head when the camera turns**: it gave the frame generation one camera vector
+  for the whole picture, so the smooth parts of a third-person character were dragged half a camera step. It now tells the character
+  and the HUD apart from the background, gives each its own motion and puts the character in front in the depth (with FSR 3 FG: head
+  error −84 %, HUD text −91 %; XeSS FG, which already kept the head, as good or slightly better; about 0.6 ms of GPU at 4K).
+- **Smooth Motion no longer freezes the picture for 1-3 s** after changing the capture (4K ↔ 1440p) or when an engine wakes up.
+- **The 120 fps mode no longer reopens the engine with G-SYNC off** (it took 7-10 s more and then played with a fixed refresh).
+- **Switch 2 after a PS5 (and the other way round)**: the Switch 2 took ~16 s to be recognised and meanwhile the PS5 logic saved a PS5
+  game cover from the Switch 2 HOME (that cover is removed by itself); with the Switch 2 remembered and the PS5 on screen, a "Game 1"
+  was created from the PS5 picture (removed by itself) and the PS5 took 76 s.
+- **Switch 2 game names read in the HOME are kept for the profile**: the reads were lost when the cursor moved to another game, so
+  entering it after coming back saved it as "Game 1". Now they last the whole session per icon; the "Game N" profiles saved by this bug
+  get their real name from the log of that session.
+- **The settings menu no longer closes as it opens** when opened with the controller's centre button (that press also arrived as Back
+  2-5 ms later).
+- Launching another game from the console menu switches the title and settings right away; a game name read with the ™ / ® mark no
+  longer overwrites the good one; *Add DLSS 5* finds your own file if it is already on your PC (only locally) and says whether it is
+  NVIDIA's signed original or the community-modified one.
 
 #### Removed
-- **NVIDIA DLSS Frame Generation (DLSS-G)** from the whole app (engine, menus, tray, Settings, wizard), together with the community
-  `dlssg_sm86` package and the engine's `PrismaFg.dll`; the old ×3 / ×4 multipliers, the engine's old own frame generation and the HUD
-  mask (`fgui`). DLSS Super Resolution, DLSS 5 and Reflex are unchanged.
-- **Magpie** and **mpv**: no longer downloaded or opened; `mpv\`, `scripts\*.lua`, the mpv shaders and `resources\mpv.conf` are gone.
+- **NVIDIA DLSS Frame Generation (DLSS-G)** from the whole app (engine, menus, tray, Settings, wizard), with the community
+  `dlssg_sm86` package, the old ×3 / ×4 multipliers, the engine's old own frame generation and the HUD mask. DLSS Super Resolution,
+  DLSS 5 and Reflex are unchanged.
+- **Magpie** and **mpv**: no longer downloaded or opened (`mpv\`, `scripts\*.lua`, the mpv shaders and `resources\mpv.conf` are gone).
   The "strong dither filter" (an mpv shader) is not in the engine yet (the normal one is).
 - The upscalers only Magpie had (RTX Video, NVIDIA VFX, SGSR, CAS, Lanczos, Bicubic): FSR 1 or no upscaling in the engine.
 - Settings that no longer do anything (accepted silently and removed from the ini on update): the DLSS FG / ×3 / ×4 / own-FG keys,
-  `motor_dlss5_pasadas`, every `magpie_*`, `pasadas_vigilancia*`, `puente_ligero`, `telon_esperar_magpie_max_ms`, `rtx_hdr_metodo`,
-  `mpv_path`, `mpv_cola_ms`, `mpv_cscale`, `mpv_sin_marco`, `captura_png`, `test_mpv_args`.
+  `motor_dlss5`, `motor_dlss5_pasadas`, every `magpie_*`, `pasadas_vigilancia*`, `puente_ligero`, `telon_esperar_magpie_max_ms`,
+  `rtx_hdr_metodo`, `mpv_path`, `mpv_cola_ms`, `mpv_cscale`, `mpv_sin_marco`, `captura_png`, `test_mpv_args`.
 
 #### Settings to go back
 Engine settings go at the end of the `motor_extra=` line of `consoleenhancer.ini`; the others, as their own line at the end of the file.
-- In `motor_extra`: `sr_vectores=0` (upscaler without the refined vectors) · `sr_aa=1` (edge smoothing / dither removal / flat
-  denoise before a temporal upscaler again) · `sr_completos_xess=0` (XeSS / FSR with the light vectors) · `adapta_modelo_sobre_pedido=1`
-  (the learned DLSS model may be a more expensive one) · `fg_cabeza=0` (frame generation without the character apart) ·
-  `cola_grafica=0` (Smooth Motion queue without the GPU end time) · `cola_sin_repintar=0` and `cola_tirar_seguidas=0` (Smooth Motion
-  repaints and drops as before) · `grab_gris=1` (grey detection grabs) · `sl_proxy_present=0` · `dlss5_suave=0` · `sr_vec_incert=0` (the refined vectors also where they are unreliable) · `sr_aa_dlss5=0`
-  (edge smoothing / dither removal / flat denoise before DLSS 5 with an upscaler) · `sr_nitidez_mov=0` (no motion-only sharpening).
-- In the ini: `generacion_fsr3=1` (FSR 3 FG back, experimental) · `smooth_x4=1` (Smooth Motion ×4 on; off by default) ·
-  `smooth_x4_dlss5=0` (Smooth Motion ×4 only without DLSS 5) · `efg_multi_dlss5=0` (Enhanced FG ×2 with DLSS 5) · `efg_prioridad=1`
-  (Enhanced FG with the engine queue at normal priority, as before) · `x4d5=0` (no ×4-with-DLSS-5 guard) · `x4d5_inicio=35` ·
-  `xefg_prioridad_x4=0` · `efg_precompilar=0` (no background shader compile) · `motor_fsr_multi=0` (FSR 3 FG only ×2) · `motor_fsr_multi_dlss5=0`
-  (FSR 3 FG ×3 / ×4 only without DLSS 5) · `relevo_pintadas=1` (engine switch cut at the first painted frame) · `audio_motor_extra=audio_cola_ms=30
-  audio_cola_max_ms=100 audio_salida_ms=10 audio_deriva=1` (the sound process's queue, output and drift correction; those are the
-  defaults).
+- In `motor_extra`: `sr_vectores=0` (upscaler without the refined vectors) · `sr_vec_incert=0` (refined vectors also where unreliable)
+  · `sr_aa=1` / `sr_aa_dlss5=0` (edge smoothing / dither removal / flat denoise before a temporal upscaler / before DLSS 5 with an
+  upscaler) · `sr_nitidez_mov=0` (no motion-only sharpening) · `sr_completos_xess=0` (XeSS / FSR with the light vectors) ·
+  `adapta_modelo_sobre_pedido=1` · `fg_cabeza=0` · `cola_grafica=0` · `cola_sin_repintar=0` · `cola_tirar_seguidas=0` · `grab_gris=1` ·
+  `sl_proxy_present=0` · `dlss5_suave=0` · `x4d5=0` (no ×4-with-DLSS-5 guard) · `x4d5_inicio=0` (Smooth Motion ×4 + DLSS 5 starts at
+  what you asked instead of 35 %) · `xefg_prioridad_x4=0` (Smooth Motion ×4 + DLSS 5 with the engine queue at normal priority) ·
+  `efg_prioridad=1` (Enhanced FG with the engine queue at normal priority: it hung the GPU with DLSS 5) · `efg_precompilar=0`.
+- In the ini: `generacion_fsr3=1` (FSR 3 FG back, experimental) · `smooth_x4_dlss5=0` (Smooth Motion ×4 only without DLSS 5) ·
+  `efg_multi_dlss5=0` (Enhanced FG ×2 with DLSS 5) · `motor_fsr_multi=0` / `motor_fsr_multi_dlss5=0` (FSR 3 FG only ×2 / ×3-×4 only
+  without DLSS 5) · `relevo_pintadas=1` (engine switch cut at the first painted frame) · `audio_motor_extra=audio_cola_ms=30
+  audio_cola_max_ms=100 audio_salida_ms=10 audio_deriva=1` (the sound process's defaults).
+
+#### Known issues
+- **Smooth Motion ×4 with DLSS 5 at 1440p capture (+ DLSS M)** doesn't fit on an RTX 4060 Ti even with DLSS 5 at 25 % (the upscaler and
+  XeSS FG at 4K are the cost, not DLSS 5): after 20-25 s it goes ×2 for the session with a red notice (3 of 4 runs). Enhanced FG ×4 does
+  fit there. At 4K capture it holds 30 at 35 %.
+- Enhanced FG is experimental. For ×4 with DLSS 5 use its quality mode (every frame shown, DLSS 5 at 65-90 %): in low-latency mode
+  ×3 / ×4 with DLSS 5 the guard lowers DLSS 5 (to 35 % or less at 4K) and some generated frames are still skipped (98 of 120 frames/s
+  at 35 % in the last whole-app test). `efg_salto_fino=1` in `motor_extra` skips none at 65 %, but it hung the GPU once in testing.
+- A memory overclock on the graphics card can hang the GPU with DLSS 5 plus frame generation even when games look fine.
+- The Xbox has only been tested with official screenshots; the Switch (1) HOME looks like the Switch 2's (with it, `consola=switch1`).
 
 #### Notes
 - **DLSS 5 and the law (see the README)**: the repository and the zip carry the engine's own native piece `PrismaNr` (own code,
   GPL-3.0), which loads the `nvngx_dlssnr.dll` the user adds without going through NVIDIA's check (NGX), which NVIDIA's terms do not
   allow; the user decided to publish it knowing that. The app does not ship, download or link to any modified NVIDIA file, and *Add DLSS
   5* only looks on the user's own PC. PrismaNr is built with NVIDIA's two public NGX headers (pinned, SHA-256 checked), which are not in
-  the repository. Without the user's file it does nothing. `PrismaFg` and `dlssg_sm86` are gone with DLSS FG.
+  the repository. Without the user's file it does nothing.
 - The zip also carries `engine\CeFsrFg.dll`: AMD FidelityFX SDK 1.1.4 code (MIT), modified by ConsoleEnhancer; AMD's notice is in
   `licenses\`. Smooth Motion ×3 / ×4 on its own and XeSS FG ×3 / ×4 outside Intel GPUs are not offered: they would need patching
   NVIDIA's driver or Intel's library.
-- The real gameplay video used for the measurements (Xiph.org's public-domain Twitch recordings, YouTube UGC Dataset clips under CC BY
-  4.0 and CC0 Counter-Strike 2 clips) is only for testing: it is not in the repository or the zip.
+- The gameplay video used for the measurements is only for testing: it is not in the repository or the zip.
 
-### Español
+### Castellano
+
+**Todo en el motor propio de ConsoleEnhancer, sin Magpie, sin mpv y sin DLSS Frame Generation de NVIDIA**, con una generación de
+imágenes propia nueva (Enhanced FG, experimental), Smooth Motion ×4, reescalado más nítido en movimiento y cambio de consola al momento.
+Medido sin la consola en una RTX 4060 Ti con una tele 4K 120 Hz con VRR, con **vídeo real de juego** (grabaciones de dominio público y
+Creative Commons, solo para medir) metido en el motor como si fuera la capturadora y los ajustes de quien la prueba con la consola
+(DLSS 5 nivel 4, 4K y 1440p + DLSS M, modo 30, 120 Hz con VRR). Comparado con la 1.2.3.
 
 #### Cambiado
-- **Toda la app va por el motor propio.** La app ya no usa ni baja Magpie ni mpv: la imagen, el menú de la consola a 4K nativo, las
-  capturas para la detección, los telones, la sonda del bajo consumo, las pruebas de imagen y sonido del asistente y el sonido de la
-  consola los hace `ConsoleEnhancerEngine.exe`. **DLSS 5** (con tu propia `nvngx_dlssnr.dll`) va siempre en el motor por
-  `engine\PrismaNr.dll`, de 1 a 3 pasadas y con cualquier tipo de generación (también XeSS FG); FSR 3 FG también con DLSS de
-  escalador. La primera vez solo se bajan el **SDK de Intel XeSS 3.0.2** y el **SDK de AMD FSR 2.3.0** (unos 205 MB en vez de ~670); de
-  una carpeta `magpie\` de antes se reaprovechan los archivos de Intel y AMD. Si un tipo de generación pierde la gráfica en el motor, el
-  resto de la sesión va otro, también en el motor, con la última imagen en pantalla mientras se recupera.
-- **Solo se elige el tipo de generación**: Smooth Motion (RTX 40 / 50, de serie en ellas), XeSS FG o la nueva Enhanced FG
-  (experimental, nunca la de serie), o ninguna. Los perfiles y ajustes viejos con DLSS FG, FSR 3 FG o los ×3 / ×4 de antes pasan solos al
-  tipo más parecido (Smooth Motion en NVIDIA), con todo lo demás igual, y el menú dice por qué.
-- **FSR 3 FG (×2 / ×3 / ×4) ya no se ofrece.** Probada con la consola y medida con vídeo real de juego, era la peor de todas (fallos y
-  poca fluidez: sus inventadas casi no se mueven; con ×4, de 383 imágenes vistas 311 se parecían a una real). `generacion_fsr3=1` en el
-  ini la vuelve a poner como «FSR 3 FG (experimental)». Con vídeo real Smooth Motion ×2 y XeSS FG ×2 inventan parecido (cada una mejor
-  en uno de dos juegos) y se quedan las dos.
-- **Enhanced FG va marcada como experimental** («Enhanced FG (experimental)» en el menú, L3 y la bandeja): con vídeo real de juego sus
-  inventadas se parecen a una mezcla de las dos reales en uno en tercera persona conduciendo (cerca de Smooth Motion en uno en primera
-  persona); el modo de baja latencia mantiene su latencia muy baja. Su flujo óptico busca ahora el doble de lejos (5 niveles, vectores
-  sueltos limpiados en todos), así que los giros rápidos de cámara ya no se quedan en una mezcla: error ×2 contra las imágenes de en medio
-  de verdad de vídeo real de juego GTA V 5,37 → 4,61, Counter-Strike 2 3,63 → 3,14, The Witcher 3 4,10 → 4,02, Fallout 4 8,34 → 6,59
-  (Smooth Motion ×2: 5,56 / 3,21 / 4,20 / 8,85). ×3 / ×4 también con DLSS 5 (ver *Arreglado*).
+- **Toda la app va por el motor propio.** Ya no usa ni baja Magpie ni mpv: la imagen, el menú de la consola a 4K nativo, las capturas
+  para la detección, los telones, la sonda del bajo consumo, las pruebas de imagen y sonido del asistente y el sonido de la consola los
+  hace `ConsoleEnhancerEngine.exe`. **DLSS 5** (con tu propia `nvngx_dlssnr.dll`) va siempre en el motor por `engine\PrismaNr.dll`, de 1
+  a 3 pasadas y con cualquier tipo de generación. La primera vez solo se bajan el **SDK de Intel XeSS 3.0.2** y el **SDK de AMD FSR
+  2.3.0** (unos 205 MB en vez de ~670); de una carpeta `magpie\` de antes se reaprovechan los archivos de Intel y AMD. Si un tipo de
+  generación pierde la gráfica, el resto de la sesión va otro, con la última imagen en pantalla mientras se recupera.
+- **Solo se elige el tipo de generación**: Smooth Motion (RTX 40 / 50, de serie en ellas), XeSS FG, la nueva **Enhanced FG**
+  (experimental, nunca de serie) o ninguna. Smooth Motion tiene **Multiplicador** ×2 / ×4 y Enhanced FG ×2 / ×3 / ×4 (modo 30); XeSS FG
+  va ×2. Los perfiles y ajustes viejos con DLSS FG, FSR 3 FG o los ×3 / ×4 de antes pasan solos al tipo más parecido (Smooth Motion en
+  NVIDIA), con todo lo demás igual, y el menú dice por qué.
+- **FSR 3 FG ya no se ofrece.** Medida con vídeo real de juego era la peor de todas (fallos y poca fluidez: sus inventadas casi no se
+  mueven). `generacion_fsr3=1` en el ini la vuelve a poner como «FSR 3 FG (experimental)», con ×2 (la de AMD) y ×3 / ×4
+  (`engine\CeFsrFg.dll`: la interpolación de FSR 3.1 de AMD, código MIT, compilada aquí y cambiada para inventar varias imágenes entre dos
+  reales). Con vídeo real Smooth Motion ×2 y XeSS FG ×2 inventan parecido y se quedan las dos.
 - **Los avisos en pantalla dicen lo que va de verdad**, sacado de lo que reciben el motor y el driver y no de lo pedido: el «Aplicar» del
   menú de ajustes dice solo lo que cambia (captura, tipo de generación con su multiplicador de verdad y «30 → 120 fps», DLSS 5,
   escalador) y, si algo de lo pedido no puede ir, por qué (p. ej. «Smooth Motion x2 · 30 → 60 fps · x4 no: sin VRR (G-SYNC) en la
-  pantalla»). Fuera «DLSS-G + Reflex», el «30 → 60» fijo, «DLSS 5 no cabe» con DLSS 5 encendido, «Catmull-Rom» y «motor propio». Lo mismo
-  con los botones Vista / Menú / A / R3 / L3 / nivel / pasadas, la cruceta, la bandeja y Ctrl+I. Un aviso por cambio: con cambio de motor
-  sale en el nuevo al ponerse delante (en el de antes solo «preparando» si tarda); el botón Menú y las bajadas solas cuando no se llega a
-  las reales ya no dan dos avisos. Los nombres de la generación en el menú ya no llevan el multiplicador guardado; todos los avisos en
-  pantalla quedan en el log; la pastilla de avisos del motor puede ser más ancha a 4K (3600 px: los de varios cambios salían cortados).
+  pantalla»). Lo mismo con los botones Vista / Menú / A / R3 / L3 / nivel / pasadas, la cruceta, la bandeja y Ctrl+I. Un aviso por
+  cambio: con cambio de motor sale en el nuevo al ponerse delante; las bajadas solas cuando no se llega a las reales dan un solo aviso.
+  Todos los avisos quedan en el log y la pastilla de avisos puede ser más ancha a 4K.
+- **El cambio de consola se reconoce al momento.** Una prueba fuerte de la consola en pantalla (el HOME de la Switch 2 con el nombre del
+  juego en cian y la hora con la batería, la hora del menú de la PS5 o las pestañas de su inicio, el Inicio o la guía de la Xbox con dos
+  frases suyas) cambia a la segunda captura (~0,5 s; la Switch 2 tras la PS5 tardaba ~16 s); lo suelto de la Xbox sigue pidiendo 3
+  pruebas en 20 s. Mientras la imagen apunte a otra consola no actúa nada del reconocimiento de juegos de la anterior (portadas, iconos,
+  nombres), y la consola recordada de la vez anterior no crea juegos, «Juego N», iconos, portadas ni nombres hasta que la imagen la
+  confirme.
 - **El motor reserva la gráfica de su propia generación** (FSR, y XeSS FG debajo de Smooth Motion ×4), para que la escala de DLSS 5 le
-  haga sitio; XeSS FG y Smooth Motion ×2 reservan lo mismo que antes.
+  haga sitio.
 - Con DLSS 5 a 1440p / 1080p / 720p el modelo de DLSS de serie es **M y no K** (K es el más borroso en movimiento con vídeo real de
   juego); el que eliges en el menú sigue mandando.
-- **Smooth Motion: menos latencia justo al empezar la imagen.** Con Smooth Motion el motor tira una imagen real cuando iba a esperar en
-  la cola de la tele (el ritmo "cada 2 refrescos" solo la vacía 1 ms por segundo); ahora cuenta también cuándo acaba de verdad la gráfica
-  cada imagen: la primera tras arrancar o despertar con DLSS 5 tarda 0,6-0,8 s en la gráfica y las de detrás llegaban juntas a la tele,
-  con 10-30 ms de más durante 15-25 s (8 de 12 arranques, 4K modo 30). Ahora 0 de 6 arranques con esa cola, la misma latencia estable
-  (la real ~50 ms y la inventada ~33 con DLSS 5 a 4K; 35 / 18 a 1440p sin DLSS 5; modo 60 19 / 11) y todas las imágenes 2 refrescos en la
-  tele. Reflex sigue encendido con Smooth Motion (el driver deja los dos; sin diferencia medida) y el ritmo sigue "cada 2 refrescos" +
-  VRR en el modo 30 (la sincronización forzada, el limitador del driver o el refresco fijo, medidos, iban peor o igual).
-- **El sonido de la consola por el motor** (`ConsoleEnhancerEngine.exe --audio`, un proceso aparte solo de sonido, como el reproductor
-  de audio de antes): el mismo pin de la capturadora, formato y trozos de 20 ms, la salida de sonido de Windows (WASAPI), la misma mezcla
-  de 7.1 a estéreo con limitador y la deriva del reloj corregida dentro (sin retraso que crece). Medido con una fuente de prueba al ritmo
-  de la capturadora: clic → salida 78,5 ms, sin cortes, deriva de ±500 ppm corregida. Registro: `data\logs\audio.log`;
-  `audio_motor_extra=` le pasa `audio_cola_ms`, `audio_salida_ms`, `audio_deriva`.
-- **Capturas para la detección en color**: con la captura en YUY2 / NV12 el motor le daba a la app imágenes en gris (solo la luma);
-  ahora en color (BT.709): vuelve a reconocerse el HOME de la Switch 2 (el nombre azul) y los telones con la imagen congelada salen en
-  color. La detección del menú, del juego y de la hora de la PS5 con las capturas reales guardadas da lo mismo que con las imágenes
-  originales; los iconos de juegos aprendidos se siguen reconociendo.
-- **Captura MJPEG** (capturadoras USB 2.0 como la MS2109): la descomprime el motor con el descompresor MJPEG de Windows, hasta 720p. La
-  captura en H.264 / HEVC ya no vale (elige un formato sin comprimir). Si el motor no arranca o se cae, la app lo vuelve a intentar y lo
-  dice claro.
-- **El escalador alternativo de R3 es FSR 1** (RTX Video era de Magpie; el motor ya hacía FSR 1 sin decirlo). Los perfiles viejos
-  guardados con el escalador alternativo van con FSR 1, y el menú de ajustes dice ahora FSR 1 en vez de DLSS.
-- **El ini se pone al día una vez** (también tras la 1.2.4 retirada o la de prueba): el `base.ini` nuevo arriba, la generación del plan
-  con Smooth Motion, las tablas del modelo de DLSS del plan con DLSS 5 (ahora M) y fuera todos los ajustes que ya no existen (DLSS FG,
-  los ×3 / ×4 de antes, Magpie, mpv); queda una copia en `consoleenhancer.ini.antes-1.2.4-r7`.
-- Se queda de las primeras 1.2.4: cambios de motor en ~0,5 s sin negro (el que se va pasa a la espera, el corte espera a la 4.ª imagen
-  pintada del nuevo, `relevo_pintadas=4`); DLSS 5 del motor sin destellos ni cambios de color de golpe al rehacerse (`dlss5_suave`);
-  XeSS FG / FSR 3 FG con DLSS SR presentan por el proxy de Streamline (sin aviso ni volcado al cerrar el motor, `sl_proxy_present`); el
-  margen de gráfica del motor al 90 % (`motor_uso_grafica`).
+- **Smooth Motion: menos latencia justo al empezar la imagen.** El motor cuenta también cuándo acaba de verdad la gráfica cada imagen
+  antes de mandar una a la cola de la tele: la primera tras arrancar o despertar con DLSS 5 tarda 0,6-0,8 s en la gráfica y las de detrás
+  llegaban juntas a la tele, con 10-30 ms de latencia de más durante 15-25 s (8 de 12 arranques; ahora 0 de 6). Reflex sigue puesto con
+  Smooth Motion.
+- **El sonido de la consola, por el motor** (`ConsoleEnhancerEngine.exe --audio`, un proceso aparte solo de sonido): el mismo pin de la
+  capturadora, formato y bloques de 20 ms, la salida de audio de Windows (WASAPI), la misma mezcla 7.1 → estéreo con limitador y la
+  corrección de la deriva de reloj (sin retraso que crezca; medido clic → salida 78,5 ms, sin cortes). Log: `data\logs\audio.log`.
+- **Capturas para la detección en color** (con captura YUY2 / NV12 el motor le daba a la app imágenes en gris): el HOME de la Switch 2
+  se vuelve a reconocer y los telones con la imagen congelada salen en color.
+- **Captura MJPEG** (capturadoras USB 2.0 como la MS2109): la descomprime el motor, hasta 720p. La captura H.264 / HEVC ya no vale
+  (elige un formato sin comprimir).
+- **El escalador alternativo de R3 es FSR 1**; los perfiles guardados con el alternativo pasan a FSR 1 y el menú lo enseña.
+- **Cambios de motor sin negro**: el motor que se va pasa a la espera y el corte espera a la 4ª imagen pintada del nuevo (~0,5 s); DLSS 5
+  se rehace sin destellos ni cambios bruscos de color; XeSS FG con DLSS SR presenta por el proxy de la cadena de Streamline (sin aviso ni
+  volcado al cerrar el motor); el margen de gráfica del motor es el 90 %.
+- **El ini se pone al día una vez** (desde la 1.2.3 o anteriores, y desde las versiones de prueba de la 1.2.4): el `base.ini` nuevo
+  arriba, la generación del plan con Smooth Motion, las tablas del modelo de DLSS con DLSS 5 (ahora M) y fuera todos los ajustes que ya no
+  existen; queda una copia en `consoleenhancer.ini.antes-1.3`.
 
 #### Añadido
-- **FSR 3 FG ×3 / ×4 (legal, cualquier gráfica; experimental, solo con `generacion_fsr3=1`, ver arriba)**: con FSR 3 FG puesta otra
-  vez, fila **Multiplicador** en el menú de ajustes (×2 / ×3 / ×4; modo 30). ×2
-  es la FSR 3 FG de AMD de siempre; ×3 / ×4 usan nuestra propia compilación de la interpolación de FSR 3.1 de AMD (código MIT,
-  FidelityFX SDK 1.1.4, `engine\CeFsrFg.dll`) cambiada para inventar en 1/3, 2/3 o 1/4, 2/4, 3/4 entre dos reales con un solo flujo
-  óptico. Medido con capturas reales de la consola: **×4 mantiene las 30 reales, el 98,6 % de las imágenes dura justo un refresco, la real
-  a 41 ms y la primera imagen nueva a 17 ms de la captura** (Magpie ×4 en la 1.2.3: 29,1-29,6 reales, 90 % a un refresco, ~70 ms). La
-  calidad, en una escena de prueba de capturas reales, mejor en conjunto que DLSS FG ×4 por Magpie en la 1.2.3, pero el texto en pantalla
-  y el contorno del personaje se emborronan más que con DLSS FG; lo quieto (interfaz, texto) sale de las reales. También con DLSS 5 (medido a 4K con DLSS 5: ×4 mantiene las 30 reales, 118 imágenes/s, el 99 % a un refresco, la primera imagen nueva a 34 ms y la real a 59 de la captura, frente a 33 / 50 con Smooth Motion ×2; `motor_fsr_multi_dlss5=0` = solo sin DLSS 5). Si no se llega a las reales, lo primero que baja es el
-  multiplicador (×4 → ×3 → ×2); si la gráfica se pierde con ×3 / ×4, el resto de la sesión va ×2. Con vídeo real de juego sus inventadas
-  casi no se mueven (ver arriba).
-- **Smooth Motion ×4 (opcional, modo 30, pantallas de 120 Hz con VRR, RTX 40 / 50)**: Smooth Motion solo mete una imagen entre dos
-  (ningún driver hasta el 621.24 tiene más y el multiplicador de DLSS del perfil del driver no le cambia nada). Con la fila
-  **Multiplicador ×4** (`smooth_x4=1`, apagado de serie) el motor hace XeSS FG ×2 debajo y Smooth Motion lo dobla, de 30 a 120: medido
-  118,7 imágenes/s, el 97,7 % a un refresco justo, todas las reales, la primera imagen nueva a 14 ms y la real a 40 ms de su llegada
-  (Smooth Motion ×2: 20 / 37 ms; DLSS FG ×4 por Magpie en la 1.2.3: 72 / 81 ms). Necesita VRR y XeSS FG en el motor; si no, se queda en
-  ×2 y la fila dice por qué. También con DLSS 5: el motor baja la escala de DLSS 5 hasta que ×4 mantiene las 30 reales, dice el % con el
-  que se queda («Smooth Motion x4 con DLSS 5: DLSS 5 al N % para que quepa») y, si ni al 25 % llega, va ×2 esa sesión y lo dice
-  (`smooth_x4_dlss5=0` = ×2 con DLSS 5, como antes). Con vídeo real de juego sus inventadas a 1/4 y
-  2/4 salen como la de ×2 y la de 3/4 peor; 3 de cada 4 imágenes son inventadas, así que los fallos se ven el doble de veces que con ×2.
-  ×3 bueno no hay (90 en una pantalla de 120 no sale parejo).
-- **Enhanced FG (nueva, experimental): generación propia de ConsoleEnhancer ×2 / ×3 / ×4 para cualquier gráfica con Direct3D
-  12**, código propio del motor (sin SDK ni DLL de NVIDIA, AMD o Intel): flujo óptico propio en los dos sentidos (jerárquico, con
-  comprobación de ida y vuelta para saber qué se tapa y qué se destapa), el movimiento elegido punto a punto en cada inventada, la
-  interfaz quieta nítida sin tocar el fondo, sin inventadas mezcladas en los cortes de escena y el flujo de cada par de reales para
-  ×3 / ×4. Su propio hilo de presentación en su propia cola de la gráfica enseña cada imagen a una hora fija contada desde la llegada de
-  la captura. Dos modos: calidad (interpolación) y **baja latencia** (las inventadas van hacia delante desde la última real, que se
-  enseña en cuanto está: medido a 4K, modo 30, ×2, 60 imágenes/s, todas 2 refrescos, y la real a 9-10 ms de llegar, frente a 35 ms con
-  Smooth Motion ×2 y 31 ms con XeSS FG ×2 del motor). Opción extra en *Tipo de generación* (nunca la de serie), con *Multiplicador*
-  ×2 / ×3 / ×4 (modo 30) y *Enhanced FG: baja latencia*. Medido otra vez en esta versión (4K, modo 30, capturas reales de la PS5): ×2 calidad 60 imágenes/s parejas, la real a 33 ms y la primera nueva a 16; ×2 baja latencia, la real a 9 ms (con DLSS 5: 33 ms, frente a 50 con Smooth Motion ×2); ×4, 120 parejas pero la real a 62 ms de llegar (con DLSS 5 ×4 ya llega a 120: ver *Arreglado*). Necesita una pantalla de 100 Hz o más (a 60 Hz se midió rota y ahí no se ofrece). La primera vez que se elige el motor compila sus shaders (~20 s; mientras, sigue la imagen que había).
-- **XeSS de escalador en el menú de ajustes y en los perfiles**, por el motor (también en NVIDIA), con los vectores afinados de abajo y
-  los vectores completos como DLSS. XeSS y FSR 1 conservan su enfoque cuando el modelo de DLSS elegido es uno transformer.
-- Para desarrolladores: `build_fsrfg.bat` baja solo lo necesario del FidelityFX SDK v1.1.4 de AMD (commit `c6efa6b`), aplica
-  `parches\fidelityfx-fi-multi.patch` y compila `engine\CeFsrFg.dll` (la licencia MIT de AMD en THIRD-PARTY.md y `licenses\`); el CI
-  también la compila. `--test-tipos-generacion`, `--test-smooth-x4`; en el motor, `mvverdad=8` (los vectores de verdad con `test=zoom
-  test_zoom=1`) y `S2_VOLCADO_SR=1` / `S2_VOLCADO_FG=1` (vuelcan lo que reciben el escalador / la generación). La fuente de prueba de
-  archivo del motor (`test=archivo:`, la que hace de capturadora) reproduce también vídeo comprimido (mp4 / mkv / webm: H.264, HEVC, VP9,
-  AV1), decodificado por la gráfica con Media Foundation y entregado como la capturadora (YUY2 al tamaño de la captura, 59,94, reloj
-  común): con grabaciones reales de juegos se prueba la app entera sin la consola. Claves `test_archivo_paso` (solo 1 de cada N imágenes
-  del fichero llega al juego; las demás son la verdad de las inventadas), `test_archivo_desde` / `_hasta` / `_quieto` / `_codigo` /
-  `_filtro` / `_hw` / `_registro`. `--test-avisos` compara el aviso de cada combinación del menú de ajustes con lo que recibe el motor.
+- **Enhanced FG (experimental): la generación de imágenes propia de ConsoleEnhancer ×2 / ×3 / ×4 para cualquier gráfica con Direct3D
+  12**, escrita desde cero para el motor (sin SDK ni librería de NVIDIA, AMD ni Intel): su propio flujo óptico jerárquico en los dos
+  sentidos (5 niveles, con comprobación de ida y vuelta para lo que se tapa y se destapa), la elección del movimiento punto a punto en
+  cada inventada, el HUD quieto nítido, sin imagen mezclada en los cortes de escena, y su propio hilo de presentación en su propia cola
+  de la gráfica que enseña cada imagen a una hora fija contada desde la llegada de la captura. Dos modos: calidad (interpolación) y **baja
+  latencia** (las inventadas van hacia delante desde la última real, que sale en cuanto está: a 4K ×2 la real está en pantalla 9-10 ms
+  después de llegar, frente a ~35 ms con Smooth Motion ×2). Medido con vídeo real de juego, modo 30, con las 30 reales siempre: ×2 60
+  imágenes/s, todas a 2 refrescos; **×4 120 imágenes/s, todas a un refresco, también con DLSS 5** (4K con DLSS 5 al 65-80 %, y 1440p +
+  DLSS M con DLSS 5 al 90 %). Sus inventadas contra las de en medio de verdad del vídeo real: GTA V 4,61, Counter-Strike 2 3,14, The
+  Witcher 3 4,02, Fallout 4 6,59 (Smooth Motion ×2: 5,56 / 3,21 / 4,20 / 8,85), pero en un juego en tercera persona conduciendo se
+  parecen a una mezcla de las dos reales, y por eso va como experimental. Necesita una pantalla a 100 Hz o más (a 60 Hz no se ofrece);
+  sus sombreadores los compila de fondo el primer motor que se abre, así que al elegirla está lista en ~5 s. Si la gráfica se cae con
+  ella, sigue en el menú con el motivo y la hora, y elegirla otra vez es reintentar.
+- **Smooth Motion ×4** (modo 30, pantallas de 120 Hz con VRR, RTX 40 / 50; *Multiplicador* ×4, de serie no): Smooth Motion solo añade
+  una imagen entre dos, así que el motor pone XeSS FG ×2 debajo y Smooth Motion lo dobla, 30 → 120. Medido con vídeo real de juego a 4K:
+  **30 reales, 119,7 imágenes/s, el 99,4 % a un refresco justo**. También con DLSS 5: el motor baja DLSS 5 (hasta el 25 %) hasta que ×4
+  mantiene las 30 reales y dice el % (4K, DLSS 5 nivel 4: 30 reales al 35 %, 119 imágenes/s, el 92 % a un refresco); si no llega, ×2
+  esa sesión con esa captura, y lo dice (ver *Problemas conocidos*). Necesita VRR y XeSS FG en el motor; si no, la fila enseña ×2 y por
+  qué y guarda tu ×4, que vuelve solo cuando puede ir. No hay un ×3 bueno (90 imágenes/s no van parejas en una pantalla de 120 Hz).
+- **×4 con DLSS 5 se puede elegir** (Smooth Motion ×4, Enhanced FG ×3 / ×4): un vigilante del motor mira las reales que se ven de verdad
+  y baja DLSS 5 de 10 en 10 puntos hasta que ×4 cabe; el aviso dice el %. Si no se llega a las reales, lo primero que se baja es el
+  multiplicador (×4 → ×2).
+- **Reescalado XeSS en el menú de ajustes y en los perfiles de juego**, por el motor (también en NVIDIA).
+- **Los juegos de la Switch 2 de la versión de antes de la app (la que era solo para la Switch 2) se importan una vez** (con sus ajustes y
+  sus iconos del HOME), y la referencia del HOME si faltaba.
+- Para desarrolladores: la fuente de prueba de archivo del motor (`test=archivo:`, la que hace de capturadora) reproduce también vídeo
+  comprimido (mp4 / mkv / webm: H.264, HEVC, VP9, AV1) descomprimido en la gráfica y entregado como la capturadora, para mover la app
+  entera con vídeo real de juego sin la consola (`test_archivo_paso`, `test_archivo_desde` / `_hasta` / ...); `--test-avisos` comprueba
+  el aviso de cada combinación del menú de ajustes contra lo que recibe el motor de verdad; `--test-tipos-generacion`,
+  `--test-smooth-x4`, `--test-switch2`; `build_fsrfg.bat` baja solo lo necesario del FidelityFX SDK v1.1.4 de AMD (commit `c6efa6b`),
+  aplica `parches\fidelityfx-fi-multi.patch` y compila `engine\CeFsrFg.dll`; el CI compila también `PrismaNr.dll` y `CeFsrFg.dll`.
 
 #### Arreglado
-- **Enhanced FG con DLSS 5 colgaba la gráfica (pantalla en negro) y después desaparecía del menú.** Con DLSS 5, Enhanced FG colgaba la
-  gráfica a los 20-45 s (DXGI_ERROR_DEVICE_HUNG; en la sesión del usuario a 4K con ×2, y repetido aquí con vídeo real de GTA V y DLSS 5
-  nivel 4 a 4K a los 45 s): su cola de presentación iba en prioridad alta y la del motor en normal. Ahora las dos en alta: ×2 y ×4 con
-  DLSS 5 durante minutos sin cuelgue, ×2 con el 99,7 % de las imágenes a 2 refrescos justos y ×4 con las 30 reales, 120 imágenes/s, todas
-  a un refresco y DLSS 5 al 80 %. El hilo de Enhanced FG del motor perdía además una señal que podía dejar la imagen quieta ~1 s (hasta
-  3 s) al ponerse delante. Tras perder la gráfica con él, Enhanced FG ya no desaparece del menú y de L3 sin decir nada: sigue en la lista,
-  el menú dice a qué hora se cayó la gráfica con él y elegirlo otra vez es reintentar. Al perderse la gráfica, el telón con la imagen
-  congelada sale enseguida, sin esperar a que el motor acabe de cerrarse (3,5 s en la sesión del usuario).
-- **×4 se puede elegir con DLSS 5** (Smooth Motion ×4 y Enhanced FG ×3 / ×4). El motor mira las reales (su tiempo de gráfica no ve XeSS
-  FG ni el Smooth Motion del driver) y baja DLSS 5 de 10 en 10 puntos, hasta el 25 %, hasta que ×4 mantiene las 30; el aviso dice el %.
-  Si ni así, ×2 esa sesión con esa captura y DLSS 5, y el menú dice por qué. Con DLSS 5, Smooth Motion ×4 lleva además la cola de la gráfica del
-  motor en prioridad alta (medido con DLSS 5 al 45 %: de 27,6 a 29,6 reales) y la primera vez empieza con DLSS 5 al 35 % (en la app entera a
-  4K: 30 reales, 119 imágenes/s vistas, el 92 % a un refresco).
-- **Smooth Motion ×4 salía elegido pero iba ×2, y luego parecía bloqueado.** Elegir a la vez «Smooth Motion, ×4, DLSS 5 Sí» guardaba ×4
-  (el candado miraba el DLSS 5 de antes, apagado) y el motor iba ×2 por DLSS 5 sin decirlo; al elegir ×2, ×4 salía con candado. La fila
-  Multiplicador sigue ahora el DLSS 5 y la captura elegidos en el mismo menú, enseña lo que va a ir de verdad (×2 con el motivo) y guarda
-  tu ×4, que vuelve solo cuando puede ir (por ejemplo, sin DLSS 5). Si ×4 no llega a las 30 reales, lo primero que baja es ×4 → ×2 (esta
-  sesión, esa captura / DLSS 5) y la fila lo dice.
-- **Los escaladores ya no emborronan lo oscuro y de poco detalle (DLSS SR, también con DLSS 5)**: medido con vídeo real de juego en 4K
-  bajado a 1440p y vuelto a subir, contra el original. Los vectores afinados del escalador (abajo) se corrían hasta 1,5 px cada imagen en
-  lo ruidoso y de poco detalle aun con la cámara quieta y DLSS remuestreaba su historia sin parar: una escena de noche pasaba de nitidez
-  0,83 a 0,15 en dos segundos. Ahora la corrección solo se usa si es fiable: DLSS M 0,42 → 0,82, DLSS 5 + DLSS M 0,52 → 0,89 (XeSS / FSR
-  siguen con los vectores de antes: XeSS salía mejor con ellos).
-- **Menos borrosidad al girar la cámara con DLSS 4 / 4.5 (K, L, M)**: esos modelos iban sin ningún enfoque; ahora un CAS ligero solo
-  donde la imagen se mueve (lo quieto y su hervido, igual; sin halos en el texto de la interfaz): DLSS M en movimiento, nitidez 0,75 →
-  0,84; DLSS 5 + M 0,73 → 0,87.
-- **Los DLSS (todos: DLSS 4 / 4.5 K, L, M y también E) ya no emborronan al mover la cámara, ni XeSS / FSR**: los vectores de
-  movimiento del motor (una búsqueda por bloques de 8×8 en la imagen de la consola) tenían 0,5-1 px de error donde hay textura y con la
-  cámara lenta se quedaban a 0, así que el escalador mezclaba una historia desalineada: borroso y doble. Ahora cada casilla de 8×8 afina
-  su vector a fracciones de píxel (Lucas-Kanade sobre la luma algo desenfocada) solo para el escalador. Medido contra la imagen de
-  verdad, 1440p → 4K en movimiento: K 1,32 → 0,82, M 0,92 → 0,44, L 0,79 → 0,44, E 1,05 → 0,72; 1080p K 1,75 → 1,00; con un vídeo de
-  capturas reales de la consola K 1,29 → 0,78 y M 0,66 → 0,48. DLSS 5, su antiparpadeo y la generación siguen con sus vectores. Unos
-  +1,3 ms de gráfica a 1440p.
-- **Las texturas finas de poco contraste (el suelo) ya no se emborronan, ni con la cámara quieta**: sin DLSS 5, el suavizado de bordes
-  (FXAA), el quitar tramado y el liso que se hacían a la captura antes del escalador tomaban la textura del suelo por bordes; con DLSS SR /
-  XeSS / FSR la entrada va ahora tal cual (suelo quieto, K: error 0,76 → 0,58, nitidez 0,88 → 0,91). Ahora también antes de DLSS 5
-  cuando reescala un escalador detrás (1440p / 1080p / 720p): más cerca de DLSS 5 a 4K nativo (escena quieta: error 2,83 → 2,64, nitidez
-  0,80 → 0,85); DLSS 5 a 4K nativo, igual.
-- **El modelo de DLSS que eliges es el que se pone**: el motor lo cambiaba por "el que cupo la última vez" aunque fuera más caro (K o E a
-  1440p daban M) o más barato sin motivo (M daba E). Ahora solo baja de lo pedido si no cupo, y ya no por el pico de rehacer DLSS 5 (justo
-  después de que DLSS 5 cambiara de tamaño, M pasaba a K y se recordaba); con DLSS 5 el motor baja antes el % de DLSS 5, como debe. (El
-  modelo de DLSS sigue siendo una sola elección para todos los juegos.)
-- **La generación ya no hace desaparecer la cabeza del personaje al girar la cámara (XeSS FG / FSR 3 FG, también FSR 3 FG ×3 / ×4)**: el
-  motor le daba un solo vector de cámara para toda la imagen y 0 solo en lo quieto con textura, así que lo liso de un personaje en tercera
-  persona (piel, pelo, ropa), y todo él si se balancea un poco, se desplazaba media cámara en la imagen inventada, y FSR 3 FG recibía una
-  profundidad toda a 0: el fondo pasaba por encima de la cabeza y de los textos de la interfaz. Ahora el motor separa el personaje (y la
-  interfaz) del fondo, da a cada uno su movimiento (el fondo con el giro, el acercamiento y el balanceo de la cámara) y pone el personaje
-  delante en la profundidad. Medido con capturas reales de consola (4K, modo 30, cámara girando alrededor de un personaje en tercera
-  persona): con FSR 3 FG el error de la cabeza baja un 84 %, el del contorno un 73 % y el del texto de la interfaz un 91 %; con XeSS FG,
-  que ya la conservaba, igual o algo mejor. Cuesta ~0,6 ms de gráfica a 4K.
-- **Smooth Motion ya no deja la imagen congelada 1-3 s al cambiar la captura (4K ↔ 1440p) ni al despertar un motor**: la cola estimada
-  de la tele crecía con los repintados del aviso y se tiraban todas las reales hasta que se iba el aviso. Ahora los repintados no cuentan
-  con la cola ya llena y como mucho se tiran dos reales seguidas (simulado con el mismo bucle: el hueco más largo 3,0 s → 0,3 s).
-- **El modo 120 ya no vuelve a abrir el motor con G-SYNC apagado** (Rocket League a 120 tardaba 7-10 s más en ponerse al salir del menú
-  de la consola y luego iba con refresco fijo en vez de VRR).
-- **La opción XeSS del escalador** buscaba la DLL de Intel en la carpeta `magpie\` de antes; ahora en `xess\`.
-- Se queda de las primeras 1.2.4: al arrancar otro juego desde el menú de la consola el título y los ajustes cambian enseguida; un nombre
-  leído con la ™ / ® pegada ya no pisa el bueno; «Añadir DLSS 5» encuentra tu propio archivo si ya está en tu PC (solo en local) y dice si
-  es la original firmada de NVIDIA o la modificada por la comunidad.
+- **Los escaladores ya no emborronan en movimiento ni lo oscuro y con poco detalle (DLSS SR K / L / M / E, también con DLSS 5; XeSS,
+  FSR).** Los vectores de movimiento del motor (una búsqueda por bloques de 8×8 en la imagen de la consola) iban 0,5-1 px desviados donde
+  hay textura y se quedaban a cero con movimientos lentos de cámara, y el escalador mezclaba un historial mal alineado. Ahora cada
+  bloque de 8×8 afina su vector a una fracción de píxel para el escalador, y la corrección solo se usa donde es fiable (medido contra la
+  imagen de verdad, 1440p → 4K en movimiento: K 1,32 → 0,82, M 0,92 → 0,44, L 0,79 → 0,44, E 1,05 → 0,72; una escena nocturna oscura de
+  vídeo real: nitidez de DLSS M 0,42 → 0,82, DLSS 5 + M 0,52 → 0,89). Los modelos transformer (K, L, M) llevan un CAS suave solo donde
+  la imagen se mueve (DLSS M en movimiento 0,75 → 0,84, DLSS 5 + M 0,73 → 0,87; lo quieto igual). La captura llega al escalador temporal
+  (y a DLSS 5 cuando detrás va un escalador) sin el suavizado de bordes / quitar tramado / quitar ruido en lo liso que emborronaba las
+  texturas finas del suelo incluso con la cámara quieta. Unos +1,3 ms de gráfica a 1440p.
+- **El modelo de DLSS que eliges es el que va**: el motor lo cambiaba por el «aprendido la vez anterior» aunque fuera uno más caro o uno
+  más barato sin motivo, y el pico de gráfica al rehacer DLSS 5 cambiaba M por K. Ahora solo baja de lo pedido cuando no cabía; con DLSS 5
+  el motor baja primero el % de DLSS 5.
+- **La generación del motor mantiene la cabeza del personaje al girar la cámara**: le daba un solo vector de cámara para toda la imagen,
+  y las partes lisas de un personaje en tercera persona se arrastraban medio paso de cámara. Ahora separa al personaje y el HUD del
+  fondo, da a cada uno su movimiento y pone al personaje delante en la profundidad (con FSR 3 FG: error en la cabeza −84 %, en el texto
+  del HUD −91 %; XeSS FG, que ya la mantenía, igual o algo mejor; unos 0,6 ms de gráfica a 4K).
+- **Smooth Motion ya no deja la imagen quieta 1-3 s** al cambiar la captura (4K ↔ 1440p) o al despertar un motor.
+- **El modo 120 ya no vuelve a abrir el motor con el G-SYNC quitado** (tardaba 7-10 s más y luego iba con refresco fijo).
+- **Switch 2 tras la PS5 (y al revés)**: la Switch 2 tardaba ~16 s en reconocerse y mientras la PS5 guardaba la portada de un juego suyo
+  sacada del HOME de la Switch 2 (esa portada se quita sola); con la Switch 2 recordada y la PS5 en pantalla se creaba un «Juego 1» con la
+  imagen de la PS5 (se quita solo) y la PS5 tardaba 76 s.
+- **El nombre de cada juego de la Switch 2 leído en el HOME sirve para su perfil**: las lecturas se perdían al mover el cursor a otro
+  juego y, al volver a él y entrar, se guardaba como «Juego 1». Ahora duran toda la sesión por icono; los «Juego N» guardados por este
+  fallo pasan a su nombre, sacado del log de esa sesión.
+- **El menú de ajustes ya no se cierra al abrirlo** con el botón central del mando (esa pulsación llegaba también como Atrás 2-5 ms
+  después).
+- Lanzar otro juego desde el menú de la consola cambia el título y los ajustes al momento; un nombre leído con la ™ / ® pegada ya no
+  pisa el bueno; *Añadir DLSS 5* encuentra tu archivo si ya está en tu PC (solo en local) y dice si es el original firmado de NVIDIA o el
+  modificado por la comunidad.
 
 #### Quitado
-- **DLSS Frame Generation de NVIDIA (DLSS-G)** de toda la app (motor, menús, bandeja, Settings, asistente), con el paquete de la comunidad
-  `dlssg_sm86` y `PrismaFg.dll` del motor; los multiplicadores ×3 / ×4 de antes, la generación propia vieja del motor y la máscara de la
-  interfaz (`fgui`). DLSS Super Resolution, DLSS 5 y Reflex, igual.
-- **Magpie** y **mpv**: ya no se bajan ni se abren; fuera `mpv\`, `scripts\*.lua`, los shaders de mpv y `resources\mpv.conf`. El "filtro
-  de tramado fuerte" (un shader de mpv) aún no está en el motor (el normal sí).
-- Los escaladores que solo tenía Magpie (RTX Video, NVIDIA VFX, SGSR, CAS, Lanczos, Bicúbico): FSR 1 o sin reescalado en el motor.
-- Ajustes que ya no hacen nada (se aceptan sin decir nada y se quitan del ini al ponerlo al día): las claves de DLSS FG / ×3 / ×4 / la
-  generación propia, `motor_dlss5_pasadas`, todas las `magpie_*`, `pasadas_vigilancia*`, `puente_ligero`, `telon_esperar_magpie_max_ms`,
-  `rtx_hdr_metodo`, `mpv_path`, `mpv_cola_ms`, `mpv_cscale`, `mpv_sin_marco`, `captura_png`, `test_mpv_args`.
+- **DLSS Frame Generation de NVIDIA (DLSS-G)** de toda la app (motor, menús, bandeja, Settings, asistente), con el paquete de la
+  comunidad `dlssg_sm86`, los ×3 / ×4 de antes, la generación propia vieja del motor y la máscara del HUD. DLSS Super Resolution, DLSS 5
+  y Reflex siguen igual.
+- **Magpie** y **mpv**: ya no se bajan ni se abren (fuera `mpv\`, `scripts\*.lua`, los shaders de mpv y `resources\mpv.conf`). El «filtro
+  de tramado fuerte» (un shader de mpv) aún no está en el motor (el normal sí).
+- Los escaladores que solo tenía Magpie (RTX Video, NVIDIA VFX, SGSR, CAS, Lanczos, Bicubic): FSR 1 o sin reescalar en el motor.
+- Ajustes que ya no hacen nada (se aceptan sin decir nada y se quitan del ini al ponerlo al día): las claves de DLSS FG / ×3 / ×4 /
+  generación propia, `motor_dlss5`, `motor_dlss5_pasadas`, todas las `magpie_*`, `pasadas_vigilancia*`, `puente_ligero`,
+  `telon_esperar_magpie_max_ms`, `rtx_hdr_metodo`, `mpv_path`, `mpv_cola_ms`, `mpv_cscale`, `mpv_sin_marco`, `captura_png`,
+  `test_mpv_args`.
 
-#### Para volver atrás
-Las del motor van al final de la línea `motor_extra=` de `consoleenhancer.ini`; las demás, en una línea suya al final del fichero.
-- En `motor_extra`: `sr_vectores=0` (el escalador sin los vectores afinados) · `sr_aa=1` (otra vez el suavizado de bordes / quitar
-  tramado / liso antes de un escalador temporal) · `sr_completos_xess=0` (XeSS / FSR con los vectores ligeros) ·
-  `adapta_modelo_sobre_pedido=1` (el modelo de DLSS aprendido puede ser más caro) · `fg_cabeza=0` (la generación sin separar el
-  personaje) · `cola_grafica=0` (la cola de Smooth Motion sin la hora a la que acaba la gráfica) · `cola_sin_repintar=0` y
-  `cola_tirar_seguidas=0` (los repintados y las tiradas de Smooth Motion como antes) · `grab_gris=1` (capturas de la detección en gris) ·
-  `sl_proxy_present=0` · `dlss5_suave=0` · `sr_vec_incert=0` (los vectores afinados también donde no son fiables) · `sr_aa_dlss5=0`
-  (suavizado de bordes / quitar tramado / liso antes de DLSS 5 con escalador) · `sr_nitidez_mov=0` (sin el enfoque en movimiento).
-- En el ini: `generacion_fsr3=1` (FSR 3 FG otra vez, experimental) · `smooth_x4=1` (Smooth Motion ×4 encendido; de serie apagado) ·
-  `smooth_x4_dlss5=0` (Smooth Motion ×4 solo sin DLSS 5) · `efg_multi_dlss5=0` (Enhanced FG ×2 con DLSS 5) · `efg_prioridad=1` (Enhanced
-  FG con la cola del motor en prioridad normal, como antes) · `x4d5=0` (sin el vigilante de ×4 con DLSS 5) · `x4d5_inicio=35` ·
-  `xefg_prioridad_x4=0` · `efg_precompilar=0` (sin compilar sus shaders de fondo) · `motor_fsr_multi=0` (FSR 3 FG solo ×2) ·
-  `motor_fsr_multi_dlss5=0` (FSR 3 FG ×3 / ×4 solo sin DLSS 5) · `relevo_pintadas=1` (el corte del cambio de motor con la primera
-  imagen pintada) · `audio_motor_extra=audio_cola_ms=30 audio_cola_max_ms=100 audio_salida_ms=10 audio_deriva=1` (la cola, la salida y la
-  corrección de la deriva del proceso de sonido; esos son los de serie).
+#### Ajustes para volver atrás
+Los del motor van al final de la línea `motor_extra=` de `consoleenhancer.ini`; los demás, como línea propia al final del fichero.
+- En `motor_extra`: `sr_vectores=0` (escalador sin los vectores afinados) · `sr_vec_incert=0` (los vectores afinados también donde no
+  son fiables) · `sr_aa=1` / `sr_aa_dlss5=0` (suavizado de bordes / quitar tramado / quitar ruido en lo liso antes de un escalador
+  temporal / antes de DLSS 5 con escalador) · `sr_nitidez_mov=0` (sin la nitidez solo en movimiento) · `sr_completos_xess=0` (XeSS / FSR
+  con los vectores ligeros) · `adapta_modelo_sobre_pedido=1` · `fg_cabeza=0` · `cola_grafica=0` · `cola_sin_repintar=0` ·
+  `cola_tirar_seguidas=0` · `grab_gris=1` · `sl_proxy_present=0` · `dlss5_suave=0` · `x4d5=0` (sin el vigilante de ×4 con DLSS 5) ·
+  `x4d5_inicio=0` (Smooth Motion ×4 + DLSS 5 empieza en lo pedido y no en el 35 %) · `xefg_prioridad_x4=0` (Smooth Motion ×4 + DLSS 5
+  con la cola del motor en prioridad normal) · `efg_prioridad=1` (Enhanced FG con la cola del motor en prioridad normal: con DLSS 5
+  colgaba la gráfica) · `efg_precompilar=0`.
+- En el ini: `generacion_fsr3=1` (FSR 3 FG otra vez, experimental) · `smooth_x4_dlss5=0` (Smooth Motion ×4 solo sin DLSS 5) ·
+  `efg_multi_dlss5=0` (Enhanced FG ×2 con DLSS 5) · `motor_fsr_multi=0` / `motor_fsr_multi_dlss5=0` (FSR 3 FG solo ×2 / ×3-×4 solo sin
+  DLSS 5) · `relevo_pintadas=1` (el corte del cambio de motor en la primera imagen pintada) · `audio_motor_extra=audio_cola_ms=30
+  audio_cola_max_ms=100 audio_salida_ms=10 audio_deriva=1` (lo de serie del proceso de sonido).
+
+#### Problemas conocidos
+- **Smooth Motion ×4 con DLSS 5 y captura a 1440p (+ DLSS M)** no cabe en una RTX 4060 Ti ni con DLSS 5 al 25 % (lo que cuesta es el
+  escalador y XeSS FG a 4K, no DLSS 5): a los 20-25 s pasa a ×2 esa sesión con un aviso en rojo (3 de 4 pasadas). Enhanced FG ×4 sí cabe
+  ahí. Con captura a 4K aguanta las 30 al 35 %.
+- Enhanced FG es experimental. Para ×4 con DLSS 5, su modo calidad (se ven todas, DLSS 5 al 65-90 %): en baja latencia ×3 / ×4 con
+  DLSS 5 el vigilante baja DLSS 5 (al 35 % o menos a 4K) y aún se saltan inventadas (98 de 120 imágenes/s al 35 % en la última prueba de
+  la app entera). `efg_salto_fino=1` en `motor_extra` no se salta ninguna al 65 %, pero colgó la gráfica una vez en las pruebas.
+- Subir el reloj de la memoria de la gráfica puede colgarla con DLSS 5 y generación de imágenes aunque los juegos vayan bien.
+- La Xbox solo se ha probado con capturas oficiales; el HOME de la Switch (1) se parece al de la Switch 2 (con ella, `consola=switch1`).
 
 #### Notas
 - **DLSS 5 y la ley (ver el README)**: el repositorio y el zip llevan la pieza nativa propia del motor `PrismaNr` (código propio,
   GPL-3.0), que carga la `nvngx_dlssnr.dll` que pone el usuario sin pasar por la comprobación de NVIDIA (NGX), cosa que los términos de
-  NVIDIA no permiten; el usuario decidió publicarla sabiéndolo. La app no reparte, no baja ni enlaza ningún archivo de NVIDIA modificado,
-  y «Añadir DLSS 5» solo mira en el propio PC del usuario. PrismaNr se compila con las dos cabeceras públicas de NGX (versión fija,
-  SHA-256), que no van en el repositorio. Sin el archivo del usuario no hace nada. `PrismaFg` y `dlssg_sm86` se han ido con DLSS FG.
-- El zip lleva también `engine\CeFsrFg.dll`: código del FidelityFX SDK 1.1.4 de AMD (MIT), cambiado por ConsoleEnhancer; el aviso de AMD
-  va en `licenses\`. Smooth Motion ×3 / ×4 por sí solo y XeSS FG ×3 / ×4 fuera de las gráficas Intel no se ofrecen: para ellos haría
-  falta parchear el driver de NVIDIA o la librería de Intel.
-- El vídeo real de juego de las medidas (las grabaciones de Twitch de dominio público de Xiph.org, clips del YouTube UGC Dataset con
-  licencia CC BY 4.0 y clips de Counter-Strike 2 CC0) es solo para pruebas: no va en el repositorio ni en el zip.
+  NVIDIA no permiten; el usuario decidió publicarla sabiéndolo. La app no reparte, baja ni enlaza ningún archivo de NVIDIA modificado, y
+  *Añadir DLSS 5* solo busca en el PC del propio usuario. PrismaNr se compila con las dos cabeceras públicas de NGX de NVIDIA (versión
+  fija, con su SHA-256), que no van en el repositorio. Sin el archivo del usuario no hace nada.
+- El zip lleva también `engine\CeFsrFg.dll`: código del AMD FidelityFX SDK 1.1.4 (MIT), cambiado por ConsoleEnhancer; el aviso de AMD
+  va en `licenses\`. Smooth Motion ×3 / ×4 por sí solo y XeSS FG ×3 / ×4 fuera de las gráficas Intel no se ofrecen: harían falta parchear
+  el driver de NVIDIA o la librería de Intel.
+- El vídeo de juego usado para medir es solo para las pruebas: no va en el repositorio ni en el zip.
 
 ## [1.2.3] - 2026-11-22
 

@@ -259,7 +259,7 @@ namespace ConsoleEnhancer.Deteccion
                 p.Escalador = "ninguno";
                 p.Latencia = "ninguna";
                 p.Avisos.Add(g == null || g.Software ? Tx.T("Sin gráfica útil (solo la de software de Windows): instala el driver de tu gráfica (el motor de imagen necesita Direct3D 12)", "No usable GPU (only Windows' software one): install your GPU driver (the image engine needs Direct3D 12)")
-                                                     : Tx.T("La gráfica no tiene Direct3D 12 nivel 12_0: el motor de imagen no puede arrancar (desde la 1.2.4 no hay otro camino)", "The GPU lacks Direct3D 12 feature level 12_0: the image engine cannot start (since 1.2.4 there is no other path)"));
+                                                     : Tx.T("La gráfica no tiene Direct3D 12 nivel 12_0: el motor de imagen no puede arrancar (desde la 1.3 no hay otro camino)", "The GPU lacks Direct3D 12 feature level 12_0: the image engine cannot start (since 1.3 there is no other path)"));
             }
             else
             {
