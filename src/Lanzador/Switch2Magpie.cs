@@ -10088,7 +10088,7 @@ namespace ConsoleEnhancer
             if (smoothDiffSince == DateTime.MinValue) { smoothDiffSince = now; return; }
             if ((now - smoothDiffSince).TotalSeconds < 0.5) return;
             smoothDiffSince = DateTime.MinValue;
-            Log.Write("Smooth Motion del motor: " + (want > 0 ? "hace falta (generacion en el modo " + (cfg.CapMode ? "30" : "60") + (want == 2 ? ", sincronizacion cada 2 refrescos" : "") + ")" : "sobra (" + (cfg.HomeNative ? "en el menu de la consola, nativo" : cfg.FgOff ? "sin generacion" : "no toca en este modo: DLSS-G (ini o L3)") + ")") +
+            Log.Write("Smooth Motion del motor: " + (want > 0 ? "hace falta (generacion en el modo " + (cfg.CapMode ? "30" : "60") + (want == 2 ? ", sincronizacion cada 2 refrescos" : "") + ")" : "sobra (" + (cfg.HomeNative ? "en el menu de la consola, nativo" : cfg.FgOff ? "sin generacion" : cfg.Mode120 ? "modo 120, sin generacion" : "otro tipo de generacion en este modo (ini o L3)") + ")") +
                       ": el driver solo lo mira al abrirlo, se vuelve a abrir el motor");
             ReabrirMotorSmooth(want, null, null);
         }
