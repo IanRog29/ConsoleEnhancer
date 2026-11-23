@@ -120,50 +120,79 @@ namespace ConsoleEnhancer.Motor
                 });
                 return;
             }
-            // general: horizontal a un intermedio (x16) y luego vertical
+            // general: horizontal a un intermedio (x16) y luego vertical; con 2 puntos por salida (bilineal, area de 1,5x y 2x: lo de siempre)
+            // por punteros y sin buscar en tablas en el bucle de dentro (1080p -> 4K y 4K -> 1440p costaban 3-5 nucleos)
             if (tmpY == null) { tmpY = new short[(long)inH * outW]; if (!mono) { tmpU = new short[(long)cinH * coutW]; tmpV = new short[(long)cinH * coutW]; } }
-            Pass1(yp, pitchY, ystep, inH, outW, hY, tmpY);
-            if (!mono) { Pass1(up, pitchC, cstep, cinH, coutW, hC, tmpU); Pass1(vp, pitchC, cstep, cinH, coutW, hC, tmpV); }
-            short[] ty = tmpY, tu = tmpU, tv = tmpV;
-            int ow = outW, cow = coutW;
-            Taps vy = vY, vc = vC;
-            bool mn = mono;
-            Parallel.For(0, outH, delegate (int y)
+            fixed (short* ty0 = tmpY) fixed (short* tu0 = tmpU) fixed (short* tv0 = tmpV)
             {
-                byte* o = (byte*)dp + (long)y * dstPitch;
-                int s0 = vy.Start[y], n0 = vy.Count[y];
-                for (int x = 0; x < ow; x++)
+                IntPtr ty = (IntPtr)ty0, tu = (IntPtr)tu0, tv = (IntPtr)tv0;
+                Pass1(yp, pitchY, ystep, inH, outW, hY, ty);
+                if (!mono) { Pass1(up, pitchC, cstep, cinH, coutW, hC, tu); Pass1(vp, pitchC, cstep, cinH, coutW, hC, tv); }
+                int ow = outW, cow = coutW;
+                Taps vy = vY, vc = vC;
+                bool mn = mono;
+                Parallel.For(0, outH, delegate (int y)
                 {
-                    int acc = 0;
-                    for (int t = 0; t < n0; t++) acc += vy.W[s0 + t] * ty[(long)vy.Idx[s0 + t] * ow + x];
-                    int v = (acc + 32768) >> 16; o[x * 2] = (byte)(v > 255 ? 255 : v);
-                }
-                if (mn) { for (int c = 0; c < cow; c++) { o[c * 4 + 1] = 128; o[c * 4 + 3] = 128; } return; }
-                int s1 = vc.Start[y], n1 = vc.Count[y];
-                for (int c = 0; c < cow; c++)
-                {
-                    int au = 0, av = 0;
-                    for (int t = 0; t < n1; t++) { long r = (long)vc.Idx[s1 + t] * cow + c; int ww = vc.W[s1 + t]; au += ww * tu[r]; av += ww * tv[r]; }
-                    int u = (au + 32768) >> 16, v = (av + 32768) >> 16;
-                    o[c * 4 + 1] = (byte)(u > 255 ? 255 : u); o[c * 4 + 3] = (byte)(v > 255 ? 255 : v);
-                }
-            });
+                    byte* o = (byte*)dp + (long)y * dstPitch;
+                    VRow((short*)ty, ow, vy, y, o, 2, 0);
+                    if (mn) { for (int c = 0; c < cow; c++) { o[c * 4 + 1] = 128; o[c * 4 + 3] = 128; } return; }
+                    VRow((short*)tu, cow, vc, y, o, 4, 1);
+                    VRow((short*)tv, cow, vc, y, o, 4, 3);
+                });
+            }
         }
 
-        static void Pass1(IntPtr src, int pitch, int step, int rows, int ow, Taps h, short[] tmp)
+        // una fila de salida en vertical: de las filas del intermedio a dst[x * paso + desplazamiento]
+        static void VRow(short* t, int ow, Taps v, int y, byte* o, int step, int off)
         {
-            fixed (short* tp0 = tmp)
+            int s0 = v.Start[y], n = v.Count[y];
+            byte* d = o + off;
+            if (n == 1)
             {
-                IntPtr tpp = (IntPtr)tp0;
+                short* a = t + (long)v.Idx[s0] * ow;
+                for (int x = 0; x < ow; x++) { int q = (a[x] + 8) >> 4; d[x * step] = (byte)(q > 255 ? 255 : q); }
+                return;
+            }
+            if (n == 2)
+            {
+                short* a = t + (long)v.Idx[s0] * ow, b = t + (long)v.Idx[s0 + 1] * ow;
+                int wa = v.W[s0], wb = v.W[s0 + 1];
+                for (int x = 0; x < ow; x++) { int q = (wa * a[x] + wb * b[x] + 32768) >> 16; d[x * step] = (byte)(q > 255 ? 255 : q); }
+                return;
+            }
+            for (int x = 0; x < ow; x++)
+            {
+                int acc = 0;
+                for (int k = 0; k < n; k++) acc += v.W[s0 + k] * t[(long)v.Idx[s0 + k] * ow + x];
+                int q = (acc + 32768) >> 16; d[x * step] = (byte)(q > 255 ? 255 : q);
+            }
+        }
+
+        static void Pass1(IntPtr src, int pitch, int step, int rows, int ow, Taps h, IntPtr tmp)
+        {
+            int[] st = h.Start, cn = h.Count, ix = h.Idx, wt = h.W;
+            bool two = true; for (int x = 0; x < ow && two; x++) if (cn[x] > 2) two = false;
+            // (2 puntos: tablas planas i0 / i1 / w0 / w1)
+            int[] i0 = new int[ow], i1 = new int[ow], w0 = new int[ow], w1 = new int[ow];
+            if (two) for (int x = 0; x < ow; x++) { i0[x] = ix[st[x]] * step; w0[x] = wt[st[x]]; if (cn[x] > 1) { i1[x] = ix[st[x] + 1] * step; w1[x] = wt[st[x] + 1]; } else { i1[x] = i0[x]; w1[x] = 0; } }
+            fixed (int* pi0 = i0) fixed (int* pi1 = i1) fixed (int* pw0 = w0) fixed (int* pw1 = w1)
+            {
+                IntPtr a0 = (IntPtr)pi0, a1 = (IntPtr)pi1, b0 = (IntPtr)pw0, b1 = (IntPtr)pw1;
                 Parallel.For(0, rows, delegate (int r)
                 {
                     byte* s = (byte*)src + (long)r * pitch;
-                    short* o = (short*)tpp + (long)r * ow;
+                    short* o = (short*)tmp + (long)r * ow;
                     if (h.Ident) { for (int x = 0; x < ow; x++) o[x] = (short)(s[x * step] << 4); return; }
+                    if (two)
+                    {
+                        int* j0 = (int*)a0; int* j1 = (int*)a1; int* v0 = (int*)b0; int* v1 = (int*)b1;
+                        for (int x = 0; x < ow; x++) o[x] = (short)((v0[x] * s[j0[x]] + v1[x] * s[j1[x]] + 128) >> 8);
+                        return;
+                    }
                     for (int x = 0; x < ow; x++)
                     {
-                        int s0 = h.Start[x], n = h.Count[x], acc = 0;
-                        for (int t = 0; t < n; t++) acc += h.W[s0 + t] * s[h.Idx[s0 + t] * step];
+                        int s0 = st[x], n = cn[x], acc = 0;
+                        for (int t = 0; t < n; t++) acc += wt[s0 + t] * s[ix[s0 + t] * step];
                         o[x] = (short)((acc + 128) >> 8);
                     }
                 });
