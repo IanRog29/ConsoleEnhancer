@@ -138,7 +138,7 @@ namespace ConsoleEnhancer.Motor
         // Las imagenes en la tele por cada real con XeSS FG puesta (para el ritmo y VRR)
         int XeFgMultNow { get { return xeFgOn && xeFgEnabledNow ? xeFgInterp + 1 : 1; } }
         // FSR 3 FG o XeSS FG (las dos sin Streamline, con los vectores de la generacion del motor)
-        bool ExtFgOn { get { return ffxFgOn || (xeFgOn && xeFgEnabledNow); } }
+        bool ExtFgOn { get { return ffxFgOn || (xeFgOn && xeFgEnabledNow) || FmVecOn; } }   // (23-11, FGMULTI: y FSR FG x3 / x4, EngineFsrMulti.cs)
 
         static void XeLogStatic(IntPtr msg, int level, IntPtr user) { }
 
@@ -386,6 +386,7 @@ namespace ConsoleEnhancer.Motor
         uint ScIndex()
         {
             FphDrain();   // (1.2.4 ronda 5, XEFGM: el hilo de presentacion de la generacion propia, si va, acaba antes; EngineFgPropiaHilo.cs)
+            FmhDrain();   // (23-11, FGMULTI: y el de FSR FG x3 / x4)
             if (!XeRawNow) return swap.GetCurrentBackBufferIndex();
             if (scIndex == null) scIndex = (ScIndexFn)Slot(xeProxySc, 36, typeof(ScIndexFn));
             return scIndex(xeProxySc);
@@ -393,6 +394,8 @@ namespace ConsoleEnhancer.Motor
         int ScPresent(uint sync, uint flags)
         {
             FphDrain();   // (1.2.4 ronda 5, XEFGM: EngineFgPropiaHilo.cs)
+            FmhDrain();   // (23-11, FGMULTI)
+            FmScWait();   // (con la cola de presentacion de FSR FG: tras la lista de la imagen)
             if (slProxyPresent != null) return slProxyPresent(slProxySc, sync, flags);   // (1.2.4 ronda 5, INTEGRA5: Streamline ve el Present, EngineSlProxy.cs)
             if (!XeRawNow) return swap.Present(sync, (DXGI_PRESENT)flags);
             if (scPresent == null) scPresent = (ScPresentFn)Slot(xeProxySc, 8, typeof(ScPresentFn));

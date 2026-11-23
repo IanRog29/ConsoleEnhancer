@@ -95,7 +95,7 @@ namespace ConsoleEnhancer.Motor
         // Inventadas por cada real que se piden ahora a DLSS-G (1 = x2)
         uint FgGenWanted() { return (uint)Math.Max(1, Math.Min(3, s.FgMult - 1)); }
         // Imagenes en la tele por cada real con la generacion puesta (para el ritmo, VRR y el margen)
-        int FgFactor { get { return fgApplied ? (int)fgGenApplied + 1 : ffxFgOn ? 2 : xeFgOn ? XeFgMultNow : 1; } }
+        int FgFactor { get { return fgApplied ? (int)fgGenApplied + 1 : ffxFgOn ? 2 : xeFgOn ? XeFgMultNow : FmWanted() ? FmK : 1; } }   // (23-11, FGMULTI: FSR FG x3 / x4)
 
         // Lo que admite DLSS-G (numFramesToGenerateMax): con la generacion ya puesta (antes Streamline no lo sabe). Una vez por sesion
         void FgGenMaxRead()

@@ -126,6 +126,7 @@ namespace ConsoleEnhancer.Motor
                 if (inStandby) return;
                 XeFgFailTick();   // (1.2.4, integracion: XeSS FG pedido y no arrancado: que el lanzador lo sepa, EngineFgXe.cs)
                 FpFailTick();     // (y la generacion propia rota, EngineFgPropia.cs)
+                FmFailTick();     // (23-11, FGMULTI: y FSR FG x3 / x4 rota, EngineFsrMulti.cs)
                 if (signalSeen && !signalAcked && mpvIpc.Event("switch2-signal", "on") > 0) signalSent = true;
                 // La vigilancia de apagado, con su propio reloj (no el del pintado). 20-11 (CIERRES): con las imagenes que llegan de la
                 // capturadora (framesIn), no con las presentadas: la grafica parada no es la consola apagada (EngineCuelgue.cs)
