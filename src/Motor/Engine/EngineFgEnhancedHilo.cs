@@ -22,6 +22,10 @@ namespace ConsoleEnhancer.Motor
         Thread efgThread;
         readonly Queue<EfgJob> efgJobs = new Queue<EfgJob>();
         readonly AutoResetEvent efgJobEv = new AutoResetEvent(false), efgMainEv = new AutoResetEvent(false), efgOwnEv = new AutoResetEvent(false);
+        // (1.2.4 ronda 7, EFGFIX) EfgDrain (hilo de pintado) con su propio evento: compartia efgOwnEv con el hilo de presentacion y, si los dos
+        // esperaban a la vez, una de las dos señales se perdia (un AutoResetEvent ya puesto no cuenta dos) y uno se quedaba esperando hasta su
+        // tope; y una señal vieja (de una espera que ya habia vencido) despertaba antes de tiempo la siguiente
+        readonly AutoResetEvent efgDrainEv = new AutoResetEvent(false);
         readonly ManualResetEvent efgIdle = new ManualResetEvent(true);
         readonly ID3D12CommandAllocator[] efgAlloc = new ID3D12CommandAllocator[8];
         readonly ulong[] efgAllocFence = new ulong[8];
@@ -91,11 +95,7 @@ namespace ConsoleEnhancer.Motor
         {
             if (efgThread == null) return;
             if (!efgIdle.WaitOne(600)) Log.Write("Enhanced FG: el hilo de presentacion no acaba (600 ms)");
-            if (efgFence != null && efgFenceValue > 0 && efgFence.GetCompletedValue() < efgFenceValue)
-            {
-                efgFence.SetEventOnCompletion(efgFenceValue, efgOwnEv.SafeWaitHandle.DangerousGetHandle());
-                efgOwnEv.WaitOne(1000);
-            }
+            if (efgFence != null && efgFenceValue > 0) EfgFenceWait(efgFenceValue, 1000, efgDrainEv);   // (EFGFIX: su evento)
         }
 
         // ---------------------------------------------------------------------------------------------- listas
@@ -103,11 +103,10 @@ namespace ConsoleEnhancer.Motor
         {
             efgAi = (efgAi + 1) % efgAlloc.Length;
             ulong v = efgAllocFence[efgAi];
-            if (v != 0 && efgFence.GetCompletedValue() < v)
-            {
-                efgFence.SetEventOnCompletion(v, efgOwnEv.SafeWaitHandle.DangerousGetHandle());
-                efgOwnEv.WaitOne(1000);
-            }
+            // (EFGFIX) la lista de esta ranura tiene que estar ACABADA de verdad antes de Reset (antes, con la señal perdida o vieja, se podia
+            // seguir con la grafica aun leyendola: memoria de la lista pisada). Hasta 3 s; si no, la grafica esta parada: fuera
+            if (v != 0 && !EfgFenceWait(v, 3000, efgOwnEv))
+                throw new Exception("la grafica no acaba la lista de hace " + efgAlloc.Length + " (Enhanced FG, 3 s)");
             Hr.Check(efgAlloc[efgAi].Reset(), "Allocator.Reset (Enhanced FG)");
             Hr.Check(efgList.Reset(efgAlloc[efgAi], null), "List.Reset (Enhanced FG)");
             efgList.SetDescriptorHeaps(1, ref efgHeapPtr);
@@ -255,11 +254,33 @@ namespace ConsoleEnhancer.Motor
         }
 
         // ---------------------------------------------------------------------------------------------- espera
-        bool EfgWaitOwn(ulong v, double maxMs)
+        bool EfgWaitOwn(ulong v, double maxMs) { return EfgFenceWait(v, maxMs, efgOwnEv); }
+
+        // (1.2.4 ronda 7, EFGFIX) Espera a que la valla propia llegue a v (como mucho maxMs): vuelve a mirar la valla al despertar (una señal vieja
+        // no vale) y apunta las esperas largas
+        bool EfgFenceWait(ulong v, double maxMs, AutoResetEvent ev)
         {
             if (efgFence.GetCompletedValue() >= v) return true;
-            efgFence.SetEventOnCompletion(v, efgOwnEv.SafeWaitHandle.DangerousGetHandle());
-            return efgOwnEv.WaitOne((int)Math.Max(1, Math.Ceiling(maxMs)));
+            long t0 = Clock.Now;
+            while (true)
+            {
+                double left = maxMs - Clock.SinceMs(t0);
+                if (left <= 0) break;
+                efgFence.SetEventOnCompletion(v, ev.SafeWaitHandle.DangerousGetHandle());
+                ev.WaitOne((int)Math.Max(1, Math.Ceiling(left)));
+                if (efgFence.GetCompletedValue() >= v) { EfgEsperaLarga("la grafica (Enhanced FG)", Clock.SinceMs(t0)); return true; }
+            }
+            EfgEsperaLarga("la grafica (Enhanced FG), vencida", Clock.SinceMs(t0));
+            return efgFence.GetCompletedValue() >= v;
+        }
+
+        // (EFGFIX) Para encontrar los paros: una espera de mas de 150 ms al log (como mucho una linea cada 2 s)
+        long efgLargaAt;
+        void EfgEsperaLarga(string que, double ms)
+        {
+            if (ms < 150 || (efgLargaAt != 0 && Clock.SinceMs(efgLargaAt) < 2000)) return;
+            efgLargaAt = Clock.Now;
+            Log.Write("Enhanced FG: espera larga de " + ms.ToString("0", IC) + " ms (" + que + ")");
         }
 
         static void EfgWaitUntil(long at)
@@ -367,7 +388,9 @@ namespace ConsoleEnhancer.Motor
         {
             if (j.Show) { EfgDoShow(j); return; }
             // 1. la real en su ranura: la hora a la que la grafica la acabo (el vigilante)
+            long tw = Clock.Now;
             if (!j.Ready.WaitOne(1000)) Log.Write("Enhanced FG: la grafica no acaba la real (1 s)");
+            EfgEsperaLarga("la real del motor", Clock.SinceMs(tw));
             long tReady = j.ReadyAt != 0 ? j.ReadyAt : Clock.Now;
             if (efgQueue != null) efgQueue.Wait(fence, j.Fence);
             double readyMs = Clock.Ms(j.Arrival, tReady);
@@ -393,6 +416,14 @@ namespace ConsoleEnhancer.Motor
             if (B < early) { B = early; efgLate++; }
             if (efgLastPresent != 0 && B < EfgAt(efgLastPresent, step * 0.5)) B = EfgAt(efgLastPresent, step * 0.5);
             if (stale) B = EfgAt(Clock.Now, efgCopyMs - nReal * step);   // (detras viene otra: esta real ya, sin inventadas)
+            // (1.2.4 ronda 7, EFGFIX) nunca mas lejos que una imagen real: una llegada con la hora mal (la fuente al despertar) dejaba el hilo
+            // esperando sin presentar nada
+            double ahead = Clock.Ms(Clock.Now, B);
+            if (ahead > j.RealMs + 20)
+            {
+                EfgEsperaLarga("la hora de la primera iba a " + ahead.ToString("0", IC) + " ms: se trae", ahead);
+                B = EfgAt(Clock.Now, need0 + s.EfgMarginMs);
+            }
             // 3. por delante: con la real detras (calidad), el flujo y la primera inventada ya (la de cada siguiente, tras presentar la anterior)
             bool flowSent = false, genReady = false;
             if (nReal > 0)

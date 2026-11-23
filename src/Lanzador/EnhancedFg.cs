@@ -60,18 +60,51 @@ namespace ConsoleEnhancer
         // x2: x3 / x4 con DLSS 5 no llegan -INTEGRA6 96,8 imagenes/s en vez de 120; la sesion del usuario del 23-11 90/s a 4K y 738 inventadas
         // de 891 a 1440p; FGREAL 241 saltadas y 417 tarde en 60 s- y en la app entera con video real a 4K + DLSS 5 nivel 4 la grafica se colgo a
         // los 22 s de x4 -DXGI_ERROR_DEVICE_HUNG, nvlddmkm 153; sin DLSS 5, x4 a 120/s parejas-. efg_multi_dlss5=1 lo deja probar)
-        public static volatile bool EfgMultiDlss5 = false;
-        public int EfgMultNow { get { return CapMode && !Mode120 && EfgMultFalta(MotorD5Simple).Length == 0 ? EfgMult : 2; } }
-        // Por que x3 / x4 no ("" = pueden ir), con DLSS 5 encendido o no (en el menu, el elegido en el menu)
-        public string EfgMultFalta(bool d5)
+        // (1.2.4 ronda 7, EFGFIX: de serie SI. El usuario: "no se porque con dlss 5 activado no dejas activar el x4 de smooth y enhance". El
+        // cuelgue de x4 + DLSS 5 era el de x2 tambien -las dos colas de la grafica con distinta prioridad, EngineFgEnhanced.cs EfgMainLowPrio-;
+        // con las dos en alta, medido con el video real de GTA V a 4K y DLSS 5 nivel 4: x4 180 s, 30 reales, 120/s todas a 1 refresco y DLSS 5
+        // al 80 %. Si con DLSS 5 no llega, el motor baja DLSS 5 -EngineX4D5.cs- y, si ni asi, x2 esta sesion -EfgNoLlegaAnota-, diciendolo.
+        // efg_multi_dlss5=0 = como antes: x2 con DLSS 5)
+        public static volatile bool EfgMultiDlss5 = true;
+        public int EfgMultNow { get { return CapMode && !Mode120 && EfgMultFalta(MotorD5Simple, VideoSize).Length == 0 ? EfgMult : 2; } }
+        // (EFGFIX) x3 / x4 que no llego a las reales ni con DLSS 5 al 25 % (switch2-x4d5 no) o por FpsBajo: x2 esta sesion con esa captura y DLSS 5
+        static string efgNoLlega = "";
+        public static void EfgNoLlegaAnota(bool d5, string cap) { efgNoLlega = (cap ?? "") + "|" + (d5 ? "d5" : "-"); }
+        // (pruebas) sin lo de "no llego" de Smooth Motion x4 ni de Enhanced FG x3 / x4
+        public static void X4NoLlegaOlvida() { efgNoLlega = ""; smx4NoLlega = ""; }
+        // Por que x3 / x4 no ("" = pueden ir), con DLSS 5 encendido o no (en el menu, el elegido en el menu) y la captura (null = la de ahora)
+        public string EfgMultFalta(bool d5, string cap = null)
         {
-            return d5 && !EfgMultiDlss5 ? Tx.T("con DLSS 5 va x2: la gráfica no llega (sin DLSS 5, x3 / x4)", "with DLSS 5 it runs x2: the GPU can't keep up (x3 / x4 without DLSS 5)") : "";
+            if (d5 && !EfgMultiDlss5) return Tx.T("con DLSS 5 va x2: la gráfica no llega (sin DLSS 5, x3 / x4)", "with DLSS 5 it runs x2: the GPU can't keep up (x3 / x4 without DLSS 5)");
+            string c = string.IsNullOrEmpty(cap) ? VideoSize : cap;
+            if (efgNoLlega.Length > 0 && efgNoLlega == (c ?? "") + "|" + (d5 ? "d5" : "-"))
+                return d5 ? Tx.T("con DLSS 5 a " + Smx4Cap(c) + " no llegó a 30 ni al 25 %: x2 esta sesión", "with DLSS 5 at " + Smx4Cap(c) + " it couldn't keep 30 fps even at 25 %: x2 this session")
+                          : Tx.T("a " + Smx4Cap(c) + " no llegó a 30: x2 esta sesión", "at " + Smx4Cap(c) + " it couldn't keep 30 fps: x2 this session");
+            return "";
         }
 
         public static bool EfgCaido { get { return motorGenCaida.Contains(" efg"); } }
+        // (1.2.4 ronda 7, EFGFIX) la hora de la caida (para decirla) y volver a intentarlo: el usuario, "mientras ponia el enhance fg se ha puesto
+        // blackscreen y ha desaparecido la opcion de activarlo". Antes, tras perder la grafica con el, Enhanced FG salia de la lista del menu y de L3
+        // sin decir nada el resto de la sesion. Ahora sigue en la lista con el motivo (TrayApp.GenNoVaPorque) y elegirlo otra vez es reintentar
+        public static DateTime EfgCaidoAt = DateTime.MinValue;
+        public static void EfgReintenta(string desde)
+        {
+            if (!EfgCaido) return;
+            motorGenCaida = motorGenCaida.Replace(" efg", "");
+            Log.Write("Enhanced FG: elegido otra vez tras la caida de las " + EfgCaidoAt.ToString("HH:mm:ss", CultureInfo.InvariantCulture) + " (" + desde + "): se vuelve a intentar");
+        }
+        public static string EfgCaidoTexto(bool corto)
+        {
+            string h = EfgCaidoAt != DateTime.MinValue ? EfgCaidoAt.ToString("HH:mm", CultureInfo.InvariantCulture) : "";
+            if (corto) return Tx.T("la gráfica se cayó con él" + (h.Length > 0 ? " a las " + h : "") + "; elígelo otra vez para reintentar", "the GPU failed with it" + (h.Length > 0 ? " at " + h : "") + "; pick it again to retry");
+            return Tx.T("la gráfica se cayó con él" + (h.Length > 0 ? " a las " + h : "") + " · elígelo otra vez en esta fila para reintentar", "the GPU failed with it" + (h.Length > 0 ? " at " + h : "") + " · pick it again in this row to retry");
+        }
         // (1.2.4 ronda 6, INTEGRA6: solo con la pantalla a 100 Hz o mas. A 60 Hz -x2 del modo 30 = 60/s con sincronizacion- se midio rota: la real
         // "lista" a los 100 ms, 19-26 reales de 29,97 y casi todas las inventadas saltadas, sesiones c2-c4 del 23-11; a 120 Hz va bien)
-        public static bool EfgPuede() { double hz = Pantalla.Hz(); return !EfgCaido && (hz <= 0 || hz >= 100); }
+        public static bool EfgPuede() { return !EfgCaido && EfgEnMenu(); }
+        // (EFGFIX) en la lista del menu / L3: tambien tras una caida (para poder reintentar)
+        public static bool EfgEnMenu() { double hz = Pantalla.Hz(); return hz <= 0 || hz >= 100; }
 
         // Lo que va en EngineLive con la cadena de Enhanced FG (fg=0 al motor: no es DLSS-G / XeSS FG / FSR 3 FG)
         public string EfgLiveArgs(bool on)
@@ -119,14 +152,16 @@ namespace ConsoleEnhancer
             // (1.2.4 ronda 7, INTEGRA7: con DLSS 5 elegido en el menu, x3 / x4 con candado y la fila enseña x2 -lo que va a ir- sin contar como
             // cambio: lo guardado se queda y vuelve solo sin DLSS 5. Como Smooth Motion x4, SmoothX4.cs)
             bool d5Sel = d5 != null && d5.Visible ? d5.Val == "1" : cfg.MotorD5Simple;
-            string no = cfg.EfgMultFalta(d5Sel && Integrado.Dlss5Available);
+            FilaAjuste capF = AjFila("cap");
+            string no = cfg.EfgMultFalta(d5Sel && Integrado.Dlss5Available, capF != null ? capF.Val : cfg.VideoSize);
             string guardado = Config.EfgMult.ToString(CultureInfo.InvariantCulture);
             if (efgQuiere == null) efgQuiere = guardado;
             mul.Bloq = new List<string> { "", no, no };
             if (no.Length > 0) { mul.Sel = 0; mul.Orig = 0; }
             else { mul.Sel = Math.Max(0, mul.Vals.IndexOf(efgQuiere)); mul.Orig = Math.Max(0, mul.Vals.IndexOf(guardado)); }
             mul.Nota = !on ? "" : modoSel != "30" ? Tx.T("x2 en el modo 60", "x2 in 60 fps mode") : !fgSi ? Tx.T("Con la generación encendida", "With frame generation on") :
-                       no.Length > 0 ? (efgQuiere != "2" ? Tx.T("x" + efgQuiere + " vuelve cuando se pueda · ", "x" + efgQuiere + " comes back when possible · ") : "") + no.Substring(0, 1).ToUpperInvariant() + no.Substring(1) : "";
+                       no.Length > 0 ? (efgQuiere != "2" ? Tx.T("x" + efgQuiere + " vuelve cuando se pueda · ", "x" + efgQuiere + " comes back when possible · ") : "") + no.Substring(0, 1).ToUpperInvariant() + no.Substring(1) :
+                       mul.Val != "2" && d5Sel && Integrado.Dlss5Available ? Tx.T("x" + mul.Val + " con DLSS 5: DLSS 5 se baja lo que haga falta para que quepa", "x" + mul.Val + " with DLSS 5: DLSS 5 is lowered as needed to fit") : "";
             lat.Activa = on && fgSi;
             lat.Nota = on && !fgSi ? Tx.T("Con la generación encendida", "With frame generation on") : "";
         }
@@ -152,8 +187,9 @@ namespace ConsoleEnhancer
         {
             if ((code != 3 && code != 5) || !Config.EfgChain(Config.EngineFfxOf(p))) return false;
             Config.MotorGenCaidaAnota("efg");
+            Config.EfgCaidoAt = DateTime.Now;   // (1.2.4 ronda 7, EFGFIX: el menu dice cuando y deja reintentar)
             Log.Write("Motor: la grafica se ha " + (code == 3 ? "perdido" : "parado") + " con Enhanced FG (codigo " + code.ToString(CultureInfo.InvariantCulture) +
-                      "): el resto de la sesion va otro tipo de generacion (el mas parecido)");
+                      "): va otro tipo de generacion (el mas parecido) hasta que se vuelva a elegir en el menu o con L3");
             return true;
         }
     }

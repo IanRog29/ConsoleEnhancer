@@ -48,7 +48,11 @@ namespace ConsoleEnhancer.Motor
         public int EfgMode = 0;                 // 0 = calidad (interpolacion), 1 = latencia (extrapolacion)
         public double EfgPhase = -1;            // efg_retraso (-1 = el del modo)
         public bool EfgOwnQueue = true;
-        public bool EfgMainLowPrio = true;
+        // (1.2.4 ronda 7, EFGFIX) efg_prioridad=1 = la cola del motor en prioridad NORMAL con la propia de Enhanced FG en ALTA (lo de la ronda 6).
+        // Con DLSS 5 eso colgaba la grafica (DXGI_ERROR_DEVICE_HUNG, nvlddmkm 153): la sesion del usuario del 23-11 a los 37 s de x2 a 4K,
+        // INTEGRA7 a los 22 s de x4 y aqui, con el video real de GTA V y DLSS 5 nivel 4 a 4K, a los 45 s de x2. Con las DOS colas en alta
+        // (de serie ahora): x2 130 s y x4 180 s sin cuelgue, x2 99,7 % a 2 refrescos y x4 100 % a 1 (notas\EFGFIX.md)
+        public bool EfgMainLowPrio = false;
         public int EfgVsync = -1;
         public double EfgMarginMs = 1.0;
         public string EfgCsv = "";
@@ -60,6 +64,7 @@ namespace ConsoleEnhancer.Motor
         public int EfgSearch = 1;               // (EFG2) busqueda alrededor del mejor en los niveles gruesos (+-N). De serie 1: con 2 el simulador
                                                 // daba -1 %, pero en la tele (otra sesion) salio algo peor y no pude repetirlo: queda para probar
         public bool EfgStamps = true;           // efg_tiempos=0: sin las marcas de tiempo de la grafica (prueba)
+        public bool EfgPrecompile = true;       // (1.2.4 ronda 7, EFGFIX) efg_precompilar=0: sin compilar sus sombreadores de fondo (EfgPrecompilar)
 
         bool ApplyEfg(string key, string val)
         {
@@ -88,6 +93,7 @@ namespace ConsoleEnhancer.Motor
                 case "efg_apoyo_niveles": EfgPropAll = B(val); return true;
                 case "efg_busqueda": EfgSearch = Math.Max(1, Math.Min(4, I(val))); return true;
                 case "efg_tiempos": EfgStamps = B(val); return true;
+                case "efg_precompilar": EfgPrecompile = B(val); return true;   // (EFGFIX)
             }
             return false;
         }
@@ -289,6 +295,36 @@ namespace ConsoleEnhancer.Motor
             psoEfgLuma = Pso(cs[0]); psoEfgDown = Pso(cs[1]); psoEfgFlow = Pso(cs[2]); psoEfgProp = Pso(cs[3]);
             psoEfgStill = Pso(cs[4]); psoEfgCut = Pso(cs[5]); psoEfgSel = Pso(cs[6]); psoEfgFin = Pso(cs[7]);
             Log.Write("Enhanced FG: shaders (" + Clock.SinceMs(t0).ToString("0", IC) + " ms)");
+        }
+
+        // (1.2.4 ronda 7, EFGFIX) Los 8 sombreadores de Enhanced FG a la cache de fondo, en cualquier motor que se abra sin Enhanced FG (el de delante,
+        // el de reserva, los escondidos): la sesion del usuario del 23-11 (17:59:44) eligio Enhanced FG por primera vez con la version nueva y su
+        // motor escondido tardo 24,7 s en estar listo (shaders 21 156 ms; INTEGRA7: 24-30 s), con el aviso "preparando…" encima todo ese rato.
+        // Con la cache llena, 30 ms. Un hilo de prioridad baja, uno tras otro, 4 s despues de arrancar; solo compila los que no esten
+        // (efg_precompilar=0 = no)
+        static int efgPrecompiling;
+        void EfgPrecompilar()
+        {
+            if (s.Efg >= 2 || !s.EfgPrecompile || Interlocked.Exchange(ref efgPrecompiling, 1) != 0) return;
+            Thread t = new Thread(delegate ()
+            {
+                try
+                {
+                    Thread.Sleep(4000);
+                    long t0 = Clock.Now;
+                    string[] nm = { "efg_flujo", "efg_inventada", "efg_eleccion", "efg_apoyo", "efg_luma", "efg_down", "efg_quieto", "efg_corte" };
+                    string[] src = { EfgShaders.Flow, EfgShaders.Fin, EfgShaders.Sel, EfgShaders.Prop, EfgShaders.Luma, EfgShaders.Down, EfgShaders.Still, EfgShaders.Cut };
+                    int hechos = 0;
+                    for (int i = 0; i < nm.Length && !Program.Quit; i++)
+                        if (!CsCached(nm[i], src[i])) { CompileCs(nm[i], src[i]); hechos++; }
+                    if (hechos > 0) Log.Write("Enhanced FG: " + hechos + " sombreadores a la cache de fondo (" + Clock.SinceMs(t0).ToString("0", IC) + " ms): elegirla luego no espera a compilarlos");
+                }
+                catch (Exception ex) { Log.Write("Enhanced FG: sombreadores de fondo: " + ex.Message); }
+            });
+            t.IsBackground = true;
+            t.Priority = ThreadPriority.Lowest;
+            t.Name = "Enhanced FG (sombreadores de fondo)";
+            t.Start();
         }
 
         string EfgModeName()

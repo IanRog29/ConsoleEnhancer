@@ -75,7 +75,7 @@ namespace ConsoleEnhancer
             {
                 case "xess_fg_1080": XessFg1080 = val.Trim() != "0"; return true;
                 case "generacion_fsr3": FsrFgOfrecer = val.Trim() == "1"; return true;   // (1.2.4 ronda 7, FGREAL)
-                case "efg_multi_dlss5": EfgMultiDlss5 = val.Trim() == "1"; return true;   // (1.2.4 ronda 7, INTEGRA7: Enhanced FG x3 / x4 tambien con DLSS 5, EnhancedFg.cs)
+                case "efg_multi_dlss5": EfgMultiDlss5 = val.Trim() != "0"; return true;   // (1.2.4 ronda 7, EFGFIX: de serie 1)   // (1.2.4 ronda 7, INTEGRA7: Enhanced FG x3 / x4 tambien con DLSS 5, EnhancedFg.cs)
             }
             return CeParseXefgm(key, val) || CeParseMultiFsr(key, val);   // (1.2.4 ronda 6, FGMULTI: motor_fsr_multi*, MultiFsr.cs)   // (motor_xefg_dlss5: XefgMotor.cs. 1.2.4 ronda 6: proteccion* -Proteccion.cs, la de Magpie- fuera, ClavesRetiradas)
         }
@@ -201,6 +201,9 @@ namespace ConsoleEnhancer
             if (t == "smooth" && Ce.NoNvidia) return Tx.T("solo en NVIDIA RTX 40 / 50", "NVIDIA RTX 40 / 50 only");
             if (t == "smooth" && Pantalla.Is119) return Tx.T("no con la tele a 119,88 Hz", "not with the TV at 119.88 Hz");
             if (t == "smooth" && (NvProfiles.SmoothBroken || NvProfiles.EngineSmoothBroken)) return Tx.T("el driver no deja ponerlo", "the driver doesn't allow it");
+            // (1.2.4 ronda 7, EFGFIX: antes no habia motivo para Enhanced FG: tras una caida salia de la lista sin explicacion)
+            if (t == "efg" && Config.EfgCaido) return Config.EfgCaidoTexto(false);
+            if (t == "efg" && !Config.EfgEnMenu()) return Tx.T("necesita la pantalla a 100 Hz o más", "needs the screen at 100 Hz or more");
             return null;
         }
 
@@ -229,6 +232,9 @@ namespace ConsoleEnhancer
                 return;
             }
             string s = GenSustituto(cap30, capSel);
+            // (1.2.4 ronda 7, EFGFIX) Enhanced FG elegido otra vez en la fila tras una caida: al aplicar se reintenta
+            if (s != null && tipo.Val == "efg" && Config.EfgCaido)
+            { tipo.Ayuda = GenLabel("efg", false) + ": " + Config.EfgCaidoTexto(true).Replace("; elígelo otra vez para reintentar", "").Replace("; pick it again to retry", "") + Tx.T(" · al aplicar se vuelve a intentar", " · applying retries it"); return; }
             if (s != null) tipo.Ayuda = s + " · " + Tx.T("va ", "using ") + GenLabel(tipo.Val, false);
         }
 

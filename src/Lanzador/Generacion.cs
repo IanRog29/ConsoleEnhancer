@@ -53,7 +53,8 @@ namespace ConsoleEnhancer
                 r.Add(t);
             }
             // (1.2.4 ronda 6, ENHANCED) Enhanced FG, la generacion propia del motor: opcion EXTRA, al final y en cualquier grafica (EnhancedFg.cs)
-            if (cfg.FgAvailable && Config.GenPuedeIr("efg", videoSize) && !r.Contains("efg")) r.Add("efg");
+            // (1.2.4 ronda 7, EFGFIX: tambien tras una caida con el -EfgCaido-: sigue en la lista y elegirlo es reintentar; el menu dice por que va otro)
+            if (cfg.FgAvailable && Config.EfgEnMenu() && !r.Contains("efg")) r.Add("efg");
             return r;
         }
 
@@ -154,6 +155,7 @@ namespace ConsoleEnhancer
                 {
                     fgWanted = true;
                     SaveText(Paths.FgFile, "1");
+                    if (t == "efg") Config.EfgReintenta("L3");   // (1.2.4 ronda 7, EFGFIX: elegirla otra vez tras una caida = reintentar)
                     if (cfg.CapMode) SetPicks(cfg.FgPick60, t); else SetPicks(t, cfg.FgPick30);
                 }
                 PrepareCfg();
