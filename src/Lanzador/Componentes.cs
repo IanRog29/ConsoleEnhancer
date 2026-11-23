@@ -1,10 +1,11 @@
-// Componentes.cs - mpv y Magpie, los programas libres de terceros que usa ConsoleEnhancer, NO van dentro del zip de la release: sus
-// licencias (GPL de mpv y su FFmpeg; Magpie Experimental, que ademas lleva DLL de NVIDIA, AMD e Intel con sus propias condiciones y
-// pide no volver a repartir sus binarios sin revisarlas) hacen que lo limpio sea que cada usuario los baje de su pagina oficial.
+// Componentes.cs - los programas y librerias de terceros que usa ConsoleEnhancer y NO van dentro del zip de la release: sus
+// licencias (Magpie Experimental, que ademas lleva DLL de NVIDIA, AMD e Intel con sus propias condiciones y pide no volver a repartir sus
+// binarios sin revisarlas) hacen que lo limpio sea que cada usuario los baje de su pagina oficial.
+// (23-11, 1.2.4 SINMPV: mpv ya no hace falta -la imagen, las capturas y el sonido los hace el motor- y no se baja.)
 // La primera vez que se abre la app (antes del asistente) se bajan solos, con permiso, de sus releases oficiales de GitHub:
 //  - la tabla es scripts\components.json (la misma de scripts\descargar_dependencias.ps1): version, URL, SHA-256 y que se coge del zip
 //  - se comprueba el SHA-256 de cada zip; sin internet, valen los mismos zip puestos a mano en <app>\downloads\
-//  - se sacan a <app>\mpv y <app>\magpie sin lo no oficial (nvngx_dlssnr.dll, runtimes\dlssg_sm86: los pone el usuario con el boton
+//  - se sacan a su carpeta de <app> (<app>\magpie...) sin lo no oficial (nvngx_dlssnr.dll, runtimes\dlssg_sm86: los pone el usuario con el boton
 //    "Anadir DLSS 5" de la bandeja o del asistente, src\Lanzador\Extras.cs; ver extras\LEEME.txt)
 //  - bandeja > "Componentes: comprobar / volver a descargar" (Extras.cs): --componentes-reparar los vuelve a bajar todos
 //  - <carpeta>\.version = "version sha256" (lo mismo que deja descargar_dependencias.ps1 en terceros\)
@@ -586,13 +587,14 @@ namespace ConsoleEnhancer
         static List<Componente> Ejemplo()
         {
             List<Componente> l = new List<Componente>();
-            Componente mpv = new Componente();
-            mpv.Nombre = "mpv"; mpv.Titulo = "mpv"; mpv.Version = "0.39.0";
-            mpv.DescripcionEs = "reproductor que enseña la imagen de la capturadora con poca latencia";
-            mpv.DescripcionEn = "player that shows the capture picture with low latency";
-            mpv.Licencia = "GPL-2.0-or-later"; mpv.Bytes = 45000000L;
-            mpv.Url = "https://github.com/mpv-player/mpv/releases/download/v0.39.0/mpv-x86_64-20250101.zip";
-            l.Add(mpv);
+            // (23-11, 1.2.4 SINMPV: sin el de mpv; uno de AMD como ejemplo pequeño)
+            Componente fsr = new Componente();
+            fsr.Nombre = "fsr"; fsr.Titulo = "AMD FSR SDK"; fsr.Version = "v2.3.0";
+            fsr.DescripcionEs = "librerias de AMD para FSR 3.1 / 4 y FSR 3 FG en el motor";
+            fsr.DescripcionEn = "AMD libraries for FSR 3.1 / 4 and FSR 3 FG in the engine";
+            fsr.Licencia = "MIT"; fsr.Bytes = 30000000L;
+            fsr.Url = "https://github.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK/releases";
+            l.Add(fsr);
             Componente mag = new Componente();
             mag.Nombre = "magpie"; mag.Titulo = "Magpie"; mag.Version = "0.11.0-pre";
             mag.DescripcionEs = "reescalado de la imagen y generación de fotogramas (FSR, NIS y la generación de Magpie)";

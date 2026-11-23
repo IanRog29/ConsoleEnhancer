@@ -102,6 +102,9 @@ namespace ConsoleEnhancer.Motor
         {
             // Pixeles reales (la tele va al 300 %: sin esto Windows dice 1280x720)
             try { SetProcessDpiAwarenessContext(new IntPtr(-4)); } catch { }
+            // 23-11 (1.2.4, SINMPV): --audio = el sonido de la consola, un proceso aparte sin ventana ni grafica (en vez del mpv de audio;
+            // src\Motor\Audio\AudioMain.cs). Su log: audio.log
+            if (Array.IndexOf(args, "--audio") >= 0) return Audio.AudioMain.Run(args);
             Settings s = new Settings();
             DataInit(args);   // 18-11 (MOTOR-CE): datos=<carpeta> (el log, Streamline, la cache y los bancos; si no, la del exe)
             Log.Open(Path.Combine(DataDir, "engine.log"));
@@ -112,6 +115,14 @@ namespace ConsoleEnhancer.Motor
             Log.Write("Ajustes: " + s.Describe());
 
             Rectangle bounds = ScreenBounds(s);
+            // 23-11 (1.2.4, SINMPV): ventana=N (la prueba de imagen del asistente, como la de mpv al 60 %): en el centro, al N % (la cadena se
+            // estira a la ventana: DXGI_SCALING_STRETCH)
+            if (s.WindowPct >= 10 && s.WindowPct < 100)
+            {
+                int ww = bounds.Width * s.WindowPct / 100, wh = bounds.Height * s.WindowPct / 100;
+                bounds = new Rectangle(bounds.X + (bounds.Width - ww) / 2, bounds.Y + (bounds.Height - wh) / 2, ww, wh);
+                s.OutW = ww; s.OutH = wh;   // (la salida al tamaño de la ventana)
+            }
             startTopmost = s.Topmost;
             Thread ui = new Thread(delegate ()
             {

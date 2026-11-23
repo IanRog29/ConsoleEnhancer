@@ -19,6 +19,10 @@ namespace ConsoleEnhancer
         public int MpvQueueMs = 0;
         public int AudioBlockMs = 20;
         public int AudioQueueHighMs = 70, AudioQueueLowMs = 30;
+        // 23-11 (1.2.4, SINMPV): el sonido por el motor (ConsoleEnhancerEngine.exe --audio). audio_motor_extra= claves para el (separadas por
+        // espacios: audio_cola_ms=30 audio_salida_ms=10 audio_deriva=1 audio_cola_max_ms=100); test_audio=clic|tono[,ppm=N][,jit=N] (solo
+        // pruebas: un generador con el ritmo de la capturadora en vez de abrirla)
+        public string AudioEngineExtra = "", TestAudio = "";
         // 22-11 (1.2.4 LATENCIA) mpv_cscale: el filtro del color (croma) de mpv. Sin --cscale mpv usa el de --scale (ewa_lanczossharp, un
         // filtro polar caro) tambien para subir el croma 4:2:2 de la capturadora, aunque la imagen vaya 1:1. Medido (mpv solo, 4K YUY2 a
         // 29,97, los argumentos de la app, PresentMon): 6,09 ms de grafica por imagen -> 4,97 con spline36 o lanczos (-1,1 ms; sin el
@@ -41,6 +45,8 @@ namespace ConsoleEnhancer
             switch (key)
             {
                 case "mpv_cscale": MpvCscale = val.Trim(); return true;
+                case "audio_motor_extra": AudioEngineExtra = val.Trim(); return true;
+                case "test_audio": TestAudio = val.Trim(); return true;
                 case "mpv_cola_ms":
                     if (!int.TryParse(val.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out v)) return true;
                     MpvQueueMs = Math.Max(0, Math.Min(1000, v)); return true;

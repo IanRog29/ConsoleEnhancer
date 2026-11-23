@@ -50,8 +50,7 @@ namespace ConsoleEnhancer
         // (16-11: solo pruebas, --ini=<ruta>: otro ini sin tocar el de verdad, que editan otros)
         public static string IniFile = Datos + @"\consoleenhancer.ini";
         public static readonly string LogFile = Datos + @"\logs\consoleenhancer.log";
-        public static readonly string LuaScript = AppDir + @"\scripts\ce_power.lua";
-        public static readonly string DiagScript = AppDir + @"\scripts\ce_diag.lua";
+        // (23-11, 1.2.4 SINMPV: sin los scripts de mpv -ce_power.lua, ce_diag.lua, ce_standby.lua-: el motor hace lo de ce_power.lua, PowerWatch.cs)
 
         public static string FlagFile
         {
@@ -205,7 +204,7 @@ namespace ConsoleEnhancer
     // ------------------------------------------------------------------
     partial class Config
     {
-        public string MpvPath = "";   // (ConsoleEnhancer: <app>\mpv\mpv.exe, Integrado.ResolvePaths)
+        public string MpvPath = "";   // (23-11, 1.2.4 SINMPV: sin mpv; solo lo lee MagpieConfig, que se va con QUITAFG. mpv_path del ini no cuenta)
         public string Device = "";    // (ConsoleEnhancer: la elige el asistente, device= / device_path=)
         // La ventana de mpv va siempre a este tamaño y Magpie la sube a 4K
         public string VideoSize = "2560x1440";
@@ -243,7 +242,6 @@ namespace ConsoleEnhancer
         public bool HomeNative = false;  // ahora se esta en el HOME a 4K nativo
         // Lo que se captura ahora: en el HOME, 4K; en un juego, la captura elegida para el (VideoSize)
         public string CaptureNow { get { return HomeNative ? "3840x2160" : VideoSize; } }
-        public string TestMpvArgs = ""; // solo pruebas: argumentos extra de mpv (separados por espacios)
         // solo pruebas (16-11, G1): el filtro de imagenes de mpv tal cual en vez del de TrayApp.FrameFilter, tambien en los "vf set" en caliente
         // (p. ej. "1 de cada 2" para que la pantalla No Signal quieta llegue a 29,97 en el modo 30: test_mpv_args=--vf= no aguanta). ini test_filtro
         public string TestFrameFilter = "";
@@ -1334,7 +1332,7 @@ namespace ConsoleEnhancer
                         case "afterburner_pausa": c.AfterburnerPause = ParseBool(val); break;
                         case "segundo_plano": c.Background = val.Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries); break;
                         case "test_source": c.TestSource = val; break;
-                        case "test_mpv_args": c.TestMpvArgs = val; break;
+                        case "test_mpv_args": break;   // (23-11, 1.2.4 SINMPV: sin mpv)
                         case "test_filtro": c.TestFrameFilter = val; break;
                         case "test_source_juego": c.TestSourceGame = val; break;
                         case "test_motor": c.TestMotor = val.Trim(); break;   // (1.2.4 arreglos, RELEVO: la fuente del motor en pruebas)
@@ -6803,7 +6801,7 @@ namespace ConsoleEnhancer
             PrismaUi.StyleMenu(menu); // 15-11 (Prisma): oscuro como los avisos, con el icono y el nombre arriba
 
             tray = new NotifyIcon();
-            tray.Icon = LoadIcon(cfg.MpvPath);
+            tray.Icon = LoadIcon(cfg.EnginePath);
             tray.Text = PrismaUi.AppName;
             tray.ContextMenuStrip = menu;
             tray.Visible = true;
@@ -6833,15 +6831,16 @@ namespace ConsoleEnhancer
         }
 
         // 15-11: el de Prisma (prisma.ico, dentro del exe) al tamaño de la bandeja; si no estuviera, el de mpv como antes
-        static Icon LoadIcon(string mpvPath)
+        // (23-11, 1.2.4 SINMPV: el de la app; si no, el del exe del motor -antes el de mpv-)
+        static Icon LoadIcon(string exePath)
         {
             Icon own = PrismaUi.AppIcon(SystemInformation.SmallIconSize.Width);
             if (own != null) return own;
             try
             {
-                if (File.Exists(mpvPath)) return Icon.ExtractAssociatedIcon(mpvPath);
+                if (File.Exists(exePath)) return Icon.ExtractAssociatedIcon(exePath);
             }
-            catch (Exception ex) { Log.Error("No se pudo extraer el icono de mpv", ex); }
+            catch (Exception ex) { Log.Error("No se pudo extraer el icono", ex); }
             return SystemIcons.Application;
         }
 
@@ -9505,11 +9504,9 @@ namespace ConsoleEnhancer
         {
             lastGrab = DateTime.Now;
             grabBusy = true;
-            // (22-11, 1.2.2 RITMO: jugando con Magpie, por PNG a una tuberia: mpv no se para a pasarla a RGB y no se escribe nada al disco;
-            // src\Lanzador\Ritmo.cs)
-            bool png = UsaCapturaPng();
-            string dest = png ? DestinoCapturaPng(light) : GrabPath;
-            lock (cmdQueue) cmdQueue.Add(JsonCmd("script-message", "switch2-grab", dest, (light ? "light" : "full") + (png ? "-png" : "")));
+            // (22-11, 1.2.2 RITMO: jugando con Magpie iba por PNG a una tuberia para que mpv no se parase. 23-11, 1.2.4 SINMPV: sin mpv, siempre
+            // la del motor -a fichero, en color, sin parar la imagen: la copia en su hilo de captura y la conversion aparte, EngineGrabColor.cs-)
+            lock (cmdQueue) cmdQueue.Add(JsonCmd("script-message", "switch2-grab", GrabPath, light ? "light" : "full"));
         }
 
         // La imagen que ha volcado el script Lua: ¿es el HOME? ¿que juego esta seleccionado?
@@ -12365,9 +12362,11 @@ namespace ConsoleEnhancer
         {
             try
             {
-                if (!File.Exists(cfg.MpvPath))
+                // (23-11, 1.2.4 SINMPV: sin mpv, la imagen y el sonido los hace el motor: lo que tiene que estar es su exe)
+                if (!File.Exists(cfg.EnginePath))
                 {
-                    Fatal("No se encuentra mpv en:\n" + cfg.MpvPath + "\n\nRevisa " + Paths.IniFile);
+                    Fatal(Deteccion.Tx.T("No se encuentra el motor de imagen en:\n" + cfg.EnginePath + "\n\nVuelve a descomprimir la app (falta engine\\ConsoleEnhancerEngine.exe).",
+                                         "The image engine is missing:\n" + cfg.EnginePath + "\n\nUnzip the app again (engine\\ConsoleEnhancerEngine.exe is missing)."));
                     return;
                 }
 
@@ -12614,8 +12613,10 @@ namespace ConsoleEnhancer
         }
 
         // ---------------- Audio de la consola ----------------
-        // Un mpv solo de audio con el pin de audio de la capturadora: no toca la GPU ni la imagen. Su sonido
+        // Un proceso solo de audio con el pin de audio de la capturadora: no toca la GPU ni la imagen. Su sonido
         // lo mide el mismo medidor que al de Streaming Center (se oye = la consola esta encendida)
+        // (23-11, 1.2.4 SINMPV: ya no es un mpv sino el motor en su modo de sonido, ConsoleEnhancerEngine.exe --audio, con la misma
+        // tuberia: src\Motor\Audio\AudioMain.cs. LaunchAudioMpv sigue con su nombre para no chocar con otras ramas)
 
         // Pines de audio de la capturadora: "Audio" y "Audio Mixer" (hay que pedirlos: ffmpeg solo no sabe)
         static readonly int[] AudioPinOrder = { 2, 1 };
@@ -12757,38 +12758,36 @@ namespace ConsoleEnhancer
         // 8 canales -> estereo. Pedir 2 a la capturadora se queda con izquierda y derecha y tira el canal central, donde van
         // las voces cuando la consola manda sonido envolvente. Los canales 3 y 4 entran los dos porque HDMI y Windows ordenan
         // central y graves al reves. El limitador evita que la suma sature; con sonido estereo no cambia nada
-        const string AudioDownmix =
-            "--af=lavfi=[aformat=sample_fmts=fltp," +
-            "pan=stereo|c0=c0+0.707*c2+0.707*c3+0.707*c4+0.707*c6|c1=c1+0.707*c2+0.707*c3+0.707*c5+0.707*c7," +
-            "alimiter=limit=1:level=0:attack=5:release=50]";
+        // (23-11, SINMPV: la misma mezcla y el limitador los hace el motor con audio_canales=8: src\Motor\Audio\AudioOut.cs)
 
+        // 23-11 (1.2.4, SINMPV; el usuario: "Toda la app sera en el motor sin magpie ni nada del estilo"): el sonido de la consola por el motor
+        // (ConsoleEnhancerEngine.exe --audio: DirectShow como el dshow de mpv -el mismo dispositivo, pin, formato y trozos- y WASAPI como
+        // --ao=wasapi), en un proceso aparte como el mpv de audio. Misma tuberia: AudioLink no cambia. Medido sin capturadora (fuente de prueba
+        // con el ritmo de la capturadora, trozos de 20 ms con temblor de 4 ms, loopback de la salida): clic -> salida 78,5 ms (p95 78,8), sin
+        // cortes; con el reloj de la consola desviado +-500 ppm la cola se corrige sola (src\Motor\Audio\AudioOut.cs). audio_motor_extra=
+        // pasa claves al motor (audio_cola_ms=30, audio_salida_ms=10, audio_deriva=1...); test_audio=clic|tono (solo pruebas: sin capturadora)
         Process LaunchAudioMpv(int pin, string ipc, bool surround)
         {
             List<string> a = new List<string>();
-            a.Add("av://dshow:audio=" + (cfg.AudioDevice.Length > 0 ? cfg.AudioDevice : cfg.Device)); // (ConsoleEnhancer: audio_dispositivo)
+            a.Add("--audio");
+            a.Add("datos=" + Ce.EngineLogDir);
+            a.Add("ipc=" + ipc);
+            a.Add("audio_disp=" + (cfg.AudioDevice.Length > 0 ? cfg.AudioDevice : cfg.Device)); // (ConsoleEnhancer: audio_dispositivo)
+            // (ConsoleEnhancer: audio_pines: el pin de audio del filtro de video, como audio_pin_name de mpv)
+            if (cfg.AudioPins) a.Add("audio_pin=" + pin.ToString(CultureInfo.InvariantCulture));
+            a.Add("audio_hz=48000");
+            a.Add("audio_bits=16");
+            a.Add("audio_canales=" + (surround ? "8" : "2"));
             // Trozos de 20 ms de la capturadora (por defecto ~500 ms) (21-11, 1.2.1: audio_bloque_ms, de serie 20; src\Lanzador\Latencia.cs)
-            a.Add("--demuxer-lavf-o=" + (cfg.AudioPins ? "audio_pin_name=" + pin.ToString(CultureInfo.InvariantCulture) + "," : "") + // (ConsoleEnhancer: audio_pines)
-                  "sample_rate=48000,sample_size=16,channels=" + (surround ? "8" : "2") + ",audio_buffer_size=" + cfg.AudioBlockMs.ToString(CultureInfo.InvariantCulture));
+            a.Add("audio_bloque_ms=" + cfg.AudioBlockMs.ToString(CultureInfo.InvariantCulture));
+            if (cfg.TestAudio.Length > 0) a.Add("audio_prueba=" + cfg.TestAudio);   // (solo pruebas: sin abrir la capturadora)
+            if (cfg.AudioEngineExtra.Length > 0) a.AddRange(cfg.AudioEngineExtra.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries));
             AudioQueueLog.Block = cfg.AudioBlockMs; AudioQueueLog.High = cfg.AudioQueueHighS; AudioQueueLog.Low = cfg.AudioQueueLowS;
-            if (surround) a.Add(AudioDownmix);
-            a.Add("--profile=low-latency");
-            a.Add("--no-video");
-            a.Add("--force-window=no");
-            a.Add("--cache=no");
-            a.Add("--ao=wasapi");
-            a.Add("--audio-buffer=0.02");
-            // Corregir la deriva entre relojes con speed cambia el tono: imperceptible y sin artefactos
-            a.Add("--audio-pitch-correction=no");
-            a.Add("--priority=abovenormal");
-            a.Add("--no-terminal");
-            a.Add("--no-input-default-bindings");
-            a.Add("--title=ConsoleEnhancerAudio");
-            a.Add("--input-ipc-server=\\\\.\\pipe\\" + ipc);
-            ProcessStartInfo psi = new ProcessStartInfo(cfg.MpvPath, JoinArgs(a));
+            ProcessStartInfo psi = new ProcessStartInfo(cfg.EnginePath, JoinArgs(a));
             psi.UseShellExecute = false;
             psi.CreateNoWindow = true;
-            psi.WorkingDirectory = Path.GetDirectoryName(cfg.MpvPath);
-            Log.Write("Audio de la consola: pin " + pin + ": " + psi.Arguments);
+            psi.WorkingDirectory = Path.GetDirectoryName(cfg.EnginePath);
+            Log.Write("Audio de la consola (motor): pin " + pin + ": " + psi.Arguments);
             Process p = Process.Start(psi);
             AudioJob.Hold(p); // (21-11: se cierra con la app aunque esta muera de golpe; src\SonidoDoble.cs)
             return p;
@@ -13114,9 +13113,6 @@ namespace ConsoleEnhancer
                             }
                             w.WriteLine("{\"command\":[\"get_property\",\"time-pos\"],\"request_id\":77}");
                             w.WriteLine("{\"command\":[\"get_property\",\"pause\"],\"request_id\":78}");
-                            // 21-11 (1.2.1, src\Lanzador\CapturaSegura.cs): sin su primera imagen, si mpv se ha quedado sin nada abierto (no pudo abrir
-                            // la capturadora: mpv.exe va en modo "pseudo-gui", con idle=yes, y en vez de salir se queda esperando)
-                            if (!videoSignal && !Config.EngineActive && step % 5 == 2) w.WriteLine("{\"command\":[\"get_property\",\"idle-active\"],\"request_id\":80}");
                             if (Config.EngineActive) w.WriteLine(CierresQuery); // (20-11, CIERRES: si la capturadora sigue mandando al motor)
                             // Avisos del mando en pantalla (los dibuja el script de mpv, una pastilla: Magpie los escala con la imagen;
                             // o el motor propio). Ya son la orden entera (OsdCmd: script-message switch2-osd)
@@ -13218,7 +13214,6 @@ namespace ConsoleEnhancer
                     {
                         lock (linkSync) paused = line.Contains("\"data\":true");
                     }
-                    else if (line.Contains("\"request_id\":80")) { if (line.Contains("\"data\":true")) mpvSinNada = readerMpv; } // (21-11, 1.2.1: CapturaSegura.cs)
                     else if (line.Contains("\"request_id\":79")) CierresCaptura(line); // (20-11, CIERRES: switch2-captura-ms del motor)
                     else if (line.Contains("\"client-message\"") && CierresEvent(line)) { } // (20-11, CIERRES: switch2-gpu del motor)
                     else if (line.Contains("\"client-message\"") && FpsEvent(line)) { } // (21-11: switch2-fps del motor, src\Lanzador\FpsBajo.cs)
@@ -13348,11 +13343,6 @@ namespace ConsoleEnhancer
                             st.Start();
                         }
                     }
-                    else if (line.Contains("\"client-message\"") && line.Contains("\"args\":[\"switch2-switch-failed\""))
-                    {
-                        Log.Write("mpv no pudo abrir la captura nueva sin cerrarse: se reabre");
-                        SwitchFallback();
-                    }
                     else if (line.Contains("\"client-message\"") && line.Contains("\"args\":[\"switch2-rate\""))
                     {
                         // Imagenes por segundo a la salida del filtro de repetidas (contadas en el script Lua cada
@@ -13369,31 +13359,8 @@ namespace ConsoleEnhancer
                             if (vfFps > 0 && Config.EngineActive && readerMpv == mpv) { signalOn = true; videoSignal = true; }
                         }
                     }
-                    else if (line.Contains("\"client-message\"") && line.Contains("\"args\":[\"switch2-diag\""))
-                    {
-                        // Cada 20 s jugando (scripts\switch2_diag.lua): de donde vienen los tirones que ve LS
-                        System.Text.RegularExpressions.Match m = System.Text.RegularExpressions.Regex.Match(
-                            line, "\"switch2-diag\",\"([^\"]*)\"");
-                        if (m.Success && lsReady && !cfg.HomeNative) Log.Write("mpv: " + m.Groups[1].Value);
-                        if (m.Success) EscalaNotaDiag(m.Groups[1].Value); // (1.2.1: las imagenes que da mpv de verdad, EscalaAuto.cs)
-                    }
-                    else if (line.Contains("\"client-message\"") && line.Contains("\"args\":[\"switch2-diag-hueco\""))
-                    {
-                        // 22-11 (1.2.2, RITMO): una imagen que mpv saco tarde, al momento (de donde vienen los tirones: src\Lanzador\Ritmo.cs)
-                        System.Text.RegularExpressions.Match m = System.Text.RegularExpressions.Regex.Match(line, "\"switch2-diag-hueco\",\"([^\"]*)\"");
-                        if (m.Success && readerMpv == mpv) RitmoDiag.MpvHueco(m.Groups[1].Value);
-                    }
-                    else if (line.Contains("\"client-message\"") && line.Contains("\"args\":[\"switch2-grabbed-png\""))
-                    {
-                        // 22-11 (1.2.2, RITMO): la captura por fichero (PNG): se lee y se prepara aqui, fuera de mpv (src\Lanzador\Ritmo.cs)
-                        CapturaPngLista(line);
-                    }
-                    else if (line.Contains("\"client-message\"") && line.Contains("\"args\":[\"switch2-diag-captura\""))
-                    {
-                        // 22-11 (1.2.2, RITMO): lo que paro a mpv una captura de la app (screenshot-raw), para ver si los tirones vienen de ahi
-                        System.Text.RegularExpressions.Match m = System.Text.RegularExpressions.Regex.Match(line, "\"switch2-diag-captura\",\"([^\"]*)\"");
-                        if (m.Success && readerMpv == mpv) RitmoDiag.MpvCaptura(m.Groups[1].Value);
-                    }
+                    // (23-11, 1.2.4 SINMPV: fuera lo que solo mandaban los scripts de mpv -switch2-diag, switch2-diag-hueco, switch2-diag-captura,
+                    // switch2-grabbed-png, switch2-switch-failed-: el motor no los manda)
                     else if (line.Contains("\"client-message\"") && line.Contains("\"args\":[\"switch2-pintada\""))
                     {
                         // (1.2.4 arreglos, RELEVO: el motor de ahora ya ha presentado una imagen de verdad; WaitForSignal la espera)
@@ -13510,7 +13477,7 @@ namespace ConsoleEnhancer
             // de imagenes), no el sonido de la consola: con el sonido el telon se quitaba antes de la primera imagen (el motor tarda
             // ~3 s en arrancar; mpv ~1 s: 13:01:09 y 19:25:57, tras volver del motor). Sin script Lua, el sonido, como antes; sin
             // script ni medidor de audio nadie puede avisar: no se espera
-            bool byVideo = Config.EngineActive || File.Exists(Paths.LuaScript);
+            bool byVideo = true;   // (23-11, 1.2.4 SINMPV: siempre el motor, que avisa de la imagen; antes mpv solo si tenia scripts\ce_power.lua)
             if (!byVideo && !cfg.ConsoleAudio && !cfg.StartStreamingCenter) return true;
             if (waitStart == DateTime.MinValue) waitStart = DateTime.Now;
             while (!(byVideo ? videoSignal : signalOn))
@@ -13527,13 +13494,6 @@ namespace ConsoleEnhancer
                 // 21-11 (1.2.1, src\Lanzador\CapturaSegura.cs): sin imagen tras cambiar el formato de la capturadora con la consola encendida:
                 // ese formato no lo da; se cierra y RunMpv lo vuelve a abrir al momento con otro (antes: "esperando a que se encienda" para siempre)
                 if (CapSinImagen(p))
-                {
-                    try { p.Kill(); } catch { }
-                    return false;
-                }
-                // (y sin formato nuevo que vigilar, mpv sin nada abierto no va a dar imagen nunca -la capturadora ocupada, desenchufada...-:
-                // se cierra y RunMpv lo reintenta, con su tope y su aviso; antes se esperaba "a que se encienda" para siempre)
-                if (MpvSinNada(p))
                 {
                     try { p.Kill(); } catch { }
                     return false;
@@ -14013,6 +13973,14 @@ namespace ConsoleEnhancer
                     string ipc = MpvConst.IpcName;
                     vfDedupe = DedupeOn(cfg, !cfg.FgOff); // (lo que lleva este mpv al abrirse)
                     bool eng = Config.EngineActive;
+                    // 23-11 (1.2.4, SINMPV): sin mpv la imagen la hace siempre el motor (lo que antes iba por mpv + Magpie va por el, con lo que
+                    // sepa hacer; sin su exe, Worker ya se ha parado)
+                    if (!eng)
+                    {
+                        Log.Write("Sin mpv: la imagen por el motor propio (antes: mpv + Magpie" + (cfg.PorQueReserva.Length > 0 ? ", " + cfg.PorQueReserva : "") + ")");
+                        Config.EngineActive = true;
+                        eng = true;
+                    }
                     // 16-11 (motor_en_espera): con un motor en espera se despierta (~0,5 s) en vez de abrir otro (~4,5 s); si no hay o no vale,
                     // como siempre (y nunca dos motores a la vez: el de espera fuera antes de abrir otro)
                     // 16-11 (dlss5_sin_telon): el motor ya despierto por el relevo (DLSS 5 apagado sin telon) se toma tal cual
@@ -14043,11 +14011,11 @@ namespace ConsoleEnhancer
                     ProcessStartInfo psi = null;
                     if (woke == null)
                     {
-                        string margs = eng ? EngineArgs(cfg, ipc) : BuildMpvArgs(cfg);
-                        psi = new ProcessStartInfo(eng ? cfg.EnginePath : cfg.MpvPath, margs);
+                        string margs = EngineArgs(cfg, ipc);   // (23-11, SINMPV: siempre el motor)
+                        psi = new ProcessStartInfo(cfg.EnginePath, margs);
                         psi.UseShellExecute = false;
-                        psi.WorkingDirectory = Path.GetDirectoryName(eng ? cfg.EnginePath : cfg.MpvPath);
-                        Log.Write((eng ? "Lanzando el motor propio: " : "Lanzando mpv: ") + psi.FileName + " " + psi.Arguments);
+                        psi.WorkingDirectory = Path.GetDirectoryName(cfg.EnginePath);
+                        Log.Write("Lanzando el motor propio: " + psi.FileName + " " + psi.Arguments);
                     }
                     engineSent = eng ? EngineLive(cfg) : "";
                     mpvScaleSent = cfg.MpvScaleNow; // (el que lleva en sus argumentos)
@@ -14426,16 +14394,9 @@ namespace ConsoleEnhancer
             }
         }
 
-        // ---------------- Linea de comandos de mpv ----------------
-
-        public static string BuildMpvArgs(Config cfg)
-        {
-            List<string> a = new List<string>();
-            a.Add(SourceUrl(cfg));
-            if (cfg.TestSource.Length == 0) a.Add("--demuxer-lavf-o=" + LavfOptions(cfg));
-            AddCommonMpvArgs(a, cfg);
-            return JoinArgs(a);
-        }
+        // ---------------- Lo que se le dice al motor al estilo de mpv ----------------
+        // (23-11, 1.2.4 SINMPV: mpv ya no se abre -BuildMpvArgs y AddCommonMpvArgs, su linea de ordenes, fuera-. DedupeOn, FrameFilter, SourceUrl
+        // y LavfOptions se quedan: son lo que el motor lee por su tuberia al estilo de mpv -"vf set", "set demuxer-lavf-o", "loadfile"-, EngineMpv.cs)
 
         // Filtro de imagenes (se cambia en caliente con "vf set" al cambiar de modo). Normal: quita las repetidas.
         // Modo 30 fps: como mucho 1 de cada 2 (a 60 fps de la consola, 30 regulares): pasa una imagen nueva si han
@@ -14513,105 +14474,6 @@ namespace ConsoleEnhancer
                           ",rtbufsize=" + rtbuf + ",fflags=+nobuffer";
             if (cfg.CaptureAudio) lavf += ",audio_buffer_size=30"; // ms; el valor por defecto (~500 ms) retrasa el audio
             return lavf;
-        }
-
-        static void AddCommonMpvArgs(List<string> a, Config cfg)
-        {
-            a.Add("--profile=low-latency");
-            a.Add("--untimed");
-            a.Add("--d3d11-sync-interval=0");
-            // Como mucho 1 fotograma en cola en la GPU (por defecto 3): menos retraso, misma imagen
-            a.Add("--swapchain-depth=1");
-            // Que el juego u otros procesos no retrasen a mpv
-            a.Add("--priority=high");
-            a.Add("--framedrop=no");
-            a.Add("--cache=no");
-            // 21-11 (1.2.1, mpv_cola_ms=N; de serie 0 = el de mpv): lo que mpv puede leer por delante de la imagen (src\Lanzador\Latencia.cs).
-            // No con el sonido en este mismo mpv (capture_audio): con la imagen atascada dejaria de leer tambien el sonido
-            if (cfg.MpvQueueMs > 0 && !cfg.CaptureAudio) a.Add("--demuxer-readahead-secs=" + (cfg.MpvQueueMs / 1000.0).ToString("0.###", CultureInfo.InvariantCulture));
-            a.Add("--gpu-api=d3d11");
-            a.Add("--vo=gpu-next");
-            a.Add("--no-border");
-            // La ventana va al tamaño que escala LS (1080p en una de 1440p: ver Config.WindowFor); mpv sube la
-            // imagen con lanczos (el de serie)
-            a.Add("--geometry=" + Config.WindowFor(cfg.CaptureNow) + "+0+0");
-            // 08-11: 1080p/720p en la ventana de 1440p con EWA lanczos nitido y sin halos (el lanczos de serie hacia halos que
-            // CAS y DLSS convertian en bordes que tiemblan). A 1:1 (1440p, 4K) no se usa
-            a.Add("--scale=" + cfg.MpvScaleNow);
-            a.Add("--scale-antiring=0.6");
-            // 22-11 (1.2.4 LATENCIA): el croma con su propio filtro (mpv_cscale, src\Lanzador\Latencia.cs: -1,1 ms de grafica de mpv a 4K)
-            string csc = cfg.MpvCscaleFor(cfg.MpvScaleNow);
-            if (csc.Length > 0) a.Add("--cscale=" + csc);
-            a.Add("--no-window-dragging");
-            a.Add("--no-osc");
-            // Avisos (08-11, mas modernos): arriba en el centro, Segoe UI Semibold sobre una placa oscura semitransparente.
-            // 15-11 (Prisma): los avisos de la app ya no van por aqui (show-text) sino por el script (switch2-osd: una pastilla);
-            // esto queda para los mensajes propios de mpv
-            a.Add("--osd-font=Segoe UI Semibold");
-            a.Add("--osd-font-size=22");
-            a.Add("--osd-border-style=opaque-box");
-            a.Add("--osd-outline-color=#B4121216");
-            a.Add("--osd-outline-size=10");
-            a.Add("--osd-shadow-offset=0");
-            a.Add("--osd-align-x=center");
-            a.Add("--osd-margin-y=40");
-            a.Add("--cursor-autohide=always"); // nunca la flecha del raton sobre la imagen
-            // Si la capturadora corta la señal (la consola cambia de modo de video), se vuelve a
-            // abrir sola en vez de terminar
-            a.Add("--loop-file=inf");
-            // La imagen va 1:1 a la ventana (sin escalar): fuera procesado que no aporta y gasta
-            // GPU que necesitan DLSS 5 y la generacion de fotogramas
-            a.Add("--deband=no");
-            a.Add("--dither-depth=no");
-            a.Add("--hdr-compute-peak=no");
-            a.Add("--hwdec=no");
-            a.Add("--audio-buffer=0.05");
-            a.Add("--title=" + PrismaUi.AppName); // (15-11: el nombre que se ve; nada busca la ventana por su titulo: Magpie va por clase y exe)
-            // Sin los atajos de teclado de mpv: si Joyxoff convierte la cruceta en flechas, mpv "avanzaria" en la captura
-            a.Add("--no-input-default-bindings");
-            // Lo que mira el script sale de la imagen ya en memoria, sin leerla de la GPU. Medido con la
-            // capturadora: leerla de la GPU para mpv 41-88 ms (51 fps, p95 41 ms); asi, 11 ms (59,5 fps, p95 19)
-            a.Add("--screenshot-sw=yes");
-            // 22-11 (1.2.2, RITMO): la captura por fichero (captura_png=1, src\Lanzador\Ritmo.cs): PNG sin comprimir ni filtrar, 8 bits (el
-            // mas barato de escribir y de leer, e identico a screenshot-raw)
-            if (cfg.GrabPng) { a.Add("--screenshot-format=png"); a.Add("--screenshot-png-compression=0"); a.Add("--screenshot-png-filter=0"); a.Add("--screenshot-high-bit-depth=no"); }
-            // Quita una imagen identica a la anterior si la anterior paso: un juego a 30 fps llega con cada una 2
-            // veces y la generacion inventaria imagenes entre dos iguales (se ve como 40 fps). Vale para cualquier
-            // juego, se queda siempre con la primera copia (menos retraso que una de cada dos, que puede caer en la
-            // segunda) y cuesta 1-2 ms de CPU. Con la imagen quieta (menus) llegan 30 por segundo, regulares: la
-            // version que dejaba pasar una cada 0,1 s le daba a LS huecos de 100-117 ms y la generacion iba a
-            // trompicones (medido en el HOME y en los menus de FC 26: p95 117 ms, 680 imagenes repetidas de 6000)
-            // (en el HOME a 4K nativo, nada: la imagen tal cual)
-            if (DedupeOn(cfg, !cfg.FgOff)) a.Add("--vf=" + FrameFilter(cfg));
-            // Bordes suavizados antes de que la imagen llegue a nada (medido: 0,34 ms por imagen real; el
-            // suavizado del addon, a 4K en cada imagen mostrada, ~3 ms, y a 60 fps no cabe)
-            string edgeShader = cfg.EdgeShaderNow; // (10-11: el fuerte con DLSS 5 apagado, ver Config.StrongDither)
-            if (edgeShader.Length > 0 && !cfg.HomeNative) a.Add("--glsl-shaders=" + edgeShader);
-            // (se queda puesto aunque el shader se quite y se vuelva a poner en caliente al entrar en un juego)
-            if (!cfg.Dedither) a.Add("--glsl-shader-opts=s2_tramado=0");
-            if (cfg.TestMpvArgs.Length > 0)
-                a.AddRange(cfg.TestMpvArgs.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries));
-            if (File.Exists(Paths.LuaScript))
-            {
-                a.Add("--script=" + Paths.LuaScript);
-                if (File.Exists(Paths.DiagScript)) a.Add("--script=" + Paths.DiagScript);
-                // (09-11: y la deteccion rapida de la consola en espera: apagado_rapido_s, apagado_confirmar_ms...)
-                a.Add("--script-opts=ce_power-flag=" + Paths.FlagFile +
-                      ",ce_power-nosig_fast_secs=" + cfg.NoSignalFastSecs.ToString("0.###", CultureInfo.InvariantCulture) +
-                      ",ce_power-nosig_confirm_silent_ms=" + cfg.NoSignalConfirmMs.ToString(CultureInfo.InvariantCulture) +
-                      ",ce_power-nosig_confirm_ms=" + cfg.NoSignalConfirmSlowMs.ToString(CultureInfo.InvariantCulture) +
-                      // (16-11: y lo que tiene que durar "No Signal" para cerrar: apagado_espera_s, apagado_espera_arranque_s)
-                      // (18-11, CONSOLAS: la de la consola si es mayor; y el negro con silencio que se da por apagada: PlayStation nunca, es el HDCP)
-                      ",ce_power-nosig_hold_ms=" + ((int)(EsperaSinSenalJugando(cfg) * 1000)).ToString(CultureInfo.InvariantCulture) +
-                      ",ce_power-black_secs=" + BlackSecsLua() +
-                      ",ce_power-nosig_hold_launch_ms=" + ((int)(cfg.NoSignalHoldLaunchSecs * 1000)).ToString(CultureInfo.InvariantCulture));
-                a.Add("--input-ipc-server=" + MpvConst.IpcPipe);
-                if (cfg.CaptureAudio) a.Add(MpvConst.AudioFilter);
-            }
-            else
-            {
-                Log.Write("Aviso: no existe " + Paths.LuaScript + "; mpv se lanza sin detector de apagado");
-            }
         }
 
         static string JoinArgs(List<string> a)
@@ -14999,7 +14861,7 @@ namespace ConsoleEnhancer
                 Directory.CreateDirectory(dir);
                 File.WriteAllText(Path.Combine(dir, "cadena.json"), JsonWriter.Serialize(MagpieConfig.Chain(cfg, double.NaN)), new UTF8Encoding(false));
                 Log.Write("DRY RUN cadena de efectos en " + Path.Combine(dir, "cadena.json"));
-                Log.Write("DRY RUN mpv: " + cfg.MpvPath + " " + TrayApp.BuildMpvArgs(cfg));
+                Log.Write("DRY RUN sonido: el motor con --audio (sin mpv; ConsoleEnhancerEngine.exe --audio)");   // (23-11, 1.2.4 SINMPV)
                 Log.Write("DRY RUN Magpie en marcha: " + (MagpieLive.Running ? "si" : "no") + " (no se toca)");
             }
             catch (Exception ex)

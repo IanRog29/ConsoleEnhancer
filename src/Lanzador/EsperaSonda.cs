@@ -232,10 +232,11 @@ namespace ConsoleEnhancer
                              VideoInfo = new Guid("05589f80-c356-11ce-bf01-00aa0055595a"), VideoInfo2 = new Guid("f72a76a0-eb0a-11d0-ace4-0000c0cc16ba");
 
         // ------------------------------------------------------------------ --ce-sonda
-        // --ce-sonda "dispositivo=<nombre>" ["ruta=<device_path>"] [cada_ms=<n>] [formato=<pixel_format del ini>] [medir=1]
+        // --ce-sonda "dispositivo=<nombre>" ["ruta=<device_path>"] [cada_ms=<n>] [formato=<pixel_format del ini>] [medir=1] [simulada=<s>]
         public static int Proceso(string[] args)
         {
             string nombre = "", ruta = "", formato = "";
+            int simulada = -1;
             int cada = 2000;
             bool medir = false;
             foreach (string a in args)
@@ -245,6 +246,22 @@ namespace ConsoleEnhancer
                 else if (a.StartsWith("formato=")) formato = a.Substring(8);
                 else if (a.StartsWith("cada_ms=")) { int n; if (int.TryParse(a.Substring(8), out n)) cada = Math.Max(100, Math.Min(60000, n)); }
                 else if (a == "medir=1") medir = true;
+                else if (a.StartsWith("simulada=")) { int n; if (int.TryParse(a.Substring(9), out n)) simulada = Math.Max(0, n); }
+            }
+            // 23-11 (1.2.4, SINMPV) SOLO PRUEBAS (la espera con espera_sonda_fuente=av://lavfi... o --prueba-espera, antes con mpv y una pantalla
+            // "No Signal" de mentira): sin capturadora; "No Signal" hasta los simulada s y luego la consola (0 = nunca)
+            if (simulada >= 0)
+            {
+                Log.Write("Sonda de la espera: PRUEBA sin capturadora (simulada=" + simulada + "): la consola a los " + simulada + " s" + (simulada == 0 ? " (nunca)" : ""));
+                Stopwatch ss = Stopwatch.StartNew();
+                EventWaitHandle lt = null;
+                try { lt = new EventWaitHandle(false, EventResetMode.AutoReset, Latido); } catch { }
+                while (true)
+                {
+                    if (lt != null) try { lt.Set(); } catch { }
+                    if (simulada > 0 && ss.Elapsed.TotalSeconds >= simulada) { Log.Write("Sonda de la espera: la consola (prueba)"); return CodigoConsola; }
+                    Thread.Sleep(cada);
+                }
             }
             // SOLO PRUEBAS: CE_PRUEBA_SONDA_CONSOLA_S=<s>: a los s segundos toma lo que llegue por la consola (para probar todo el despertar
             // con la capturadora de verdad y la consola apagada)
@@ -277,8 +294,8 @@ namespace ConsoleEnhancer
             Stopwatch sw = Stopwatch.StartNew();
             string porque;
             Grafo g = Montar(nombre, ruta, formato, out porque);
-            if (g == null) { Log.Write("Sonda de la espera: sin grafo de DirectShow (" + porque + "): sigue la de mpv"); return CodigoSinGrafo; }
-            Log.Write("Sonda de la espera (sin mpv): grafo de " + nombre + " montado en " + sw.ElapsedMilliseconds + " ms (" + g.Detalle + "); la mira un momento cada " + cada + " ms");
+            if (g == null) { Log.Write("Sonda de la espera: sin grafo de DirectShow (" + porque + "): la espera lo vuelve a intentar"); return CodigoSinGrafo; }
+            Log.Write("Sonda de la espera: grafo de " + nombre + " montado en " + sw.ElapsedMilliseconds + " ms (" + g.Detalle + "); la mira un momento cada " + cada + " ms");
             Process me = Process.GetCurrentProcess();
             int vez = 0, fallos = 0;
             double cpuAntes = me.TotalProcessorTime.TotalMilliseconds;
@@ -294,7 +311,7 @@ namespace ConsoleEnhancer
                 if (latido != null) try { latido.Set(); } catch { }   // (la espera ve que sigue viva: un Run o un Stop colgados no la dejan sorda)
                 if (primera >= 0) { primeraSum += primera; primeraN++; }
                 if (q == "consola") { Log.Write("Sonda de la espera: la consola (vez " + vez + ")"); return CodigoConsola; }
-                if (q == "error") { if (++fallos >= 3) { Log.Write("Sonda de la espera: el grafo no arranca (3 veces seguidas): sigue la de mpv"); return CodigoSinGrafo; } }
+                if (q == "error") { if (++fallos >= 3) { Log.Write("Sonda de la espera: el grafo no arranca (3 veces seguidas): la espera lo vuelve a intentar"); return CodigoSinGrafo; } }
                 else fallos = 0;
                 if (medir || vez == 1 || vez == 3 || vez % 1000 == 0)
                 {

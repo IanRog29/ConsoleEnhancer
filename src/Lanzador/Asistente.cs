@@ -1,6 +1,6 @@
 // Asistente.cs - asistente del primer arranque de ConsoleEnhancer (fase 2, agente UNIVERSAL)
 //
-// Pasos (DISENO.md §4): idioma, lo detectado, capturadora (se abre aqui para leer sus formatos; prueba de imagen con mpv), audio
+// Pasos (DISENO.md §4): idioma, lo detectado, capturadora (se abre aqui para leer sus formatos; prueba de imagen con el motor), audio
 // (prueba de sonido), consola, pantalla, imagen (20-11: HDR / RTX HDR / VRR), mando (20-11: los botones de ESE mando) y el resumen con
 // el plan. Al terminar escribe el ini (Ce.EscribirIni) y la huella.
 // Raton y teclado (Tab / Enter / Esc). Sin consola encendida tambien vale (la prueba de imagen enseña lo que mande la capturadora).
@@ -27,7 +27,7 @@ namespace ConsoleEnhancer
         int paso;
         const int Pasos = 9;
         bool guardado;
-        bool soloVer;              // --ui-preview: no abrir nada (ni la capturadora ni mpv)
+        bool soloVer;              // --ui-preview: no abrir nada (ni la capturadora ni el motor)
         readonly float k = Escala();
         static float Escala() { try { using (Graphics g = Graphics.FromHwnd(IntPtr.Zero)) return Math.Max(1f, g.DpiX / 96f); } catch { return 1f; } }
         int S(int v) { return (int)Math.Round(v * k); }
@@ -295,7 +295,7 @@ namespace ConsoleEnhancer
                               " · VRR " + Tx.SiNo(pantalla.VrrPosible) + " · " + pantalla.Conexion);
                 foreach (string a in pl.Avisos) if (a.IndexOf("Hz", StringComparison.Ordinal) >= 0 || a.IndexOf("pantalla", StringComparison.OrdinalIgnoreCase) >= 0 || a.IndexOf("display", StringComparison.OrdinalIgnoreCase) >= 0) sb.AppendLine("! " + a);
                 // 22-11 (1.2.2, ERRORES; pendiente de la revision de la 1.2.03 "pantalla elegida en el asistente no se guarda"): la eleccion
-                // solo cuenta para el plan; mpv, el motor, Magpie y la cubierta negra van a la pantalla PRINCIPAL de Windows. Que se sepa
+                // solo cuenta para el plan; el motor, Magpie y la cubierta negra van a la pantalla PRINCIPAL de Windows. Que se sepa
                 if (!pantalla.Principal)
                     sb.AppendLine("! " + Tx.T("La imagen sale en la pantalla principal de Windows. Para jugar en esta, hazla la principal (Configuración > Sistema > Pantalla > «Convertir en la pantalla principal») y vuelve a abrir el asistente.",
                                               "The picture goes to the Windows primary display. To play on this one, make it the primary display (Settings > System > Display > \"Make this my main display\") and open the wizard again."));
@@ -458,17 +458,19 @@ namespace ConsoleEnhancer
             catch (Exception ex) { MessageBox.Show(this, ex.Message, "ConsoleEnhancer", MessageBoxButtons.OK, MessageBoxIcon.Error); }
         }
 
-        // ------------------------------------------------------------------ pruebas con mpv (8 s)
-        string Mpv { get { string m = Path.Combine(Paths.AppDir, @"mpv\mpv.exe"); return File.Exists(m) ? m : null; } }
+        // ------------------------------------------------------------------ pruebas (8 s) con el motor
+        // (23-11, 1.2.4 SINMPV: antes con mpv; ahora el motor de la app: la imagen en una ventana al 60 % en el centro -ventana=60, sin
+        // Streamline, encima de todo- y el sonido con su modo de sonido -ConsoleEnhancerEngine.exe --audio-, como en la app)
+        string Motor { get { string m = Path.Combine(Paths.AppDir, @"engine\ConsoleEnhancerEngine.exe"); return File.Exists(m) ? m : null; } }
 
         void ProbarImagen()
         {
             if (captura == null) return;
-            if (Mpv == null) { estado.Text = Tx.T("Falta mpv\\mpv.exe en la carpeta de la app", "mpv\\mpv.exe missing"); return; }
+            if (Motor == null) { estado.Text = Tx.T("Falta engine\\ConsoleEnhancerEngine.exe en la carpeta de la app", "engine\\ConsoleEnhancerEngine.exe missing"); return; }
             PlanImagen p = Plan();
-            string pf = p.CapFormato == "NV12" ? "nv12" : p.CapFormato == "YUY2" ? "yuyv422" : p.CapFormato == "RGB24" ? "bgr24" : "";
-            string lavf = "video_size=" + p.CapW + "x" + p.CapH + ",framerate=" + p.CapFps + (pf.Length > 0 ? ",pixel_format=" + pf : p.CapFormato == "MJPG" ? ",vcodec=mjpeg" : "");
-            Lanzar("\"av://dshow:video=" + captura.Nombre + "\" --demuxer-lavf-o=" + lavf + " --no-audio --profile=low-latency --untimed --geometry=60%+50%+50% --title=ConsoleEnhancer-prueba --length=8 --no-input-default-bindings",
+            string fmt = p.CapFormato == "NV12" ? "nv12" : p.CapFormato == "YUY2" ? "yuy2" : p.CapFormato == "RGB24" ? "rgb24" : "auto";
+            Lanzar("\"device=" + captura.Nombre + "\"" + (captura.DevicePath.Length > 0 ? " \"device_path=" + captura.DevicePath + "\"" : "") +
+                   " capture=" + p.CapW + "x" + p.CapH + " fps=" + p.CapFps + " format=" + fmt + " ventana=60 topmost=1 streamline=0 upscaler=fsr1 \"datos=" + Ce.EngineLogDir + "\"",
                    Tx.T("Probando la imagen 8 s…", "Testing the picture for 8 s…"));
         }
 
@@ -476,9 +478,9 @@ namespace ConsoleEnhancer
         {
             AudioEntrada a = audio ?? (captura != null ? captura.Audio : null);
             if (a == null || sinAudio) return;
-            if (Mpv == null) { estado.Text = Tx.T("Falta mpv\\mpv.exe en la carpeta de la app", "mpv\\mpv.exe missing"); return; }
-            string pin = a.Origen == "dshow-pin" ? "--demuxer-lavf-o=audio_pin_name=2,sample_rate=48000,channels=2 " : "";
-            Lanzar("\"av://dshow:audio=" + a.Nombre + "\" " + pin + "--no-video --length=8 --no-input-default-bindings --force-window=no",
+            if (Motor == null) { estado.Text = Tx.T("Falta engine\\ConsoleEnhancerEngine.exe en la carpeta de la app", "engine\\ConsoleEnhancerEngine.exe missing"); return; }
+            string pin = a.Origen == "dshow-pin" ? " audio_pin=2" : "";
+            Lanzar("--audio \"audio_disp=" + a.Nombre + "\"" + pin + " audio_canales=2 audio_duracion_s=8 \"datos=" + Ce.EngineLogDir + "\"",
                    Tx.T("Probando el sonido 8 s…", "Testing the sound for 8 s…"));
         }
 
@@ -487,14 +489,14 @@ namespace ConsoleEnhancer
             PararPrueba();
             try
             {
-                ProcessStartInfo psi = new ProcessStartInfo(Mpv, args);
+                ProcessStartInfo psi = new ProcessStartInfo(Motor, args);
                 psi.UseShellExecute = false; psi.CreateNoWindow = true;
                 prueba = Process.Start(psi);
                 EngineJob.Hold(prueba, true);   // (22-11, 1.2.2: si el asistente se cierra o muere en esos 8 s, Windows cierra la prueba)
                 Process yo = prueba;
-                ThreadPool.QueueUserWorkItem(delegate { Thread.Sleep(9000); try { if (yo != null && !yo.HasExited) yo.Kill(); } catch { } }); // (con fuentes en vivo --length no siempre vale)
+                ThreadPool.QueueUserWorkItem(delegate { Thread.Sleep(9000); try { if (yo != null && !yo.HasExited) yo.Kill(); } catch { } }); // (8 s y fuera)
                 estado.Text = texto;
-                Log.Write("Asistente: mpv " + args);
+                Log.Write("Asistente: motor " + args);
             }
             catch (Exception ex) { estado.Text = ex.Message; }
         }

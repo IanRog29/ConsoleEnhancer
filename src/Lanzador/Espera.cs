@@ -307,16 +307,16 @@ namespace ConsoleEnhancer
         public static bool Entrar()
         {
             Leer();
-            string mpv = Path.Combine(Paths.AppDir, @"mpv\mpv.exe"), lua = Path.Combine(Paths.AppDir, @"scripts\ce_standby.lua");
+            // (23-11, 1.2.4 SINMPV: sin mpv ni scripts\ce_standby.lua: siempre la sonda propia, --ce-sonda; src\Lanzador\EsperaSonda.cs)
             bool prueba = Simulada > 0 || Prueba;
             string fuente = Fuente();
             if (fuente == null && testSource.Length > 0)
                 Log.Write("Espera: test_source en el ini (pruebas): sin sonda, la capturadora no se abre (la despiertan los mandos o una tecla)");
-            else if (fuente == null || !File.Exists(mpv) || !File.Exists(lua))
+            else if (fuente == null)
             {
                 // (1.2.1: en las pruebas nunca se suspende el PC)
-                if (prueba) { Log.Write("Espera (prueba): sin capturadora, mpv o scripts\\ce_standby.lua: nada que hacer, el PC no se suspende"); AlCerrarApp(false); return true; }
-                Log.Write("Espera: sin capturadora, mpv o scripts\\ce_standby.lua: se suspende el PC");
+                if (prueba) { Log.Write("Espera (prueba): sin capturadora: nada que hacer, el PC no se suspende"); AlCerrarApp(false); return true; }
+                Log.Write("Espera: sin capturadora: se suspende el PC");
                 return CeSuspension.SuspenderYVolver();
             }
             Log.Write("Consola apagada: el PC en espera (apagar_pc_modo=espera): pantalla apagada; la consola, un mando o una tecla lo encienden");
@@ -335,7 +335,7 @@ namespace ConsoleEnhancer
             SetThreadExecutionState(EsContinuous | EsSystemRequired);
             string porque = null;
             Process sonda = null;
-            using (Vigia v = new Vigia(mpv, lua, fuente))
+            using (Vigia v = new Vigia(fuente))
             {
                 Application.Run(v);   // (el plan de la espera, en OnShown con la pantalla ya apagada)
                 porque = v.Porque;
@@ -403,7 +403,7 @@ namespace ConsoleEnhancer
         // La ventana invisible que lo vigila todo (hilo de la UI: el gancho del teclado y los mensajes de Windows)
         sealed class Vigia : Form
         {
-            readonly string mpv, lua, fuente;
+            readonly string fuente;
             readonly System.Windows.Forms.Timer timer = new System.Windows.Forms.Timer();
             readonly System.Windows.Forms.Timer reapagar = new System.Windows.Forms.Timer();
             readonly Stopwatch reloj = Stopwatch.StartNew();
@@ -421,9 +421,9 @@ namespace ConsoleEnhancer
             public string Porque;
             public Process SondaFinal;      // (la sonda matada al despertar: se espera a que suelte la capturadora mientras abre la app)
 
-            public Vigia(string mpv, string lua, string fuente)
+            public Vigia(string fuente)
             {
-                this.mpv = mpv; this.lua = lua; this.fuente = fuente;
+                this.fuente = fuente;
                 FormBorderStyle = FormBorderStyle.None;
                 ShowInTaskbar = false;
                 StartPosition = FormStartPosition.Manual;
@@ -483,56 +483,40 @@ namespace ConsoleEnhancer
             }
 
             // (1.2.2) la sonda sin mpv (src\Lanzador\EsperaSonda.cs) con la capturadora de verdad: el grafo montado una vez y en marcha solo
-            // un momento cada SondaCadaMs. Si no puede montarlo o arrancarlo (codigo 3) 3 veces, la de mpv como antes
+            // un momento cada SondaCadaMs. (23-11, 1.2.4 SINMPV: ya sin la de mpv de reserva: si no puede montarlo o arrancarlo -codigo 3- 3
+            // veces seguidas, otra vez a los 30 s; mientras, los mandos y el teclado siguen despertando el PC. Las pruebas con la pantalla
+            // "No Signal" de mentira -espera_sonda_fuente=av://lavfi..., --prueba-espera- van por la misma sonda: simulada=<s>)
             bool nativa;
             int nativaFallos;
             DateTime nativaFalloEn;          // (el ultimo fallo: uno a mas de 10 min del anterior vuelve a contar desde 1, ver Paso)
-            EventWaitHandle latido;          // (lo pone la sonda sin mpv en cada vez: sin el en 30 s, colgada)
+            EventWaitHandle latido;          // (lo pone la sonda en cada vez: sin el en 30 s, colgada)
             DateTime ultimoLatido;
 
             void Lanzar()
             {
                 bool captura = fuente.StartsWith("av://dshow:", StringComparison.OrdinalIgnoreCase);
-                nativa = captura && SondaCadaMs > 0 && nativaFallos < 3;
-                if (nativa)
+                nativa = true;
+                try
                 {
-                    try
+                    string args;
+                    if (captura)
                     {
                         string nombre = fuente.StartsWith("av://dshow:video=", StringComparison.OrdinalIgnoreCase) ? fuente.Substring(17) : device;
                         bool laDelIni = nombre.Equals(device, StringComparison.OrdinalIgnoreCase);   // (con espera_sonda_fuente, otra: sin su ruta)
-                        string args = "--ce-sonda \"dispositivo=" + nombre + "\"" + (laDelIni && devicePath.Length > 0 ? " \"ruta=" + devicePath + "\"" : "") +
-                                      " cada_ms=" + SondaCadaMs + (pixfmt.Length > 0 ? " formato=" + pixfmt : "") + ArgsDatos();
-                        if (latido == null) try { latido = new EventWaitHandle(false, EventResetMode.AutoReset, CeSonda.Latido); } catch { latido = null; }
-                        ultimoLatido = DateTime.UtcNow;
-                        sonda = CeCubierta.Lanzar(Exe, args, true);
-                        if (sonda == null) throw new InvalidOperationException("no ha arrancado");
-                        Preparar(sonda);
-                        return;
+                        args = "--ce-sonda \"dispositivo=" + nombre + "\"" + (laDelIni && devicePath.Length > 0 ? " \"ruta=" + devicePath + "\"" : "") +
+                               " cada_ms=" + Math.Max(100, SondaCadaMs > 0 ? SondaCadaMs : 1000) + (pixfmt.Length > 0 ? " formato=" + pixfmt : "") + ArgsDatos();
                     }
-                    catch (Exception ex) { Log.Error("Espera: la sonda sin mpv (sigue la de mpv)", ex); sonda = null; nativa = false; nativaFallos = 3; }
-                }
-                try
-                {
-                    // (otra capturadora que no acepte 1280x720: tras 2 fallos, lo que ella quiera)
-                    string lavf = (sondaFallos % 4 < 2 ? "video_size=1280x720" + (pixfmt.Length > 0 ? ",pixel_format=" + pixfmt : "") + "," : "") + "rtbufsize=16000000";
-                    // 1.2.1: sin los scripts de serie de mpv (osc, ytdl, stats, consola, perfiles...: 7 hilos menos) ni terminal; si mpv no
-                    // arrancara asi 4 veces seguidas, otras 4 como antes
-                    bool ligera = (sondaFallos / 4) % 2 == 0;
-                    string args = "--no-config \"" + fuente + "\"" + (captura ? " --demuxer-lavf-o=" + lavf : "") +
-                                  " --no-audio --vo=null --untimed --cache=no --hwdec=no --priority=belownormal --idle=no --input-default-bindings=no" +
-                                  (ligera ? " --input-terminal=no --terminal=no --osc=no --ytdl=no --load-stats-overlay=no --load-console=no --load-auto-profiles=no" +
-                                            " --load-select=no --load-commands=no --load-positioning=no" : "") +
-                                  " --script=\"" + lua + "\" --msg-level=all=warn,ce_standby=info";
-                    ProcessStartInfo psi = new ProcessStartInfo(mpv, args);
-                    psi.UseShellExecute = false;
-                    psi.CreateNoWindow = true;
-                    sonda = Process.Start(psi);
+                    else args = "--ce-sonda simulada=" + Math.Max(0, Simulada) + " cada_ms=" + Math.Max(100, SondaCadaMs > 0 ? SondaCadaMs : 1000) + ArgsDatos();   // (solo pruebas)
+                    if (latido == null) try { latido = new EventWaitHandle(false, EventResetMode.AutoReset, CeSonda.Latido); } catch { latido = null; }
+                    ultimoLatido = DateTime.UtcNow;
+                    sonda = CeCubierta.Lanzar(Exe, args, true);
+                    if (sonda == null) throw new InvalidOperationException("no ha arrancado");
                     Preparar(sonda);
                 }
-                catch (Exception ex) { Log.Error("Espera: la sonda", ex); sonda = null; }
+                catch (Exception ex) { Log.Error("Espera: la sonda", ex); sonda = null; sondaFallos++; sondaOtraVez = DateTime.UtcNow.AddSeconds(Math.Min(60, 3 * sondaFallos)); }
             }
 
-            // La sonda (de mpv o la de --ce-sonda) con poca prioridad, EcoQoS y en el job
+            // La sonda (--ce-sonda) con poca prioridad, EcoQoS y en el job
             void Preparar(Process p)
             {
                 try { p.PriorityClass = ProcessPriorityClass.BelowNormal; } catch { }
@@ -560,14 +544,15 @@ namespace ConsoleEnhancer
                         if (code == 55) { Fin("la consola"); return; }
                         if (nativa)
                         {
-                            // (1.2.2) la sonda sin mpv: 3 = sin grafo (otra vez en 3, 6 s; a la tercera, la de mpv). Solo cuentan los fallos
-                            // seguidos: uno a mas de 10 min del anterior empieza la cuenta otra vez (tres tropiezos sueltos en toda una noche no
-                            // la pasan a mpv para el resto de la espera)
+                            // (1.2.2) la sonda: 3 = sin grafo (otra vez en 3, 6 s; 23-11 SINMPV: a la tercera, sin la de mpv: otra vez a los 30 s y
+                            // la cuenta de nuevo). Solo cuentan los fallos seguidos: uno a mas de 10 min del anterior empieza la cuenta otra vez
                             if ((DateTime.UtcNow - nativaFalloEn).TotalMinutes > 10) nativaFallos = 0;
                             nativaFalloEn = DateTime.UtcNow;
                             nativaFallos++;
-                            sondaOtraVez = DateTime.UtcNow.AddSeconds(nativaFallos >= 3 ? 0 : 3 * nativaFallos);
-                            Log.Write("Espera: la sonda sin mpv se ha cerrado (codigo " + code + "); " + (nativaFallos >= 3 ? "sigue la de mpv" : "otra vez en " + 3 * nativaFallos + " s"));
+                            int otra = nativaFallos >= 3 ? 30 : 3 * nativaFallos;
+                            if (nativaFallos >= 3) nativaFallos = 0;
+                            sondaOtraVez = DateTime.UtcNow.AddSeconds(otra);
+                            Log.Write("Espera: la sonda se ha cerrado (codigo " + code + "); otra vez en " + otra + " s" + (otra == 30 ? " (3 seguidas sin poder mirar la capturadora: mientras, la despiertan los mandos o una tecla)" : ""));
                         }
                         else
                         {
@@ -578,13 +563,13 @@ namespace ConsoleEnhancer
                     }
                     else if (nativa && latido != null)
                     {
-                        // (1.2.2) la sonda sin mpv viva pero sin mirar (un Run o un Stop de la capturadora colgados): fuera y otra
+                        // (1.2.2) la sonda viva pero sin mirar (un Run o un Stop de la capturadora colgados): fuera y otra
                         bool late = false;
                         try { late = latido.WaitOne(0); } catch { }
                         if (late) ultimoLatido = DateTime.UtcNow;
                         else if ((DateTime.UtcNow - ultimoLatido).TotalSeconds > Math.Max(30, SondaCadaMs / 100))
                         {
-                            Log.Write("Espera: la sonda sin mpv (pid " + sonda.Id + ") lleva " + (int)(DateTime.UtcNow - ultimoLatido).TotalSeconds + " s sin mirar: se cierra y se abre otra");
+                            Log.Write("Espera: la sonda (pid " + sonda.Id + ") lleva " + (int)(DateTime.UtcNow - ultimoLatido).TotalSeconds + " s sin mirar: se cierra y se abre otra");
                             ultimoLatido = DateTime.UtcNow;
                             try { sonda.Kill(); } catch { }
                         }

@@ -100,6 +100,7 @@ namespace ConsoleEnhancer.Motor
         public bool Is120 { get { return Mode >= 120; } }   // 20-11 (HZ120): modo 120 fps de baja latencia
         public int Dedupe = -1;                     // -1 auto (modo 30 o con generacion), 0 no, 1 si
         public bool Motion = true;
+        public int WindowPct = 0;                   // 23-11 (1.2.4, SINMPV) ventana=N: una ventana en el centro al N % de la pantalla (la prueba de imagen del asistente, antes mpv); 0 = pantalla completa
         public bool Aa = true, Dedither = true;     // bordes (FXAA) y tramado de 5 bits, como scripts\s2_aa.glsl de mpv
         public bool MvLog = false;                  // diagnostico de los vectores al log                  // vectores de movimiento propios (si no, 0)
         public string Ipc = "";                     // tuberia al estilo de mpv para el lanzador ("" = no)
@@ -368,6 +369,7 @@ namespace ConsoleEnhancer.Motor
                 case "stats": ShowStats = B(val); break;
                 case "pipe": Pipe = val.Trim(); break;
                 case "monitor": Monitor = I(val); break;
+                case "ventana": WindowPct = Math.Max(0, Math.Min(100, I(val))); break;   // 23-11 (SINMPV): la prueba de imagen del asistente
                 case "topmost": Topmost = B(val); break;
                 case "bench": BenchSecs = I(val); break;
                 case "bench_warm": BenchWarm = I(val); break;

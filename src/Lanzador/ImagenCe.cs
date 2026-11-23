@@ -3,7 +3,7 @@
 // El usuario: "en el console enhancer añade la posibilidad de añadir rtx hdr (si se tiene nvidia claro), vrr etc."
 //  - RTX HDR (rtx_hdr=1; NVIDIA RTX 20+, driver 551.52+, Windows 11 22H2+, pantalla HDR): el RTX HDR "de juegos" del driver, por programa,
 //    como lo ponen la NVIDIA App / NVIDIA Profile Inspector / NvTrueHDR: ajustes del perfil de NVIDIA (DRS) de los exe que presentan la
-//    imagen (ConsoleEnhancerEngine.exe, Magpie.exe, mpv.exe), puestos ANTES de abrir esos procesos (el driver los lee al arrancarlos) y
+//    imagen (ConsoleEnhancerEngine.exe; antes tambien Magpie.exe y mpv.exe), puestos ANTES de abrir esos procesos (el driver los lee al arrancarlos) y
 //    QUITADOS al salir (y al abrir, si una sesion anterior se corto). Ids (NVIDIA Profile Inspector, CustomSettingNames.xml / Reference.xml
 //    y lo que escribe NvTrueHDR; comprobado el 20-11 por el agente de busqueda):
 //      0x00DD48FB RTX HDR - Enable (1)            0x00DD48FC Peak Brightness (nits)      0x00DD48FD Middle Grey (nits)
@@ -16,7 +16,7 @@
 //    los rechaza sin administrador (NVAPI -137); los demas no. Esos dos se ponen UNA vez con un aviso de UAC (al guardar el asistente con RTX
 //    HDR, o al abrir la app si faltan; --ce-rtx-hdr-admin=<flags>) y se quedan; los demas se ponen al abrir y se devuelven al salir a lo que
 //    habia (si un ajuste ya estaba en el perfil, su valor de antes; si no, se quita: data\picture_restore.txt, lineas drs=). Solo se engancha si la ventana es opaca y cubre la
-//    pantalla entera (el motor si; Magpie y mpv depende): la app mira a los ~20-60 s si el proceso cargo nvAIHDR*.dll y lo apunta.
+//    pantalla entera (el motor si): la app mira a los ~20-60 s si el proceso cargo nvAIHDR*.dll y lo apunta.
 //    rtx_hdr_metodo=magpie: el efecto RTX HDR de Magpie (lo de Prisma, rtx_hdr de Config: solo con mpv + Magpie, ~15 ms a 4K).
 //    Con RTX HDR la NVIDIA App pide el Auto HDR de Windows apagado: si esta encendido en global, se avisa en el log.
 //  - HDR de Windows (hdr_windows=auto|0|1): RTX HDR lo necesita; si esta apagado, la app lo enciende (DisplayConfig de la pantalla de la
@@ -130,7 +130,7 @@ namespace ConsoleEnhancer
         static readonly object sync = new object();
         static string Marca { get { return Path.Combine(Paths.Datos, "picture_restore.txt"); } }
         static string FicheroVrrVisto { get { return Path.Combine(Paths.Datos, "vrr_seen.txt"); } }
-        public static readonly string[] Exes = { "ConsoleEnhancerEngine.exe", "Magpie.exe", "mpv.exe" };
+        public static readonly string[] Exes = { "ConsoleEnhancerEngine.exe", "Magpie.exe" };   // (23-11, 1.2.4 SINMPV: sin mpv.exe; lo que se le puso antes lo devuelve picture_restore.txt)
 
         // ------------------------------------------------------------------ al abrir (Program.Main, tras leer el ini) y al salir
         // sistema=false (--dry-run): solo lo que se decide (VRR, escalas), sin tocar el HDR ni los perfiles
@@ -173,8 +173,6 @@ namespace ConsoleEnhancer
                 cfg.RtxHdr = magpie;   // (el efecto de Magpie de Prisma solo con rtx_hdr_metodo=magpie; si no, el del driver)
                 bool driver = rtx && !magpie;
                 if (cfg.CeRtxHdr && !rtx) Log.Write("RTX HDR pedido (rtx_hdr=1) pero " + (Ce.NoNvidia ? "sin NVIDIA" : "la pantalla no tiene HDR") + ": no se pone");
-                // mpv (imagen directa: HOME / menus a 4K nativo) con salida SDR de 8 bits, la que el RTX HDR del driver convierte
-                if (driver) cfg.TestMpvArgs = (cfg.TestMpvArgs + " --target-colorspace-hint=no --d3d11-output-format=rgba8 --d3d11-output-csp=srgb").Trim();
                 if (!sistema)
                 {
                     Log.Write("Imagen (prueba, sin tocar el sistema): RTX HDR " + (driver ? "del driver (" + cfg.CeRtxHdrCalidad + ")" : magpie ? "de Magpie" : "no") + ", pico " + cfg.RtxHdrNits + " nits, gris " + cfg.RtxHdrGray);
