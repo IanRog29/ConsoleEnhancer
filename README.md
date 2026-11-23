@@ -175,6 +175,7 @@ with help a lot too.
   after it arrives, against ~35 ms with Smooth Motion ×2). An extra choice in *Frame generation type*, never the default; settings menu
   rows *Multiplier* and *Enhanced FG: low latency*. Measured again in this build (4K, 30 fps mode, real PS5 captures): ×2 quality 60 fps evenly, real frame 33 ms / first new 16 ms; ×2 low latency real 9 ms (with DLSS 5: 33 ms, against 50 ms with Smooth Motion ×2); ×4 120 fps evenly but the real frame 62 ms after it arrives, and with DLSS 5 ×4 does not hold 120 (97 fps): ×2 is the one to try. It needs a screen at 100 Hz or more (at 60 Hz it was measured broken, so it is not offered there). The first time it is picked the engine compiles its shaders (~20 s; the picture you had stays meanwhile). On real gameplay video (GTA V driving) its generated frames are close
   to a plain blend of the two real ones (in a first-person game, close to Smooth Motion), so it is shown as "Enhanced FG (experimental)".
+  With DLSS 5 it runs ×2 (×3 / ×4 don't keep up with it; the row keeps your choice for when DLSS 5 is off; `efg_multi_dlss5=1` = try).
 - **Sharper upscaling in motion** (DLSS SR K / L / M and E, XeSS, FSR 3.1-4): each 8×8 tile of the engine's motion vectors is refined
   to a fraction of a pixel for the upscaler, so it no longer blends a misaligned history (measured against the true picture, 1440p → 4K
   in motion: K 1.32 → 0.82, M 0.92 → 0.44, L 0.79 → 0.44, E 1.05 → 0.72; on a video of real console captures K 1.29 → 0.78). Without
@@ -763,7 +764,8 @@ y contar en qué PC y con qué consola lo usas.
   enseña en cuanto está: medido a 4K, modo 30, ×2, 60 imágenes/s, todas 2 refrescos, y la real a 9-10 ms de llegar, frente a ~35 ms con
   Smooth Motion ×2). Opción extra en *Tipo de generación*, nunca la de serie; filas del menú *Multiplicador* y *Enhanced FG: baja
   latencia*. Medido otra vez en esta versión (4K, modo 30, capturas reales de la PS5): ×2 calidad 60 imágenes/s parejas, la real a 33 ms y la primera nueva a 16; ×2 baja latencia, la real a 9 ms (con DLSS 5: 33 ms, frente a 50 con Smooth Motion ×2); ×4, 120 parejas pero la real a 62 ms de llegar, y con DLSS 5 ×4 no llega a 120 (97): la que hay que probar es ×2. Necesita una pantalla de 100 Hz o más (a 60 Hz se midió rota y ahí no se ofrece). La primera vez que se elige el motor compila sus shaders (~20 s; mientras, sigue la imagen que había). Con vídeo real de juego (GTA V conduciendo) sus inventadas se parecen a
-  una mezcla de las dos reales (en uno en primera persona, cerca de Smooth Motion): por eso sale como «Enhanced FG (experimental)».
+  una mezcla de las dos reales (en uno en primera persona, cerca de Smooth Motion): por eso sale como «Enhanced FG (experimental)». Con
+  DLSS 5 va ×2 (×3 / ×4 no llegan con él; la fila guarda lo elegido para cuando quites DLSS 5; `efg_multi_dlss5=1` = probarlo).
 - **Reescalado más nítido en movimiento** (DLSS SR K / L / M y E, XeSS, FSR 3.1-4): los vectores de movimiento del motor se afinan a
   fracciones de píxel por casilla de 8×8 solo para el escalador, que ya no mezcla una historia desalineada (medido contra la imagen de
   verdad, 1440p → 4K en movimiento: K 1,32 → 0,82, M 0,92 → 0,44, L 0,79 → 0,44, E 1,05 → 0,72; con un vídeo de capturas reales de la

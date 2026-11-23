@@ -35,7 +35,10 @@ retiró tras probarla con la consola; esta se ha rehecho con esa prueba, la sigu
   generate about as well as each other (each one better in one of two games) and both stay.
 - **Enhanced FG is marked experimental** ("Enhanced FG (experimental)" in the menu, L3 and the tray): on real gameplay video its
   generated frames are close to a plain blend of the two real ones in a third-person driving game (close to Smooth Motion in a
-  first-person one); the low-latency mode keeps its very low latency.
+  first-person one); the low-latency mode keeps its very low latency. **With DLSS 5 it runs ×2** (×3 / ×4 never reached their frame
+  rate with it, and in a test with real game video at 4K + DLSS 5 level 4 the GPU hung after 22 s of ×4; without DLSS 5, ×4 ran 120 fps
+  with every frame for one refresh): the *Multiplier* row shows ×2 with the reason and keeps your ×3 / ×4 for when DLSS 5 is off;
+  `efg_multi_dlss5=1` lets you try.
 - **On-screen notices say what is really running**, taken from what the engine and the driver get, not from what was asked: the
   settings menu "Apply" lists only what changed (capture, frame generation type with its real multiplier and "30 → 120 fps", DLSS 5,
   upscaler) and, when something asked can't run, why (e.g. "Smooth Motion x2 · 30 → 60 fps · x4 unavailable: with DLSS 5 the GPU can't
@@ -188,7 +191,7 @@ Engine settings go at the end of the `motor_extra=` line of `consoleenhancer.ini
   repaints and drops as before) · `grab_gris=1` (grey detection grabs) · `sl_proxy_present=0` · `dlss5_suave=0` · `sr_vec_incert=0` (the refined vectors also where they are unreliable) · `sr_aa_dlss5=0`
   (edge smoothing / dither removal / flat denoise before DLSS 5 with an upscaler) · `sr_nitidez_mov=0` (no motion-only sharpening).
 - In the ini: `generacion_fsr3=1` (FSR 3 FG back, experimental) · `smooth_x4=1` (Smooth Motion ×4 on; off by default) ·
-  `smooth_x4_dlss5=1` (Smooth Motion ×4 also with DLSS 5) · `motor_fsr_multi=0` (FSR 3 FG only ×2) · `motor_fsr_multi_dlss5=0`
+  `smooth_x4_dlss5=1` (Smooth Motion ×4 also with DLSS 5) · `efg_multi_dlss5=1` (Enhanced FG ×3 / ×4 also with DLSS 5) · `motor_fsr_multi=0` (FSR 3 FG only ×2) · `motor_fsr_multi_dlss5=0`
   (FSR 3 FG ×3 / ×4 only without DLSS 5) · `relevo_pintadas=1` (engine switch cut at the first painted frame) · `audio_motor_extra=audio_cola_ms=30
   audio_cola_max_ms=100 audio_salida_ms=10 audio_deriva=1` (the sound process's queue, output and drift correction; those are the
   defaults).
@@ -224,7 +227,10 @@ Engine settings go at the end of the `motor_extra=` line of `consoleenhancer.ini
   en uno de dos juegos) y se quedan las dos.
 - **Enhanced FG va marcada como experimental** («Enhanced FG (experimental)» en el menú, L3 y la bandeja): con vídeo real de juego sus
   inventadas se parecen a una mezcla de las dos reales en uno en tercera persona conduciendo (cerca de Smooth Motion en uno en primera
-  persona); el modo de baja latencia mantiene su latencia muy baja.
+  persona); el modo de baja latencia mantiene su latencia muy baja. **Con DLSS 5 va ×2** (×3 / ×4 nunca llegaron con él y, en una prueba
+  con vídeo real a 4K + DLSS 5 nivel 4, la gráfica se colgó a los 22 s de ×4; sin DLSS 5, ×4 iba a 120 con todas las imágenes a un
+  refresco): la fila *Multiplicador* enseña ×2 con el motivo y guarda tu ×3 / ×4 para cuando quites DLSS 5; `efg_multi_dlss5=1` lo deja
+  probar.
 - **Los avisos en pantalla dicen lo que va de verdad**, sacado de lo que reciben el motor y el driver y no de lo pedido: el «Aplicar» del
   menú de ajustes dice solo lo que cambia (captura, tipo de generación con su multiplicador de verdad y «30 → 120 fps», DLSS 5,
   escalador) y, si algo de lo pedido no puede ir, por qué (p. ej. «Smooth Motion x2 · 30 → 60 fps · x4 no: con DLSS 5 la gráfica no
@@ -376,7 +382,7 @@ Las del motor van al final de la línea `motor_extra=` de `consoleenhancer.ini`;
   `sl_proxy_present=0` · `dlss5_suave=0` · `sr_vec_incert=0` (los vectores afinados también donde no son fiables) · `sr_aa_dlss5=0`
   (suavizado de bordes / quitar tramado / liso antes de DLSS 5 con escalador) · `sr_nitidez_mov=0` (sin el enfoque en movimiento).
 - En el ini: `generacion_fsr3=1` (FSR 3 FG otra vez, experimental) · `smooth_x4=1` (Smooth Motion ×4 encendido; de serie apagado) ·
-  `smooth_x4_dlss5=1` (Smooth Motion ×4 también con DLSS 5) · `motor_fsr_multi=0` (FSR 3 FG solo ×2) ·
+  `smooth_x4_dlss5=1` (Smooth Motion ×4 también con DLSS 5) · `efg_multi_dlss5=1` (Enhanced FG ×3 / ×4 también con DLSS 5) · `motor_fsr_multi=0` (FSR 3 FG solo ×2) ·
   `motor_fsr_multi_dlss5=0` (FSR 3 FG ×3 / ×4 solo sin DLSS 5) · `relevo_pintadas=1` (el corte del cambio de motor con la primera
   imagen pintada) · `audio_motor_extra=audio_cola_ms=30 audio_cola_max_ms=100 audio_salida_ms=10 audio_deriva=1` (la cola, la salida y la
   corrección de la deriva del proceso de sonido; esos son los de serie).
