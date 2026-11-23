@@ -324,6 +324,7 @@ void main(uint3 id : SV_DispatchThreadID)
     int2 p = int2(id.xy);
     if (S.z > 0.5) { Out[id.xy] = float4(0.012, 0.014, 0.022, 1); return; }   // pantalla Enciende la Switch 2
     if (S.y > 0.5) { Out[id.xy] = float4(L(p), 1); return; }   // nitidez 0: copia
+    if (S.w > 1.5) { Out[id.xy] = float4(Rcas(p, saturate(S.x)), 1); return; }   // 23-11 (ronda 7, SRBLUR, enfoque=rcasl): RCAS con la fuerza = sharp (0-1, lineal)
     if (S.w > 0.5) { Out[id.xy] = float4(Rcas(p, min(1.0, (1.0 / lerp(8.0, 5.0, saturate(S.x))) / 0.1875)), 1); return; }   // 18-11 (MOTOR-CE): RCAS (tras FSR 1)
     float3 a = L(p + int2(-1, -1)), b = L(p + int2(0, -1)), c = L(p + int2(1, -1));
     float3 d = L(p + int2(-1, 0)),  e = L(p),               f = L(p + int2(1, 0));
