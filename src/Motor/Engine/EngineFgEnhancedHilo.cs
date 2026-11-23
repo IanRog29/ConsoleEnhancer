@@ -294,7 +294,7 @@ namespace ConsoleEnhancer.Motor
                 }
                 catch { }
                 j.ReadyAt = Clock.Now;
-                j.Ready.Set();
+                try { j.Ready.Set(); } catch { }
             }
         }
 
@@ -338,7 +338,6 @@ namespace ConsoleEnhancer.Motor
             // 1. la real en su ranura: la hora a la que la grafica la acabo (el vigilante)
             if (!j.Ready.WaitOne(1000)) Log.Write("Enhanced FG: la grafica no acaba la real (1 s)");
             long tReady = j.ReadyAt != 0 ? j.ReadyAt : Clock.Now;
-            j.Ready.Close();
             if (efgQueue != null) efgQueue.Wait(fence, j.Fence);
             double readyMs = Clock.Ms(j.Arrival, tReady);
             efgReadyWin[efgReadyN % efgReadyWin.Length] = Math.Max(0, Math.Min(100, readyMs));
