@@ -63,8 +63,7 @@ retiró tras probarla con la consola; esta se ha rehecho con esa prueba y la sig
   Measured on real console captures: **×4 keeps all 30 real frames, 98.6 % of the frames last exactly one refresh, real frame 41 ms /
   first new image 17 ms from capture** (Magpie ×4 in 1.2.3: 29.1-29.6 real fps, 90 % at one refresh, ~70 ms). Image quality on a
   real-capture test scene is better overall than DLSS FG ×4 through Magpie in 1.2.3, but on-screen text and the character's outline smear
-  more than with DLSS FG; still parts (HUD, text) are kept from the real frames. Without DLSS 5 by default (`motor_fsr_multi_dlss5=1`
-  offers them with DLSS 5 too). <!-- INTEGRA6: d5 --> If the real frame rate can't be held, the first step down is the multiplier
+  more than with DLSS FG; still parts (HUD, text) are kept from the real frames. Also with DLSS 5 (measured at 4K with DLSS 5: ×4 keeps the 30 real frames, 118 fps, 99 % at one refresh, first new image 34 ms / real frame 59 ms from capture, against 33 / 50 ms with Smooth Motion ×2; `motor_fsr_multi_dlss5=0` = only without DLSS 5). If the real frame rate can't be held, the first step down is the multiplier
   (×4 → ×3 → ×2); if the GPU is lost with ×3 / ×4, the rest of the session is ×2.
 - **Smooth Motion ×4 (optional, 30 fps mode, 120 Hz VRR screens, RTX 40 / 50)**: Smooth Motion only ever adds one frame between two (no
   driver up to 621.24 offers more, and the driver's DLSS multi-frame override doesn't change it). With the **Multiplier ×4** row
@@ -80,7 +79,7 @@ retiró tras probarla con la consola; esta se ha rehecho con esa prueba y la sig
   modes: quality (interpolation) and **low latency** (the generated frames go forward from the latest real frame, which is shown as soon
   as it is ready: measured at 4K, 30 fps mode, ×2, 60 fps with every frame on screen for exactly 2 refreshes and the real frame 9-10 ms
   after it arrives, against 35 ms with Smooth Motion ×2 and 31 ms with the engine's XeSS FG ×2). An extra choice in *Frame generation
-  type* (never the default), with *Multiplier* ×2 / ×3 / ×4 (30 fps mode) and *Enhanced FG: low latency*.
+  type* (never the default), with *Multiplier* ×2 / ×3 / ×4 (30 fps mode) and *Enhanced FG: low latency*. Measured again in this build (4K, 30 fps mode, real PS5 captures): ×2 quality 60 fps evenly, real frame 33 ms / first new 16 ms; ×2 low latency real 9 ms (with DLSS 5: 33 ms, against 50 ms with Smooth Motion ×2); ×4 120 fps evenly but the real frame 62 ms after it arrives, and with DLSS 5 ×4 does not hold 120 (97 fps): ×2 is the one to try. It needs a screen at 100 Hz or more (at 60 Hz it was measured broken, so it is not offered there). The first time it is picked the engine compiles its shaders (~20 s; the picture you had stays meanwhile).
 - **XeSS upscaling in the settings menu and in game profiles**, through the engine (also on NVIDIA), with the refined vectors below and
   the full motion vectors like DLSS. XeSS and FSR 1 keep their sharpening when the DLSS model picked is a transformer one.
 - For developers: `build_fsrfg.bat` downloads only what it needs of AMD FidelityFX SDK v1.1.4 (commit `c6efa6b`), applies
@@ -138,8 +137,8 @@ Engine settings go at the end of the `motor_extra=` line of `consoleenhancer.ini
   (the learned DLSS model may be a more expensive one) · `fg_cabeza=0` (frame generation without the character apart) ·
   `cola_grafica=0` (Smooth Motion queue without the GPU end time) · `cola_sin_repintar=0` and `cola_tirar_seguidas=0` (Smooth Motion
   repaints and drops as before) · `grab_gris=1` (grey detection grabs) · `sl_proxy_present=0` · `dlss5_suave=0`.
-- In the ini: `smooth_x4=1` (Smooth Motion ×4 on; off by default) · `motor_fsr_multi=0` (FSR 3 FG only ×2) · `motor_fsr_multi_dlss5=1`
-  (FSR 3 FG ×3 / ×4 also with DLSS 5) · `relevo_pintadas=1` (engine switch cut at the first painted frame) · `audio_motor_extra=audio_cola_ms=30
+- In the ini: `smooth_x4=1` (Smooth Motion ×4 on; off by default) · `motor_fsr_multi=0` (FSR 3 FG only ×2) · `motor_fsr_multi_dlss5=0`
+  (FSR 3 FG ×3 / ×4 only without DLSS 5) · `relevo_pintadas=1` (engine switch cut at the first painted frame) · `audio_motor_extra=audio_cola_ms=30
   audio_cola_max_ms=100 audio_salida_ms=10 audio_deriva=1` (the sound process's queue, output and drift correction; those are the
   defaults).
 
@@ -202,8 +201,7 @@ Engine settings go at the end of the `motor_extra=` line of `consoleenhancer.ini
   óptico. Medido con capturas reales de la consola: **×4 mantiene las 30 reales, el 98,6 % de las imágenes dura justo un refresco, la real
   a 41 ms y la primera imagen nueva a 17 ms de la captura** (Magpie ×4 en la 1.2.3: 29,1-29,6 reales, 90 % a un refresco, ~70 ms). La
   calidad, en una escena de prueba de capturas reales, mejor en conjunto que DLSS FG ×4 por Magpie en la 1.2.3, pero el texto en pantalla
-  y el contorno del personaje se emborronan más que con DLSS FG; lo quieto (interfaz, texto) sale de las reales. De serie sin DLSS 5
-  (`motor_fsr_multi_dlss5=1` los ofrece también con DLSS 5). <!-- INTEGRA6: d5 --> Si no se llega a las reales, lo primero que baja es el
+  y el contorno del personaje se emborronan más que con DLSS FG; lo quieto (interfaz, texto) sale de las reales. También con DLSS 5 (medido a 4K con DLSS 5: ×4 mantiene las 30 reales, 118 imágenes/s, el 99 % a un refresco, la primera imagen nueva a 34 ms y la real a 59 de la captura, frente a 33 / 50 con Smooth Motion ×2; `motor_fsr_multi_dlss5=0` = solo sin DLSS 5). Si no se llega a las reales, lo primero que baja es el
   multiplicador (×4 → ×3 → ×2); si la gráfica se pierde con ×3 / ×4, el resto de la sesión va ×2.
 - **Smooth Motion ×4 (opcional, modo 30, pantallas de 120 Hz con VRR, RTX 40 / 50)**: Smooth Motion solo mete una imagen entre dos
   (ningún driver hasta el 621.24 tiene más y el multiplicador de DLSS del perfil del driver no le cambia nada). Con la fila
@@ -219,7 +217,7 @@ Engine settings go at the end of the `motor_extra=` line of `consoleenhancer.ini
   la captura. Dos modos: calidad (interpolación) y **baja latencia** (las inventadas van hacia delante desde la última real, que se
   enseña en cuanto está: medido a 4K, modo 30, ×2, 60 imágenes/s, todas 2 refrescos, y la real a 9-10 ms de llegar, frente a 35 ms con
   Smooth Motion ×2 y 31 ms con XeSS FG ×2 del motor). Opción extra en *Tipo de generación* (nunca la de serie), con *Multiplicador*
-  ×2 / ×3 / ×4 (modo 30) y *Enhanced FG: baja latencia*.
+  ×2 / ×3 / ×4 (modo 30) y *Enhanced FG: baja latencia*. Medido otra vez en esta versión (4K, modo 30, capturas reales de la PS5): ×2 calidad 60 imágenes/s parejas, la real a 33 ms y la primera nueva a 16; ×2 baja latencia, la real a 9 ms (con DLSS 5: 33 ms, frente a 50 con Smooth Motion ×2); ×4, 120 parejas pero la real a 62 ms de llegar, y con DLSS 5 ×4 no llega a 120 (97): la que hay que probar es ×2. Necesita una pantalla de 100 Hz o más (a 60 Hz se midió rota y ahí no se ofrece). La primera vez que se elige el motor compila sus shaders (~20 s; mientras, sigue la imagen que había).
 - **XeSS de escalador en el menú de ajustes y en los perfiles**, por el motor (también en NVIDIA), con los vectores afinados de abajo y
   los vectores completos como DLSS. XeSS y FSR 1 conservan su enfoque cuando el modelo de DLSS elegido es uno transformer.
 - Para desarrolladores: `build_fsrfg.bat` baja solo lo necesario del FidelityFX SDK v1.1.4 de AMD (commit `c6efa6b`), aplica
@@ -279,7 +277,7 @@ Las del motor van al final de la línea `motor_extra=` de `consoleenhancer.ini`;
   `cola_tirar_seguidas=0` (los repintados y las tiradas de Smooth Motion como antes) · `grab_gris=1` (capturas de la detección en gris) ·
   `sl_proxy_present=0` · `dlss5_suave=0`.
 - En el ini: `smooth_x4=1` (Smooth Motion ×4 encendido; de serie apagado) · `motor_fsr_multi=0` (FSR 3 FG solo ×2) ·
-  `motor_fsr_multi_dlss5=1` (FSR 3 FG ×3 / ×4 también con DLSS 5) · `relevo_pintadas=1` (el corte del cambio de motor con la primera
+  `motor_fsr_multi_dlss5=0` (FSR 3 FG ×3 / ×4 solo sin DLSS 5) · `relevo_pintadas=1` (el corte del cambio de motor con la primera
   imagen pintada) · `audio_motor_extra=audio_cola_ms=30 audio_cola_max_ms=100 audio_salida_ms=10 audio_deriva=1` (la cola, la salida y la
   corrección de la deriva del proceso de sonido; esos son los de serie).
 

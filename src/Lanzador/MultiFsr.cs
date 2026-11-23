@@ -28,7 +28,9 @@ namespace ConsoleEnhancer
         public const int FsrMulChainId = 60;
         public static bool FsrMulChain(int chain) { return chain == FsrMulChainId; }
         public static volatile bool MotorFsrMulti = true;        // motor_fsr_multi=1|0
-        public static volatile bool MotorFsrMultiDlss5 = false;  // motor_fsr_multi_dlss5=0|1
+        // (1.2.4 ronda 6, INTEGRA6: de serie 1. Medido en la tele -4K, modo 30, DLSS 5 1 pasada, VRR, capturas reales-: x4 las 30 reales, 118,2/s,
+        // el 99 % a un refresco, la 1a imagen nueva a 33,5 ms y la real a 58,7 -Smooth Motion x2 con DLSS 5: 33,1 / 49,8-; x3 30 reales, 88,7/s)
+        public static volatile bool MotorFsrMultiDlss5 = true;   // motor_fsr_multi_dlss5=1|0
         static int fsrMult = -1;
         static readonly object fsrMultSync = new object();
         static string FsrMultFile { get { return Path.Combine(Paths.Datos, @"games\fsr_mult.txt"); } }
@@ -39,7 +41,7 @@ namespace ConsoleEnhancer
             switch (key)
             {
                 case "motor_fsr_multi": MotorFsrMulti = v != "0"; return true;
-                case "motor_fsr_multi_dlss5": MotorFsrMultiDlss5 = v == "1"; return true;
+                case "motor_fsr_multi_dlss5": MotorFsrMultiDlss5 = v != "0"; return true;
             }
             return false;
         }
@@ -79,6 +81,9 @@ namespace ConsoleEnhancer
             if (!FsrMulDll) return Tx.T("Falta engine\\CeFsrFg.dll", "engine\\CeFsrFg.dll is missing");
             if (FsrMulCaido) return Tx.T("La gráfica se perdió con x3 / x4: x2 esta sesión", "The GPU was lost with x3 / x4: x2 this session");
             if (!cap30) return Tx.T("x2 en el modo 60", "x2 in 60 fps mode");
+            // (1.2.4 ronda 6, INTEGRA6: 90 / 120 imagenes/s solo tienen sentido con la pantalla a 100 Hz o mas; a 60 Hz el hilo de presentacion
+            // se medio roto -9,8 reales de 29,97-, como el de Enhanced FG)
+            { double hz = Pantalla.Hz(); if (hz > 0 && hz < 100) return Tx.T("x2 con la pantalla a menos de 100 Hz", "x2 with the screen below 100 Hz"); }
             if (MotorD5Simple && !MotorFsrMultiDlss5) return Tx.T("x2 con DLSS 5 (la gráfica no da para x3 / x4)", "x2 with DLSS 5 (not enough GPU for x3 / x4)");
             return "";
         }
