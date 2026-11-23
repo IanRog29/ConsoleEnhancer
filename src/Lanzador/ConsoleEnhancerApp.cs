@@ -46,6 +46,7 @@ namespace ConsoleEnhancer
             if (key == "motor_fg_propia") { MotorFgPropia = val.Trim() != "0"; return true; }   // (1.2.4: la generacion propia del motor para x3 / x4, MotorFg.cs)
             if (key == "motor_xefg_propia") { MotorXefgPropia = val.Trim() == "1"; return true; }   // (1.2.4 ronda 5, INTEGRA5: XeSS FG x3 / x4 por la propia en vez de Magpie, MotorFg.cs)
             if (CeParseReescalado(key, val)) return true; // (22-11, 1.2.2: magpie_nitidez_transformer..., src\Lanzador\Reescalado.cs)
+            if (CeParseSmoothX4(key, val)) return true;   // (1.2.4 ronda 6, SMX4: smooth_x4, src\Lanzador\SmoothX4.cs)
             switch (key)
             {
                 case "device_path": DevicePath = val.Trim(); return true;

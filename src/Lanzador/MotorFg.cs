@@ -163,6 +163,7 @@ namespace ConsoleEnhancer
                 motorFgFab = (GpuVendor ?? "").Trim().ToLowerInvariant();
                 if (FgOff || HomeNative || Mode120) return 0;
                 if (EngineFfxWanted) return 1;
+                if (SmoothX4Now) return 20 + (Ce.EngineUpscaler(this) == "dlss" ? 1 : 0);   // (1.2.4 ronda 6, SMX4: Smooth Motion x4 = XeSS FG x2 + Smooth Motion, SmoothX4.cs)
                 int m = MotorFgMult;
                 if (MotorFgMulti && FgTypeNow == "xess" && MotorFgSabe("xess", m) && !MotorGenAMagpie("xess", m)) return 10 * m + (Ce.EngineUpscaler(this) == "dlss" ? 1 : 0);   // (1.2.4 ronda 5, XEFGM: salvo si va por Magpie, XefgMotor.cs)
                 if (MotorFgMulti && FgTypeNow == "dlss" && m >= 3 && MotorFgFamilia() != "rtx50" && MotorFgSabe("dlss", m)) return 3;

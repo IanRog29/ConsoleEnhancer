@@ -257,7 +257,7 @@ namespace ConsoleEnhancer.Motor
         public int Dedupe30 = 2;                    // repetidas_30=2: filtro del modo 30 que no pierde imagenes reales (el P2 de G1 en mpv, sin su regla 2); 3 = el P2 entero; 1 = el de antes
         public int OsdRepaintMs = 100;              // aviso_repinta_ms: con aviso en pantalla, repintar la ultima solo si no llega imagen real en N ms (0 = como antes: a los 20 ms)
         public int TestStallMs = 0, TestStallAt = 10; // test_paron=ms, test_paron_s=s: un paron del hilo de pintado (prueba de la cola)
-        public int SmoothMode = 0;                  // sm=0|1|2: Smooth Motion del driver puesto para este motor (lo dice el lanzador: 1 sincronizacion forzada, 2 cada 2 refrescos)
+        public int SmoothMode = 0;                  // sm=0|1|2|3: Smooth Motion del driver puesto para este motor (lo dice el lanzador: 1 sincronizacion forzada, 2 cada 2 refrescos, 3 = x4 encima de XeSS FG x2 con la sincronizacion de la aplicacion -1.2.4 ronda 6, SMX4-)
         public bool StandbyFreeDlss = false;        // espera_soltar_dlss=1: en espera tambien DLSS SR suelta lo suyo (NGX)
         public bool FgRetainStandby = false;        // fg_retener=1: en espera la generacion guarda sus recursos (~0,6 GB de la grafica) como antes del 18-11
         // 20-11 (LATENCIA4, EngineLatencia.cs): vrr=1 = tele con frecuencia variable (G-SYNC / FreeSync / HDMI VRR): cadena con
@@ -515,7 +515,7 @@ namespace ConsoleEnhancer.Motor
                 "captura {0}x{1}@{2}/{3} {4}{5} -> {6}x{7} {8}{9} nitidez {10:0.00}, modo {11}{12}, FG {13}, Reflex {14}",
                 CapW, CapH, FpsNum, FpsDen, CapFormat, Test.Length > 0 ? " (prueba: " + Test + ")" : "", OutW, OutH,
                 Upscaler, Upscaler == "dlss" || Upscaler == "auto" ? " " + Preset : "", Sharp, Mode, Dedupe == 1 ? " sin repetidas" : Dedupe == 0 ? " con repetidas" : "",
-                Fg ? "si" + (FgMult > 2 ? " x" + FgMult : "") + (FgTipo.Length > 0 ? " " + FgTipo : "") : "no", Reflex) + (SmoothMode > 0 ? ", Smooth Motion " + (SmoothMode == 2 ? "cada 2 refrescos" : "") + (QueueDropMs > 0 ? " (cola de la tele <= " + QueueDropMs.ToString("0", CultureInfo.InvariantCulture) + " ms)" : "") : "") + (Vrr > 0 ? ", VRR" : "") + QualityText();
+                Fg ? "si" + (FgMult > 2 ? " x" + FgMult : "") + (FgTipo.Length > 0 ? " " + FgTipo : "") : "no", Reflex) + (SmoothMode > 0 ? ", Smooth Motion " + (SmoothMode == 3 ? "x4 (encima de la generacion del motor, sincronizacion de la aplicacion)" : SmoothMode == 2 ? "cada 2 refrescos" : "") + (QueueDropMs > 0 ? " (cola de la tele <= " + QueueDropMs.ToString("0", CultureInfo.InvariantCulture) + " ms)" : "") : "") + (Vrr > 0 ? ", VRR" : "") + QualityText();
         }
 
         // 16-11 (calidad): lo encendido de EngineMotion.cs ("" si nada)
