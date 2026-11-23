@@ -33,8 +33,9 @@ namespace ConsoleEnhancer.Motor
         public bool FsrMultiScQueue = true;  // fsrfg_multi_cola_cadena=0|1: la cadena (y las copias a ella) en una cola de presentacion propia
         public int FsrMultiQueue = 1;     // fsrfg_multi_cola=0|1|2: cola de calculo de prioridad normal / alta (de serie) / la de la imagen (sin asincrono)
         public bool FsrMultiStill = true;   // fsrfg_multi_quieto=1|0: lo que no cambia entre las dos reales (la interfaz, el texto) va tal cual
-        public float FsrMultiStillThr = 0.03f;
-        public float FsrMultiStillRel = 0.15f;   // fsrfg_multi_quieto_relativo: el cambio frente al contraste de alli (3x3) por debajo del cual es quieto (0 = sin esto)   // fsrfg_multi_quieto_umbral: diferencia de color 0-1 (la mayor de 3x3) por debajo de la cual es "quieto"
+        public float FsrMultiStillThr = 0.03f;   // fsrfg_multi_quieto_umbral: diferencia de color 0-1 (la mayor de 3x3) por debajo de la cual es "quieto"
+        public float FsrMultiStillRel = 0.3f;    // fsrfg_multi_quieto_relativo: el cambio frente al contraste de alli (3x3) por debajo del cual es quieto
+                                                 // (0 = sin esto; medido x4: sin el todo 1,23, con 0,15 1,12, con 0,3 1,04)
         public int FsrMultiHalf = -1;       // fsrfg_multi_mitad=-1|0|1: la profundidad y los vectores a FSR a la mitad (sus pasadas "de render" a 1/4 de
                                             // pixeles). -1 = con la entrada a 4K (medido: x4 -3 ms de latencia y la misma calidad); con menos, entera
         public bool FsrMultiSteps = true;   // fsrfg_multi_una=1|0: cada inventada en su lista (la 1a se enseña en cuanto esta)
