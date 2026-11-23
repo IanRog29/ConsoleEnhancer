@@ -21,6 +21,7 @@ namespace ConsoleEnhancer.Motor
     {
         public double UsoGrafica = 0.85;     // uso_grafica= (0,5-0,98; tambien en %: 85)
         public double GpuIndice = 0;         // gpu_indice= (0 = no se sabe: como una RTX 4060)
+        public int SwapBuffers = 0;          // (1.2.4 ronda 7, FGREAL) cadena_buffers= (2-6; 0 = 3, lo de siempre; Engine.BackBuffers)
         public double FgReservaMs = -1;      // (1.2.4 ronda 7, FGREAL) fg_reserva_ms= (ms de grafica de la generacion del motor por real; -1 = la cuenta de EngineMargen)
 
         bool ApplyMargen(string key, string val)
@@ -32,6 +33,7 @@ namespace ConsoleEnhancer.Motor
                     if (double.TryParse(val.Trim().TrimEnd('%'), NumberStyles.Float, CultureInfo.InvariantCulture, out d) && d > 0)
                         UsoGrafica = Math.Max(0.5, Math.Min(0.98, d > 1 ? d / 100.0 : d));
                     return true;
+                case "cadena_buffers": { int n; if (int.TryParse(val.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out n)) SwapBuffers = n < 2 ? 0 : Math.Min(6, n); return true; }
                 case "fg_reserva_ms":
                     if (double.TryParse(val.Trim().Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out d)) FgReservaMs = d < 0 ? -1 : Math.Min(30, d);
                     return true;
