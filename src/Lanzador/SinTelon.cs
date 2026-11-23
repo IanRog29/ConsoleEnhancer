@@ -46,7 +46,8 @@ namespace ConsoleEnhancer
             public long PaintedMs = -1;
             // (1.2.4 ronda 5, INTEGRA5) el corte con relevo_pintadas imagenes presentadas (de serie 4), no con la primera: al despertar con
             // DLSS 5, tras la 1a imagen el motor se paraba ~1,2 s (sus primeras evaluaciones; medido en la app entera, Magpie -> motor con
-            // DLSS FG + DLSS 5 a 4K) y ese paron se veia; asi lo de antes sigue a la vista mientras tanto
+            // DLSS FG + DLSS 5 a 4K) y ese paron se veia; asi lo de antes sigue a la vista mientras tanto. El puente (Magpie se reabre: la imagen
+            // de antes se va), con la primera como antes: esperando 4 se veian huecos de 1,4-2,7 s
             public long SteadyMs = -1;
             // 18-11 (PASADAS): el Smooth Motion con el que se abrio ESTE motor (standbySmooth al volver a la espera). Antes SetStandby(ready) tomaba
             // el del ultimo motor que hizo la imagen: el motor del puente (abierto ya en espera, con Smooth Motion) volvia a la espera como "sin
@@ -124,7 +125,7 @@ namespace ConsoleEnhancer
                             int pn;
                             if (!mp.Success || !int.TryParse(mp.Groups[1].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out pn)) pn = int.MaxValue;
                             if (PaintedMs < 0) PaintedMs = Since.ElapsedMilliseconds;
-                            if (!Painted && pn >= Math.Max(1, Config.RelevoPintadas)) { SteadyMs = Since.ElapsedMilliseconds; Painted = true; }
+                            if (!Painted && pn >= (Bridge ? 1 : Math.Max(1, Config.RelevoPintadas))) { SteadyMs = Since.ElapsedMilliseconds; Painted = true; }   // (el puente, con la primera: ahi la imagen de antes ya no esta)
                         }
                     }
                 }
