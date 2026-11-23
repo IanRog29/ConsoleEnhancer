@@ -807,6 +807,11 @@ namespace ConsoleEnhancer
         {
             if (string.IsNullOrEmpty(ocr)) return null;
             string n = Normaliza(ocr);
+            // 23-11 (SWITCH2 / XBOX, el usuario: "y lo mismo con xbox y viceversa"): su Inicio o su guia de verdad -dos frases suyas, o una y su
+            // marca, en la misma pantalla- es prueba concluyente (a la segunda captura, como el HOME de la Switch 2 o el menu de la PS5). Lo
+            // suelto ("Xbox", "Game Pass", la hora) sigue con la regla de las SIN PROBAR (3 pruebas en 20 s: el 20-11 la PS5 se tomo por la Xbox)
+            string fx = TextoXboxFuerte(n);
+            if (fx != null) return Pista("la Xbox en pantalla (" + fx + ")", true, "xboxseries", PuntosCambio);
             // (de mas concreta a menos: "nintendo switch 2" antes que "nintendo switch", "xbox series" antes que "xbox")
             if (Contiene(n, "nintendo switch 2") || Contiene(n, "switch 2 edition")) return Pista("\"Nintendo Switch 2\" en pantalla", true, "switch2", 1.5);
             if (Contiene(n, "ps5") || Contiene(n, "playstation 5") || Contiene(n, "dualsense")) return Pista("\"PS5\" en pantalla", true, "ps5", 1.5);
@@ -985,6 +990,21 @@ namespace ConsoleEnhancer
         }
 
         static bool Contiene(string n, string palabras) { return n.Contains(" " + palabras + " "); }
+
+        // (23-11) Frases del Inicio y la guia de la Xbox (en castellano e ingles, ya normalizadas) y su marca
+        static readonly string[] FrasesXbox = { "mis juegos y aplicaciones", "perfil y sistema", "fiesta y chats", "fiestas y chats", "my games apps",
+                                                "profile system", "parties chats", "tienda de microsoft", "microsoft store" };
+        // Lo que hace concluyente un texto de la Xbox (para el log) o null: dos frases suyas, o una y "xbox" en la misma lectura
+        public static string TextoXboxFuerte(string normalizado)
+        {
+            string n = normalizado ?? "";
+            List<string> f = new List<string>();
+            foreach (string x in FrasesXbox) if (Contiene(n, x) && !f.Contains(x)) f.Add(x);
+            if (f.Count >= 2) return "\"" + f[0] + "\" y \"" + f[1] + "\"";
+            if (f.Count == 1 && f[0] != "microsoft store" && f[0] != "tienda de microsoft" && Contiene(n, "xbox")) return "\"" + f[0] + "\" y \"Xbox\"";
+            return null;
+        }
+        public static string TextoXboxFuerteOcr(string ocr) { return string.IsNullOrEmpty(ocr) ? null : TextoXboxFuerte(Normaliza(ocr)); }
 
         // ---------------- Prueba sin consola (--test-consolas en la compilacion de prueba; fase 2: en Program) ----------------
         public static string SelfTest(out int fallos)
@@ -1197,13 +1217,28 @@ namespace ConsoleEnhancer
             double cuando = -1;
             for (int i = 0; i < 24 && nueva == null; i++)
             {
-                nueva = VistoTexto("Mis juegos y aplicaciones · Microsoft Store");
+                nueva = VistoTexto("Mis juegos y aplicaciones");   // (23-11: una frase suelta, prueba debil: la regla de las SIN PROBAR)
                 if (nueva == null) VistoMenuXbox("5:10");
                 if (nueva != null) cuando = (t - t0).TotalSeconds;
                 t = t.AddSeconds(5); ponHora(t);
             }
-            check("20-11: PS5 puesta y una Xbox de verdad (sus pantallas cada 5 s) -> Xbox Series a los " + cuando + " s (no antes de 20 s), console.txt = " + enTxt(),
+            check("20-11: PS5 puesta y una Xbox de verdad (una pantalla suya cada 5 s, prueba debil) -> Xbox Series a los " + cuando + " s (no antes de 20 s), console.txt = " + enTxt(),
                   nueva == XboxSeries && cuando >= SeparacionSinProbarS && enTxt() == "xboxseries");
+            // 4b. (23-11, el usuario: "y lo mismo con xbox y viceversa") su Inicio de verdad -dos frases suyas en la misma pantalla-: concluyente,
+            //     a la Xbox con la segunda lectura (como el HOME de la Switch 2 o el menu de la PS5)
+            {
+                File.WriteAllText(txt, "ps5");
+                Reiniciar("auto");
+                cambio();
+                DateTime tb = t;
+                ConsolaPerfil nb = VistoTexto("Mis juegos y aplicaciones · Microsoft Store");
+                t = t.AddSeconds(1); ponHora(t);
+                if (nb == null) nb = VistoTexto("Mis juegos y aplicaciones · Microsoft Store");
+                check("23-11: PS5 puesta y el Inicio de la Xbox (dos frases suyas en la pantalla) en 2 lecturas -> Xbox Series a los " + Fmt((t - tb).TotalSeconds) + " s",
+                      nb == XboxSeries && Actual == XboxSeries);
+                File.WriteAllText(txt, "xboxseries");   // (lo que deja la 4 para la 5)
+                t = t.AddSeconds(1); ponHora(t);
+            }
             check("20-11: con la Xbox elegida sola (SIN PROBAR): apagado prudente (negro y silencio nunca, No Signal jugando " + Fmt(EsperaSinSenalMinS(XboxSeries)) + " s)",
                   ApagadoPrudente(XboxSeries) && NegroApagadoS(XboxSeries) >= 86400 && EsperaSinSenalMinS(XboxSeries) >= 10 && !ApagadoPorMenuSeguro(XboxSeries));
 

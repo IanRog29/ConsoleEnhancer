@@ -725,8 +725,10 @@ namespace ConsoleEnhancer
             e.Tramos = new Tramo[] { new Tramo(menu, 60), new Tramo(dudoso, 60) };
             escenas.Add(e);
             e = new Esc();
-            e.Titulo = "PS5 puesta y en su lugar una Xbox (el Inicio y la guia dibujados, SIN PROBAR) 3 min: a la Xbox por sus pantallas, no por la hora, y no antes de 20 s";
-            e.Txt = "ps5"; e.Quiere = "xboxseries"; e.CambioMinS = Consolas.SeparacionSinProbarS; e.CambioMaxS = 120;
+            // (23-11, SWITCH2 / XBOX, el usuario: "y lo mismo con xbox y viceversa": su guia con dos frases suyas en la pantalla es prueba fuerte,
+            // a la segunda lectura como el HOME de la Switch 2 o el menu de la PS5; antes, no antes de 20 s. Lo suelto sigue con los 20 s)
+            e.Titulo = "PS5 puesta y en su lugar una Xbox (el Inicio y la guia dibujados, SIN PROBAR) 3 min: a la Xbox por sus pantallas (su guia: prueba fuerte), no por la hora";
+            e.Txt = "ps5"; e.Quiere = "xboxseries"; e.CambioMinS = 0; e.CambioMaxS = 120;
             e.Tramos = new Tramo[] { new Tramo(xbox, 180) };
             escenas.Add(e);
             e = new Esc();

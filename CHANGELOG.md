@@ -17,6 +17,11 @@ publicada es una etiqueta `vX.Y.Z` de git; GitHub Actions monta su zip y copia a
   another game, so entering it after coming back saved it as "Game 1". Now the reads of each game icon last the whole session; the
   "Game N" profiles saved by this bug get their real name (from the log of that session), and the Switch 2 games and settings of the
   older Switch-2-only version of the app are imported once (with their HOME icons).
+- **The same in every direction (PS5, Switch 2, Xbox).** A strong proof of the console on screen (the Switch 2 HOME, the PS5 menu
+  clock or its home tabs, the Xbox home or guide with two of its phrases) switches on the second capture; loose hints of the Xbox
+  ("Xbox", "Game Pass", its clock) still need 3 proofs in 20 s. The console remembered from last time does not create games, "Game N",
+  icons, covers or names until the picture confirms it, and nothing is created while the picture points to another console. A "Game N"
+  created from another console's picture this way is removed by itself.
 
 ### Castellano
 
@@ -30,6 +35,11 @@ publicada es una etiqueta `vX.Y.Z` de git; GitHub Actions monta su zip y copia a
   juego y, al volver a el y entrar, se guardaba como "Juego 1". Ahora las lecturas de cada icono duran toda la sesion; los "Juego N"
   guardados por este fallo pasan a su nombre (del log de esa sesion) y los juegos de la Switch 2 de la version de antes de la app (la
   que era solo para la Switch 2) se importan una vez, con sus ajustes y sus iconos del HOME.
+- **Lo mismo en todas las direcciones (PS5, Switch 2, Xbox).** Una prueba fuerte de la consola en pantalla (el HOME de la Switch 2, la
+  hora del menu de la PS5 o las pestañas de su inicio, el Inicio o la guia de la Xbox con dos frases suyas) cambia a la segunda captura;
+  lo suelto de la Xbox ("Xbox", "Game Pass", su hora) sigue pidiendo 3 pruebas en 20 s. La consola recordada de la vez anterior no crea
+  juegos, "Juego N", iconos, portadas ni nombres hasta que la imagen la confirme, y nada se crea mientras la imagen apunte a otra
+  consola. El "Juego N" creado asi con la imagen de otra consola se quita solo.
 
 ## [1.2.4] - 2026-11-23
 

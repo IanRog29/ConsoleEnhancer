@@ -8104,7 +8104,9 @@ namespace ConsoleEnhancer
                     // (con la Switch 2 puesta, su HOME igual a games\home_ref.txt la confirma: ya puede crear juegos)
                     if (conHome && !noSignal && homeRef != null && !Consolas.ConfirmadaPorImagen && HomeLabel.HomeDiff(strips, homeRef) <= HomeLabel.IsHome)
                         Consolas.VistoHomeNintendo(true, 0);
-                    if (!conHome) ObservaConsola(full, small, strips, noSignal, homeRef);
+                    // (23-11, XBOX: tambien con la Switch 2 puesta -antes solo con las demas-: la pantalla leida de vez en cuando, para ver la Xbox
+                    // o la PS5 por su texto)
+                    ObservaConsola(full, small, strips, noSignal, homeRef);
                     // 19-11: el menu de la PS5 (src\MenuPs5.cs): con ella puesta, su menu a 4K nativo; con otra y consola=auto, pista a su favor
                     // (23-11, SWITCH2: "el HOME de la Switch 2" para no mirarlo solo si de verdad lo es -sus franjas-; un texto azul cualquiera, como el
                     // de la PS5 el 23-11 a las 18:56, ya no lo tapa. Sin games\home_ref.txt, como antes)

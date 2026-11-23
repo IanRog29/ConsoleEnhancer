@@ -642,6 +642,37 @@ namespace ConsoleEnhancer
                 bool xok = true;
                 for (int i = 0; i < 24; i++) { ahora = t0.AddSeconds(5 * i); Consolas.VistoMenuXbox("18:10"); if (Consolas.ApuntaAOtra() != null) xok = false; }
                 check("1b. Xbox puesta y su hora cada 5 s durante 2 min: sigue la Xbox y nada apunta a otra", xok && Consolas.Actual == Consolas.XboxSeries);
+                // (23-11, "y lo mismo con xbox y viceversa") los seis cambios con su prueba fuerte: a la segunda captura (0,5 s)
+                string[][] pares = {
+                    new[] { "ps5", "xboxseries" }, new[] { "switch2", "xboxseries" }, new[] { "xboxseries", "ps5" },
+                    new[] { "xboxseries", "switch2" }, new[] { "ps5", "switch2" }, new[] { "switch2", "ps5" } };
+                foreach (string[] par in pares)
+                {
+                    File.WriteAllText(Path.Combine(tmp, "console.txt"), par[0]);
+                    Consolas.Reiniciar("auto");
+                    ahora = t0;
+                    string nueva = par[1];
+                    Func<ConsolaPerfil> fuerte = delegate
+                    {
+                        if (nueva == "xboxseries") return Consolas.VistoTexto("Mis juegos y aplicaciones  Perfil y sistema  Fiesta y chats");
+                        if (nueva == "ps5") return Consolas.VistoMenuPs5Concluyente("pestañas");
+                        return Consolas.VistoHomeSwitch2("18:10");
+                    };
+                    string pq0;
+                    ConsolaPerfil a1 = fuerte();
+                    bool apunta = a1 == null && Consolas.ApuntaAOtra() == Consolas.Buscar(nueva) && !Consolas.PuedeCrearJuegos(out pq0);
+                    ahora = t0.AddSeconds(0.5);
+                    ConsolaPerfil a2 = fuerte();
+                    check("1c. " + Consolas.Buscar(par[0]).Corto + " -> " + Consolas.Buscar(nueva).Corto + " con su prueba fuerte: apunta a ella en la 1a captura (nada se crea) y cambia en la 2a",
+                          apunta && a2 == Consolas.Buscar(nueva) && Consolas.Actual == Consolas.Buscar(nueva) && Consolas.PuedeCrearJuegos(out pq0));
+                }
+                // La Xbox de console.txt: sin confirmar no crea; una pantalla suya leida la confirma
+                File.WriteAllText(Path.Combine(tmp, "console.txt"), "xboxseries");
+                Consolas.Reiniciar("auto");
+                string pqx;
+                bool xAntes = Consolas.PuedeCrearJuegos(out pqx);
+                Consolas.VistoTexto("Mis juegos y aplicaciones");
+                check("1c. Xbox de console.txt: sin confirmar no crea; una pantalla suya leida la confirma", !xAntes && Consolas.PuedeCrearJuegos(out pqx));
                 Consolas.Reloj = relojAntes;
 
                 // ---- 2. Capturas reales: el HOME de la Switch 2 (nombre cian + hora con la bateria) y pantallas que no lo son ----
@@ -699,7 +730,7 @@ namespace ConsoleEnhancer
                 check("2. Menus de la Xbox (" + xboxN + ", dibujados: no hay capturas reales suyas): ninguno da la hora del HOME de Nintendo", xboxN > 0 && xboxMal == 0);
                 check("2. Capturas de la PS5 (" + otras + ", suyas y de la version de antes): ninguna da la hora del HOME de Nintendo (ni el HOME de la Switch 2)", otras > 0 && otrasMal == 0);
                 check("2. Las del usuario del 23-11 con la Switch 2 delante y la PS5 puesta (las que quedan de 18:08:16, 18:08:18, 18:10:19, 18:55:16): su hora con la bateria en todas (" +
-                      swHome + " de " + sw + ")", sw > 0 && swHome == sw);
+                      swHome + " de " + sw + (sw == 0 ? ": ya no estan, games\\debug\\ps5 guarda solo las 8 mas nuevas; 4 de 4 el 23-11 a las 19:06" : "") + ")", swHome == sw);
                 int enteros = 0, conCian = 0;
                 foreach (string f in imgs)
                 {
@@ -709,7 +740,7 @@ namespace ConsoleEnhancer
                     if (ReconoceHome(f)) enteros++;
                 }
                 check("2. ...y el HOME entero (nombre cian + hora: concluyente) en las del HOME quieto (" + enteros + " de " + conCian + "; la de 18:10:19, el HOME apareciendo: la hora sola)",
-                      conCian > 0 && enteros == conCian);
+                      enteros == conCian);
 
                 // ---- 3. Las lecturas del HOME siguen entre selecciones (el caso de las 18:10:34-46) ----
                 TrayApp t = new TrayApp(new Config(), true);
@@ -897,12 +928,12 @@ namespace ConsoleEnhancer
 
                 // ---- 8. Capturas reales: el menu de la PS5 se ve (concluyente) y el HOME de la Switch 2 no lo da ----
                 {
-                    int ps5Si = 0, ps5N = 0, swMal = 0, swN = 0;
+                    int ps5Si = 0, ps5N = 0, swMal = 0, swN = 0, xbN = 0, xbSi = 0, xbMal = 0;
                     List<string> bancoPs5 = new List<string>();
                     foreach (string dir in new[] { viejo != null ? Path.Combine(viejo, "test_deteccion") : null, Environment.GetEnvironmentVariable("CE_BANCO_DETECCION") })
                         if (dir != null && Directory.Exists(dir)) bancoPs5.AddRange(Directory.GetFiles(dir, "*.png"));
                     if (datosUsuario != null)
-                        foreach (string n in new[] { "20261123-180816_1280x720.png", "20261123-180818_1280x720.png", "20261123-181019_1280x720.png" })
+                        foreach (string n in new[] { "20261123-180816_1280x720.png", "20261123-180818_1280x720.png", "20261123-181019_1280x720.png", "20261123-185516_1280x720.png" })
                             if (File.Exists(Path.Combine(datosUsuario, @"games\debug\ps5\" + n))) bancoPs5.Add(Path.Combine(datosUsuario, @"games\debug\ps5\" + n));
                     foreach (string f in bancoPs5)
                     {
@@ -914,15 +945,25 @@ namespace ConsoleEnhancer
                         DateTime cuando;
                         if (fn.StartsWith("2026", StringComparison.Ordinal)) { if (!Switch2Datos.HoraDeNombre(fn + ".png", out cuando)) continue; }
                         else if (!DateTime.TryParseExact("20261122-" + fn.Substring(fn.Length - 6), "yyyyMMdd-HHmmss", CultureInfo.InvariantCulture, DateTimeStyles.None, out cuando)) continue;
-                        string h;
+                        string h, fx;
                         bool visto;
-                        using (Bitmap full = Switch2Datos.Cargar32(f)) { DetectorMenu.OlvidaZonas(); visto = MenuPs5Visto(full, cuando, out h); }
+                        using (Bitmap full = Switch2Datos.Cargar32(f))
+                        {
+                            DetectorMenu.OlvidaZonas();
+                            visto = MenuPs5Visto(full, cuando, out h);
+                            fx = Consolas.TextoXboxFuerteOcr(HomeLabel.ScreenText(full));
+                        }
+                        bool esXb = fn.StartsWith("xbox", StringComparison.Ordinal);
                         if (menuPs5) { ps5N++; if (visto) ps5Si++; }
                         else { swN++; if (visto) swMal++; }
-                        sb.Append("      ").Append(visto ? "MENU PS5 (" + h + ") " : "-              ").Append(menuPs5 ? "[ps5]  " : "[otra] ").Append(f).Append("\r\n");
+                        if (esXb) { xbN++; if (fx != null) xbSi++; } else if (fx != null) xbMal++;
+                        sb.Append("      ").Append(visto ? "MENU PS5 (" + h + ") " : "-              ").Append(fx != null ? "XBOX (" + fx + ") " : "")
+                          .Append(menuPs5 ? "[ps5]  " : esXb ? "[xbox] " : "[otra] ").Append(f).Append("\r\n");
                     }
                     check("8. Menus de la PS5 de verdad (" + ps5N + "): se ven como su menu (hora o pestañas) en " + ps5Si, ps5N > 0 && ps5Si == ps5N);
                     check("8. HOME y juegos de la Switch 2 y menus de la Xbox (" + swN + "): ninguno da el menu de la PS5", swN > 0 && swMal == 0);
+                    check("8. Ninguna captura de la PS5 ni de la Switch 2 da el texto fuerte de la Xbox (" + xbMal + ")", xbMal == 0);
+                    sb.Append("      8. menus de la Xbox dibujados con su texto fuerte: " + xbSi + " de " + xbN + " (sin capturas reales de la Xbox)\r\n");
                 }
             }
             catch (Exception ex) { check("Excepcion: " + ex, false); }
