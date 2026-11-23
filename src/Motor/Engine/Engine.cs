@@ -1219,6 +1219,7 @@ namespace ConsoleEnhancer.Motor
                 if (pclOk && token != IntPtr.Zero) { Sl.PCLSetMarker(SlPCLMarker.eSimulationEnd, token); Sl.PCLSetMarker(SlPCLMarker.eRenderSubmitStart, token); }
                 RenderFrame(slot, token, fi);
                 latFiArrival[fi] = slot >= 0 ? arrival : 0;   // 20-11 (LATENCIA7)
+                QueueGpuMark(fi);   // 23-11 (ronda 6, SMOOTH): la cola de la tele con la hora a la que acaba la grafica (EngineLatencia.cs)
                 fenceValue++;
                 queue.Signal(fence, fenceValue);
                 allocFence[fi] = fenceValue;
