@@ -72,11 +72,13 @@ namespace ConsoleEnhancer
             if (d == null) { idDiffLogged = null; return live; }
             // (relevo_generacion_antes=1, de serie: la generacion que ya llevaba -lo ultimo que se le mando-, sin tocarla hasta el corte: apagarla
             // en marcha era un tiron de 250-300 ms con XeSS FG -prueba del 22-11 23:14- y 30 imagenes/s hasta el corte. Nunca otra distinta)
-            string sin = cfg.RelevoGenAntes && engineSent.Length > 0 ? LiveGeneracionDe(live, engineSent) : LiveSinGeneracion(live);
+            // (1.2.4 ronda 6, INTEGRA6: engineSent es null tras un cambio de velocidad de captura -al modo 120 o desde el-: era una
+            // NullReferenceException en cada vuelta de WatchLoop -que la paraba- y en FpsBajo, sesiones b1 / b2 del 23-11)
+            string sin = cfg.RelevoGenAntes && !string.IsNullOrEmpty(engineSent) ? LiveGeneracionDe(live, engineSent) : LiveSinGeneracion(live);
             if (sin != live && d != idDiffLogged)
             {
                 idDiffLogged = d;
-                Log.Write("Motor de ahora con otra identidad (" + d + "): en marcha " + (cfg.RelevoGenAntes && engineSent.Length > 0 ? "sigue con la generacion que llevaba" : "sin generacion") +
+                Log.Write("Motor de ahora con otra identidad (" + d + "): en marcha " + (cfg.RelevoGenAntes && !string.IsNullOrEmpty(engineSent) ? "sigue con la generacion que llevaba" : "sin generacion") +
                           " hasta que se ponga delante el que lleva la nueva (nunca otra distinta)");
             }
             return sin;
@@ -104,6 +106,7 @@ namespace ConsoleEnhancer
 
         static string LiveSinGeneracion(string live)
         {
+            if (live == null) return null;
             string s = Regex.Replace(live, "(^| )fg=1( |$)", "$1fg=0$2");
             s = Regex.Replace(s, " fg_propia=[0-9]+", " fg_propia=0");
             s = Regex.Replace(s, " fg_mult=[0-9]+", "");
