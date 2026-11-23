@@ -239,8 +239,18 @@ namespace ConsoleEnhancer.Motor
                 s.FileCode > 0 ? (s.FileCode == 2 ? ", codigo arriba" : ", codigo abajo") : "", video ? "" : "");
             if (s.FileLog.Length > 0)
             {
-                try { reg = new StreamWriter(s.FileLog, false, new UTF8Encoding(false)); reg.WriteLine("n,qpc,k,f,repetida"); }
-                catch (Exception ex) { Log.Write("Fuente de prueba: no se puede escribir el registro " + s.FileLog + ": " + ex.Message); }
+                // (en la app hay varios motores con la misma clave -el de delante, el de espera, el de reserva-: el que no puede abrirlo
+                // escribe el suyo con su numero de proceso)
+                string rp = s.FileLog;
+                for (int t = 0; t < 2 && reg == null; t++)
+                {
+                    try { reg = new StreamWriter(new FileStream(rp, FileMode.Create, FileAccess.Write, FileShare.Read), new UTF8Encoding(false)); reg.WriteLine("n,qpc,k,f,repetida"); }
+                    catch (Exception ex)
+                    {
+                        if (t == 0) rp = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(s.FileLog)), Path.GetFileNameWithoutExtension(s.FileLog) + "_" + System.Diagnostics.Process.GetCurrentProcess().Id + Path.GetExtension(s.FileLog));
+                        else Log.Write("Fuente de prueba: no se puede escribir el registro " + s.FileLog + ": " + ex.Message);
+                    }
+                }
             }
         }
 
