@@ -14,7 +14,7 @@ namespace ConsoleEnhancer.Motor
     // pintado). Si la grafica acaba tarde, las inventadas se aprietan (hasta 3/4 del paso, con 4 ms de holgura) para no retrasar la real.
     unsafe partial class Engine
     {
-        struct FmhJob { public int Set, K; public bool Gen; public double Step; public uint Sy, Fl, SyReal, FlReal; public ulong Cv, MainFence; public long Arrival; }
+        struct FmhJob { public int Set, K; public bool Gen; public double Step; public uint Sy, Fl, SyReal, FlReal; public ulong Cv, MainFence, Cv1, Cv2, Cv3; public long Arrival; }
         System.IO.StreamWriter fmhCsv;
         readonly Queue<FmhJob> fmhJobs = new Queue<FmhJob>();
         readonly object fmhLock = new object();
@@ -100,7 +100,7 @@ namespace ConsoleEnhancer.Motor
                     fmhSqueezedSaid = fmhSqueezed; fmGensSaid = fmGens;
                 }
                 FmhJob j = new FmhJob();
-                j.Set = fmSet; j.K = k; j.Gen = fmGen; j.Step = step; j.Sy = sy; j.Fl = fl; j.SyReal = sync; j.FlReal = flags; j.Cv = cv; j.MainFence = fenceValue; j.Arrival = fmArrival;
+                j.Set = fmSet; j.K = k; j.Gen = fmGen; j.Step = step; j.Sy = sy; j.Fl = fl; j.SyReal = sync; j.FlReal = flags; j.Cv = cv; j.MainFence = fenceValue; j.Arrival = fmArrival; j.Cv1 = fmCvs[0]; j.Cv2 = fmCvs[1]; j.Cv3 = fmCvs[2];
                 fmhFree[fmSet].Reset();
                 lock (fmhLock) { fmhJobs.Enqueue(j); fmhIdle.Reset(); }
                 fmhJobEv.Set();
@@ -138,9 +138,10 @@ namespace ConsoleEnhancer.Motor
                     bool gen = job.Gen; int k = job.K; double step = job.Step; int b = job.Set;
                     // las inventadas de esta real hechas en la cola de calculo (la real no espera a eso si no las hay)
                     long tw = Clock.Now;
-                    if (gen && fmCFence.GetCompletedValue() < job.Cv)
+                    ulong first = job.Cv1 != 0 ? job.Cv1 : job.Cv;   // (con una lista por inventada, basta la 1a para empezar)
+                    if (gen && fmCFence.GetCompletedValue() < first)
                     {
-                        fmCFence.SetEventOnCompletion(job.Cv, fmhCEv.SafeWaitHandle.DangerousGetHandle());
+                        fmCFence.SetEventOnCompletion(first, fmhCEv.SafeWaitHandle.DangerousGetHandle());
                         if (!fmhCEv.WaitOne(1000)) Log.Write("FSR FG: la grafica no acaba las inventadas (1 s)");
                     }
                     double wms = Clock.SinceMs(tw);
@@ -161,6 +162,13 @@ namespace ConsoleEnhancer.Motor
                         for (int j = 1; j < k && hr >= 0; j++)
                         {
                             FmWaitUntil(R - (long)((k - j) * s2 / Clock.TickMs));
+                            ulong need = j == 1 ? job.Cv1 : j == 2 ? job.Cv2 : job.Cv3;
+                            if (need == 0) need = job.Cv;
+                            if (fmCFence.GetCompletedValue() < need)
+                            {
+                                fmCFence.SetEventOnCompletion(need, fmhCEv.SafeWaitHandle.DangerousGetHandle());
+                                if (!fmhCEv.WaitOne(1000)) Log.Write("FSR FG: la grafica no acaba la inventada " + j + " (1 s)");
+                            }
                             hr = FmhCopyPresent(fmOut[b, j - 1], job.Sy, job.Fl, -1, job.Arrival, j, job.MainFence);
                             if (hr >= 0) fmGens++;
                         }

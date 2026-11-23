@@ -12,10 +12,14 @@
 //   CeFg_Version()                         = 1
 //   CeFg_Create(dev, dispW, dispH, maxRenderW, maxRenderH, dxgiFormat, flags, &ctx, err, errLen)    0 = bien
 //   CeFg_Prepare(ctx, lista, depth, mvec, renderW, renderH, mvScaleX, mvScaleY, frameTimeMs, frameId) cada imagen real, con la
-//        profundidad y los vectores ("anterior - actual" en px de la entrada si mvScale = 1) en NON_PIXEL_SHADER_RESOURCE
+//        profundidad y los vectores ("anterior - actual" en px de la entrada si mvScale = 1) en NON_PIXEL_SHADER_RESOURCE. Lo preparado
+//        va a uno de dos juegos (frameId & 1): la lista de la imagen prepara N+1 mientras la cola de calculo aun puede leer N
 //   CeFg_Generate(ctx, lista, color, colorState, n, outputs, outState, times, reset, frameId, frameTimeMs, renderW, renderH)
 //        el flujo optico de (anterior, color) y n inventadas en los instantes times[i] (0..1) a outputs[i] (UAV, R8G8B8A8); la
 //        actual queda como "anterior" para la siguiente. reset = corte (sin inventar: las salidas llevan la actual)
+//   CeFg_GenerateStep(ctx, lista, color, colorState, output, outState, t, flags, reset, frameId, frameTimeMs, renderW, renderH)
+//        lo mismo de una en una (cada inventada en su lista: el motor enseña la 1a en cuanto esta): flags 1 = antes el flujo optico (la 1a
+//        de esta real), 2 = la ultima (la actual pasa a "anterior")
 //   CeFg_Destroy(ctx)                      (con la grafica parada)
 //   CeFg_LastError(buf, len)
 // flags: 1 = profundidad invertida (1 cerca, 0 lejos), 2 = imagen HDR (no se usa en el motor).
@@ -193,14 +197,9 @@ CEFG_API int CeFg_Prepare(void* ctx, ID3D12GraphicsCommandList* cl, ID3D12Resour
     return 0;
 }
 
-CEFG_API int CeFg_Generate(void* ctx, ID3D12GraphicsCommandList* cl, ID3D12Resource* color, int colorState, int n, ID3D12Resource** outputs,
-                           int outState, const float* times, int reset, unsigned long long frameId, float frameTimeMs, int renderW, int renderH)
+// El flujo optico del par (anterior, actual = col): una vez por real
+static int DoOpticalFlow(CeFgCtx* c, FfxCommandList l, const FfxResource& col, int reset)
 {
-    CeFgCtx* c = (CeFgCtx*)ctx;
-    if (!c || !cl || !color || n < 1 || !outputs || !times) return -1;
-    FfxCommandList l = ffxGetCommandListDX12(cl);
-    FfxResource col = Res(color, StateOf(colorState), FFX_RESOURCE_USAGE_READ_ONLY, L"imagen real");
-    // 1. el flujo optico del par (anterior, actual): una vez
     FfxOpticalflowDispatchDescription od = {};
     od.commandList = l;
     od.color = col;
@@ -211,37 +210,70 @@ CEFG_API int CeFg_Generate(void* ctx, ID3D12GraphicsCommandList* cl, ID3D12Resou
     od.minMaxLuminance.x = 0.0f; od.minMaxLuminance.y = 1000.0f;
     FfxErrorCode e = ffxOpticalflowContextDispatch(&c->of, &od);
     if (e != FFX_OK) { SetErr(L"ffxOpticalflowContextDispatch", e); return (int)e; }
-    // 2. las n inventadas, cada una en su instante, del mismo flujo y de lo preparado; la actual pasa a "anterior" tras la ultima
+    return 0;
+}
+
+// Una inventada en el instante t, del flujo y de lo preparado de este par; last = la actual pasa a ser la "anterior" de la siguiente real
+static int DoInterpolate(CeFgCtx* c, FfxCommandList l, const FfxResource& col, ID3D12Resource* output, int outState, float t, bool last,
+                         int reset, unsigned long long frameId, float frameTimeMs, int renderW, int renderH)
+{
+    FfxFrameInterpolationDispatchDescription d = {};
+    d.flags = 0;
+    d.commandList = l;
+    d.displaySize.width = (uint32_t)c->dispW; d.displaySize.height = (uint32_t)c->dispH;
+    d.renderSize.width = (uint32_t)renderW; d.renderSize.height = (uint32_t)renderH;
+    d.currentBackBuffer = col;
+    d.output = Res(output, StateOf(outState), FFX_RESOURCE_USAGE_UAV, L"inventada");
+    d.interpolationRect.left = 0; d.interpolationRect.top = 0; d.interpolationRect.width = c->dispW; d.interpolationRect.height = c->dispH;
+    d.opticalFlowVector = c->iface.fpGetResource(&c->iface, c->ofVector);
+    d.opticalFlowSceneChangeDetection = c->iface.fpGetResource(&c->iface, c->ofScd);
+    d.opticalFlowBlockSize = 8;
+    d.opticalFlowScale.x = 1.0f / c->dispW; d.opticalFlowScale.y = 1.0f / c->dispH;
+    d.cameraNear = c->camNear; d.cameraFar = c->camFar; d.cameraFovAngleVertical = c->fov; d.viewSpaceToMetersFactor = 1.0f;
+    d.frameTimeDelta = frameTimeMs;
+    d.reset = reset != 0;
+    d.backBufferTransferFunction = (c->flags & 2) ? FFX_BACKBUFFER_TRANSFER_FUNCTION_PQ : FFX_BACKBUFFER_TRANSFER_FUNCTION_SRGB;
+    d.minMaxLuminance[0] = 0.0f; d.minMaxLuminance[1] = 1000.0f;
+    d.frameID = frameId;
+    const int b = (int)(frameId & 1);
+    d.dilatedDepth = c->iface.fpGetResource(&c->iface, c->dilDepth[b]);
+    d.dilatedMotionVectors = c->iface.fpGetResource(&c->iface, c->dilMv[b]);
+    d.reconstructedPrevDepth = c->iface.fpGetResource(&c->iface, c->recDepth[b]);
+    d.interpolationT = t;
+    d.keepPreviousSource = !last;
+    FfxErrorCode e = ffxFrameInterpolationDispatch(&c->fi, &d);
+    if (e != FFX_OK) { SetErr(L"ffxFrameInterpolationDispatch", e); return (int)e; }
+    return 0;
+}
+
+CEFG_API int CeFg_Generate(void* ctx, ID3D12GraphicsCommandList* cl, ID3D12Resource* color, int colorState, int n, ID3D12Resource** outputs,
+                           int outState, const float* times, int reset, unsigned long long frameId, float frameTimeMs, int renderW, int renderH)
+{
+    CeFgCtx* c = (CeFgCtx*)ctx;
+    if (!c || !cl || !color || n < 1 || !outputs || !times) return -1;
+    FfxCommandList l = ffxGetCommandListDX12(cl);
+    FfxResource col = Res(color, StateOf(colorState), FFX_RESOURCE_USAGE_READ_ONLY, L"imagen real");
+    int r = DoOpticalFlow(c, l, col, reset);
+    if (r != 0) return r;
     for (int i = 0; i < n; i++)
     {
-        FfxFrameInterpolationDispatchDescription d = {};
-        d.flags = 0;
-        d.commandList = l;
-        d.displaySize.width = (uint32_t)c->dispW; d.displaySize.height = (uint32_t)c->dispH;
-        d.renderSize.width = (uint32_t)renderW; d.renderSize.height = (uint32_t)renderH;
-        d.currentBackBuffer = col;
-        d.output = Res(outputs[i], StateOf(outState), FFX_RESOURCE_USAGE_UAV, L"inventada");
-        d.interpolationRect.left = 0; d.interpolationRect.top = 0; d.interpolationRect.width = c->dispW; d.interpolationRect.height = c->dispH;
-        d.opticalFlowVector = od.opticalFlowVector;
-        d.opticalFlowSceneChangeDetection = od.opticalFlowSCD;
-        d.opticalFlowBlockSize = 8;
-        d.opticalFlowScale.x = 1.0f / c->dispW; d.opticalFlowScale.y = 1.0f / c->dispH;
-        d.cameraNear = c->camNear; d.cameraFar = c->camFar; d.cameraFovAngleVertical = c->fov; d.viewSpaceToMetersFactor = 1.0f;
-        d.frameTimeDelta = frameTimeMs;
-        d.reset = reset != 0;
-        d.backBufferTransferFunction = od.backbufferTransferFunction == FFX_BACKBUFFER_TRANSFER_FUNCTION_PQ ? FFX_BACKBUFFER_TRANSFER_FUNCTION_PQ : FFX_BACKBUFFER_TRANSFER_FUNCTION_SRGB;
-        d.minMaxLuminance[0] = 0.0f; d.minMaxLuminance[1] = 1000.0f;
-        d.frameID = frameId;
-        const int b = (int)(frameId & 1);
-        d.dilatedDepth = c->iface.fpGetResource(&c->iface, c->dilDepth[b]);
-        d.dilatedMotionVectors = c->iface.fpGetResource(&c->iface, c->dilMv[b]);
-        d.reconstructedPrevDepth = c->iface.fpGetResource(&c->iface, c->recDepth[b]);
-        d.interpolationT = times[i];
-        d.keepPreviousSource = i < n - 1;
-        e = ffxFrameInterpolationDispatch(&c->fi, &d);
-        if (e != FFX_OK) { SetErr(L"ffxFrameInterpolationDispatch", e); return (int)e; }
+        r = DoInterpolate(c, l, col, outputs[i], outState, times[i], i == n - 1, reset, frameId, frameTimeMs, renderW, renderH);
+        if (r != 0) return r;
     }
     return 0;
+}
+
+// (1.2.4 ronda 6) Una a una, cada inventada en su lista, para que el motor pueda enseñar la 1a en cuanto esta (sin esperar a las demas):
+// flags 1 = antes el flujo optico (la 1a de esta real), 2 = la ultima de esta real
+CEFG_API int CeFg_GenerateStep(void* ctx, ID3D12GraphicsCommandList* cl, ID3D12Resource* color, int colorState, ID3D12Resource* output, int outState,
+                               float t, int flags, int reset, unsigned long long frameId, float frameTimeMs, int renderW, int renderH)
+{
+    CeFgCtx* c = (CeFgCtx*)ctx;
+    if (!c || !cl || !color || !output) return -1;
+    FfxCommandList l = ffxGetCommandListDX12(cl);
+    FfxResource col = Res(color, StateOf(colorState), FFX_RESOURCE_USAGE_READ_ONLY, L"imagen real");
+    if (flags & 1) { int r = DoOpticalFlow(c, l, col, reset); if (r != 0) return r; }
+    return DoInterpolate(c, l, col, output, outState, t, (flags & 2) != 0, reset, frameId, frameTimeMs, renderW, renderH);
 }
 
 CEFG_API void CeFg_Destroy(void* ctx)

@@ -32,6 +32,7 @@ namespace ConsoleEnhancer.Motor
         public string FsrMultiDll = "";
         public bool FsrMultiScQueue = true;  // fsrfg_multi_cola_cadena=0|1: la cadena (y las copias a ella) en una cola de presentacion propia
         public int FsrMultiQueue = 1;     // fsrfg_multi_cola=0|1|2: cola de calculo de prioridad normal / alta (de serie) / la de la imagen (sin asincrono)
+        public bool FsrMultiSteps = true;   // fsrfg_multi_una=1|0: cada inventada en su lista (la 1a se enseña en cuanto esta)
         public string FsrMultiCsv = "";   // fsrfg_multi_csv=<fichero> (pruebas): cada Present del hilo (real / inventada, llegada de la real, hora del Present)
 
         bool ApplyFsrMulti(string key, string val)
@@ -43,6 +44,7 @@ namespace ConsoleEnhancer.Motor
                 case "fsrfg_multi_prof": FsrMultiDepth = I(val); return true;
                 case "fsrfg_multi_dll": FsrMultiDll = val.Trim(); return true;
                 case "fsrfg_multi_csv": FsrMultiCsv = val.Trim(); return true;
+                case "fsrfg_multi_una": FsrMultiSteps = B(val); return true;
                 case "fsrfg_multi_cola": FsrMultiQueue = Math.Max(0, Math.Min(2, I(val))); return true;
                 case "fsrfg_multi_cola_cadena": FsrMultiScQueue = B(val); return true;
             }
@@ -56,11 +58,12 @@ namespace ConsoleEnhancer.Motor
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)] delegate int CeFgCreateFn(IntPtr dev, int dispW, int dispH, int maxRW, int maxRH, int fmt, int flags, out IntPtr ctx);
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)] delegate int CeFgPrepareFn(IntPtr ctx, IntPtr list, IntPtr depth, IntPtr mvec, int rw, int rh, float sx, float sy, float dtMs, ulong frameId);
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)] delegate int CeFgGenerateFn(IntPtr ctx, IntPtr list, IntPtr color, int colorState, int n, IntPtr* outs, int outState, float* times, int reset, ulong frameId, float dtMs, int rw, int rh);
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)] delegate int CeFgStepFn(IntPtr ctx, IntPtr list, IntPtr color, int colorState, IntPtr output, int outState, float t, int flags, int reset, ulong frameId, float dtMs, int rw, int rh);
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)] delegate void CeFgDestroyFn(IntPtr ctx);
         [UnmanagedFunctionPointer(CallingConvention.Cdecl, CharSet = CharSet.Unicode)] delegate int CeFgErrFn(System.Text.StringBuilder buf, int len);
 
         IntPtr fmLib, fmCtx;
-        CeFgCreateFn fmCreate; CeFgPrepareFn fmPrepare; CeFgGenerateFn fmGenerate; CeFgDestroyFn fmDestroy; CeFgErrFn fmErr;
+        CeFgCreateFn fmCreate; CeFgPrepareFn fmPrepare; CeFgGenerateFn fmGenerate; CeFgStepFn fmStep; CeFgDestroyFn fmDestroy; CeFgErrFn fmErr;
         bool fmBroken, fmSaid, fmLoadTried;
         int fmW, fmH;
         ulong fmFrameId, fmPreparedId;          // fmPreparedId = la imagen real que se preparo en esta RenderFrame (0 = ninguna)
@@ -80,8 +83,9 @@ namespace ConsoleEnhancer.Motor
         ID3D12CommandQueue fmCq;
         ID3D12Fence fmCFence;
         ulong fmCVal;
-        readonly ID3D12CommandAllocator[] fmCAlloc = new ID3D12CommandAllocator[6];
-        readonly ulong[] fmCAllocCv = new ulong[6];
+        readonly ID3D12CommandAllocator[] fmCAlloc = new ID3D12CommandAllocator[10];
+        readonly ulong[] fmCAllocCv = new ulong[10];
+        readonly ulong[] fmCvs = new ulong[3];   // (la valla de cada inventada de esta real, en la cola de calculo)
         int fmCAi;
         ID3D12GraphicsCommandList fmCList;
         readonly AutoResetEvent fmCEv = new AutoResetEvent(false);
@@ -151,6 +155,7 @@ namespace ConsoleEnhancer.Motor
             fmCreate = SrNative.Fn<CeFgCreateFn>(fmLib, "CeFg_Create");
             fmPrepare = SrNative.Fn<CeFgPrepareFn>(fmLib, "CeFg_Prepare");
             fmGenerate = SrNative.Fn<CeFgGenerateFn>(fmLib, "CeFg_Generate");
+            fmStep = SrNative.Fn<CeFgStepFn>(fmLib, "CeFg_GenerateStep");   // (una a una: la 1a se enseña en cuanto esta; si no esta, todas juntas)
             fmDestroy = SrNative.Fn<CeFgDestroyFn>(fmLib, "CeFg_Destroy");
             fmErr = SrNative.Fn<CeFgErrFn>(fmLib, "CeFg_LastError");
             if (ver == null || fmCreate == null || fmPrepare == null || fmGenerate == null || fmDestroy == null || ver() != 1)
@@ -309,36 +314,50 @@ namespace ConsoleEnhancer.Motor
         {
             int b = fmSet;
             int n = fmGen ? k - 1 : 1;
-            IntPtr* outs = stackalloc IntPtr[4];
-            float* times = stackalloc float[4];
-            for (int j = 0; j < n; j++) { outs[j] = Com.BorrowPtr(fmOut[b, j], typeof(ID3D12Resource)); times[j] = fmGen ? (float)(j + 1) / k : 0.5f; }
-            fmCAi = (fmCAi + 1) % fmCAlloc.Length;
-            FmWaitCompute(fmCAllocCv[fmCAi], 1000);
-            Hr.Check(fmCAlloc[fmCAi].Reset(), "Allocator.Reset (FSR FG, calculo)");
-            Hr.Check(fmCList.Reset(fmCAlloc[fmCAi], null), "List.Reset (FSR FG, calculo)");
-            D3D12_RESOURCE_BARRIER x;
-            for (int j = 0; j < n; j++) { x = D3D12_RESOURCE_BARRIER.CreateTransition(fmOut[b, j], D3D12_RESOURCE_STATES.COPY_SOURCE, D3D12_RESOURCE_STATES.UNORDERED_ACCESS); fmCList.ResourceBarrier(1, ref x); }
             double dt = fmLastRealAt == 0 ? 33.4 : Clock.SinceMs(fmLastRealAt);
             ulong id = fmPreparedId != 0 ? fmPreparedId : fmFrameId + 1;
-            int r = fmGenerate(fmCtx, Com.BorrowPtr(fmCList, typeof(ID3D12GraphicsCommandList)), Com.BorrowPtr(fmSrc[b], typeof(ID3D12Resource)),
-                               (int)D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, n, outs, (int)D3D12_RESOURCE_STATES.UNORDERED_ACCESS, times,
-                               fmReset ? 1 : 0, id, (float)Math.Max(1, Math.Min(100, dt)), inW, inH);
+            bool steps = fmStep != null && s.FsrMultiSteps && n > 1;
+            int lists = steps ? n : 1;
+            D3D12_RESOURCE_BARRIER x;
+            for (int L = 0; L < lists; L++)
+            {
+                fmCAi = (fmCAi + 1) % fmCAlloc.Length;
+                FmWaitCompute(fmCAllocCv[fmCAi], 1000);
+                Hr.Check(fmCAlloc[fmCAi].Reset(), "Allocator.Reset (FSR FG, calculo)");
+                Hr.Check(fmCList.Reset(fmCAlloc[fmCAi], null), "List.Reset (FSR FG, calculo)");
+                int j0 = steps ? L : 0, j1 = steps ? L + 1 : n;
+                for (int j = j0; j < j1; j++) { x = D3D12_RESOURCE_BARRIER.CreateTransition(fmOut[b, j], D3D12_RESOURCE_STATES.COPY_SOURCE, D3D12_RESOURCE_STATES.UNORDERED_ACCESS); fmCList.ResourceBarrier(1, ref x); }
+                IntPtr cl = Com.BorrowPtr(fmCList, typeof(ID3D12GraphicsCommandList)), src = Com.BorrowPtr(fmSrc[b], typeof(ID3D12Resource));
+                int r;
+                if (steps)
+                    r = fmStep(fmCtx, cl, src, (int)D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, Com.BorrowPtr(fmOut[b, L], typeof(ID3D12Resource)), (int)D3D12_RESOURCE_STATES.UNORDERED_ACCESS,
+                               (float)(L + 1) / k, (L == 0 ? 1 : 0) | (L == n - 1 ? 2 : 0), fmReset ? 1 : 0, id, (float)Math.Max(1, Math.Min(100, dt)), inW, inH);
+                else
+                {
+                    IntPtr* outs = stackalloc IntPtr[4];
+                    float* times = stackalloc float[4];
+                    for (int j = 0; j < n; j++) { outs[j] = Com.BorrowPtr(fmOut[b, j], typeof(ID3D12Resource)); times[j] = fmGen ? (float)(j + 1) / k : 0.5f; }
+                    r = fmGenerate(fmCtx, cl, src, (int)D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, n, outs, (int)D3D12_RESOURCE_STATES.UNORDERED_ACCESS, times,
+                                   fmReset ? 1 : 0, id, (float)Math.Max(1, Math.Min(100, dt)), inW, inH);
+                }
+                for (int j = j0; j < j1; j++) { x = D3D12_RESOURCE_BARRIER.CreateTransition(fmOut[b, j], D3D12_RESOURCE_STATES.UNORDERED_ACCESS, D3D12_RESOURCE_STATES.COPY_SOURCE); fmCList.ResourceBarrier(1, ref x); }
+                Hr.Check(fmCList.Close(), "Close (FSR FG, calculo)");
+                if (r != 0) throw new InvalidOperationException("CeFg_Generate = " + r + " (" + FmErrText() + ")");
+                if (L == 0) fmCq.Wait(fence, mainFence);   // (en la grafica: tras la lista del motor de esta real; la CPU no espera)
+                IntPtr lp = Com.BorrowPtr(fmCList, typeof(ID3D12CommandList));
+                fmCq.ExecuteCommandLists(1, ref lp);
+                fmCVal++;
+                fmCq.Signal(fmCFence, fmCVal);
+                fmCAllocCv[fmCAi] = fmCVal;
+                for (int j = j0; j < j1; j++) fmCvs[j] = fmCVal;
+            }
             fmFrameId = id;
-            for (int j = 0; j < n; j++) { x = D3D12_RESOURCE_BARRIER.CreateTransition(fmOut[b, j], D3D12_RESOURCE_STATES.UNORDERED_ACCESS, D3D12_RESOURCE_STATES.COPY_SOURCE); fmCList.ResourceBarrier(1, ref x); }
-            Hr.Check(fmCList.Close(), "Close (FSR FG, calculo)");
-            if (r != 0) throw new InvalidOperationException("CeFg_Generate = " + r + " (" + FmErrText() + ")");
-            fmCq.Wait(fence, mainFence);   // (en la grafica: tras la lista del motor de esta real; la CPU no espera)
-            IntPtr lp = Com.BorrowPtr(fmCList, typeof(ID3D12CommandList));
-            fmCq.ExecuteCommandLists(1, ref lp);
-            fmCVal++;
-            fmCq.Signal(fmCFence, fmCVal);
-            fmCAllocCv[fmCAi] = fmCVal;
             fmPrepCv[id & 1] = fmCVal;
             if (!fmSaid)
             {
                 fmSaid = true;
-                Log.Write("FSR FG si (x" + k + ", interpolacion de FSR 3.1 en " + (k == 2 ? "1/2" : k == 3 ? "1/3 y 2/3" : "1/4, 2/4 y 3/4") + " con un flujo optico por real, en la cola de calculo; vectores " +
-                          (ReferenceEquals(FmVec, mvecFg) ? "de la generacion" : "del motor") + ", profundidad " + (ReferenceEquals(FmDepth, depthFg) ? "de la generacion" : "plana") + ")");
+                Log.Write("FSR FG si (x" + k + ", interpolacion de FSR 3.1 en " + (k == 2 ? "1/2" : k == 3 ? "1/3 y 2/3" : "1/4, 2/4 y 3/4") + " con un flujo optico por real, en la cola de calculo" +
+                          (steps ? ", una a una" : "") + "; vectores " + (ReferenceEquals(FmVec, mvecFg) ? "de la generacion" : "del motor") + ", profundidad " + (ReferenceEquals(FmDepth, depthFg) ? "de la generacion" : "plana") + ")");
             }
             return fmCVal;
         }
