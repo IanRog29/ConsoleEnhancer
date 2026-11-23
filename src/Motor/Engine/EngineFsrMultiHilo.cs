@@ -215,6 +215,7 @@ namespace ConsoleEnhancer.Motor
             fmhList.CopyResource(bb, src);
             b = D3D12_RESOURCE_BARRIER.CreateTransition(bb, D3D12_RESOURCE_STATES.COPY_DEST, D3D12_RESOURCE_STATES.PRESENT);
             fmhList.ResourceBarrier(1, ref b);
+            FmdRecord(src, Clock.Now);   // (pruebas: fsrfg_multi_volcado, EngineFsrMultiVolcado.cs)
             Hr.Check(fmhList.Close(), "Close (presentacion de FSR FG)");
             IntPtr lp = Com.BorrowPtr(fmhList, typeof(ID3D12CommandList));
             ID3D12CommandQueue q = ScQ;
@@ -223,9 +224,10 @@ namespace ConsoleEnhancer.Motor
             fmhFenceValue++;
             q.Signal(fmhFence, fmhFenceValue);
             fmhAllocFence[fmhAi] = fmhFenceValue;
+            FmdSubmitted(fmhFenceValue);
             if (freeSet >= 0) fmhFree[freeSet].Set();
             long tp = Clock.Now;
-            int hr = swap.Present(sy, (DXGI_PRESENT)fl);
+            int hr = s.FsrMultiNoPresent ? 0 : swap.Present(sy, (DXGI_PRESENT)fl);
             if (s.FsrMultiCsv.Length > 0)
             {
                 try

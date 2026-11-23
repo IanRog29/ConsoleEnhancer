@@ -54,7 +54,7 @@ namespace ConsoleEnhancer.Motor
                 case "fsrfg_multi_cola": FsrMultiQueue = Math.Max(0, Math.Min(2, I(val))); return true;
                 case "fsrfg_multi_cola_cadena": FsrMultiScQueue = B(val); return true;
             }
-            return false;
+            return ApplyFsrMultiDump(key, val);   // (pruebas: EngineFsrMultiVolcado.cs)
         }
     }
 
