@@ -32,6 +32,8 @@ namespace ConsoleEnhancer.Motor
         public string FsrMultiDll = "";
         public bool FsrMultiScQueue = true;  // fsrfg_multi_cola_cadena=0|1: la cadena (y las copias a ella) en una cola de presentacion propia
         public int FsrMultiQueue = 1;     // fsrfg_multi_cola=0|1|2: cola de calculo de prioridad normal / alta (de serie) / la de la imagen (sin asincrono)
+        public bool FsrMultiStill = true;   // fsrfg_multi_quieto=1|0: lo que no cambia entre las dos reales (la interfaz, el texto) va tal cual
+        public float FsrMultiStillThr = 0.03f;   // fsrfg_multi_quieto_umbral: diferencia de color 0-1 (la mayor de 3x3) por debajo de la cual es "quieto"
         public bool FsrMultiHalf = false;   // fsrfg_multi_mitad=0|1: la profundidad y los vectores a FSR a la mitad (sus pasadas "de render" a 1/4 de pixeles)
         public bool FsrMultiSteps = true;   // fsrfg_multi_una=1|0: cada inventada en su lista (la 1a se enseña en cuanto esta)
         public string FsrMultiCsv = "";   // fsrfg_multi_csv=<fichero> (pruebas): cada Present del hilo (real / inventada, llegada de la real, hora del Present)
@@ -47,6 +49,8 @@ namespace ConsoleEnhancer.Motor
                 case "fsrfg_multi_csv": FsrMultiCsv = val.Trim(); return true;
                 case "fsrfg_multi_una": FsrMultiSteps = B(val); return true;
                 case "fsrfg_multi_mitad": FsrMultiHalf = B(val); return true;
+                case "fsrfg_multi_quieto": FsrMultiStill = B(val); return true;
+                case "fsrfg_multi_quieto_umbral": FsrMultiStillThr = (float)Math.Max(0.001, Math.Min(0.5, D(val))); return true;
                 case "fsrfg_multi_cola": FsrMultiQueue = Math.Max(0, Math.Min(2, I(val))); return true;
                 case "fsrfg_multi_cola_cadena": FsrMultiScQueue = B(val); return true;
             }
@@ -186,6 +190,81 @@ void main(uint3 id : SV_DispatchThreadID)
             return true;
         }
         int fmRW, fmRH;   // el tamaño "de render" que se le pasa a FSR en esta real (la entrada o su mitad)
+
+        // (23-11, medido) LO QUIETO: la interpolacion de FSR reparte los vectores "hacia delante" (cada punto escribe el suyo donde estara en el
+        // instante) y lo que se mueve detras de la interfaz quieta (el texto, el minimapa de una consola: no hay imagen sin interfaz) le pisa
+        // el vector: el texto salia arrastrado (error 25 de media, 55-61 con la camara rapida, frente a 0,3-0,5 de DLSS-G). Despues de FSR, en
+        // cada inventada: donde las dos reales son iguales (la mayor diferencia de 3x3 por debajo del umbral) va la mezcla de las dos en su
+        // instante, con un borde suave hasta 2 x el umbral. Lo que se mueve no cambia
+        const string FmStillShader = @"
+cbuffer C : register(b0) { uint W, H, P0, P1; float T, Thr, P2, P3; uint4 Q2, Q3; }
+Texture2D<float4> Prev : register(t0);
+Texture2D<float4> Cur : register(t1);
+RWTexture2D<unorm float4> Out : register(u0);
+[numthreads(16, 8, 1)]
+void main(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= W || id.y >= H) return;
+    float d = 0;
+    [unroll] for (int y = -1; y <= 1; y++) [unroll] for (int x = -1; x <= 1; x++)
+    {
+        int2 p = clamp(int2(id.xy) + int2(x, y), int2(0, 0), int2(W - 1, H - 1));
+        float3 e = abs(Prev[p].rgb - Cur[p].rgb);
+        d = max(d, max(e.r, max(e.g, e.b)));
+    }
+    float w = 1 - smoothstep(Thr, 2 * Thr, d);
+    if (w <= 0) return;
+    float3 m = lerp(Prev[id.xy].rgb, Cur[id.xy].rgb, T);
+    Out[id.xy] = float4(lerp(Out[id.xy].rgb, m, w), 1);
+}";
+        ID3D12PipelineState psoFmStill;
+        ID3D12DescriptorHeap fmStillHeap;
+        IntPtr fmStillHeapPtr;
+        D3D12_CPU_DESCRIPTOR_HANDLE fmStillCpu0;
+        D3D12_GPU_DESCRIPTOR_HANDLE fmStillGpu0;
+        const int FmStillSlots = 12;   // (anillo: 3 inventadas x 4 reales en vuelo)
+        int fmStillSlot;
+        bool fmPrevSrcOk;              // fmSrc del otro juego es la real de justo antes (para lo quieto)
+
+        // En la lista de calculo, con out en UNORDERED_ACCESS tras FSR: lo quieto de prev -> cur en el instante t
+        void FmRecordStill(ID3D12GraphicsCommandList cl, ID3D12Resource prev, ID3D12Resource cur, ID3D12Resource output, float t)
+        {
+            if (psoFmStill == null)
+            {
+                psoFmStill = Pso(CompileCs("fsrfgquieto", FmStillShader));
+                D3D12_DESCRIPTOR_HEAP_DESC hdsc = new D3D12_DESCRIPTOR_HEAP_DESC();
+                hdsc.Type = D3D12_DESCRIPTOR_HEAP_TYPE.CBV_SRV_UAV;
+                hdsc.NumDescriptors = (uint)(FmStillSlots * Shaders.TableSize);
+                hdsc.Flags = D3D12_DESCRIPTOR_HEAP_FLAGS.SHADER_VISIBLE;
+                object o;
+                Guid iid = typeof(ID3D12DescriptorHeap).GUID;
+                Hr.Check(dev.CreateDescriptorHeap(ref hdsc, ref iid, out o), "CreateDescriptorHeap (FSR FG, quieto)");
+                fmStillHeap = (ID3D12DescriptorHeap)o;
+                fmStillHeapPtr = Com.BorrowPtr(fmStillHeap, typeof(ID3D12DescriptorHeap));
+                fmStillHeap.GetCPUDescriptorHandleForHeapStart(out fmStillCpu0);
+                fmStillHeap.GetGPUDescriptorHandleForHeapStart(out fmStillGpu0);
+            }
+            fmStillSlot = (fmStillSlot + 1) % FmStillSlots;
+            int baseSlot = fmStillSlot * Shaders.TableSize;
+            D3D12_SHADER_RESOURCE_VIEW_DESC sd = D3D12_SHADER_RESOURCE_VIEW_DESC.Tex2D(ColorFmt);
+            dev.CreateShaderResourceView(prev, &sd, fmStillCpu0.Offset(baseSlot + 0, inc));
+            dev.CreateShaderResourceView(cur, &sd, fmStillCpu0.Offset(baseSlot + 1, inc));
+            for (int i = 2; i < U0; i++) dev.CreateShaderResourceView(cur, &sd, fmStillCpu0.Offset(baseSlot + i, inc));
+            D3D12_UNORDERED_ACCESS_VIEW_DESC ud = D3D12_UNORDERED_ACCESS_VIEW_DESC.Tex2D(ColorFmt);
+            dev.CreateUnorderedAccessView(output, null, &ud, fmStillCpu0.Offset(baseSlot + U0, inc));
+            dev.CreateUnorderedAccessView(output, null, &ud, fmStillCpu0.Offset(baseSlot + U0 + 1, inc));
+            D3D12_RESOURCE_BARRIER x = D3D12_RESOURCE_BARRIER.CreateUav(output);
+            cl.ResourceBarrier(1, ref x);
+            uint* c = stackalloc uint[16];
+            for (int i = 0; i < 16; i++) c[i] = 0;
+            c[0] = (uint)outW; c[1] = (uint)outH; c[4] = F(t); c[5] = F(s.FsrMultiStillThr);
+            cl.SetDescriptorHeaps(1, ref fmStillHeapPtr);
+            cl.SetComputeRootSignature(rootSig);
+            cl.SetPipelineState(psoFmStill);
+            cl.SetComputeRootDescriptorTable(1, fmStillGpu0.Offset(baseSlot, inc));
+            cl.SetComputeRoot32BitConstants(0, 8, c, 0);
+            cl.Dispatch(Groups(outW, 16), Groups(outH, 8), 1);
+        }
         bool fmRepaint;                         // esta imagen es un repintado (sin imagen nueva): solo la real, sin FSR
         bool fmNoFsr;                           // esta imagen va por el hilo sin FSR (repintado, aun sin contexto, generacion apagada)
 
@@ -409,6 +488,8 @@ void main(uint3 id : SV_DispatchThreadID)
                 D3D12_RESOURCE_BARRIER x;
                 if (fsr)
                 {
+                    // (el calculo de la real anterior lee este juego como "la de antes" para lo quieto: que haya acabado; casi nunca espera)
+                    FmWaitCompute(fmCVal, 200);
                     x = D3D12_RESOURCE_BARRIER.CreateTransition(fmSrc[b], D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.COPY_DEST); list.ResourceBarrier(1, ref x);
                     list.CopyResource(fmSrc[b], final);
                     x = D3D12_RESOURCE_BARRIER.CreateTransition(fmSrc[b], D3D12_RESOURCE_STATES.COPY_DEST, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE); list.ResourceBarrier(1, ref x);
@@ -421,6 +502,7 @@ void main(uint3 id : SV_DispatchThreadID)
             fmHold = true;
             fmRepaint = slot < 0;
             fmNoFsr = !fsr;
+            if (!fsr) fmPrevSrcOk = false;
             fmArrival = slot >= 0 ? slotArrival[slot] : Clock.Now;
             // inventadas solo con esta imagen preparada, una anterior (la 1a solo se guarda), sin corte y sin aviso encima (las inventadas no
             // lo llevarian: parpadearia)
@@ -461,6 +543,8 @@ void main(uint3 id : SV_DispatchThreadID)
                     r = fmGenerate(fmCtx, cl, src, (int)D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, n, outs, (int)D3D12_RESOURCE_STATES.UNORDERED_ACCESS, times,
                                    fmReset ? 1 : 0, id, (float)Math.Max(1, Math.Min(100, dt)), fmRW > 0 ? fmRW : inW, fmRH > 0 ? fmRH : inH);
                 }
+                if (r == 0 && fmGen && s.FsrMultiStill && fmPrevSrcOk)
+                    for (int j = j0; j < j1; j++) FmRecordStill(fmCList, fmSrc[1 - b], fmSrc[b], fmOut[b, j], (float)(j + 1) / k);
                 for (int j = j0; j < j1; j++) { x = D3D12_RESOURCE_BARRIER.CreateTransition(fmOut[b, j], D3D12_RESOURCE_STATES.UNORDERED_ACCESS, D3D12_RESOURCE_STATES.COPY_SOURCE); fmCList.ResourceBarrier(1, ref x); }
                 Hr.Check(fmCList.Close(), "Close (FSR FG, calculo)");
                 if (r != 0) throw new InvalidOperationException("CeFg_Generate = " + r + " (" + FmErrText() + ")");
@@ -474,6 +558,7 @@ void main(uint3 id : SV_DispatchThreadID)
             }
             fmFrameId = id;
             fmPrepCv[id & 1] = fmCVal;
+            fmPrevSrcOk = true;   // (fmSrc[b] es la real de esta: para lo quieto de la siguiente, que usa el otro juego)
             if (!fmSaid)
             {
                 fmSaid = true;
