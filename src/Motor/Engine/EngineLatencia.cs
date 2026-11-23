@@ -245,6 +245,7 @@ namespace ConsoleEnhancer.Motor
             if (real && latPickup != 0) LatReflexWatch(Clock.Ms(arrival, latPickup));   // 21-11 (1.2.1)
             QueueModelPresented(submit);
             FgQueueGpu(real, gpuMs);   // 22-11 (1.2.4 LATENCIA, EngineEnvio.cs)
+            if (gpuMs > 0 && gpuMs < 100) qgDurMs = qgDurMs < 0 ? gpuMs : qgDurMs * 0.9 + gpuMs * 0.1;   // 23-11 (ronda 6, SMOOTH: cola_grafica)
             if (stats.Recording && real && s.SmoothMode > 0) latBQX.Add(latQX);
             bool csv = s.LatCsv.Length > 0;
             bool want = csv || stats.Recording;     // (jugando, nada mas: DXGI no da estadisticas con Streamline)
@@ -367,10 +368,14 @@ namespace ConsoleEnhancer.Motor
         bool QueueModelSkip(long now)
         {
             if (s.QueueDropMs <= 0 || s.SmoothMode <= 0) return false;
-            double x = QueueModelPeek(now + (long)(Math.Max(0, latPickSubEma) / Clock.TickMs));   // (a la hora a la que se presentaria)
-            if (x < s.QueueDropMs) return false;
+            long at = now + (long)(Math.Max(0, latPickSubEma) / Clock.TickMs);   // (a la hora a la que se presentaria)
+            double x = QueueModelPeek(at);
+            double xg = QueueGpuWait(at);   // 23-11 (ronda 6, SMOOTH): con lo que acaba de verdad la grafica (cola_grafica)
+            if (x < s.QueueDropMs && xg < s.QueueDropMs) return false;
+            if (xg >= s.QueueDropMs && x < s.QueueDropMs) qgDrops++;
             if (latDrops < 20 || Clock.Ms(latDropAt, now) > 20000)
-                Log.Write(string.Format(CultureInfo.InvariantCulture, "Cola de la tele: esta imagen esperaria {0:0.0} ms (Smooth Motion): se tira para vaciarla", x));
+                Log.Write(string.Format(CultureInfo.InvariantCulture, "Cola de la tele: esta imagen esperaria {0:0.0} ms (Smooth Motion{1}): se tira para vaciarla", Math.Max(x, xg),
+                    xg > x ? "; contada con la grafica, que va " + qgLagMs.ToString("0", CultureInfo.InvariantCulture) + " ms detras del envio" : ""));
             latDropAt = now;
             return true;
         }
@@ -518,7 +523,7 @@ namespace ConsoleEnhancer.Motor
                 LAvg(latBPick), LPct(latBPick, 0.95), LAvg(latBSleep), LPct(latBSleep, 0.95), LAvg(latBCall), LPct(latBCall, 0.95), LAvg(latBWait),
                 LAvg(latBDisp), LPct(latBDisp, 0.5), LPct(latBDisp, 0.95), LAvg(latBArrDisp), LPct(latBArrDisp, 0.5), LPct(latBArrDisp, 0.95),
                 LAvg(latBQueue), LPct(latBQueue, 1.0), latDrops, LAvg(latBQX), LPct(latBQX, 0.95), latQXMax) +
-                OnFrameBench();
+                QueueGpuBench() + OnFrameBench();
         }
 
         // 20-11 (LATENCIA4): en el hilo de la captura, de la llegada a empezar la copia (repetidas, corte de escena, vigilancia) y la copia
@@ -546,18 +551,110 @@ namespace ConsoleEnhancer.Motor
         long latCalAt; ulong latCalGpu, latCalCpu;
         void LatGpuEnd(int fi, ulong tEnd)
         {
+            QueueGpuEnd(fi, tEnd);   // 23-11 (ronda 6, SMOOTH): la cola de la tele con lo que acaba de verdad la grafica
             long a = latFiArrival[fi];
             latFiArrival[fi] = 0;
             if (a == 0 || tEnd == 0 || !stats.Recording || tsFreq <= 0) return;
+            double end;
+            if (!GpuToQpc(tEnd, out end)) return;
+            double ms = (end - a) * Clock.TickMs;
+            if (ms > 0 && ms < 500) latBGpuEnd.Add(ms);
+        }
+
+        // La marca de tiempo de la grafica pasada a la hora de la CPU (QPC), con la calibracion de la cola (cada segundo)
+        bool GpuToQpc(ulong t, out double qpc)
+        {
+            qpc = 0;
+            if (t == 0 || tsFreq <= 0) return false;
             if (latCalAt == 0 || Clock.SinceMs(latCalAt) > 1000)
             {
                 ulong g, c;
                 if (queue.GetClockCalibration(out g, out c) >= 0) { latCalGpu = g; latCalCpu = c; latCalAt = Clock.Now; }
             }
-            if (latCalAt == 0) return;
-            double end = latCalCpu + ((double)tEnd - latCalGpu) * System.Diagnostics.Stopwatch.Frequency / tsFreq;
-            double ms = (end - a) * Clock.TickMs;
-            if (ms > 0 && ms < 500) latBGpuEnd.Add(ms);
+            if (latCalAt == 0) return false;
+            qpc = latCalCpu + ((double)t - latCalGpu) * System.Diagnostics.Stopwatch.Frequency / tsFreq;
+            return true;
+        }
+
+        // ---- 23-11 (ronda 6, SMOOTH): la cola de la tele con Smooth Motion, contada con la hora a la que ACABA la grafica (cola_grafica=1).
+        // El modelo de arriba (QueueModelPeek) cuenta con la hora del Present: no ve cuando la grafica va por detras de lo enviado. Medido
+        // (motor solo, test=archivo con las capturas de la PS5, 4K modo 30, DLSS 5 1 pasada, Smooth Motion "cada 2 refrescos" + VRR,
+        // PresentMon + lat_csv): la primera imagen tras arrancar tarda 808 ms en la grafica (DLSS 5 la primera vez), las 2-3 de detras ya estan
+        // enviadas y se ven todas seguidas cuando acaba; el modelo cree que la tele las saco al enviarlas (cola 10 -> 2 ms) y la de verdad se
+        // queda llena: de la llegada a verse la real 78 ms a los 2 s, bajando 1 ms por segundo (60 a los 19 s) frente a 47-53 sin cola. En 8
+        // de 12 pasadas con DLSS 5 (10-30 ms de mas durante 15-25 s tras arrancar; igual al despertar y, mas corto, al rehacer DLSS 5).
+        // Aqui: cada lista de pintado del bucle se apunta al enviarla (QueueGpuMark) y, cuando se sabe su fin en la grafica (LatGpuEnd, una
+        // vuelta despues), la tele queda libre en max(fin, libre) + P. Para la imagen de ahora se proyectan las que aun estan en la grafica con
+        // su retraso tipico (envio -> fin). Se tira la real si esperaria cola_tirar_ms o mas con cualquiera de los dos modelos.
+        // Medido con esto (6 pasadas, 4K y 1440p, modo 30, DLSS 5): a los 2 s del arranque 43-51 ms (sin cola) en las 6; lo estable igual que
+        // antes (real 49,3-50,0 frente a 49,3-50,2 ms, inventada 32,6-33,4 / 32,6-33,6) y como mucho una real tirada de mas al arrancar.
+        // Lo que NO arregla: la cola del arranque del modo 60 (~9 ms de mas durante ~10 s, sin DLSS 5): ningun modelo la ve (ni bajando el
+        // umbral a 5 ms: medido igual, 28,1 frente a 28,6 ms a los 2 s)
+        public bool QueueGpuOn { get { return s.QueueGpu && s.SmoothMode > 0 && s.QueueDropMs > 0; } }
+        readonly long[] qgMark = new long[FramesInFlight];   // Clock.Now al enviar la lista de la ranura fi del bucle (0 = ninguna)
+        double qgFree, qgLastReady;                           // QPC: la tele libre tras lo ya listo / la ultima lista acabada
+        double qgLagMs = -1, qgDurMs = -1;                    // envio -> fin en la grafica, y lo que dura una lista en la grafica, tipicos (medias moviles)
+        double qgWaitLast, qgWaitMax;                         // lo que espero en la tele la ultima ya acabada (ms)
+        int qgDrops;
+        readonly List<double> latBQG = new List<double>();
+
+        // Engine.Run, tras grabar la lista de la imagen (real o repintada) en la ranura fi
+        void QueueGpuMark(int fi)
+        {
+            if (!QueueGpuOn) { qgMark[fi] = 0; return; }
+            qgMark[fi] = Clock.Now;
+        }
+
+        void QueueGpuEnd(int fi, ulong tEnd)
+        {
+            long mark = qgMark[fi];
+            qgMark[fi] = 0;
+            if (!QueueGpuOn) return;
+            double end, p = QueuePeriodMs();
+            if (p <= 0 || !GpuToQpc(tEnd, out end)) return;
+            double pT = p / Clock.TickMs;
+            // (lo que acaba en la grafica es una imagen que va a la tele, sea del bucle o la negra de la espera: cuenta; el retraso tipico
+            // solo con las del bucle recientes)
+            double lag = mark != 0 ? (end - mark) * Clock.TickMs : -1;
+            if (lag > 0 && lag < 200) qgLagMs = qgLagMs < 0 ? lag : qgLagMs * 0.9 + lag * 0.1;
+            if (qgFree == 0 || end - qgFree > 2000 / Clock.TickMs) qgFree = end;   // (tras mas de 2 s sin nada: la tele vacia)
+            qgWaitLast = Math.Max(0, (qgFree - end) * Clock.TickMs);
+            if (qgWaitLast > qgWaitMax) qgWaitMax = qgWaitLast;
+            if (stats.Recording) latBQG.Add(qgWaitLast);
+            qgFree = Math.Max(end, qgFree) + pT;
+            qgLastReady = Math.Max(qgLastReady, end);
+        }
+
+        // Lo que esperaria en la tele una real que se presentase a la hora 'at' (ms), con las listas que siguen en la grafica proyectadas
+        double QueueGpuWait(long at)
+        {
+            if (!QueueGpuOn || qgFree == 0) return 0;
+            double p = QueuePeriodMs();
+            if (p <= 0) return 0;
+            // (cada una lista como pronto a su retraso tipico desde el envio y tras la de delante mas lo que dura una; sin retraso medido aun,
+            // lo que dura)
+            double durT = Math.Max(0, qgDurMs) / Clock.TickMs, lagT = (qgLagMs >= 0 ? qgLagMs : Math.Max(0, qgDurMs)) / Clock.TickMs, pT = p / Clock.TickMs;
+            if (at - qgFree > 2000 / Clock.TickMs) return 0;
+            double free = qgFree, last = qgLastReady;
+            // las que aun estan en la grafica, por orden de envio (como mucho FramesInFlight)
+            long m0 = long.MaxValue, m1 = long.MaxValue;
+            for (int i = 0; i < FramesInFlight; i++)
+            {
+                long m = qgMark[i];
+                if (m == 0 || Clock.Ms(m, at) > 2000) continue;
+                if (m < m0) { m1 = m0; m0 = m; } else if (m < m1) m1 = m;
+            }
+            if (m0 != long.MaxValue) { double r = Math.Max(m0 + lagT, last + durT); free = Math.Max(r, free) + pT; last = r; }
+            if (m1 != long.MaxValue) { double r = Math.Max(m1 + lagT, last + durT); free = Math.Max(r, free) + pT; last = r; }
+            double rn = Math.Max(at + lagT, last + durT);
+            return Math.Max(0, (free - rn) * Clock.TickMs);
+        }
+
+        // Para la linea del banco: lo que espero cada imagen en la tele segun la grafica (media / p95 / peor) y las tiradas por esto
+        string QueueGpuBench()
+        {
+            return string.Format(CultureInfo.InvariantCulture, "\tcola_grafica={0:0.0}/{1:0.0}/{2:0.0}\ttiradas_grafica={3}\tretraso_grafica={4:0.0}",
+                LAvg(latBQG), LPct(latBQG, 0.95), qgWaitMax, qgDrops, qgLagMs);
         }
     }
 
@@ -566,6 +663,7 @@ namespace ConsoleEnhancer.Motor
     {
         public bool QueueCount = true;      // cola_cuenta=0: la espera de la cadena como antes (Engine.LatQueueWait)
         public int Mmcss = 0;               // mmcss=1 (prueba): los hilos de la captura y de pintado en MMCSS (de serie no: sin diferencia medida)
+        public bool QueueGpu = true;        // 23-11 (ronda 6, SMOOTH) cola_grafica=0: la cola de la tele con Smooth Motion solo con la hora del Present (como antes)
 
         bool ApplyLatencia(string key, string val)
         {
@@ -573,6 +671,7 @@ namespace ConsoleEnhancer.Motor
             {
                 case "cola_cuenta": QueueCount = B(val); return true;
                 case "mmcss": Mmcss = B(val) ? 1 : 0; return true;
+                case "cola_grafica": QueueGpu = B(val); return true;
             }
             return false;
         }
