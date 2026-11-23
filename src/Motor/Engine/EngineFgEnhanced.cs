@@ -47,6 +47,16 @@ namespace ConsoleEnhancer.Motor
         public int Efg = 0;
         public int EfgMode = 0;                 // 0 = calidad (interpolacion), 1 = latencia (extrapolacion)
         public double EfgPhase = -1;            // efg_retraso (-1 = el del modo)
+        // (1.3.1, INTEGRA8; EFGLAT con video real) x4 / x3 en baja latencia: la real una imagen de salida despues (la 1a inventada se interpola
+        // entre las dos reales y las demas se extrapolan 1/k menos): -22 % de error en x4 y -27 % en x3 al girar (simulador). En la tele a 120 Hz
+        // (INTEGRA8, motor con el video real de GTA V a 4K): x4 +5 ms (23,1 -> 28,2 ms) con el mismo ritmo (100 % a un refresco, p95 0,11 ms
+        // fuera de su hora): de serie 0,25. x3 (90/s sin sincronizacion) 8,3 -> 26,6 ms y el ritmo peor (p95 0,35 -> 4,35 ms fuera de su hora,
+        // 31 % de imagenes a dos refrescos): de serie -1 (todo hacia delante, como la 1.3). -1 (o 0) = como la 1.3; efg_retraso= manda sobre estas.
+        // Con DLSS 5 no (efg_retraso_dlss5=0): x4 a 4K + DLSS 5 con la real una imagen despues el resto del grupo choca con la real siguiente
+        // (89 imagenes/s y 22 inventadas saltadas/s al 25 % frente a 109/s y 0 saltadas como la 1.3) y la escalera acabaria en x2
+        public double EfgPhaseLat4 = 0.25;      // efg_retraso_lat4
+        public double EfgPhaseLat3 = -1;        // efg_retraso_lat3
+        public bool EfgPhaseLatD5 = false;      // efg_retraso_dlss5=1: tambien con DLSS 5
         public bool EfgOwnQueue = true;
         // (1.2.4 ronda 7, EFGFIX) efg_prioridad=1 = la cola del motor en prioridad NORMAL con la propia de Enhanced FG en ALTA (lo de la ronda 6).
         // Con DLSS 5 eso colgaba la grafica (DXGI_ERROR_DEVICE_HUNG, nvlddmkm 153): la sesion del usuario del 23-11 a los 37 s de x2 a 4K,
@@ -90,6 +100,9 @@ namespace ConsoleEnhancer.Motor
                 case "efg": { int k = I(val); Efg = k <= 1 ? 0 : Math.Min(4, k); return true; }
                 case "efg_modo": { string v = val.Trim().ToLowerInvariant(); EfgMode = v == "latencia" || v == "1" || v == "extrapolacion" || v == "baja" ? 1 : 0; return true; }
                 case "efg_retraso": EfgPhase = D(val); return true;
+                case "efg_retraso_lat4": EfgPhaseLat4 = D(val); return true;   // (1.3.1, INTEGRA8)
+                case "efg_retraso_lat3": EfgPhaseLat3 = D(val); return true;   // (1.3.1, INTEGRA8)
+                case "efg_retraso_dlss5": EfgPhaseLatD5 = B(val); return true;   // (1.3.1, INTEGRA8)
                 case "efg_cola": EfgOwnQueue = B(val); return true;
                 case "efg_prioridad": EfgMainLowPrio = B(val); return true;
                 case "efg_vsync": EfgVsync = I(val); return true;
@@ -354,6 +367,7 @@ namespace ConsoleEnhancer.Motor
         string EfgModeName()
         {
             if (s.EfgPhase >= 0) return "retraso " + s.EfgPhase.ToString("0.00", IC) + " de imagen real";
+            { int k = Math.Max(2, Math.Min(4, s.Efg)); if (EfgLat34(k)) return "baja latencia (hacia delante; la real con retraso " + EfgPhaseLat34(k).ToString("0.00", IC) + ")"; }
             return s.EfgMode == 1 ? "baja latencia (hacia delante)" : "calidad (interpolacion)";
         }
 
@@ -427,9 +441,16 @@ namespace ConsoleEnhancer.Motor
         // El instante de la real dentro de las k presentaciones (en intervalos reales de retraso): calidad (k-1)/k, latencia 0
         double EfgPhaseFor(int k)
         {
-            double ph = s.EfgPhase >= 0 ? s.EfgPhase : s.EfgMode == 1 ? 0 : (k - 1) / (double)k;
+            double ph = s.EfgPhase >= 0 ? s.EfgPhase : EfgLat34(k) ? EfgPhaseLat34(k) : s.EfgMode == 1 ? 0 : (k - 1) / (double)k;
             return Math.Max(0, Math.Min((k - 1) / (double)k, ph));
         }
+
+        // (1.3.1, INTEGRA8) x4 / x3 baja latencia con la real mas tarde (efg_retraso_lat4 de serie 0,25; efg_retraso_lat3 de serie -1)
+        double EfgPhaseLat34(int k) { return k >= 4 ? s.EfgPhaseLat4 : k == 3 ? s.EfgPhaseLat3 : -1; }
+        bool EfgLat34(int k) { return s.EfgPhase < 0 && s.EfgMode == 1 && EfgPhaseLat34(k) > 0 && (s.EfgPhaseLatD5 || !s.Nr || nrBroken); }
+
+        // ¿el instante de la real es el del modo (calidad (k-1)/k, latencia 0)? El ritmo por el contenido (EFGCAL) solo con esos
+        bool EfgPhaseOfMode(int k) { return s.EfgPhase < 0 && !EfgLat34(k); }
 
         string EfgBench()
         {

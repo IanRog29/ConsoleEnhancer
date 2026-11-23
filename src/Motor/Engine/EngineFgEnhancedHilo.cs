@@ -430,7 +430,7 @@ namespace ConsoleEnhancer.Motor
                 B = EfgAt(Clock.Now, need0 + s.EfgMarginMs);
             }
             // (1.3.1, ronda 8, EFGCAL) el ritmo por la hora del contenido y el hueco de verdad (EngineFgEnhancedRitmo.cs; efg_ritmo=0 = lo de abajo)
-            if (s.EfgRitmo > 0 && (k == 2 || s.EfgRitmo >= 2) && !stale && s.EfgPhase < 0)
+            if (s.EfgRitmo > 0 && (k == 2 || s.EfgRitmo >= 2) && !stale && EfgPhaseOfMode(k))   // (INTEGRA8: no con efg_retraso_lat4 / _lat3)
             {
                 bool done = nReal == k - 1 && nReal > 0 ? EfgDoJobRitmoCalidad(j, c, flow, hasPrev, k, step, readyMs, vs, sy, fl)
                           : nReal == 0 ? EfgDoJobRitmoLatencia(j, c, flow, hasPrev, k, step, readyMs, vs, sy, fl, B) : false;
