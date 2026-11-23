@@ -128,11 +128,12 @@ namespace ConsoleEnhancer.Motor
         {
             // ---- cuando no se juzga (y la calma de despues) ----
             bool espera = inStandby || noSignalScreen || nosigSilencio || lastCapture == 0 || Clock.SinceMs(lastCapture) > 1500;
-            if (espera) { escEraEspera = true; escN = 0; return; }
+            if (espera) { escEraEspera = true; escN = 0; if (inStandby) escPausa = false; return; }   // (el menu era del motor de antes del relevo)
             if (escEraEspera) { escEraEspera = false; EscCalma(3000); escSk0 = escGn0 = -1; }   // (recien despierto / vuelve la imagen)
             bool foco = !Program.FocusHold && Program.HasFocus();
             if (!foco) { escEraFoco = false; escN = 0; return; }
             if (!escEraFoco) { escEraFoco = true; EscCalma(2500); }                               // (relevo: delante y con el foco)
+            if (escPausa && Clock.SinceMs(escPausaAt) > 180000) { escPausa = false; Log.Write("Escalera: el menu de ajustes lleva 3 min abierto: se vuelve a vigilar"); }
             if (escPausa) { escN = 0; return; }
             if (escPausaAt != 0 && Clock.SinceMs(escPausaAt) < 2000) { escN = 0; return; }
             string clave = s.Mode + "|" + (s.Fg ? 1 : 0) + "|" + s.FgTipo + "|sm" + s.SmoothMode + "|efg" + (EfgWanted() ? s.Efg : 0) + "|" + inW + "x" + inH + "|" + outW + "x" + outH + "|nr" + (AdNrActivo ? 1 : 0);
