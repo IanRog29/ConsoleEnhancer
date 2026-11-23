@@ -20,7 +20,8 @@ namespace ConsoleEnhancer.Motor
     {
         public int SrVec = 0;
         public int SrVecRadius = 6, SrVecStep = 2, SrVecIter = 3;
-        public double SrVecMax = 1.5, SrVecGain = 0.7, SrVecLambda = 6e-5;
+        public double SrVecMax = 1.5, SrVecGain = 0.7, SrVecLambda = 6e-5, SrVecFloor = 0.75;
+        public bool SrVecEsm = true;
 
         bool ApplySrVec(string key, string val)
         {
@@ -33,6 +34,8 @@ namespace ConsoleEnhancer.Motor
                 case "sr_vec_max": SrVecMax = Math.Max(0.1, Math.Min(4, D(val))); return true;
                 case "sr_vec_ganancia": SrVecGain = Math.Max(0.1, Math.Min(1, D(val))); return true;
                 case "sr_vec_lambda": SrVecLambda = Math.Max(0, D(val)); return true;
+                case "sr_vec_suelo": SrVecFloor = Math.Max(0, D(val)); return true;
+                case "sr_vec_esm": SrVecEsm = B(val); return true;
             }
             return false;
         }
@@ -44,7 +47,7 @@ namespace ConsoleEnhancer.Motor
         ID3D12PipelineState psoSrVec;
 
         const string SrVecShader = @"
-cbuffer C : register(b0) { uint W, H, TW, TH; float MaxD, Gain, Lambda, P0; uint Iter, WinR, Step, P1; uint4 Pad; }
+cbuffer C : register(b0) { uint W, H, TW, TH; float MaxD, Gain, Lambda, Floor; uint Iter, WinR, Step, Esm; uint4 Pad; }
 Texture2D<float> Cur : register(t0);
 Texture2D<float> Prev : register(t1);
 Texture2D<float2> Mv : register(t2);
@@ -60,11 +63,7 @@ void main(uint3 id : SV_DispatchThreadID)
     if (id.x >= TW || id.y >= TH) return;
     int2 t0 = int2(id.xy) * 4;
     float2 v0 = MvAt(t0 + int2(2, 2));
-    bool uni = true;
-    [unroll] for (int j = 0; j < 4; j++)
-        [unroll] for (int i = 0; i < 4; i++) { float2 d = MvAt(t0 + int2(i, j)) - v0; if (abs(d.x) + abs(d.y) > 0.05) uni = false; }
     float2 best = v0;
-    if (uni)
     {
         float2 v = v0, inv = 1.0 / float2(W, H);
         float ssd0 = 0, bestSsd = 1e9;
@@ -83,13 +82,20 @@ void main(uint3 id : SV_DispatchThreadID)
                     float cc = LdC(q);
                     float gx = 0.5 * (LdC(q + int2(1, 0)) - LdC(q - int2(1, 0)));
                     float gy = 0.5 * (LdC(q + int2(0, 1)) - LdC(q - int2(0, 1)));
-                    float pp = Prev.SampleLevel(Lin, (float2(q) + 0.5 + v) * inv, 0);
+                    float2 uv = (float2(q) + 0.5 + v) * inv;
+                    float pp = Prev.SampleLevel(Lin, uv, 0);
+                    if (Esm)
+                    {
+                        // gradiente de las dos (ESM): converge antes y sin sesgo cuando la anterior aun esta corrida
+                        gx = 0.5 * gx + 0.25 * (Prev.SampleLevel(Lin, uv + float2(inv.x, 0), 0) - Prev.SampleLevel(Lin, uv - float2(inv.x, 0), 0));
+                        gy = 0.5 * gy + 0.25 * (Prev.SampleLevel(Lin, uv + float2(0, inv.y), 0) - Prev.SampleLevel(Lin, uv - float2(0, inv.y), 0));
+                    }
                     float rr = cc - pp;
                     e += rr * rr; bx += gx * rr; by += gy * rr;
                     hxx += gx * gx; hxy += gx * gy; hyy += gy * gy; n += 1;
                 }
             if (n < 8) break;
-            if (it == 0) ssd0 = e;
+            if (it == 0) { ssd0 = e; if (e <= Floor * n) break; }   // (ya casa: lo que queda es ruido o nada)
             if (e < bestSsd) { bestSsd = e; best = v; }
             if (it == Iter) break;
             float l = Lambda * n, a = hxx + l, dd = hyy + l, det = a * dd - hxy * hxy;
@@ -101,11 +107,16 @@ void main(uint3 id : SV_DispatchThreadID)
         }
         if (!(bestSsd < Gain * ssd0)) best = v0;
     }
+    // la correccion a los puntos de la casilla que llevan ese movimiento (los vectores por punto interpolados siguen igual de suaves); los
+    // de otro movimiento (la interfaz quieta, el borde del personaje) tal cual
+    float2 dv = best - v0;
     [unroll] for (int j2 = 0; j2 < 4; j2++)
         [unroll] for (int i2 = 0; i2 < 4; i2++)
         {
             int2 p = t0 + int2(i2, j2);
-            if (p.x < (int)W && p.y < (int)H) Out[p] = uni ? best : MvAt(p);
+            if (p.x >= (int)W || p.y >= (int)H) continue;
+            float2 m = MvAt(p), dm = m - v0;
+            Out[p] = abs(dm.x) + abs(dm.y) <= 0.5 ? m + dv : m;
         }
 }";
 
@@ -140,8 +151,8 @@ void main(uint3 id : SV_DispatchThreadID)
             Barrier(mvecSr, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.UNORDERED_ACCESS);
             for (int i = 0; i < 16; i++) c[i] = 0;
             c[0] = (uint)inW; c[1] = (uint)inH; c[2] = (uint)tw; c[3] = (uint)th;
-            c[4] = F((float)s.SrVecMax); c[5] = F((float)s.SrVecGain); c[6] = F((float)s.SrVecLambda);
-            c[8] = (uint)s.SrVecIter; c[9] = (uint)s.SrVecRadius; c[10] = (uint)s.SrVecStep;
+            c[4] = F((float)s.SrVecMax); c[5] = F((float)s.SrVecGain); c[6] = F((float)s.SrVecLambda); c[7] = F((float)(s.SrVecFloor / 255.0 * s.SrVecFloor / 255.0));
+            c[8] = (uint)s.SrVecIter; c[9] = (uint)s.SrVecRadius; c[10] = (uint)s.SrVecStep; c[11] = s.SrVecEsm ? 1u : 0u;
             BindCompute(psoSrVec, TSrVec + cur, c, 12);
             list.Dispatch(Groups(tw, 8), Groups(th, 8), 1);
             Barrier(mvecSr, D3D12_RESOURCE_STATES.UNORDERED_ACCESS, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE);

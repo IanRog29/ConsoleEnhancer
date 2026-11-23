@@ -110,6 +110,9 @@ namespace ConsoleEnhancer.Motor
         {
             double fx = (double)W4 / w, fy = (double)H4 / h;
             long dp = (long)dst;
+            // (23-11 DLSSSR: los parametros de la imagen una vez, no en cada muestra -ToWorld- : la misma cuenta, ~10 veces mas rapido)
+            double ps, pa, ptx, pty; Params(n, out ps, out pa, out ptx, out pty);
+            double pca = Math.Cos(pa), psa = Math.Sin(pa), pk = Pk;
             Parallel.For(0, h, delegate (int y)
             {
                 byte* row = (byte*)dp + (long)y * pitch;
@@ -121,7 +124,9 @@ namespace ConsoleEnhancer.Motor
                     for (int k = 0; k < 4; k++)
                     {
                         double X = (x + 0.25 + 0.5 * (k & 1)) * fx, Y = (y + 0.25 + 0.5 * (k >> 1)) * fy;
-                        double u, v; ToWorld(n, X, Y, out u, out v);
+                        double ddx = X - W4 / 2.0, ddy = Y - H4 / 2.0;
+                        double u = tw / 2.0 + ps * (pca * ddx - psa * ddy) + ptx * (1 + pk * ddy / H4);
+                        double v = th / 2.0 + ps * (psa * ddx + pca * ddy) + pty;
                         float b, g, r; Sample(u, v, out b, out g, out r);
                         sb += b; sg += g; sr += r;
                     }
