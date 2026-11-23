@@ -382,6 +382,7 @@ namespace ConsoleEnhancer
             return sb.ToString();
         }
         string ajFirma;
+        bool ajRefrescando;
 
         void AjustesRefrescar()
         {
@@ -389,8 +390,11 @@ namespace ConsoleEnhancer
             List<FilaAjuste> viejas = new List<FilaAjuste>(ajFilas);
             FilaAjuste foco = AjFilaFoco();
             string idFoco = foco != null ? foco.Id : null;
+            // (1.2.4 ronda 7, INTEGRA7: ajRefrescando = lo elegido sin aplicar en las filas con candado -smx4Quiere, efgQuiere- no vuelve a lo guardado)
+            ajRefrescando = true;
             try { AjustesModelo(); }
             catch (Exception ex) { Log.Error("Menu de ajustes: refrescar", ex); ajFilas.Clear(); ajFilas.AddRange(viejas); return; }
+            finally { ajRefrescando = false; }
             string firma = AjFirma(ajFilas, curGame);
             if (firma == ajFirma) { ajFilas.Clear(); ajFilas.AddRange(viejas); return; }   // (nada nuevo: sigue todo como estaba)
             // Lo cambiado en el menu sin aplicar se mantiene (si sigue siendo posible)
@@ -753,6 +757,7 @@ namespace ConsoleEnhancer
             FilaAjuste antes = f;
             int altasAntes = AjAltas(ajFilas);
             SmoothX4Tocada(f);   // (1.2.4 ronda 7, FGREAL: lo elegido en la fila x2 / x4 de Smooth Motion, SmoothX4.cs)
+            EfgTocada(f);   // (1.2.4 ronda 7, INTEGRA7: y en la de Enhanced FG, EnhancedFg.cs)
             AjustesDepende(false);
             // (si una fila deja de ser navegable, el foco sigue en la misma)
             List<FilaAjuste> nav = AjNavegables();

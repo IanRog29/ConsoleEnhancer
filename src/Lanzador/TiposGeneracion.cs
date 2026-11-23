@@ -75,6 +75,7 @@ namespace ConsoleEnhancer
             {
                 case "xess_fg_1080": XessFg1080 = val.Trim() != "0"; return true;
                 case "generacion_fsr3": FsrFgOfrecer = val.Trim() == "1"; return true;   // (1.2.4 ronda 7, FGREAL)
+                case "efg_multi_dlss5": EfgMultiDlss5 = val.Trim() == "1"; return true;   // (1.2.4 ronda 7, INTEGRA7: Enhanced FG x3 / x4 tambien con DLSS 5, EnhancedFg.cs)
             }
             return CeParseXefgm(key, val) || CeParseMultiFsr(key, val);   // (1.2.4 ronda 6, FGMULTI: motor_fsr_multi*, MultiFsr.cs)   // (motor_xefg_dlss5: XefgMotor.cs. 1.2.4 ronda 6: proteccion* -Proteccion.cs, la de Magpie- fuera, ClavesRetiradas)
         }

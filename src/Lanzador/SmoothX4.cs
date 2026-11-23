@@ -173,7 +173,7 @@ namespace ConsoleEnhancer
             string m = cfg.SmoothX4 ? "4" : "2";
             mul.Poner(new List<string> { "2", "4" }, new List<string> { "x2", "x4" }, m, m);
             mul.Visible = false;
-            smx4Quiere = m;
+            if (!ajRefrescando) smx4Quiere = m;   // (1.2.4 ronda 7, INTEGRA7: en un refresco del menu abierto, lo elegido sin aplicar se queda)
             return mul;
         }
 

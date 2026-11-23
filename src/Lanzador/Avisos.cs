@@ -139,6 +139,7 @@ namespace ConsoleEnhancer
             string r = "";
             if (t == "smooth") r = SmoothX4Falta;
             else if (t == "fsr3") r = FsrMulNoPorQue(true);
+            else if (t == "efg") r = EfgMultFalta(MotorD5Simple);   // (1.2.4 ronda 7, INTEGRA7)
             if (string.IsNullOrEmpty(r)) r = Tx.T("no puede ir ahora", "can't run now");
             // (las del menu empiezan en mayuscula y algunas por "x2 ...": aqui van detras de "x4 no: ")
             if (r.StartsWith("x2 ", StringComparison.Ordinal)) r = r.Substring(3);

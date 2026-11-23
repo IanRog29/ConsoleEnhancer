@@ -56,8 +56,17 @@ namespace ConsoleEnhancer
             }
         }
 
-        // El multiplicador que va: en el modo 30 el elegido; en el 60 x2 (3 x 59,94 no cabe en 120 Hz)
-        public int EfgMultNow { get { return CapMode && !Mode120 ? EfgMult : 2; } }
+        // El multiplicador que va: en el modo 30 el elegido; en el 60 x2 (3 x 59,94 no cabe en 120 Hz). (1.2.4 ronda 7, INTEGRA7: y con DLSS 5,
+        // x2: x3 / x4 con DLSS 5 no llegan -INTEGRA6 96,8 imagenes/s en vez de 120; la sesion del usuario del 23-11 90/s a 4K y 738 inventadas
+        // de 891 a 1440p; FGREAL 241 saltadas y 417 tarde en 60 s- y en la app entera con video real a 4K + DLSS 5 nivel 4 la grafica se colgo a
+        // los 22 s de x4 -DXGI_ERROR_DEVICE_HUNG, nvlddmkm 153; sin DLSS 5, x4 a 120/s parejas-. efg_multi_dlss5=1 lo deja probar)
+        public static volatile bool EfgMultiDlss5 = false;
+        public int EfgMultNow { get { return CapMode && !Mode120 && EfgMultFalta(MotorD5Simple).Length == 0 ? EfgMult : 2; } }
+        // Por que x3 / x4 no ("" = pueden ir), con DLSS 5 encendido o no (en el menu, el elegido en el menu)
+        public string EfgMultFalta(bool d5)
+        {
+            return d5 && !EfgMultiDlss5 ? Tx.T("con DLSS 5 va x2: la gráfica no llega (sin DLSS 5, x3 / x4)", "with DLSS 5 it runs x2: the GPU can't keep up (x3 / x4 without DLSS 5)") : "";
+        }
 
         public static bool EfgCaido { get { return motorGenCaida.Contains(" efg"); } }
         // (1.2.4 ronda 6, INTEGRA6: solo con la pantalla a 100 Hz o mas. A 60 Hz -x2 del modo 30 = 60/s con sincronizacion- se midio rota: la real
@@ -90,19 +99,34 @@ namespace ConsoleEnhancer
             string l = Config.EfgLow ? "1" : "0";
             lat.Poner(SiNo(), SiNoTxt(), l, l);
             mul.Visible = lat.Visible = false;
+            if (!ajRefrescando) efgQuiere = m;   // (1.2.4 ronda 7, INTEGRA7: al abrir el menu, lo guardado; en un refresco, lo elegido sin aplicar)
             return new[] { mul, lat };
         }
 
         // (AjustesDepende, tras el tipo) visibles con Enhanced FG elegido; el multiplicador solo en el modo 30 (en el 60, x2)
+        // (1.2.4 ronda 7, INTEGRA7) lo elegido en la fila del multiplicador (aunque con DLSS 5 se enseñe x2), como smx4Quiere
+        string efgQuiere = null;
+        void EfgTocada(FilaAjuste f) { if (f != null && f.Id == "efgmul") efgQuiere = f.Val; }
+
         void EfgDepende(string modoSel)
         {
-            FilaAjuste tipo = AjFila("tipo"), fg = AjFila("fg"), mul = AjFila("efgmul"), lat = AjFila("efglat");
+            FilaAjuste tipo = AjFila("tipo"), fg = AjFila("fg"), mul = AjFila("efgmul"), lat = AjFila("efglat"), d5 = AjFila("d5");
             if (mul == null || lat == null) return;
             bool on = tipo != null && tipo.Visible && tipo.Val == "efg" && modoSel != "120";
             bool fgSi = fg == null || fg.Val == "1";
             mul.Visible = lat.Visible = on;
             mul.Activa = on && fgSi && modoSel == "30";
-            mul.Nota = !on ? "" : modoSel != "30" ? Tx.T("x2 en el modo 60", "x2 in 60 fps mode") : !fgSi ? Tx.T("Con la generación encendida", "With frame generation on") : "";
+            // (1.2.4 ronda 7, INTEGRA7: con DLSS 5 elegido en el menu, x3 / x4 con candado y la fila enseña x2 -lo que va a ir- sin contar como
+            // cambio: lo guardado se queda y vuelve solo sin DLSS 5. Como Smooth Motion x4, SmoothX4.cs)
+            bool d5Sel = d5 != null && d5.Visible ? d5.Val == "1" : cfg.MotorD5Simple;
+            string no = cfg.EfgMultFalta(d5Sel && Integrado.Dlss5Available);
+            string guardado = Config.EfgMult.ToString(CultureInfo.InvariantCulture);
+            if (efgQuiere == null) efgQuiere = guardado;
+            mul.Bloq = new List<string> { "", no, no };
+            if (no.Length > 0) { mul.Sel = 0; mul.Orig = 0; }
+            else { mul.Sel = Math.Max(0, mul.Vals.IndexOf(efgQuiere)); mul.Orig = Math.Max(0, mul.Vals.IndexOf(guardado)); }
+            mul.Nota = !on ? "" : modoSel != "30" ? Tx.T("x2 en el modo 60", "x2 in 60 fps mode") : !fgSi ? Tx.T("Con la generación encendida", "With frame generation on") :
+                       no.Length > 0 ? (efgQuiere != "2" ? Tx.T("x" + efgQuiere + " vuelve cuando se pueda · ", "x" + efgQuiere + " comes back when possible · ") : "") + no.Substring(0, 1).ToUpperInvariant() + no.Substring(1) : "";
             lat.Activa = on && fgSi;
             lat.Nota = on && !fgSi ? Tx.T("Con la generación encendida", "With frame generation on") : "";
         }
@@ -111,6 +135,9 @@ namespace ConsoleEnhancer
         void EfgAplicar(Dictionary<string, string> e)
         {
             string a = AjVal(e, "efgmul"), b = AjVal(e, "efglat");
+            // (1.2.4 ronda 7, INTEGRA7: sin tocarla, nada: con DLSS 5 la fila enseña x2 pero lo guardado -x3 / x4- se queda)
+            FilaAjuste fm = AjFila("efgmul");
+            if (fm != null && !fm.Cambiada) a = null;
             if (a == null && b == null) return;
             int m = Config.EfgMult; bool low = Config.EfgLow;
             int n; if (a != null && int.TryParse(a, NumberStyles.Integer, CultureInfo.InvariantCulture, out n)) m = n;
