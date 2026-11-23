@@ -160,11 +160,15 @@ namespace ConsoleEnhancer.Motor.Audio
             int fails = 0;
             while (!Stop)
             {
+                long t0 = Clock.Now;
                 string err = RunDevice();
                 if (Stop) break;
+                if (Clock.SinceMs(t0) > 10000) fails = 0;   // (iba bien un rato: la cuenta de nuevo)
                 fails++;
                 LastError = err;
-                Log.Write("Sonido: la salida se ha parado (" + err + "): otra vez en " + (fails < 5 ? 500 : 2000) + " ms");
+                // (sin salida durante mucho rato -la tele apagada-: al log las 5 primeras y luego 1 de cada 30)
+                if (fails <= 5 || fails % 30 == 0)
+                    Log.Write("Sonido: la salida se ha parado (" + err + "): otra vez en " + (fails < 5 ? 500 : 2000) + " ms" + (fails == 5 ? " (siguen sin apuntarse hasta la 30)" : ""));
                 for (int i = 0; i < (fails < 5 ? 5 : 20) && !Stop; i++) Thread.Sleep(100);
             }
             if (mm != IntPtr.Zero) try { AvRevertMmThreadCharacteristics(mm); } catch { }
