@@ -77,7 +77,8 @@ namespace ConsoleEnhancer.Motor
         }
 
         // Toda la imagen copiada (oh filas de rowBytes; con NV12, detras sus filas de croma: una por cada fila copiada) a BGR0. A partir de
-        // ~1 millon de puntos (la entera de 1440p / 4K) en varios nucleos
+        // ~1 millon de puntos (la entera de 1440p / 4K) en 2-3 nucleos (no mas: la copia de cada imagen de la captura tambien va repartida, en
+        // la cola de trabajos). Medido (Ryzen 5 2600): la ligera de 1280x720 6 ms (en gris 1), la entera de 4K ~35-50 ms (en gris 15)
         public static void Image(byte* raw, int rowBytes, int fmt, int bpp, int ow, int oh, int step, byte* dst)
         {
             long r0 = (long)raw, d0 = (long)dst;
@@ -89,7 +90,7 @@ namespace ConsoleEnhancer.Motor
                     Row((byte*)(r0 + (long)y * rowBytes), nv12 ? (byte*)(uvBase + (long)y * rowBytes) : null, fmt, bpp, ow, step, (byte*)(d0 + (long)y * ow * 4));
                 return;
             }
-            int n = Math.Max(2, Math.Min(6, Environment.ProcessorCount / 2));
+            int n = Math.Max(2, Math.Min(3, Environment.ProcessorCount / 4));
             Parallel.For(0, n, delegate (int k)
             {
                 int y0 = oh * k / n, y1 = oh * (k + 1) / n;

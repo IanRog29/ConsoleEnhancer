@@ -91,13 +91,12 @@ Texto "$Destino\portable.txt" @(
     'Delete it to keep them in %LOCALAPPDATA%\ConsoleEnhancer (e.g. if the app folder cannot be written to).',
     'ConsoleEnhancer portable: con este fichero los datos (ajustes, log, juegos, calibracion) van en la carpeta data\ de aqui al lado.',
     'Borralo para guardarlos en %LOCALAPPDATA%\ConsoleEnhancer (p. ej. si la carpeta de la app no se puede escribir).')
-foreach ($f in @('ce_power.lua', 'ce_diag.lua', 'ce_standby.lua', 's2_aa.glsl', 's2_aa_strong.glsl', 'components.json')) { Poner "$Raiz\scripts\$f" "$Destino\scripts\$f" }
+# (23-11, 1.2.4 SINMPV: sin los lua ni los glsl de mpv: la imagen, las capturas y el sonido los hace el motor)
+foreach ($f in @('components.json')) { Poner "$Raiz\scripts\$f" "$Destino\scripts\$f" }
 Poner "$Raiz\resources\base.ini" "$Destino\resources\base.ini"
 # (1.2.0) el panel de ajustes (sustituye a "Inicio y apagado.bat"): como se usa el PC, apagado, DLSS 5, componentes, desinstalar
 Poner "$Raiz\bin\ConsoleEnhancer Settings.exe" "$Destino\ConsoleEnhancer Settings.exe"
 Get-ChildItem "$Raiz\languages" -File -Filter *.txt | ForEach-Object { Poner $_.FullName "$Destino\languages\$($_.Name)" }
-# (mpv\ solo con su portable_config\mpv.conf: mpv.exe lo baja la app la primera vez)
-Poner "$Raiz\resources\mpv.conf" "$Destino\mpv\portable_config\mpv.conf"
 
 # ---- el motor y las DLL de produccion de Streamline (firmadas por NVIDIA) ----
 Poner "$Raiz\bin\engine\ConsoleEnhancerEngine.exe" "$Destino\engine\ConsoleEnhancerEngine.exe"

@@ -2,7 +2,8 @@ ConsoleEnhancer - la app universal: cualquier consola, capturadora y grafica (18
 =========================================================================================================
 
 QUE ES
-Lo mismo que Prisma (Switch2Magpie + el motor Switch2Engine + Magpie + mpv), pero para cualquier PC: al abrirla por primera vez
+Lo mismo que Prisma (Switch2Magpie + el motor Switch2Engine + Magpie + mpv), pero para cualquier PC (23-11, 1.2.4: ya sin mpv, todo
+por el motor propio): al abrirla por primera vez
 detecta la grafica, la pantalla, la capturadora y los mandos, pregunta lo que no puede saber sola (asistente) y elige la cadena de
 imagen de ese PC. Es una COPIA aparte: Switch2Magpie y Switch2Engine no se tocan. Si Prisma esta abierto, ConsoleEnhancer no
 arranca (los dos usan la capturadora).
@@ -12,16 +13,17 @@ PAQUETE PARA REPARTIR (20-11, agente GITHUB: lo que se sube a GitHub Releases; v
   dist\ConsoleEnhancer-<version>.zip   lo mismo comprimido, 35 MB, y su .sha256 (scripts\empaquetar.ps1 -Zip -Version vX.Y.Z)
   Dentro: ConsoleEnhancer.exe (+ ConsoleEnhancer.exe.config, 20-11 FUSION: un fallo en un hilo no cierra la app), motor\
   (ConsoleEnhancerEngine.exe + las DLL de NVIDIA Streamline / DLSS / Reflex, firmadas), scripts\
-  (lua, glsl, componentes.json), recursos\base.ini, idiomas\en.txt, mpv\portable_config\mpv.conf, licencias\, extras\LEEME.txt,
+  (componentes.json; 1.2.4: sin los lua ni los glsl de mpv), recursos\base.ini, idiomas\en.txt, licencias\, extras\LEEME.txt,
   portable.txt, LEEME.txt.
-  NO lleva mpv ni Magpie: la app los baja la primera vez que se abre de sus releases oficiales (SHA-256 de scripts\componentes.json;
-  sin internet, con los zip en <app>\descargas\; src\Lanzador\Componentes.cs). Asi ConsoleEnhancer no reparte binarios GPL de otros
-  (ni el codigo fuente de FFmpeg que eso pediria) ni los de Magpie Experimental con DLL de NVIDIA / AMD / Intel. Tampoco lleva
+  NO lleva Magpie: la app lo baja la primera vez que se abre de sus releases oficiales (SHA-256 de scripts\componentes.json;
+  sin internet, con los zip en <app>\descargas\; src\Lanzador\Componentes.cs). Asi ConsoleEnhancer no reparte los binarios de Magpie
+  Experimental con DLL de NVIDIA / AMD / Intel. (1.2.4, SINMPV: mpv ya no hace falta ni se baja: la imagen, las capturas para la
+  deteccion, los telones, la sonda de la espera, las pruebas del asistente y el sonido -ConsoleEnhancerEngine.exe --audio- son del motor.) Tampoco lleva
   nvngx_dlssnr.dll ("DLSS 5", DLL de NVIDIA modificada y sin firma), runtimes\dlssg_sm86 (autofirmado), PrismaNr.dll, ningun ini ni
   datos de juegos de nadie. Requisitos: Windows 10 2004+, .NET Framework 4.8, Direct3D 12.
 
 PUBLICAR (20-11, agente PUBLICAR: https://github.com/IanRog29/ConsoleEnhancer, autor IanRog29)
-  - Bandeja: "Componentes: comprobar / volver a descargar" (estado de mpv y Magpie; --componentes-reparar los baja otra vez),
+  - Bandeja: "Componentes: comprobar / volver a descargar" (estado de lo que baja la app; --componentes-reparar lo baja otra vez),
     "Anadir DLSS 5 (tu propio archivo)..." / "Quitar DLSS 5" y "Apoyar el proyecto (Ko-fi)" (src\Lanzador\Extras.cs).
   - DLSS 5: el usuario elige SU nvngx_dlssnr.dll (y en RTX 30 su carpeta dlssg_sm86); se comprueba la cabecera PE (x64, DLL) y el
     nombre, aviso de no oficial, copia a <app>\extras\ (Ce.PrepararExtras la pasa a magpie\), y encender (juegos\dlss5_activo.txt);
@@ -44,7 +46,7 @@ COMO SE USA
     como en Prisma (con Mandos.cs, Consolas.cs consola=auto, Pasadas.cs, ColaSm.cs... de los demas agentes).
   - Pruebas sin consola: --asistente-auto (plan sin preguntar), --dry-run, --datos=<carpeta>, --simula=<caso> (plan de otro PC, con
     --asistente-auto), --ui-preview=asistente;<carpeta> (imagenes del asistente sin abrir nada), --ui-preview=componentes;<carpeta>
-    (la ventana del primer arranque que baja mpv/Magpie, en sus estados -inicial, comprobando, descargando, sacando, error, sin
+    (la ventana del primer arranque que baja los componentes, en sus estados -inicial, comprobando, descargando, sacando, error, sin
     internet-, es/en, sin red; 20-11 CE-UI: esa ventana ya se ajusta al contenido y no corta el texto).
 
 CADENA SEGUN LA GRAFICA (src\Deteccion\Plan.cs)

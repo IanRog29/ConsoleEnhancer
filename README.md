@@ -512,8 +512,8 @@ src\Lanzador\   the tray app (C# 5, WinForms): mpv, Magpie, the engine, controll
                 user extras (Add / Remove DLSS 5) and the support link (Extras.cs)
 src\Deteccion\  detection of GPU, displays, capture cards, audio and controllers; the picture plan; simulated PCs
 src\Motor\      the D3D12 image engine (capture, DLSS / XeSS / FSR, frame generation, Reflex, OSD)
-scripts\        mpv lua and glsl, components.json, descargar_dependencias.ps1, empaquetar.ps1
-resources\       base.ini (starting settings), mpv.conf (mpv portable_config), icon
+scripts\        components.json, descargar_dependencias.ps1, empaquetar.ps1
+resources\       base.ini (starting settings), icon
 languages\        en.txt (English on-screen texts)
 parches\        source code changes for Magpie (GPL-3.0), optional
 tests\          DeteccionTest
@@ -1032,8 +1032,8 @@ src\Lanzador\   la app de bandeja (C# 5, WinForms): mpv, Magpie, el motor, mando
                 extras del usuario (Añadir / Quitar DLSS 5) y el enlace de apoyo (Extras.cs)
 src\Deteccion\  detección de gráfica, pantallas, capturadoras, audio y mandos; el plan de imagen; PCs simulados
 src\Motor\      el motor de imagen D3D12 (captura, DLSS / XeSS / FSR, generación, Reflex, OSD)
-scripts\        lua y glsl de mpv, components.json, descargar_dependencias.ps1, empaquetar.ps1
-resources\       base.ini (ajustes de partida), mpv.conf (portable_config de mpv), icono
+scripts\        components.json, descargar_dependencias.ps1, empaquetar.ps1
+resources\       base.ini (ajustes de partida), icono
 languages\        en.txt (textos de pantalla en inglés)
 parches\        cambios de código fuente para Magpie (GPL-3.0), opcionales
 tests\          DeteccionTest

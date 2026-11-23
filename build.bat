@@ -30,8 +30,6 @@ copy /y resources\base.ini bin\resources\ >nul
 rem (20-11, CIERRES) un fallo en un hilo secundario no cierra la app (legacyUnhandledExceptionPolicy): junto al exe
 copy /y resources\ConsoleEnhancer.exe.config bin\ >nul
 copy /y languages\*.txt bin\languages\ >nul
-copy /y scripts\*.lua bin\scripts\ >nul
-copy /y scripts\*.glsl bin\scripts\ >nul
 copy /y scripts\components.json bin\scripts\ >nul
 if not exist bin\mpv if exist terceros\mpv\mpv.exe mklink /J bin\mpv terceros\mpv >nul
 if not exist bin\magpie if exist terceros\magpie\Magpie.exe mklink /J bin\magpie terceros\magpie >nul

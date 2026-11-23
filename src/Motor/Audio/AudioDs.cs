@@ -316,6 +316,35 @@ namespace ConsoleEnhancer.Motor.Audio
                     if (ok) { fmts = sb.ToString(); return pmt; }
                     DsApi.DeleteMediaType(pmt);
                 }
+                // Sin uno exacto (ffmpeg fallaria aqui): un formato de la lista cuyos margenes (AUDIO_STREAM_CONFIG_CAPS) admitan lo pedido, con
+                // esos valores puestos (otras capturadoras dan un formato y sus margenes en vez de la lista entera)
+                for (int i = 0; i < n && i < 256 && Rate > 0 && Bits > 0 && Channels > 0; i++)
+                {
+                    IntPtr pmt;
+                    if (sc.GetStreamCaps(i, out pmt, scc) < 0 || pmt == IntPtr.Zero) continue;
+                    AM_MEDIA_TYPE mt = (AM_MEDIA_TYPE)Marshal.PtrToStructure(pmt, typeof(AM_MEDIA_TYPE));
+                    bool ok = mt.majortype == MEDIATYPE_Audio && mt.formattype == FORMAT_WaveFormatEx && mt.pbFormat != IntPtr.Zero && mt.cbFormat >= 16 && sz >= 52;
+                    if (ok)
+                    {
+                        int chMin = Marshal.ReadInt32(scc, 16), chMax = Marshal.ReadInt32(scc, 20), bMin = Marshal.ReadInt32(scc, 28), bMax = Marshal.ReadInt32(scc, 32);
+                        int rMin = Marshal.ReadInt32(scc, 40), rMax = Marshal.ReadInt32(scc, 44);
+                        ok = Channels >= chMin && Channels <= chMax && Bits >= bMin && Bits <= bMax && Rate >= rMin && Rate <= rMax;
+                        int tag = (ushort)Marshal.ReadInt16(mt.pbFormat, 0);
+                        if (ok && (tag == 1 || (tag == 0xFFFE && mt.cbFormat >= 40)))
+                        {
+                            int align = Channels * Bits / 8;
+                            Marshal.WriteInt16(mt.pbFormat, 2, (short)Channels); Marshal.WriteInt32(mt.pbFormat, 4, Rate);
+                            Marshal.WriteInt32(mt.pbFormat, 8, Rate * align); Marshal.WriteInt16(mt.pbFormat, 12, (short)align);
+                            Marshal.WriteInt16(mt.pbFormat, 14, (short)Bits);
+                            if (tag == 0xFFFE) { Marshal.WriteInt16(mt.pbFormat, 18, (short)Bits); Marshal.WriteInt32(mt.pbFormat, 20, Channels >= 8 ? 0x63F : Channels == 2 ? 3 : 4); }
+                            mt.lSampleSize = (uint)align;
+                            Marshal.StructureToPtr(mt, pmt, false);
+                            fmts = sb.ToString() + " (con margenes: " + rMin + "-" + rMax + " Hz, " + bMin + "-" + bMax + " bits, " + chMin + "-" + chMax + " canales)";
+                            return pmt;
+                        }
+                    }
+                    DsApi.DeleteMediaType(pmt);
+                }
             }
             finally { Marshal.FreeHGlobal(scc); }
             fmts = sb.ToString();
