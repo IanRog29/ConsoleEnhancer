@@ -156,12 +156,6 @@ namespace ConsoleEnhancer.Motor
             if (efgReady) return;
             long t0 = Clock.Now;
             EfgPsos();
-            psoEfgDown = Pso(CompileCs("efg_down", EfgShaders.Down));
-            psoEfgFlow = Pso(CompileCs("efg_flujo", EfgShaders.Flow));
-            psoEfgProp = Pso(CompileCs("efg_apoyo", EfgShaders.Prop));
-            psoEfgStill = Pso(CompileCs("efg_quieto", EfgShaders.Still));
-            psoEfgCut = Pso(CompileCs("efg_corte", EfgShaders.Cut));
-            psoEfgSel = Pso(CompileCs("efg_eleccion", EfgShaders.Sel));
             int W = outW, H = outH;
             efgLw[0] = (W + 1) / 2; efgLh[0] = (H + 1) / 2;
             for (int l = 1; l < 4; l++) { efgLw[l] = (efgLw[l - 1] + 1) / 2; efgLh[l] = (efgLh[l - 1] + 1) / 2; }
@@ -251,14 +245,16 @@ namespace ConsoleEnhancer.Motor
         void EfgPsos()
         {
             if (psoEfgFin != null) return;
-            psoEfgLuma = Pso(CompileCs("efg_luma", EfgShaders.Luma));
-            psoEfgDown = Pso(CompileCs("efg_down", EfgShaders.Down));
-            psoEfgFlow = Pso(CompileCs("efg_flujo", EfgShaders.Flow));
-            psoEfgProp = Pso(CompileCs("efg_apoyo", EfgShaders.Prop));
-            psoEfgStill = Pso(CompileCs("efg_quieto", EfgShaders.Still));
-            psoEfgCut = Pso(CompileCs("efg_corte", EfgShaders.Cut));
-            psoEfgSel = Pso(CompileCs("efg_eleccion", EfgShaders.Sel));
-            psoEfgFin = Pso(CompileCs("efg_inventada", EfgShaders.Fin));
+            // (1.2.4 ronda 6, INTEGRA6: los 8 a la vez. Sin la cache -la primera vez, o tras una version nueva- uno tras otro tardaban ~21 s en
+            // compilarse y el motor escondido del relevo no llegaba a tiempo: 28 s de telon en negro al elegir Enhanced FG, sesion a2 del 23-11)
+            long t0 = Clock.Now;
+            string[] nm = { "efg_luma", "efg_down", "efg_flujo", "efg_apoyo", "efg_quieto", "efg_corte", "efg_eleccion", "efg_inventada" };
+            string[] src = { EfgShaders.Luma, EfgShaders.Down, EfgShaders.Flow, EfgShaders.Prop, EfgShaders.Still, EfgShaders.Cut, EfgShaders.Sel, EfgShaders.Fin };
+            byte[][] cs = new byte[nm.Length][];
+            System.Threading.Tasks.Parallel.For(0, nm.Length, delegate (int i) { cs[i] = CompileCs(nm[i], src[i]); });
+            psoEfgLuma = Pso(cs[0]); psoEfgDown = Pso(cs[1]); psoEfgFlow = Pso(cs[2]); psoEfgProp = Pso(cs[3]);
+            psoEfgStill = Pso(cs[4]); psoEfgCut = Pso(cs[5]); psoEfgSel = Pso(cs[6]); psoEfgFin = Pso(cs[7]);
+            Log.Write("Enhanced FG: shaders (" + Clock.SinceMs(t0).ToString("0", IC) + " ms)");
         }
 
         string EfgModeName()

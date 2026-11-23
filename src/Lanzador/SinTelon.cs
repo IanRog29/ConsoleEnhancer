@@ -457,7 +457,9 @@ namespace ConsoleEnhancer
                 SetStandby(e, ipc, false);
                 StandbyLaunchEnd(); // (ya es el motor en espera: los demas lo ven)
                 Stopwatch sw = Stopwatch.StartNew();
-                while (!userExit && standbyEngine == e && !e.HasExited && !standbyReady && sw.ElapsedMilliseconds < 20000) Thread.Sleep(30);
+                // (1.2.4 ronda 6, INTEGRA6: 45 s en vez de 20. El motor de ahora sigue a la vista mientras; uno con una generacion nueva -FSR FG x3 / x4,
+                // Enhanced FG- compila sus shaders la primera vez y con 20 s se daba por perdido: telon en negro de ~28 s)
+                while (!userExit && standbyEngine == e && !e.HasExited && !standbyReady && sw.ElapsedMilliseconds < 45000) Thread.Sleep(30);
                 if (e.HasExited || standbyEngine != e || !standbyReady)
                 {
                     Log.Write("Sin telon: el motor en espera no esta listo a tiempo (" + sw.ElapsedMilliseconds + " ms" + (e.HasExited ? ", cerrado" : "") + ")");

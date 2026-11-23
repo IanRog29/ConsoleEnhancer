@@ -90,6 +90,15 @@ namespace ConsoleEnhancer
             string s = Regex.Replace(live, "(^| )fg=[0-9]+( |$)", "$1fg=" + fg + "$2");
             s = Regex.Replace(s, " fg_mult=[0-9]+", "");
             s = Regex.Replace(s, " fg_propia=[0-9]+", (mult != null ? " fg_mult=" + mult : "") + " fg_propia=" + prop);
+            // (1.2.4 ronda 6, INTEGRA6: y las de las generaciones propias del motor, Enhanced FG -efg, efg_modo- y FSR FG x3 / x4 -fsrfg_multi-,
+            // las que ya llevaba: 'live' es la de la identidad nueva y le mandaba efg=2 a un motor de FSR FG x4 -dos hilos de presentacion en la
+            // misma cadena: 15 s colgado y 31 s en negro, sesion a1 del 23-11 10:53-; nunca otra distinta)
+            foreach (string k in new[] { "efg", "efg_modo", "fsrfg_multi" })
+            {
+                Match ma = Regex.Match(antes, "(?:^| )" + k + "=([^ ]*)");
+                s = Regex.Replace(s, " " + k + "=[^ ]*", "");
+                if (ma.Success) s += " " + k + "=" + ma.Groups[1].Value;
+            }
             return s;
         }
 
@@ -98,7 +107,9 @@ namespace ConsoleEnhancer
             string s = Regex.Replace(live, "(^| )fg=1( |$)", "$1fg=0$2");
             s = Regex.Replace(s, " fg_propia=[0-9]+", " fg_propia=0");
             s = Regex.Replace(s, " fg_mult=[0-9]+", "");
-            return s;
+            // (1.2.4 ronda 6, INTEGRA6: tambien sin Enhanced FG ni FSR FG x3 / x4)
+            s = Regex.Replace(s, " (efg|efg_modo|fsrfg_multi)=[^ ]*", "");
+            return s + " efg=0 fsrfg_multi=0";
         }
 
         // RestartLs (menu de ajustes, L3, perfiles) con el motor delante: si lo nuevo pide otra identidad, el relevo ya (sin esperar a la
