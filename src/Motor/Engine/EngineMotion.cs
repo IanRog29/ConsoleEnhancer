@@ -82,8 +82,9 @@ namespace ConsoleEnhancer.Motor
         public double MotionGpuHint;
 
         // ---- 16-11 (calidad): tablas propias detras de las del motor (Engine.cs: TablesCount = TQBase + TQCount)
-        const int TQBase = 25, TQBlock = TQBase, TQExpand = TQBase + 1 /* + juego de luma */, TQUi = TQBase + 3 /* + juego */, TQUiOut = TQBase + 5, TQMvSr = TQBase + 6, TQCount = 7;
-        ID3D12PipelineState psoMvBlock, psoMvExpandQ, psoUiMask, psoUiOut, psoMvSr;
+        // (1.2.4 ronda 6, QUITAFG: las tablas TQBase + 3..5 eran de fgui -la interfaz quieta para DLSS-G-: quedan sin usar, para no mover las demas)
+        const int TQBase = 25, TQBlock = TQBase, TQExpand = TQBase + 1 /* + juego de luma */, TQMvSr = TQBase + 6, TQCount = 7;
+        ID3D12PipelineState psoMvBlock, psoMvExpandQ, psoMvSr;
         // mvmask_modo=1: la mascara va en los vectores que ve DLSS SR (fuera de la imagen = sin historia, en cualquier modelo; la
         // pista BiasCurrentColorHint solo la usa el modelo F segun la guia de DLSS 310.4+), DLSS-G sigue con los de verdad
         ID3D12Resource mvecSr;
@@ -93,14 +94,9 @@ namespace ConsoleEnhancer.Motor
         ID3D12Resource blockMask;   // por bloque: r = vector dudoso, g = borde quieto/movimiento, b = quieto N imagenes
         ID3D12Resource blockStill;  // R32 por bloque: imagenes seguidas sin cambiar (para b)
         ID3D12Resource biasMask;    // R8 a la resolucion de entrada: 1 = DLSS sin historia
-        ID3D12Resource uiMaskIn;    // R8 a la resolucion de entrada: 1 = interfaz quieta (para la generacion)
-        ID3D12Resource stillCount;  // R32 por punto: imagenes seguidas sin cambiar
-        ID3D12Resource uiAlpha, uiColor;   // a la resolucion de salida (lo que se etiqueta para DLSS-G)
         bool biasValid;             // la mascara de DLSS es de esta imagen
-        bool uiValid;               // la de interfaz es de la imagen que se pinta
-        int fgUiApplied;            // fgui/fgui_recomp con los que se configuro la generacion
 
-        bool QualityMotion { get { return s.MvMask > 0 || MvPxNow || (s.FgUi > 0 && fgApplied) || s.MvCapas; } }   // (17-11, REJAS: mvcapas usa blockInfo) (1.2.4: fgui solo con DLSS-G)
+        bool QualityMotion { get { return s.MvMask > 0 || MvPxNow || s.MvCapas; } }   // (17-11, REJAS: mvcapas usa blockInfo) (1.2.4 ronda 6: fuera fgui, era de DLSS-G)
 
         // 16-11 (E, tirones a 1440p): mvpx solo por debajo de 1440p cuando hay generacion en el modo 60 (mvpx_auto=1, de serie). Medido a
         // 1440p con K: los vectores 2,37 ms con mvpx y 1,26 sin (+1,1 ms, no los 0,45 de arriba), y con la generacion de NVIDIA no cabia
@@ -191,8 +187,6 @@ namespace ConsoleEnhancer.Motor
             if (blockInfo != null) Com.Release(ref blockInfo);
             if (blockMask != null) Com.Release(ref blockMask);
             if (biasMask != null) Com.Release(ref biasMask);
-            if (uiMaskIn != null) Com.Release(ref uiMaskIn);
-            if (stillCount != null) Com.Release(ref stillCount);
             if (blockStill != null) Com.Release(ref blockStill);
             if (mvecSr != null) Com.Release(ref mvecSr);
             mvecSr = Tex(DXGI_FORMAT.R16G16_FLOAT, w, h, true, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, "movimiento para DLSS SR");
@@ -201,9 +195,7 @@ namespace ConsoleEnhancer.Motor
             blockMask = Tex(DXGI_FORMAT.R8G8B8A8_UNORM, bx[0], by[0], true, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, "bloques mascara");
             blockStill = Tex(DXGI_FORMAT.R32_UINT, bx[0], by[0], true, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, "bloques quietos");
             biasMask = Tex(DXGI_FORMAT.R8_UNORM, w, h, true, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, "mascara sin historia");
-            uiMaskIn = Tex(DXGI_FORMAT.R8_UNORM, w, h, true, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, "interfaz quieta");
-            stillCount = Tex(DXGI_FORMAT.R32_UINT, w, h, true, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, "imagenes quieto");
-            biasValid = uiValid = false;
+            biasValid = false;
 
             for (int st = 0; st < 2; st++)
                 for (int k = 0; k < Levels; k++)
@@ -231,22 +223,15 @@ namespace ConsoleEnhancer.Motor
             UavTex(TQBlock, U0 + 1, blockStill, DXGI_FORMAT.R32_UINT);
             for (int st = 0; st < 2; st++)
             {
-                int te = TQExpand + st, tu = TQUi + st;
-                NullViews(te); NullViews(tu);
+                int te = TQExpand + st;
+                NullViews(te);
                 SrvTex(te, 0, mvLevel[0], DXGI_FORMAT.R16G16_FLOAT);
                 SrvTex(te, 1, blockMask, DXGI_FORMAT.R8G8B8A8_UNORM);
                 SrvTex(te, 2, luma[st, 0], DXGI_FORMAT.R8_UNORM);
                 SrvTex(te, 3, luma[1 - st, 0], DXGI_FORMAT.R8_UNORM);
                 UavTex(te, U0, mvec, DXGI_FORMAT.R16G16_FLOAT);
                 UavTex(te, U0 + 1, biasMask, DXGI_FORMAT.R8_UNORM);
-                SrvTex(tu, 0, luma[st, 0], DXGI_FORMAT.R8_UNORM);
-                SrvTex(tu, 1, luma[1 - st, 0], DXGI_FORMAT.R8_UNORM);
-                SrvTex(tu, 2, mvLevel[0], DXGI_FORMAT.R16G16_FLOAT);
-                SrvTex(tu, 3, blockInfo, DXGI_FORMAT.R16G16B16A16_FLOAT);
-                UavTex(tu, U0, uiMaskIn, DXGI_FORMAT.R8_UNORM);
-                UavTex(tu, U0 + 1, stillCount, DXGI_FORMAT.R32_UINT);
             }
-            UiOutViews();
             NullViews(TQMvSr);
             SrvTex(TQMvSr, 0, mvec, DXGI_FORMAT.R16G16_FLOAT);
             SrvTex(TQMvSr, 1, biasMask, DXGI_FORMAT.R8_UNORM);
@@ -263,8 +248,6 @@ namespace ConsoleEnhancer.Motor
             long t = Clock.Now;
             psoMvBlock = Pso(CompileCs("mvblock", QShaders.MvBlock));
             psoMvExpandQ = Pso(CompileCs("mvexpandq", QShaders.MvExpandQ));
-            psoUiMask = Pso(CompileCs("uimask", QShaders.UiMask));
-            psoUiOut = Pso(CompileCs("uiout", QShaders.UiOut));
             psoMvSr = Pso(CompileCs("mvsr", QShaders.MvSr));
             Log.Write("Calidad: shaders de mascaras y vectores por punto (" + Clock.SinceMs(t).ToString("0") + " ms)");
         }
@@ -314,7 +297,7 @@ namespace ConsoleEnhancer.Motor
             // solo con DLSS o DLSS-G: XeSS y FSR reescalaban con los vectores a 0 (medido: el volcado de mvec, todo 0 en un paneo) y lo que se
             // mueve dejaba rastro y se emborronaba; FSR 3 FG generaba sin vectores. mvsr_xess_ffx=0 = como antes
             bool srTemporal = (inW != outW || inH != outH) && (scalerNow == "dlss" || (s.MvXessFfx && (scalerNow == "xess" || scalerNow == "ffx")));
-            bool on = s.Motion && newFrame && (srTemporal || fgApplied || (s.MvXessFfx && ExtFgOn) || (s.MvNativeNr && s.Nr && s.Mode == 30) || FpWanted());   // (22-11, 1.2.4 DLSS5LEGAL: + la generacion propia, EngineFgPropia.cs)   // (1.0.5: mv_nativo_dlss5, DLSS 5 a 4K nativo sin FG)
+            bool on = s.Motion && newFrame && (srTemporal || fgApplied || (s.MvXessFfx && ExtFgOn) || (s.MvNativeNr && s.Nr && s.Mode == 30));   // (1.2.4 ronda 6, QUITAFG: fuera la generacion propia, EngineFgPropia.cs)   // (1.0.5: mv_nativo_dlss5, DLSS 5 a 4K nativo sin FG)
             // 22-11 (1.2.1): si solo los usa la generacion con el vector de la camara (fg_global, EngineFgGlobal.cs) y nadie mas los vectores
             // por bloque (4K nativo sin DLSS 5, o un escalador espacial), sin la busqueda por bloques: solo la piramide de luma. Medido a 4K,
             // modo 30 + DLSS-G (3 pasadas de cada, grafica compartida): grafica por imagen real 9,1 -> 7,1 ms, la seccion de vectores 5,5 ->
@@ -386,7 +369,6 @@ namespace ConsoleEnhancer.Motor
             else if (!newFrame) { } // la misma imagen: la piramide no cambia
             quality = quality && on;
             biasValid = false;
-            if (newFrame) uiValid = false;   // imagen nueva: la interfaz vale si se rehace abajo (no en un corte ni sin movimiento)
             if (on && onlyCam)
             {
                 // 22-11 (1.2.1): la generacion con el vector de la camara (y lo quieto a 0) de las dos piramides; mvec no lo lee nadie
@@ -451,8 +433,6 @@ namespace ConsoleEnhancer.Motor
             if (on) RecordTruth(cur, c);   // 17-11 (REJAS): mvverdad (prueba con test=paralaje)
             Barrier(mvec, D3D12_RESOURCE_STATES.UNORDERED_ACCESS, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE);
             if (!fgVecDone) RecordFgVec(on, cur);   // 17-11 13:40 (REJAS): fg_vectores=2|3 (20-11 DLSS5VEC2: si no se hizo ya con los ligeros)
-            RecordFgFill(cur, on);   // 21-11 (FG21): fg_relleno, lo liso a 0 que se mueve (EngineFgRelleno.cs)
-            RecordFgGuard(on);   // 21-11 (BORDE): fg_borde, a 0 en los bordes de movimiento (EngineFgBorde.cs)
             fgVecDone = false;
             if (on) RecordFgDepth(cur);   // 17-11 15:20: fg_profundidad
             mvecDirty = on;
@@ -469,37 +449,17 @@ namespace ConsoleEnhancer.Motor
                 srVecValid = true;
             }
 
-            // 16-11 (calidad): interfaz quieta para la generacion
-            if (quality && s.FgUi > 0 && fgApplied)
-            {
-                Barrier(uiMaskIn, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.UNORDERED_ACCESS);
-                Barrier(stillCount, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.UNORDERED_ACCESS);
-                for (int i = 0; i < 16; i++) c[i] = 0;
-                c[0] = (uint)inW; c[1] = (uint)inH; c[2] = (uint)bx[0]; c[3] = (uint)by[0];
-                c[4] = (uint)Math.Max(1, s.FgUiFrames); c[5] = s.FgUiSticky ? 1u : 0u;   // (1.2.4 ronda 5, FGCAL: fgui_pegada)
-                c[8] = F(2.5f / 255f); c[9] = F((float)s.FgUiEdge); c[10] = F((float)s.FgUiMov);
-                BindCompute(psoUiMask, TQUi + cur, c, 12);
-                list.Dispatch(Groups(inW, 16), Groups(inH, 8), 1);
-                Barrier(uiMaskIn, D3D12_RESOURCE_STATES.UNORDERED_ACCESS, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE);
-                Barrier(stillCount, D3D12_RESOURCE_STATES.UNORDERED_ACCESS, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE);
-                uiValid = true;
-            }
             QStampEnd(on);
             if (on && s.MvLog) MotionReadback();
         }
 
         // =============================================================================================== 16-11 (calidad): etiquetas
-        // Desde el pintado (Engine.cs), con las demas etiquetas de la imagen: la mascara sin historia para DLSS SR y la interfaz para DLSS-G
+        // Desde el pintado (Engine.cs), con las demas etiquetas de la imagen: la mascara sin historia para DLSS SR (1.2.4 ronda 6: fuera la
+        // interfaz para DLSS-G, fgui)
         void AddQualityTags(SlExtent inExt, SlExtent outExt, bool dlss)
         {
             if (dlss && biasValid && biasMask != null && s.MvMaskMode == 0)
                 tags.Add(SlBufferType.BiasCurrentColorHint, Com.BorrowPtr(biasMask, typeof(ID3D12Resource)), (uint)D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, SlResourceLifecycle.eValidUntilEvaluate, inExt);
-            ID3D12Resource ui = UiTarget;
-            if (fgApplied && s.FgUi > 0 && uiValid && ui != null)
-            {
-                SlBufferType t = s.FgUi == 2 || s.FgUi == 5 ? SlBufferType.UIColorAndAlpha : s.FgUi == 3 ? SlBufferType.NoWarpMask : SlBufferType.UIAlpha;
-                tags.Add(t, Com.BorrowPtr(ui, typeof(ID3D12Resource)), (uint)D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, SlResourceLifecycle.eValidUntilPresent, outExt);
-            }
         }
 
         // La evaluacion de DLSS SR (Engine.cs): con mvmask_modo=1, sus vectores (los de la mascara) como etiqueta local
@@ -516,51 +476,6 @@ namespace ConsoleEnhancer.Motor
             if (dOver)
                 localTags.Add(SlBufferType.Depth, Com.BorrowPtr(depth, typeof(ID3D12Resource)), (uint)D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, SlResourceLifecycle.eValidUntilPresent, inExt);
             return Sl.EvaluateFeature(SlFeature.DLSS, token, vp, cl, localTags);
-        }
-
-        ID3D12Resource UiTarget { get { return s.FgUi == 2 || s.FgUi == 5 ? uiColor : s.FgUi == 4 ? null : s.FgUi > 0 ? uiAlpha : null; } }
-
-        // Formato de la interfaz para DLSSGOptions.uiBufferFormat (0 = sin interfaz)
-        uint UiBufferFormat() { return s.FgUi == 2 || s.FgUi == 5 ? (uint)ColorFmt : s.FgUi == 4 ? 0u : s.FgUi > 0 ? (uint)DXGI_FORMAT.R8_UNORM : 0u; }
-        int FgUiKey() { return s.FgUi * 10 + (s.FgUiRecomp ? 1 : 0) + (s.FgMenus ? 100 : 0); }
-
-        void UiOutViews()
-        {
-            NullViews(TQUiOut);
-            if (uiMaskIn != null) SrvTex(TQUiOut, 0, uiMaskIn, DXGI_FORMAT.R8_UNORM);
-            if (final != null) SrvTex(TQUiOut, 1, final, ColorFmt);
-            if (uiColor != null) UavTex(TQUiOut, U0, uiColor, ColorFmt);
-            if (uiAlpha != null) UavTex(TQUiOut, U0 + 1, uiAlpha, DXGI_FORMAT.R8_UNORM);
-        }
-
-        // Despues del CAS ('final' en COPY_SOURCE): la interfaz a la resolucion de salida, para la generacion de esta imagen
-        void RecordUiOut()
-        {
-            if (!(fgApplied && s.FgUi > 0 && uiValid) || psoUiOut == null) return;
-            if (s.FgUi >= 4) { RecordHudless(); return; }   // 1.2.4 (DLSSFG): la imagen sin la interfaz quieta (EngineFgHud.cs)
-            bool color = s.FgUi == 2;
-            if ((color && uiColor == null) || (!color && uiAlpha == null))
-            {
-                // Se crean una vez (la salida no cambia de tamaño) y no se sueltan: Streamline las retiene hasta su Present
-                if (color) uiColor = Tex(ColorFmt, outW, outH, true, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, "interfaz (color y alfa)");
-                else uiAlpha = Tex(DXGI_FORMAT.R8_UNORM, outW, outH, true, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, "interfaz (alfa)");
-                UiOutViews();
-            }
-            ID3D12Resource t = color ? uiColor : uiAlpha;
-            uint* c = stackalloc uint[16];
-            QStamp(2);
-            if (color) Barrier(final, D3D12_RESOURCE_STATES.COPY_SOURCE, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE);
-            Barrier(t, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.UNORDERED_ACCESS);
-            for (int i = 0; i < 16; i++) c[i] = 0;
-            c[0] = (uint)outW; c[1] = (uint)outH; c[2] = color ? 1u : 0u;
-            c[4] = F(1f / outW); c[5] = F(1f / outH);
-            BindCompute(psoUiOut, TQUiOut, c, 8);
-            list.Dispatch(Groups(outW, 16), Groups(outH, 8), 1);
-            Barrier(t, D3D12_RESOURCE_STATES.UNORDERED_ACCESS, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE);
-            if (color) Barrier(final, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.COPY_SOURCE);
-            QStamp(3);
-            QResolve(2);
-            qMaskQ[qCur] |= 2;
         }
 
         // =============================================================================================== 16-11 (calidad): tiempos de GPU
@@ -642,7 +557,6 @@ namespace ConsoleEnhancer.Motor
             if (s.MvMask > 0) r += "mvmask" + s.MvMask + ((s.MvMask & 2) != 0 ? "/lados" + s.MvMaskSides : "") + ((s.MvMask & 4) != 0 ? "/quieto" + s.MvMaskStill : "") + (s.MvMaskMode == 1 ? "/vectores" : "") + " ";
             if (s.MvZeroBias != 0.03 || s.MvNoise > 0) r += "sesgo" + s.MvZeroBias.ToString("0.00", CultureInfo.InvariantCulture) + "/ruido" + s.MvNoise.ToString("0.0", CultureInfo.InvariantCulture) + " ";
             if (s.MvExact > 0) r += "exacto" + s.MvExact.ToString("0.00", CultureInfo.InvariantCulture) + " ";
-            if (s.FgUi > 0) r += "fgui" + s.FgUi + (s.FgUiRecomp ? "+recomp" : "") + " ";
             if (s.MvTemporal) r += "temporal ";   // 17-11 (REJAS)
             if (s.MvCons > 0) r += "consenso" + s.MvCons.ToString("0.0", CultureInfo.InvariantCulture) + (s.MvConsAxis ? "+eje" : "") + " ";
             if (s.MvCapas) r += "capas ";
@@ -864,60 +778,6 @@ void main(uint3 id : SV_DispatchThreadID)
     }
 }";
 
-        // Lo que la generacion (DLSS-G) no debe deformar: puntos quietos NStill imagenes seguidas (|dif| < Tdiff en el punto y sus 4
-        // vecinos) con borde (rango de luma en 13 puntos alrededor > Tedge: texto, iconos, marcos) mientras la escena se mueve (de
-        // una rejilla de 16x8 bloques de toda la imagen, los que tienen textura: fraccion que se mueve >= Fmov; cada grupo la cuenta)
-        // c0: ancho, alto, bloques x/y | c1: NStill | c2 (float): Tdiff, Tedge, Fmov
-        public const string UiMask = @"
-cbuffer C : register(b0) { uint W, H, BX, BY; uint NStill, P0, P1, P2; float Tdiff, Tedge, Fmov, P3; uint4 Pad3; }
-Texture2D<float> Cur : register(t0);
-Texture2D<float> Prev : register(t1);
-Texture2D<float2> Blocks : register(t2);
-Texture2D<float4> Inf : register(t3);
-RWTexture2D<unorm float> Ui : register(u0);
-RWTexture2D<uint> Still : register(u1);
-
-groupshared uint gMov, gTex;
-
-float Lc(int2 q) { return Cur.Load(int3(clamp(q, int2(0, 0), int2(W - 1, H - 1)), 0)); }
-float Dq(int2 q) { q = clamp(q, int2(0, 0), int2(W - 1, H - 1)); return abs(Cur.Load(int3(q, 0)) - Prev.Load(int3(q, 0))); }
-
-[numthreads(16, 8, 1)]
-void main(uint3 id : SV_DispatchThreadID, uint3 gt : SV_GroupThreadID, uint gi : SV_GroupIndex)
-{
-    if (gi == 0) { gMov = 0; gTex = 0; }
-    GroupMemoryBarrierWithGroupSync();
-    int2 sb = min(int2((float2(gt.xy) + 0.5) * float2(BX / 16.0, BY / 8.0)), int2(BX - 1, BY - 1));
-    if (Inf.Load(int3(sb, 0)).w < 0.5)
-    {
-        InterlockedAdd(gTex, 1);
-        float2 v = Blocks.Load(int3(sb, 0));
-        if (dot(v, v) >= 1.0) InterlockedAdd(gMov, 1);
-    }
-    GroupMemoryBarrierWithGroupSync();
-    if (id.x >= W || id.y >= H) return;
-    int2 p = int2(id.xy);
-    float d = max(max(Dq(p), max(Dq(p + int2(1, 0)), Dq(p - int2(1, 0)))), max(Dq(p + int2(0, 1)), Dq(p - int2(0, 1))));
-    uint raw = Still[p];
-    uint n = raw & 0xFFFFu;
-    bool was = (raw & 0x10000u) != 0;
-    n = d < Tdiff ? min(n + 1, 250u) : 0u;
-    float lo = 1, hi = 0;
-    [unroll] for (int j = -2; j <= 2; j++)
-        [unroll] for (int i = -2; i <= 2; i++)
-        {
-            if (abs(i) + abs(j) > 2) continue;
-            float l = Lc(p + int2(i, j));
-            lo = min(lo, l); hi = max(hi, l);
-        }
-    bool moving = gTex >= 8 && (float)gMov >= Fmov * (float)gTex;
-    // (1.2.4 ronda 5, FGCAL: fgui_pegada) lo que ya era interfaz sigue siendolo mientras no cambie aunque la camara se pare (si no, la
-    // mascara se encendia y apagaba en cada frenada y DLSS-G recibia dos imagenes sin interfaz que no casan: una inventada mala)
-    bool ui = (moving || (P0 != 0 && was)) && n >= NStill && hi - lo > Tedge;
-    Still[p] = n | (ui ? 0x10000u : 0u);
-    Ui[p] = ui ? 1.0 : 0.0;
-}";
-
         // mvmask_modo=1: vectores para DLSS SR = los de verdad, salvo lo marcado (mascara > 0,5): fuera de la imagen (Off)
         // c0: ancho, alto | c1 (float): Off.xy
         public const string MvSr = @"
@@ -931,26 +791,6 @@ void main(uint3 id : SV_DispatchThreadID)
 {
     if (id.x >= W || id.y >= H) return;
     Out[id.xy] = Mask.Load(int3(id.xy, 0)) > 0.5 ? Off : Mv.Load(int3(id.xy, 0));
-}";
-
-        // La interfaz a la resolucion de salida (bilineal desde la de entrada): alfa (UIAlpha / NoWarp) o color premultiplicado + alfa
-        // (UIColorAndAlpha, con 'final': la imagen sin el aviso, la misma que la etiquetada como HUDLess)
-        // c0: ancho, alto, color | c1 (float): 1/ancho, 1/alto
-        public const string UiOut = @"
-cbuffer C : register(b0) { uint W, H, Color, P0; float4 Inv; uint4 Pad2; uint4 Pad3; }
-Texture2D<float> Ui : register(t0);
-Texture2D<float4> Final : register(t1);
-RWTexture2D<unorm float4> OutC : register(u0);
-RWTexture2D<unorm float> OutA : register(u1);
-SamplerState Lin : register(s0);
-
-[numthreads(16, 8, 1)]
-void main(uint3 id : SV_DispatchThreadID)
-{
-    if (id.x >= W || id.y >= H) return;
-    float a = Ui.SampleLevel(Lin, (float2(id.xy) + 0.5) * Inv.xy, 0);
-    if (Color) OutC[id.xy] = float4(Final.Load(int3(id.xy, 0)).rgb * a, a);
-    else OutA[id.xy] = a;
 }";
     }
 }

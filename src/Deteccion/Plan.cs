@@ -1,11 +1,11 @@
 // Plan.cs - con lo detectado, la cadena de imagen y los ajustes de serie ("el plan") (ConsoleEnhancer)
 //
 // Regla general (ver DISENO.md):
-//   NVIDIA RTX 50 : motor propio (Streamline) DLSS SR + Reflex + DLSS-G (x2, x3/x4 si la pantalla tiene los Hz); Smooth Motion x2 de alternativa
-//   NVIDIA RTX 40 : DLSS SR + Reflex + Smooth Motion x2 (o DLSS-G x2: tele a 119,88 Hz, driver sin Smooth Motion)
-//   NVIDIA RTX 20/30: DLSS SR + Reflex, sin DLSS-G (extra no oficial dlssg_sm86 en RTX 30 si el usuario lo tiene, apagado)
+//   NVIDIA RTX 40 / 50: motor propio (Streamline) DLSS SR + Reflex + Smooth Motion x2 (XeSS FG x2 con la tele a 119,88 Hz o un driver sin
+//                      Smooth Motion); XeSS FG / FSR 3 FG x2 para elegir. (1.2.4 ronda 6: sin DLSS-G ni x3 / x4)
+//   NVIDIA RTX 20/30: DLSS SR + Reflex, sin generacion de serie (XeSS FG / FSR 3 FG para elegir)
 //   GTX / AMD / Intel: FSR 1 (EASU + RCAS) + CAS en shader propio; generacion: AFMF del driver (AMD RX 6000+), si no FSR 3 FG o XeSS FG
-//                      por Magpie (apagadas de serie: mas latencia); Reflex solo NVIDIA (GTX tambien)
+//                      (apagadas de serie); Reflex solo NVIDIA (GTX tambien)
 //   Sin D3D12 / grafica por software: mpv solo, sin escalado ni generacion
 //   DLSS 5 (DLSSNR de Magpie): solo si el usuario tiene la DLL (no oficial) y la grafica es RTX; apagado de serie
 // El modelo de DLSS de cada modo sale de una estimacion de coste (lo medido en la RTX 4060 de este PC escalado por el indice de la grafica)
@@ -35,7 +35,7 @@ namespace ConsoleEnhancer.Deteccion
     public sealed class Calibracion
     {
         public string GpuClave = "", Fecha = "";
-        public Dictionary<string, double> Ms = new Dictionary<string, double>();   // dlss_L, dlss_M, dlss_K, dlss_E, fsr1, mv, base, fg_dlssg, fg_smooth
+        public Dictionary<string, double> Ms = new Dictionary<string, double>();   // dlss_L, dlss_M, dlss_K, dlss_E, fsr1, mv, base, fg_smooth
 
         public static Calibracion Leer(string fichero)
         {
@@ -89,13 +89,11 @@ namespace ConsoleEnhancer.Deteccion
         public string Escalador = "";          // dlss, fsr1, ninguno
         public string EscaladorAlternativo = "";
         public double Enfoque = 0.3;           // CAS
-        public string Gen60 = "ninguna", Gen30 = "ninguna";   // dlssg, smooth, afmf, fsr3fg, xessfg, ninguna
-        public int Mult60 = 1, Mult30 = 1;
+        public string Gen60 = "ninguna", Gen30 = "ninguna";   // smooth, afmf, fsr3fg, xessfg, ninguna (1.2.4 ronda 6: sin dlssg)
         public bool GenDeSerie;                // la generacion encendida al empezar (boton de captura: si/no)
-        public bool DlssgSoloMagpie;           // (1.0.10) RTX 30 con dlssg_sm86: DLSS FG solo por Magpie (el motor no la tiene: Streamline pide RTX 40)
-        public string GenAlternativa = "";     // la que se puede elegir ademas (p. ej. FSR 3 FG por Magpie)
+        public string GenAlternativa = "";     // la que se puede elegir ademas (p. ej. FSR 3 FG)
         // 19-11 (agente CE, el selector de L3 de Prisma): los tipos que se ofrecen en cada modo (ini generacion_lista_60 / _30), los que
-        // tiene esta grafica: smooth (Smooth Motion), dlss (DLSS FG de Magpie / DLSS-G del motor), xess, fsr3 (estos dos por Magpie)
+        // tiene esta grafica: smooth (Smooth Motion), xess (XeSS FG), fsr3 (FSR 3 FG)
         public List<string> Lista60 = new List<string>(), Lista30 = new List<string>();
         public string Latencia = "";           // reflex, antilag, ninguna
         public int CapW, CapH;
@@ -124,7 +122,7 @@ namespace ConsoleEnhancer.Deteccion
             sb.AppendLine("  " + Tx.T("Motor: ", "Engine: ") + Nom(Motor) + (Motor == "propio" ? (Streamline ? Tx.T(" con Streamline", " with Streamline") : Tx.T(" sin Streamline", " without Streamline")) : "") +
                           Tx.T(" | Escalado: ", " | Scaling: ") + Escalador + (EscaladorAlternativo.Length > 0 ? " (R3: " + EscaladorAlternativo + ")" : "") + " + CAS " + Tx.N(Enfoque, "0.0#") +
                           Tx.T(" | Latencia: ", " | Latency: ") + Latencia);
-            sb.AppendLine("  " + Tx.T("Generación: modo 60 ", "Frame gen: 60 mode ") + Nom(Gen60) + (Mult60 > 1 ? " x" + Mult60 : "") + Tx.T(", modo 30 ", ", 30 mode ") + Nom(Gen30) + (Mult30 > 1 ? " x" + Mult30 : "") +
+            sb.AppendLine("  " + Tx.T("Generación: modo 60 ", "Frame gen: 60 mode ") + Nom(Gen60) + Tx.T(", modo 30 ", ", 30 mode ") + Nom(Gen30) +
                           Tx.T(" | de serie ", " | default ") + (GenDeSerie ? Tx.T("encendida", "on") : Tx.T("apagada", "off")) + (GenAlternativa.Length > 0 ? Tx.T(" | también: ", " | also: ") + GenAlternativa : ""));
             sb.AppendLine("  " + Tx.T("Selector de generación (L3): modo 60 ", "Frame gen picker (L3): 60 mode ") + (Lista60.Count > 0 ? string.Join(", ", Lista60.ToArray()) : Tx.T("ninguna", "none")) +
                           Tx.T(", modo 30 ", ", 30 mode ") + (Lista30.Count > 0 ? string.Join(", ", Lista30.ToArray()) : Tx.T("ninguna", "none")));
@@ -191,10 +189,8 @@ namespace ConsoleEnhancer.Deteccion
             sb.AppendLine("escalador=" + Escalador);
             if (EscaladorAlternativo.Length > 0) sb.AppendLine("escalador_alternativo=" + EscaladorAlternativo);
             foreach (KeyValuePair<string, ModoPlan> kv in Modos) if (kv.Value.Modelo.Length > 0) sb.AppendLine("motor_modelo_" + kv.Key + "=" + kv.Value.Modelo);
-            sb.AppendLine("motor_generacion_60=" + Gen60);
-            sb.AppendLine("motor_generacion_30=" + Gen30);
-            sb.AppendLine("generacion_mult_60=" + Mult60);
-            sb.AppendLine("generacion_mult_30=" + Mult30);
+            sb.AppendLine("generacion_plan_60=" + Gen60);
+            sb.AppendLine("generacion_plan_30=" + Gen30);
             sb.AppendLine("generacion_de_serie=" + (GenDeSerie ? 1 : 0));
             sb.AppendLine("motor_reflex=" + (Latencia == "reflex" ? 1 : 0));
             sb.AppendLine("upscale_sharpen=" + Enfoque.ToString("0.0#", CultureInfo.InvariantCulture));
@@ -444,111 +440,83 @@ namespace ConsoleEnhancer.Deteccion
             p.CapH = h; p.CapW = h * 16 / 9;
         }
 
+        // (1.2.4 ronda 6, QUITAFG; el usuario: "como el dlss fg va fatal, directamente quitalo", "que haya pa elegir frame gens y ya (da a
+        // elegir entre xefg, smooth motion (los que pueden usarlo) y fsr frame generation)" y "En nvidia centrate en el smooth motion que ahora
+        // mismo es el frame gen que mejor funciona"). Sin DLSS-G ni x3 / x4: en RTX 40 / 50 Smooth Motion de serie (con la tele a 119,88 Hz
+        // Smooth Motion no va: XeSS FG); en RTX 20 / 30 nada de serie (XeSS FG / FSR 3 FG para elegir); AMD AFMF del driver; Intel Arc XeSS FG;
+        // lo demas FSR 3 FG. XeSS FG y FSR 3 FG los hace el motor propio (con DLSS 5, XeSS FG va por Magpie)
         static void ElegirGeneracion(PlanImagen p, GpuInfo g, PreferenciasPlan pref)
         {
             GpuFunciones f = g.F;
             int mult = (int)Math.Floor(Math.Max(p.OutHz, p.HzPlan) / 59.94 + 0.02);
             bool es119 = p.Pantalla != null && p.Pantalla.Es119;
-            if (f.DlssG.Si && g.Familia == FamiliaGpu.NvidiaRtx50)
+            if ((g.Familia == FamiliaGpu.NvidiaRtx40 || g.Familia == FamiliaGpu.NvidiaRtx50) && (f.SmoothMotion.Si || f.XessFg.Si || f.Fsr3Fg.Si))
             {
-                p.Gen60 = mult >= 2 ? "dlssg" : "ninguna"; p.Mult60 = Math.Max(1, Math.Min(f.MfgMax, mult));
-                p.Gen30 = "dlssg"; p.Mult30 = 2;
-                if (f.SmoothMotion.Si) p.GenAlternativa = "Smooth Motion x2";
-                p.GenDeSerie = true;
-            }
-            // (1.2.02: tambien RTX 50 sin DLSS-G visto, p. ej. con HAGS apagado: Smooth Motion como en las RTX 40)
-            else if ((g.Familia == FamiliaGpu.NvidiaRtx40 || g.Familia == FamiliaGpu.NvidiaRtx50) && (f.SmoothMotion.Si || f.DlssG.Si))
-            {
-                // 17-11 (app original): el usuario prefiere Smooth Motion (60 reales sin cortes; DLSS-G con Reflex y vsync perdia 2 por segundo).
-                // Con la tele a 119,88 la cola de la sincronizacion no se vacia con Smooth Motion: DLSS-G
-                // 21-11 (1.0.7): DLSS FG de serie, como Prisma desde el 20-11 03:58 (motor_generacion_60/30=dlss); Smooth Motion queda de
-                // alternativa en el selector de L3. Antes Smooth Motion de serie: "no hay DLSS FG" (el usuario, 21-11)
-                string t = f.DlssG.Si ? "dlssg" : f.SmoothMotion.Si && !es119 ? "smooth" : "ninguna";
-                p.Gen60 = mult >= 2 ? t : "ninguna"; p.Mult60 = mult >= 2 && t != "ninguna" ? 2 : 1;
-                p.Gen30 = t; p.Mult30 = t != "ninguna" ? 2 : 1;
-                if (t == "smooth" && f.DlssG.Si) p.GenAlternativa = "DLSS-G x2";
-                if (t == "dlssg" && f.SmoothMotion.Si) p.GenAlternativa = "Smooth Motion x2";
-                if (es119 && f.SmoothMotion.Si) p.Avisos.Add(Tx.T("Tele a 119,88 Hz: con DLSS-G; para Smooth Motion ponla a 120,000 Hz (Pantalla avanzada: «120», no «119»)", "TV at 119.88 Hz: DLSS-G; set 120.000 Hz for Smooth Motion"));
+                // 17-11 (app original) y 23-11 (QUITAFG): el usuario prefiere Smooth Motion (60 reales sin cortes). Con la tele a 119,88 la cola de
+                // la sincronizacion no se vacia con Smooth Motion: XeSS FG (el motor propio)
+                string t = f.SmoothMotion.Si && !es119 ? "smooth" : f.XessFg.Si ? "xessfg" : f.Fsr3Fg.Si ? "fsr3fg" : "ninguna";
+                p.Gen60 = mult >= 2 ? t : "ninguna";
+                p.Gen30 = t;
+                if (t != "smooth" && f.SmoothMotion.Si) p.GenAlternativa = "Smooth Motion x2";
+                if (es119 && f.SmoothMotion.Si) p.Avisos.Add(Tx.T("Tele a 119,88 Hz: con XeSS FG; para Smooth Motion ponla a 120,000 Hz (Pantalla avanzada: «120», no «119»)", "TV at 119.88 Hz: XeSS FG; set 120.000 Hz for Smooth Motion"));
                 p.GenDeSerie = t != "ninguna";
             }
             else if (g.Familia == FamiliaGpu.NvidiaRtx20 || g.Familia == FamiliaGpu.NvidiaRtx30)
             {
                 p.Gen60 = p.Gen30 = "ninguna";
-                p.Motivos.Add(Tx.T("RTX 20/30: DLSS SR y Reflex, sin DLSS-G (pide RTX 40)", "RTX 20/30: DLSS SR + Reflex, no DLSS-G"));
-                if (!pref.PreferirLatencia && f.Fsr3Fg.Si) p.GenAlternativa = Tx.T("FSR 3 FG x2 por Magpie (más latencia, apagada de serie)", "FSR 3 FG x2 via Magpie (off by default)");
-                if (f.DlssGComunidad.Si) p.GenAlternativa += (p.GenAlternativa.Length > 0 ? "; " : "") + Tx.T("DLSS-G no oficial (dlssg_sm86) por Magpie", "unofficial DLSS-G (dlssg_sm86)");
-                // 21-11 (1.0.10, Reddit: "no se como encender DLSS FG aunque elegi mi carpeta dlssg_sm86 en el asistente", RTX 30): con el
-                // runtime de la comunidad, DLSS FG por Magpie es elegible (L3 / Ctrl+G / bandeja) y la generacion queda disponible; apagada de serie
-                if (f.DlssGComunidad.Si) p.DlssgSoloMagpie = true;
+                p.Motivos.Add(Tx.T("RTX 20/30: DLSS SR y Reflex; sin Smooth Motion (pide RTX 40)", "RTX 20/30: DLSS SR + Reflex, no Smooth Motion"));
+                if (!pref.PreferirLatencia && (f.XessFg.Si || f.Fsr3Fg.Si)) p.GenAlternativa = Tx.T("XeSS FG / FSR 3 FG x2 (apagadas de serie)", "XeSS FG / FSR 3 FG x2 (off by default)");
             }
             else if (f.Afmf.Si)
             {
-                p.Gen60 = mult >= 2 ? "afmf" : "ninguna"; p.Mult60 = mult >= 2 ? 2 : 1; p.Gen30 = "afmf"; p.Mult30 = 2;
+                p.Gen60 = mult >= 2 ? "afmf" : "ninguna"; p.Gen30 = "afmf";
                 p.GenDeSerie = false;
                 p.Motivos.Add(Tx.T("AMD: la generación es AFMF del driver: la app no puede encenderla sola; el asistente explica cómo (AMD Software > Juegos > el motor)", "AMD: AFMF is a driver toggle the app can't flip"));
-                if (f.Fsr3Fg.Si) p.GenAlternativa = Tx.T("FSR 3 FG x2 por Magpie", "FSR 3 FG x2 via Magpie");
+                if (f.Fsr3Fg.Si) p.GenAlternativa = Tx.T("FSR 3 FG x2", "FSR 3 FG x2");
             }
             else
             {
                 string t = f.XessFg.Si && (g.Familia == FamiliaGpu.IntelArc || g.Familia == FamiliaGpu.IntelArcB) ? "xessfg" : f.Fsr3Fg.Si ? "fsr3fg" : "ninguna";
                 if (t != "ninguna")
                 {
-                    p.Gen60 = mult >= 2 ? t : "ninguna"; p.Mult60 = mult >= 2 ? 2 : 1; p.Gen30 = t; p.Mult30 = 2;
+                    p.Gen60 = mult >= 2 ? t : "ninguna"; p.Gen30 = t;
                     p.GenDeSerie = false;
-                    p.Motivos.Add(Tx.T("Generación por Magpie (", "Frame gen via Magpie (") + (t == "xessfg" ? "XeSS FG" : "FSR 3 FG") + Tx.T("): apagada de serie (más latencia); el botón de captura la enciende (mpv + Magpie)", "): off by default"));
+                    p.Motivos.Add(Tx.T("Generación ", "Frame gen ") + (t == "xessfg" ? "XeSS FG" : "FSR 3 FG") + Tx.T(": apagada de serie (más latencia); el botón de captura la enciende", ": off by default"));
                 }
             }
-            if (mult < 2 && p.Gen60 == "ninguna" && (f.DlssG.Si || f.SmoothMotion.Si || f.Afmf.Si || f.Fsr3Fg.Si))
+            if (mult < 2 && p.Gen60 == "ninguna" && (f.SmoothMotion.Si || f.Afmf.Si || f.Fsr3Fg.Si || f.XessFg.Si))
                 p.Motivos.Add(Tx.T("Pantalla de ", "Display at ") + Tx.N(p.OutHz, "0.##") + Tx.T(" Hz: en el modo 60 la generación no aporta (solo en el modo 30, a 60)", " Hz: no frame gen in 60 mode"));
             ListasGeneracion(p, g, mult);
         }
 
         // 19-11 (agente CE): las listas del selector de L3 (generacion_lista_60 / _30) segun lo que tiene la grafica, no fijas.
-        // Primero la de serie del plan. Modo 30 (a 60 Hz de salida basta): todo lo que haya. Modo 60 (pide 100 Hz o mas): solo lo del driver o
-        // de NVIDIA (Smooth Motion, DLSS FG); XeSS / FSR 3 por Magpie no llegan a 60 reales (Prisma, 19-11: 27-48) salvo que sean lo unico.
-        // Medido en Prisma (RTX 4060 Ti, 19-11 19:10-19:30, tele a 120 Hz): en el 30 FSR 3 FG se queda en 29,35-29,59 reales -> fuera si hay
-        // Smooth Motion o DLSS FG (RTX 40/50); en las demas es lo unico y se deja (sin medir en ellas; en la Ti no llego a 29,9). En el 60
-        // DLSS FG no llega a ritmo en RTX 40 (Magpie 59,7-59,8, motor DLSS-G 58,7-59,0: Reflex con la sincronizacion) -> fuera en RTX 40,
-        // salvo que sea la de serie del plan (tele a 119,88 Hz: ahi Smooth Motion no va). En RTX 50 se queda (es su generacion de serie,
-        // DLSS-G multiple; sin medir). XeSS FG con captura 1080p no arranca: eso lo quita la app al usarla (Generacion.cs, Config.FgTypeNow)
+        // Primero la de serie del plan. (1.2.4 ronda 6, QUITAFG: las tres que quedan donde se puedan -Smooth Motion solo NVIDIA RTX 40 / 50
+        // con el driver que la da-, en los dos modos: el usuario quiere poder elegir entre XeSS FG, Smooth Motion y FSR 3 FG. Antes FSR 3 FG
+        // se quitaba con DLSS FG o Smooth Motion -medido el 19-11 por Magpie: 29,35-29,59 reales en el 30-; ahora la hace el motor propio. El
+        // modo 60 pide 100 Hz o mas.) Orden: NVIDIA Smooth Motion, XeSS FG, FSR 3 FG; Intel Arc XeSS FG, FSR 3 FG; lo demas FSR 3 FG, XeSS FG.
+        // XeSS FG con captura 1080p sin xess_fg_1080: eso lo quita la app al usarla (Generacion.cs, Config.FgTypeFor)
         static void ListasGeneracion(PlanImagen p, GpuInfo g, int mult)
         {
             GpuFunciones f = g.F;
             bool nv = g.Fab == Fabricante.Nvidia;
-            bool sm = nv && f.SmoothMotion.Si, dg = nv && (f.DlssG.Si || p.DlssgSoloMagpie), xe = f.XessFg.Si, fs = f.Fsr3Fg.Si;
-            bool rtx40 = g.Familia == FamiliaGpu.NvidiaRtx40;
-            string serie30 = Tipo(p.Gen30), serie60 = Tipo(p.Gen60);
-            List<string> l30 = new List<string>();
-            if (serie30.Length > 0) l30.Add(serie30);
-            if (sm) l30.Add("smooth");
-            if (dg) l30.Add("dlss");
-            // (XeSS FG primero solo en Intel Arc; en lo demas FSR 3 FG, el de AMD, que es el nativo fuera de Intel)
+            bool sm = nv && f.SmoothMotion.Si, xe = f.XessFg.Si, fs = f.Fsr3Fg.Si;
             bool arc = g.Familia == FamiliaGpu.IntelArc || g.Familia == FamiliaGpu.IntelArcB;
-            string[] magpie = arc ? new[] { "xess", "fsr3" } : new[] { "fsr3", "xess" };
-            foreach (string t in magpie)
+            string[] orden = nv ? new[] { "smooth", "xess", "fsr3" } : arc ? new[] { "xess", "fsr3" } : new[] { "fsr3", "xess" };
+            foreach (string modo in new[] { "30", "60" })
             {
-                if (t == "fsr3" && (sm || dg) && serie30 != "fsr3") continue;   // (no llega a ritmo: hay algo mejor)
-                if (t == "xess" ? xe : fs) l30.Add(t);
+                if (modo == "60" && mult < 2) continue;
+                List<string> l = modo == "30" ? p.Lista30 : p.Lista60;
+                string serie = Tipo(modo == "30" ? p.Gen30 : p.Gen60);
+                if (serie.Length > 0 && !l.Contains(serie)) l.Add(serie);
+                foreach (string t in orden)
+                    if ((t == "smooth" ? sm : t == "xess" ? xe : fs) && !l.Contains(t)) l.Add(t);
             }
-            List<string> l60 = new List<string>();
-            if (mult >= 2)
-            {
-                if (serie60.Length > 0) l60.Add(serie60);
-                if (sm) l60.Add("smooth");
-                if (dg) l60.Add("dlss");   // (21-11, 1.0.7: tambien en RTX 40, como Prisma)
-                if (!sm && !dg) foreach (string t in magpie) if (t == "xess" ? xe : fs) l60.Add(t);
-                // 21-11 (1.0.9; el usuario: "arregla que ahora de repente no aparece xefg"): XeSS FG tambien en el modo 60 aunque haya algo
-                // de NVIDIA (en Prisma, 19-11, no llegaba a 60 reales: 27-48; el usuario lo quiere poder elegir)
-                if (xe && !l60.Contains("xess")) l60.Add("xess");
-            }
-            foreach (string t in l30) if (!p.Lista30.Contains(t)) p.Lista30.Add(t);
-            foreach (string t in l60) if (!p.Lista60.Contains(t)) p.Lista60.Add(t);
         }
 
         // El tipo del selector para la generacion del plan ("" = ninguna o AFMF, que es del driver y la app no enciende)
         static string Tipo(string gen)
         {
-            return gen == "smooth" ? "smooth" : gen == "dlssg" ? "dlss" : gen == "xessfg" ? "xess" : gen == "fsr3fg" ? "fsr3" : "";
+            return gen == "smooth" ? "smooth" : gen == "xessfg" ? "xess" : gen == "fsr3fg" ? "fsr3" : "";
         }
 
         static void ElegirModelos(PlanImagen p, GpuInfo g, Calibracion cal)
@@ -571,8 +539,7 @@ namespace ConsoleEnhancer.Deteccion
                 // XeSS, FSR 4- o la generacion); con FSR 1 sin generacion no se calculan
                 double mvAqui = fg || (p.CapH > 0 && p.CapH < p.OutH && (p.Escalador == "dlss" || p.Escalador == "xess" || p.Escalador == "fsr4")) ? mv : 0;
                 // (1.2.2, UNIVERSAL: costes de la generacion con lo medido, PlanMargen.CosteGeneracion; AFMF tambien gasta)
-                int multK = k.StartsWith("60") ? p.Mult60 : p.Mult30;   // (x3 / x4: mas imagenes inventadas por cada real)
-                double fgc = !fg ? 0 : gen == "dlssg" ? Medido(cal, p.Calibrado, "fg_dlssg", CosteGeneracion(gen, g, esc, multK)) : gen == "smooth" ? Medido(cal, p.Calibrado, "fg_smooth", CosteGeneracion(gen, g, esc, multK)) : CosteGeneracion(gen, g, esc, multK);
+                double fgc = !fg ? 0 : gen == "smooth" ? Medido(cal, p.Calibrado, "fg_smooth", CosteGeneracion(gen, g, esc)) : CosteGeneracion(gen, g, esc);
                 double fijo = bas + mvAqui + fgc;
                 if (p.Escalador == "dlss")
                 {

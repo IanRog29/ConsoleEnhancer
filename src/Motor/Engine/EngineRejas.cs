@@ -98,8 +98,7 @@ namespace ConsoleEnhancer.Motor
                 SrvTex(tk, 3, luma[1 - st, 0], DXGI_FORMAT.R8_UNORM);
                 UavTex(tk, U0, mvec, DXGI_FORMAT.R16G16_FLOAT);
             }
-            FgFillViews();   // 21-11 (FG21): fg_relleno, EngineFgRelleno.cs
-            FgGuardViews();   // 21-11 (BORDE): fg_borde, EngineFgBorde.cs
+            // (1.2.4 ronda 6, QUITAFG: fuera fg_relleno y fg_borde -EngineFgRelleno.cs, EngineFgBorde.cs-: solo eran para DLSS-G)
             FgGlobalViews();   // 21-11 (1.2.1): fg_global / fg_quieto, EngineFgGlobal.cs
         }
 

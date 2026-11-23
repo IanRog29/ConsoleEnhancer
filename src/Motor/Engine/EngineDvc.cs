@@ -80,7 +80,7 @@ namespace ConsoleEnhancer.Motor
                 case "vibrancia_intensidad": DvcIntensity = F01(val); return true;
                 case "vibrancia_saturacion": DvcSaturation = F01(val); return true;
             }
-            return ApplyFgOwn(key, val);   // (EngineFgPropia.cs)
+            return false;   // (1.2.4 ronda 6, QUITAFG: fuera la generacion propia, EngineFgPropia.cs; sus claves en EngineFgXe.cs ApplyFgXe)
         }
     }
 

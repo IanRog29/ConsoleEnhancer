@@ -376,25 +376,24 @@ namespace ConsoleEnhancer
         {
             get
             {
-                if (dlss5State == 0) dlss5State = File.Exists(Path.Combine(Paths.MagpieDir, Dlss5Dll)) ? 1 : -1;
+                if (dlss5State == 0) dlss5State = File.Exists(Path.Combine(Dlss5Dir, Dlss5Dll)) ? 1 : -1;
                 return dlss5State > 0;
             }
         }
-        // (20-11, PUBLICAR) el usuario ha puesto o quitado la DLL con el boton (Extras.cs): mirarlo otra vez
-        public static void Dlss5Rever() { dlss5State = 0; dlssgState = 0; }
-
-        // (1.1.2) El DLSS FG de Magpie (el de la cadena con DLSS 5) va SIEMPRE por runtimes\dlssg_sm86 de la comunidad, tambien en RTX 40:
-        // sin el, "DLSSFG preparation failed: community package missing ... No native fallback" y Magpie no escala nunca (21-11 15:05: modo
-        // 30 con DLSS 5 y DLSS FG, 4 reaperturas y la imagen parada). Sin el, con DLSS 5 la generacion va por otra (Config.FgTypeNow)
-        static volatile int dlssgState;
-        public static bool MagpieDlssgOk
+        // (1.2.4 ronda 6, QUITAFG, fase 2) Donde esta la DLL del usuario para el motor (dlss5_dir=): extras\ (la pone "Añadir DLSS 5"); de
+        // una instalacion de antes, a mano en magpie\
+        public static string Dlss5Dir
         {
             get
             {
-                if (dlssgState == 0) dlssgState = File.Exists(Path.Combine(Paths.MagpieDir, @"runtimes\dlssg_sm86\version.dll")) ? 1 : -1;
-                return dlssgState > 0;
+                string ex = Path.Combine(Paths.AppDir, "extras");
+                if (!File.Exists(Path.Combine(ex, Dlss5Dll)) && File.Exists(Path.Combine(Paths.MagpieDir, Dlss5Dll))) return Paths.MagpieDir;
+                return ex;
             }
         }
+        // (20-11, PUBLICAR) el usuario ha puesto o quitado la DLL con el boton (Extras.cs): mirarlo otra vez
+        public static void Dlss5Rever() { dlss5State = 0; }
+        // (1.1.2-1.2.4: MagpieDlssgOk, el runtime dlssg_sm86 que pedia el DLSS FG de Magpie. 1.2.4 ronda 6, QUITAFG: sin DLSS FG, fuera)
 
         // ---- La copia de Magpie de la app ----
         // Lo que nunca viene del origen: la config, los logs y la cache de efectos son de la app; Updater.exe no hace falta; los logs de
@@ -561,8 +560,6 @@ namespace ConsoleEnhancer
             Directory.CreateDirectory(Path.Combine(dir, @"config\v4e"));
             dlss5State = 0;
             if (!Dlss5Available) notes.Add("sin " + Dlss5Dll + ": " + Dlss5MissingText + " (la app va sin el)");
-            // (el fork hace SIEMPRE el DLSS FG de Magpie por este runtime de la comunidad, tambien en RTX 40: sin el "No native fallback")
-            if (!File.Exists(Path.Combine(dir, @"runtimes\dlssg_sm86\version.dll"))) notes.Add(@"sin runtimes\dlssg_sm86: la generacion DLSS FG de Magpie no va (Smooth Motion y la del motor propio si)");
             bool exists = File.Exists(Path.Combine(dir, "Magpie.exe"));
             detail = MagpieVersion(dir) + (exists ? "" : ", NO ESTA Magpie.exe") + (notes.Count > 0 ? "; " + string.Join("; ", notes.ToArray()) : "; al dia") +
                      (failed > 0 ? " (" + failed + " fallos)" : "");

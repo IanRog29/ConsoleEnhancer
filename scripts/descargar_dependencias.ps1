@@ -110,7 +110,7 @@ function Preparar([string]$nombre) {
         if (Test-Path $conf) { New-Item -ItemType Directory -Force "$dir\portable_config" | Out-Null; Copy-Item -LiteralPath $conf "$dir\portable_config\mpv.conf" -Force; $n++ }
     }
     if ($nombre -eq 'streamline') {
-        foreach ($f in @('sl.interposer.dll', 'sl.common.dll', 'sl.dlss.dll', 'sl.dlss_g.dll', 'sl.reflex.dll', 'sl.pcl.dll', 'nvngx_dlss.dll', 'nvngx_dlssg.dll')) {
+        foreach ($f in @('sl.interposer.dll', 'sl.common.dll', 'sl.dlss.dll', 'sl.reflex.dll', 'sl.pcl.dll', 'nvngx_dlss.dll')) {   # (1.2.4 ronda 6: sin DLSS-G)
             if (-not (Test-Path "$dir\bin\x64\$f")) { throw "Streamline: no esta bin\x64\$f en el zip" }
         }
     }

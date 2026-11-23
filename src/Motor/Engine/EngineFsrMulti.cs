@@ -86,7 +86,7 @@ namespace ConsoleEnhancer.Motor
         ID3D12GraphicsCommandList fmCList;
         readonly AutoResetEvent fmCEv = new AutoResetEvent(false);
 
-        bool FmWanted() { return s.FsrMulti >= 2 && !s.Fg && s.FgOwn < 2 && !fmBroken; }
+        bool FmWanted() { return s.FsrMulti >= 2 && !s.Fg && !fmBroken; }
         bool fmRepaint;                         // esta imagen es un repintado (sin imagen nueva): solo la real, sin FSR
 
         // COLA DE PRESENTACION propia (fsrfg_multi_cola_cadena=1): la cadena se crea con ella y las copias a la cadena y los Present van por
@@ -97,7 +97,7 @@ namespace ConsoleEnhancer.Motor
         ID3D12CommandQueue ScQ { get { return scQueue ?? queue; } }
         ID3D12CommandQueue FmScQueueFor()
         {
-            if (!(s.FsrMulti >= 2 && !s.Fg && s.FgOwn < 2 && s.FsrMultiScQueue)) return queue;
+            if (!(s.FsrMulti >= 2 && !s.Fg && s.FsrMultiScQueue)) return queue;
             if (scQueue == null)
             {
                 object o;

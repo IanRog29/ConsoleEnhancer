@@ -80,7 +80,19 @@ namespace ConsoleEnhancer
         // cualquier texto azul del juego contaba como el HOME (02-11, TOTK)
         public static readonly string HomeRefFile = Datos + @"\games\home_ref.txt";
 
-        // ---- Magpie ----
+        // ---- (1.2.4 ronda 6, QUITAFG) las DLL de Intel XeSS y AMD FidelityFX que usa el motor (XeSS SR, XeSS FG + XeLL, FSR 3.1 / 4, FSR 3 FG) ----
+        // Las baja la app de las releases oficiales de Intel (XeSS SDK) y AMD (FSR SDK), scripts\components.json; antes venian con Magpie
+        public static readonly string XessDir = AppDir + @"\xess";
+        public static readonly string FsrDir = AppDir + @"\fsr";
+        // Lo que se le pasa al motor (dlls_sr=): las dos carpetas
+        public static string SrDlls { get { return XessDir + ";" + FsrDir; } }
+        // ¿Esta esa DLL de Intel / AMD para el motor?
+        public static bool HayLib(string name)
+        {
+            return File.Exists(Path.Combine(name.StartsWith("amd_", StringComparison.OrdinalIgnoreCase) ? FsrDir : XessDir, name));
+        }
+
+        // ---- Magpie (1.2.4 ronda 6, QUITAFG: ya no se usa; solo para recoger de una instalacion de antes las DLL de Intel / AMD, Componentes.cs) ----
         // El Magpie de la app, con ficheros propios (18-11, INTEGRADO: antes enlaces duros al Magpie instalado aparte; ver Integrado.cs)
         // y su propia configuracion portatil (config\v4e\config.json junto al exe). Asi el Magpie del usuario, si lo hay, con sus perfiles
         // y efectos, no se toca nunca
@@ -627,21 +639,13 @@ namespace ConsoleEnhancer
             return false;
         }
         public int FlowQualityNvNow { get { return LightNow ? 1 : FlowQualityNv; } }
-        public int DlssFgPresetNow { get { return LightNow && DlssFgPreset == 0 ? 3 : DlssFgPreset; } }
         public int DlssModel30 = 0;        // en el modo 30 (sobra grafica); 0 = el de arriba
         // Movimiento para DLSS SR: 0 = ninguno, 1 = AMD (compute), 2 = NVIDIA (el acelerador de flujo optico de la RTX, apenas
         // cuesta). Sin el, DLSS trata cada imagen casi como quieta (lo que pasaba con LS)
         public int DlssFlow = 2;
         public int FlowQualityNv = 2;      // NVOF: 1 rendimiento, 2 equilibrado, 3 calidad, 4 alta, 5 maxima
         public int FlowQualityAmd = 1;     // AMDOF: 0 rendimiento, 1 calidad
-        // 16-11 noche: vectores de movimiento para DLSS FG de Magpie en el modo 30 (0 ninguno, 1 AMD, 2 NVIDIA) y su calidad NVOF
-        // 22-11 (1.2.2 CALIDAD): calidad 2 y no 3. Medido (src\Lanzador\CalidadFg.cs): la 3 (rejilla 4x4 lenta) cuesta el doble (1080p 5,9 ->
-        // 3,1 ms; 1440p 11 -> 6 ms de flujo por imagen real) y da PEORES vectores en barrotes finos y en fondos que se repiten; y como Magpie
-        // usa un solo estimador para todos (la calidad mas alta pedida), DLSS 5 (que pide la 2) iba tambien con la 3. ini fg_flujo_calidad=3 = antes
-        public int FgFlow30 = 2, FgFlowQualityNv = 2;
-        // 16-11 23:59 (el usuario: "otra pasadita de optimizacion, latencia y calidad", 60 con DLSS FG): lo mismo en el modo 60
-        // (ini fg_flujo_60=ninguno/amd/nvidia, fg_flujo_calidad_60=1-5). 0 = como antes (sin vectores)
-        public int FgFlow60 = 0, FgFlowQualityNv60 = 1;
+        // (1.2.4 ronda 6, QUITAFG: fuera fg_flujo_30 / _60 / fg_flujo_calidad / _60, los vectores NVOF del DLSS FG de Magpie)
         // RTX Video VSR: categoria (0 estandar, 1 alta tasa, 2 streaming, 3 quitar ruido, 4 quitar desenfoque) y calidad 0-3
         public int VsrCategory = 2, VsrQuality = 3;
         // Enfoque tras el escalado (CAS de Magpie; con FSR 3 FG, RCAS). Por captura: con 1080p/720p, que mpv ya sube a la
@@ -698,91 +702,27 @@ namespace ConsoleEnhancer
         public int Dlss5EveryNow { get { int e = CapMode ? Dlss5Every30 : Dlss5Every60; int[] t; if (e <= 0) e = ModeGet(Dlss5EveryTable, Win4k ? "_4k" : "", out t) ? t[Math.Max(1, Dlss5PassesNow) - 1] : 1; return Math.Max(1, Math.Min(4, e + Dlss5EveryExtra)); } }
 
         // ---- Generacion de fotogramas ----
-        // dlss = DLSS Frame Generation (la de la RTX 40, con su propio flujo optico por hardware); fsr3 = FSR 3 FG (x2 fijo);
-        // xess = XeSS FG; vfg = NVIDIA VFX Video Frame Generation
-        public string FgType = "dlss";
-        // 15-11 (Smooth Motion): la generacion por modo, ini generacion_tipo_60= / generacion_tipo_30= (vacio = generacion_tipo). smooth =
-        // NVIDIA Smooth Motion: la generacion del driver (perfil de NVIDIA de Magpie.exe, NvProfiles.SetSmooth), sin la de Magpie en la
-        // cadena; cuesta ~la mitad que DLSS FG y deja sitio a DLSS 5 (tabla "60_sm"). Va con la sincronizacion vertical forzada para
-        // Magpie.exe (sin ella corta: la global esta forzada a desactivada) y con la presentacion DXGI de Magpie (no DirectComposition)
+        // (23-11, 1.2.4 ronda 6, QUITAFG; el usuario: "como el dlss fg va fatal, directamente quitalo" y "que haya pa elegir frame gens y ya
+        // (da a elegir entre xefg, smooth motion (los que pueden usarlo) y fsr frame generation)"). Los tipos: smooth = NVIDIA Smooth Motion
+        // (la del driver: perfil de NVIDIA del motor o de Magpie.exe; RTX 40 / 50 con el driver que la da), xess = XeSS FG, fsr3 = FSR 3 FG.
+        // Siempre x2. DLSS FG (dlss) y NVIDIA VFG (vfg) ya no existen: lo guardado con ellos pasa a la mas parecida (src\Lanzador\TiposGeneracion.cs)
+        public string FgType = "";
+        // 15-11 (Smooth Motion): la generacion por modo, ini generacion_tipo_60= / generacion_tipo_30= (vacio = generacion_tipo). Smooth Motion
+        // va con la sincronizacion vertical forzada para Magpie.exe (sin ella corta: la global esta forzada a desactivada) y con la presentacion
+        // DXGI de Magpie (no DirectComposition)
         public string FgType60 = "", FgType30 = "";
         // 19-11 (GENERACION, el usuario: "apretando el joystick izquierdo da opcion a cambiar el tipo de frame generation"): lo elegido con
-        // L3 (selector en pantalla) por modo, por juego (perfil) y en games\framegen_type.txt: "" = lo del ini (generacion_tipo_60/30 y
-        // motor_generacion_60/30); dlss = DLSS FG (Magpie con DLSS 5, DLSS-G del motor sin el), smooth, fsr3, xess, vfg (estas tres solo las
-        // hace Magpie: con DLSS 5 apagado va mpv + Magpie sin DLSS 5 en vez del motor propio)
+        // L3 (selector en pantalla) por modo, por juego (perfil) y en games\framegen_type.txt: "" = lo del ini (generacion_tipo_60/30)
         public string FgPick60 = "", FgPick30 = "";
         public string FgPickNow { get { return CapMode ? FgPick30 : FgPick60; } }
-        // Los tipos que ofrece el selector en cada modo (ini generacion_lista_60 / _30; "Sin generacion" siempre). Los que funcionan aqui (19-11,
-        // RTX 4060 Ti, tele a 120 Hz, banco de las 19:10): en el 60 solo Smooth Motion (DLSS FG 59,7-59,8 reales en Magpie, 58,7-59,6 en el motor;
-        // XeSS / FSR 3 / VFG 27-48); en el 30 Smooth Motion, DLSS FG y XeSS FG (FSR 3: 29,4-29,6 reales; XeSS no a 1080p)
-        public string[] GenList60 = { "smooth" }, GenList30 = { "smooth", "dlss", "xess" };
-        public string FgTypeNow
-        {
-            get
-            {
-                string t = FgPickNow;
-                if (string.IsNullOrEmpty(t)) t = CapMode ? FgType30 : FgType60;
-                if (string.IsNullOrEmpty(t)) t = FgType;
-                // 19-11 (GENERACION, medido): XeSS FG de Magpie no arranca con la ventana de 1080p (captura 1080p con ventana_1080: 0 imagenes, igual que
-                // el 16-11): ahi va la del ini del modo
-                if (t == "xess" && XessNo1080(VideoSize))   // (1.2.2, MULTI: xess_fg_1080, src\Lanzador\Multiplicador.cs)
-                {
-                    t = CapMode ? FgType30 : FgType60;
-                    if (string.IsNullOrEmpty(t) || t == "xess") t = FgType == "xess" ? "dlss" : FgType;
-                    // (1.2.02) sin NVIDIA (Intel Arc con captura de 1080p) "dlss" no hace nada: FSR 3 FG, que va en cualquier grafica
-                    if ((t == "dlss" || t == "smooth" || t == "xess") && Ce.NoNvidia) t = "fsr3";
-                }
-                // 17-11 (SM60, el usuario: "para los modos de DLSS 5 a 60 fps te dejo sustituir el DLSS FG por Smooth Motion"): en el 60 Smooth
-                // Motion solo con DLSS 5; sin el (DLSS 5 apagado, o mpv + Magpie porque el motor propio no arranca) DLSS FG, como antes. Asi
-                // los avisos tampoco dicen "Smooth Motion" con el motor propio, que va con DLSS-G
-                // (17-11 17:50: quitado: el usuario quiere Smooth Motion en todos los modos; el motor propio tambien lo usa)
-                if (t == "smooth" && (NvProfiles.SmoothBroken || Pantalla.Is119)) t = "dlss"; // (si el driver no deja ponerlo, o con la tele a 119,88 Hz: DLSS FG)
-                if (t == "dlss" && DlssFgPorMagpieSinRuntime) t = FgSinDlssMagpie();
-                return t;
-            }
-        }
-        // (1.1.2) DLSS FG tendria que ir por Magpie (DLSS 5 encendido y no en el motor) y a Magpie le falta runtimes\dlssg_sm86
-        public bool DlssFgPorMagpieSinRuntime
-        {
-            get
-            {
-                if (Integrado.MagpieDlssgOk) return false;
-                if (Ce.DlssgSoloMagpie) return true;
-                if (Dlss5Off || !Integrado.Dlss5Available || MotorDlss5Pedido) return false;   // (22-11, 1.2.3 MOTOR5: si DLSS 5 lo hace de verdad el motor, src\Lanzador\MotorDlss5.cs)
-                // (1.2.04) el usuario, 21-11: "pantallazo negro unos segundos cada vez que cambio de juego o al menu". Con DLSS 5 que NO
-                // CABE (captura 4K: nada que escalar) DLSS FG la hace el motor propio y no hace falta dlssg_sm86; antes se cambiaba por XeSS
-                // FG (solo Magpie) y cada vuelta del menu (motor propio) al juego reabria mpv + Magpie con ~2 s de negro. Dlss5FitsNow pasa
-                // por PctKey -> ModeKeyGen -> FgTypeNow -> aqui: dentro de esa cuenta, como antes (true)
-                if (dfgDentro) return true;
-                dfgDentro = true;
-                try { return Dlss5FitsNow; } finally { dfgDentro = false; }
-            }
-        }
-        [ThreadStatic] static bool dfgDentro;
-        // La que va en su lugar: XeSS FG (no a 1080p), Smooth Motion, FSR 3 FG; si no hay ninguna, DLSS FG (y el aviso de Magpie)
-        string FgSinDlssMagpie()
-        {
-            // 21-11 (1.2.1, pendiente de la revision del 21-11: "FgSinDlssMagpie ignora GenList"): primero las del selector de este modo
-            // (generacion_lista_60 / _30: las que el plan ofrece en ESTE PC, en su orden; p. ej. XeSS FG no va bien en el 60 y no esta en su
-            // lista); si ninguna sirve, el orden de antes
-            foreach (string g in CapMode ? GenList30 : GenList60)
-            {
-                if (g == "xess" && File.Exists(Path.Combine(Paths.MagpieDir, "libxess_fg.dll")) && !XessNo1080(VideoSize)) return "xess";
-                if (g == "smooth" && !NvProfiles.SmoothBroken && !Pantalla.Is119) return "smooth";
-                if (g == "fsr3" && File.Exists(Path.Combine(Paths.MagpieDir, "amd_fidelityfx_framegeneration_dx12.dll"))) return "fsr3";
-            }
-            if (File.Exists(Path.Combine(Paths.MagpieDir, "libxess_fg.dll")) && !XessNo1080(VideoSize)) return "xess";
-            if (!NvProfiles.SmoothBroken && !Pantalla.Is119) return "smooth";
-            if (File.Exists(Path.Combine(Paths.MagpieDir, "amd_fidelityfx_framegeneration_dx12.dll"))) return "fsr3";
-            return "dlss";
-        }
+        // Los tipos que ofrece el selector en cada modo (ini generacion_lista_60 / _30, del plan de la grafica; "Sin generacion" siempre)
+        public string[] GenList60 = { "smooth", "xess", "fsr3" }, GenList30 = { "smooth", "xess", "fsr3" };
+        // El tipo que va en el modo de ahora (lo elegido con L3 / el menu, o el del ini; si no puede ir aqui, el mas parecido que si:
+        // TiposGeneracion.cs)
+        public string FgTypeNow { get { return FgTypeFor(CapMode, VideoSize); } }
         public bool SmoothNow { get { return !FgOff && FgTypeNow == "smooth"; } }
-        // Imagenes por cada real: modo 60 (60 -> 120 en la tele de 120 Hz) y modo 30 (2 = 60, 4 = 120). Con LS el modo 30 iba x2:
-        // con 4 eran 3 inventadas de cada 4 y se veian fallos. Smooth Motion: siempre x2
-        public int FgMult60 = 2, CapFgMult = 2;
-        // (1.2.2, MULTI: x3 / x4 elegibles con DLSS FG y XeSS FG, lo pedido si cabe en la pantalla; las demas x2. src\Lanzador\Multiplicador.cs)
-        public int FgMultNow { get { return MultAhora(CapMode, FgTypeNow); } }
-        public int DlssFgPreset = 0;        // 0 auto, 1 A, 3 C (rendimiento)
+        // (1.2.4 ronda 6, QUITAFG: sin multiplicadores -x3 / x4 fuera-: cada real, una inventada. Se queda el nombre para las cuentas de fps)
+        public int FgMultNow { get { return 2; } }
 
         // ---- Lo demas de Magpie ----
         public bool MagpieVrr = false;              // VRR experimental de Magpie (magpie_vrr)
@@ -797,14 +737,13 @@ namespace ConsoleEnhancer
         // (22-11, 1.2.2 RITMO: que generaciones del modo 30 van por VRR -x3 / x4 con cualquiera de Magpie- y el modo 30 sin generacion por
         // VRR, src\Lanzador\Ritmo.cs; MULTI: en el 60, x3 / x4 -pantallas de 180-240 Hz- tambien por VRR, como DLSS FG)
         bool Vrr30FgNow { get { return MagpieVrr30Fg && CapMode && !FgOff && RitmoVrr30FgTipo; } }
-        public bool MagpieVrrNow { get { return MagpieVrr || (MagpieVrr60Fg && !CapMode && !FgOff && (FgTypeNow == "dlss" || MultAlto)) || Vrr30FgNow || RitmoVrr30SinFgNow; } }
+        // (1.2.4 ronda 6, QUITAFG: magpie_vrr_60_fg era solo con DLSS FG / x3 / x4 en el 60: ya no hay ninguno de los dos)
+        public bool MagpieVrrNow { get { return MagpieVrr || Vrr30FgNow || RitmoVrr30SinFgNow; } }
         // 17-11 00:15: con DirectComposition (el 60 con DLSS FG) Magpie no puede poner VRR ("eligible=false reason=non-DXGI-path"): con el VRR
         // del 60 con DLSS FG, presentacion por DXGI con la sincronizacion vertical forzada en su perfil (estado 3 de NvProfiles, como el 60 sin
         // generacion; G-SYNC con VSync = sin cortes arriba del todo). ini magpie_vrr_dxgi=0 = DirectComposition como antes (sin VRR de verdad)
         public bool VrrDxgi = true;
-        public bool DlssFgVsyncPacing = true;   // 20-11 (MAGPIE PROPIO): ini magpie_dlssfg_ritmo_vsync (MagpieLive.DlssFgVsyncPacing)
-        public bool DlssFgLite = false;         // 20-11: ini magpie_dlssfg_lite (MagpieLive.DlssFgLite)
-        public bool VrrDxgiNow { get { return VrrDxgi && ((MagpieVrr60Fg && !CapMode && !FgOff && (FgTypeNow == "dlss" || MultAlto)) || Vrr30FgNow || RitmoVrr30SinFgNow) && !NvProfiles.VsyncBroken; } }
+        public bool VrrDxgiNow { get { return VrrDxgi && (Vrr30FgNow || RitmoVrr30SinFgNow) && !NvProfiles.VsyncBroken; } }
         // RTX HDR (Nvidia VFX TrueHDR de Magpie): convierte la imagen SDR de la consola a HDR. Necesita el HDR de Windows encendido en la tele.
         // ini rtx_hdr=0/1, rtx_hdr_nits (400-2000), rtx_hdr_gris (10-100), rtx_hdr_contraste / rtx_hdr_saturacion (0-200, 100 = igual)
         public bool RtxHdr = false;        // 15-11, MEDIDO: a 4K cuesta ~15 ms por imagen (y pasa DLSSNR a 16 bits): 60 con FG 36-39 reales (sin DLSS 5 o antes del escalado igual); solo cabe en el modo 30 sin DLSS 5
@@ -836,7 +775,7 @@ namespace ConsoleEnhancer
         // cambio la captura llega algo mas irregular a Magpie (cP95 17,3 -> 17,9-18,9 ms, ventanas lentas 0-1 -> 2-3). Sin probar con la
         // capturadora de verdad (sin generacion iba peor de fluidez: ver arriba). ini magpie_sigue_fuente_60_fg=1 (por defecto no)
         public bool Follow60Fg = false;
-        public bool FollowNow { get { return Follow60NoFgNow || (Follow60Fg && !CapMode && !FgOff && FgTypeNow == "dlss"); } }
+        public bool FollowNow { get { return Follow60NoFgNow; } }   // (1.2.4 ronda 6, QUITAFG: magpie_sigue_fuente_60_fg era solo con DLSS FG)
         // 16-11 13:40 (G1, idea del coordinador): el reloj de Magpie (Front Edge) al ritmo de la capturadora, 59,94 / 29,97 (la captura es
         // siempre 60000/1001), en vez de 60,000 / 30,000 = justo la mitad de la tele: con Smooth Motion la cola de la tele no se vaciaba
         // nunca (la latencia iba a saltos y se quedaba arriba). Magpie lo acepta ("effective base target: 59.940 FPS"). Capturadora de verdad,
@@ -858,12 +797,12 @@ namespace ConsoleEnhancer
         // 19-11 (GENERACION): lo mismo con XeSS FG / FSR 3 FG / NVIDIA VFG de Magpie en el modo 30 (ini dxgi_30_xess, dxgi_30_fsr3, dxgi_30_vfg;
         // 16-11 G1 con el estado 4 para todas: XeSS 99,6 % de las imagenes a 2 refrescos, FSR 3 96,3 %)
         public Dictionary<string, bool> VsyncHalfByType = new Dictionary<string, bool> { { "xess", true }, { "fsr3", true }, { "vfg", true } };
-        bool VsyncHalfType { get { string t = FgTypeNow; bool b; return t == "dlss" ? VsyncHalfFg30 : VsyncHalfByType.TryGetValue(t, out b) && b; } }
+        bool VsyncHalfType { get { string t = FgTypeNow; bool b; return VsyncHalfByType.TryGetValue(t, out b) && b; } }
         // 19-11 noche (VRR30): ini dxgi_30_fg_119=1 = tambien con la tele a 119,88 Hz (ahi los huecos de 2 refrescos son 59,94 por segundo,
         // los mismos que saca Magpie con la captura a 59,94: sin el desfase de 120,000 que da saltos de 3-4 refrescos)
         public bool VsyncHalf119 = false;
         // (22-11, 1.2.2 RITMO y MULTI: solo con x2; con x3 / x4 la sincronizacion "cada 2 refrescos" dejaria la salida en 60: Config.RitmoFijo1Now)
-        public bool VsyncHalfFgNow { get { return VsyncHalfType && CapMode && !FgOff && FgTypeNow != "smooth" && FgMultNow <= 2 && !MultAlto && !ReflexNow && !NvProfiles.VsyncBroken && Pantalla.Hz() >= 100 && (VsyncHalf119 || !Pantalla.Is119); } }
+        public bool VsyncHalfFgNow { get { return VsyncHalfType && CapMode && !FgOff && FgTypeNow != "smooth" && !ReflexNow && !NvProfiles.VsyncBroken && Pantalla.Hz() >= 100 && (VsyncHalf119 || !Pantalla.Is119); } }
         public bool ReflexNow { get { return Reflex && (FgOff || ReflexWithFg); } }        // 15-11, MEDIDO: Reflex no se activa en este montaje (Magpie cae a Async) y Async da 58,3 reales con tirones frente a 60,0 con Front Edge
         public int MagpieDuplicates = 0;            // deteccion de repetidas de Magpie: 0 nunca (las quita mpv), 1 dinamica, 2 siempre
         public int MagpieCaptureMethod = 0;         // 0 Graphics Capture (WGC)
@@ -937,28 +876,28 @@ namespace ConsoleEnhancer
         public int D5WatchImage = 1;
         public double D5ImageOsc = 4, D5ImagePct = 25;
         public static volatile bool EngineActive;     // la imagen la esta haciendo el motor (no mpv)
-        // 17-11 16:55 (motor_generacion_60=smooth): en el modo 60 del motor propio la generacion la hace Smooth Motion del driver (perfil de
-        // NVIDIA de ConsoleEnhancerEngine.exe) y no DLSS-G. DLSS-G necesita Reflex, y Reflex con la sincronizacion limita la salida a 116 a 120 Hz:
-        // 58 reales de 59,94 (2 perdidas por segundo, tirones); sin sincronizacion, cortes. Smooth Motion: 60 reales, sin cortes (banco).
-        // El driver solo lo mira al abrir el proceso: el motor se vuelve a abrir cuando cambia (generacion si/no, modo 30/60)
-        public bool EngineSmooth60 = false;
+        // 17-11 16:55: Smooth Motion en el motor propio = la generacion del driver (perfil de NVIDIA de ConsoleEnhancerEngine.exe). El driver
+        // solo lo mira al abrir el proceso: el motor se vuelve a abrir cuando cambia (generacion si/no, modo 30/60). Estado del perfil: 0 sin,
+        // 1 con la sincronizacion forzada (modo 60), 2 con la de cada 2 refrescos (modo 30 a 100 Hz o mas: cada imagen 2 refrescos)
+        // (1.2.4 ronda 6, QUITAFG: sin DLSS-G en el motor, Smooth Motion va en el motor cuando el tipo del modo es smooth; motor_generacion_60 /
+        // _30, que elegian entre Smooth Motion y DLSS-G, ya no se leen)
         public bool BridgeLight = true;   // 17-11 17:00 (puente_ligero): el motor con E mientras juega encima de Magpie arrancando (menos tirones)
-        // 17-11 17:50 (el usuario: "pon smooth motion en vez de fg" en todos los modos, tambien en el de 30): motor_generacion_30=smooth. Estado del
-        // perfil: 0 sin, 1 con la sincronizacion forzada (modo 60), 2 con la de cada 2 refrescos (modo 30 a 100 Hz o mas: cada imagen 2 refrescos)
-        public bool EngineSmooth30 = false;
-        public bool EngineSmoothAny { get { return EngineSmooth60 || EngineSmooth30 || FgPick60 == "smooth" || FgPick30 == "smooth"; } }
-        // 19-11 (GENERACION): Smooth Motion en el motor para este modo: lo elegido con L3 (smooth = si, dlss = DLSS-G) o el ini
-        public bool EngineSmoothFor(bool cap) { string k = cap ? FgPick30 : FgPick60; return k.Length > 0 ? k == "smooth" : cap ? EngineSmooth30 : EngineSmooth60; }
+        public bool EngineSmoothAny { get { return EngineSmoothFor(true) || EngineSmoothFor(false); } }
+        // Smooth Motion en el motor para este modo: el tipo de ese modo (lo elegido con L3 / el menu, o el del ini) es smooth
+        public bool EngineSmoothFor(bool cap) { return FgTypeFor(cap, VideoSize) == "smooth"; }
         // (19-11: en el menu de la PS5 a 4K nativo, nunca: el usuario lo quiere "nativamente sin smooth motion ni nada", src\MenuPs5.cs)
         public int EngineSmoothMode { get { if (FgOff || Mode120 || NvProfiles.EngineSmoothBroken || (HomeNative && Consolas.Actual.MenuPropio)) return 0; if (CapMode) return EngineSmoothFor(true) ? (Pantalla.Hz() >= 100 ? 2 : 1) : 0; return EngineSmoothFor(false) && Pantalla.Hz() >= 100 ? 1 : 0; } }   // (ConsoleEnhancer: en el modo 60 la generacion solo con la pantalla a 100 Hz o mas; 20-11 HZ120: a 120 sin Smooth Motion)
         // 19-11 (GENERACION): la generacion de ahora solo la hace Magpie (FSR 3 FG, XeSS FG, NVIDIA VFG): con DLSS 5 apagado, mpv + Magpie sin el
         // 21-11 (1.0.9): FSR 3 FG ya la hace el motor propio (src\Motor\Engine\EngineFgFfx.cs) salvo con DLSS de escalador (con ella el motor
         // va sin Streamline, sin DLSS): entonces sigue Magpie. XeSS FG y la de NVIDIA VFX, Magpie
         // (22-11, 1.2.4 SOLOMOTOR: los tipos / multiplicadores que el motor sabe, en MotorSabeGeneracion de SoloMotor.cs -MOTORFG: XeSS FG y x3 / x4-)
-        public bool FgMagpieOnly { get { return !FgOff && !HomeNative && !Mode120 && ((FgTypeNow == "fsr3" && Ce.EngineUpscaler(this) == "dlss") || !MotorSabeGeneracion(FgTypeNow, MultOn && !Mode120 ? FgMultNow : 2) ||
-                                                                         (FgTypeNow == "dlss" && Ce.DlssgSoloMagpie) || MotorGenAMagpie(FgTypeNow, MultOn && !Mode120 ? FgMultNow : 2)); } }   // (1.0.10: RTX 30 + dlssg_sm86, DLSS FG por Magpie; 1.2.2: DLSS FG x3 / x4, Multiplicador.cs) (1.2.4 ronda 5, XEFGM: lo que en el motor no es fiable o no llega, XefgMotor.cs)
+        // (1.2.4 ronda 6, QUITAFG: sin DLSS FG ni x3 / x4, lo que va por Magpie es FSR 3 FG con DLSS de escalador y lo que el reparto manda alli:
+        // XefgMotor.cs, MotorGenAMagpie)
+        // (1.2.4 ronda 6, QUITAFG, fase 2: sin Magpie, nada va por el; se queda el nombre para lo que lo pregunta)
+        public bool FgMagpieOnly { get { return false; } }
         // El motor con FSR 3 FG (fg_tipo=fsr3 al abrirlo: su cadena de presentacion es la de FidelityFX; no se cambia en marcha)
-        public bool EngineFfxWanted { get { return !FgOff && !HomeNative && !Mode120 && FgTypeNow == "fsr3" && Ce.EngineUpscaler(this) != "dlss"; } }
+        // (1.2.4 ronda 6, QUITAFG: tambien con DLSS de escalador -antes por Magpie-: el motor lleva DLSS SR por Streamline sin sus ganchos, como con XeSS FG)
+        public bool EngineFfxWanted { get { return !FgOff && !HomeNative && !Mode120 && FgTypeNow == "fsr3"; } }
         public static volatile int EngineFfxLaunched = -1;
         static readonly Dictionary<int, int> engineFfxByPid = new Dictionary<int, int>();
         public static void NoteEngineFfx(Process p) { if (p == null) return; try { lock (engineFfxByPid) engineFfxByPid[p.Id] = EngineFfxLaunched; } catch { } }
@@ -980,7 +919,7 @@ namespace ConsoleEnhancer
         // pierde el ritmo: 59,94 en 120 Hz, medido 22,3 ms frente a 17,7 y saltos de 1 y 3 refrescos)
         public bool EngineFixed60Fg = true;
         public bool EngineReserve = true;   // 21-11 (1.0.9) motor_reserva=0|1: motor de reserva con la otra generacion del modo (MaybeReserveEngine)
-        public bool EngineFixedWanted { get { return EngineFixed60Fg && CeRefrescoFijoAhora() && (!CapMode || MotorFgFactorRefresco() == 4) && !FgOff && !EngineSmoothFor(false) && !NvProfiles.EngineFixedBroken; } } // (ConsoleEnhancer: CeRefrescoFijoAhora, motor_60fg_refresco_fijo=auto, ImagenCe.cs)
+        public bool EngineFixedWanted { get { return EngineFixed60Fg && !Mode120 && !CapMode && CeRefrescoFijoAhora() && !FgOff && !EngineSmoothFor(false) && !NvProfiles.EngineFixedBroken; } } // (ConsoleEnhancer: CeRefrescoFijoAhora, motor_60fg_refresco_fijo=auto, ImagenCe.cs; 1.2.4 ronda 6, QUITAFG: sin el x4 del motor en el 30)
         public static volatile int EngineFixedLaunched = -1;    // el refresco fijo del ultimo motor lanzado (EngineArgs): -1 ninguno, 0 no, 1 si
         static readonly Dictionary<int, int> engineFixedByPid = new Dictionary<int, int>();
         // (justo tras Process.Start de un motor: con que refresco se abrio ese proceso)
@@ -1233,7 +1172,7 @@ namespace ConsoleEnhancer
 
         public string FgName
         {
-            get { string t = FgTypeNow; return t == "smooth" ? "Smooth Motion" : t == "fsr3" ? "FSR 3 FG" : t == "xess" ? "XeSS FG" : t == "vfg" ? "NVIDIA VFG" : "DLSS FG"; }
+            get { string t = FgTypeNow; return t == "smooth" ? "Smooth Motion" : t == "fsr3" ? "FSR 3 FG" : "XeSS FG"; }
         }
 
         // Lo que se aplica, para el log
@@ -1248,7 +1187,7 @@ namespace ConsoleEnhancer
                         ", entrada " + (Dlss5PctShownNow > 0 ? Dlss5PctShownNow + " %" : "adaptativa") + (EngineDlss5Now ? ", en el motor propio" : LightNow ? ", ligero" : "") +
                         (!EngineDlss5Now && Dlss5EveryNow > 1 ? ", modelo 1 de cada " + Dlss5EveryNow : "") +
                         (AntiFlickerNow > 0 ? ", antiparpadeo " + AntiFlickerNow : "")) +
-                       (FgOff ? ", sin generacion" : ", " + FgName + " x" + FgMultNow + (MotorFgPropiaAhora ? " (generacion propia del motor)" : "")) + (RtxHdr ? ", RTX HDR " + RtxHdrNits + " nits" : "") + (ReflexNow ? ", Reflex" : "");
+                       (FgOff ? ", sin generacion" : ", " + FgName) + (RtxHdr ? ", RTX HDR " + RtxHdrNits + " nits" : "") + (ReflexNow ? ", Reflex" : "");
             }
         }
 
@@ -1360,12 +1299,8 @@ namespace ConsoleEnhancer
                         case "dlss_flujo": c.DlssFlow = ParseFlow(val); break;
                         case "flujo_calidad_nvidia": c.FlowQualityNv = Math.Max(1, Math.Min(5, ParseInt(val))); break;
                         case "flujo_calidad_amd": c.FlowQualityAmd = Math.Max(0, Math.Min(1, ParseInt(val))); break;
-                        case "fg_flujo_30": c.FgFlow30 = ParseFlow(val); break;
-                        case "fg_flujo_60": c.FgFlow60 = ParseFlow(val); break;
-                        case "fg_flujo_calidad_60": c.FgFlowQualityNv60 = Math.Max(1, Math.Min(5, ParseInt(val))); break;
                         case "ventana_1080": Config.Window1080 = ParseBool(val); break;
                         case "dlss5_antiparpadeo_30_1pasada": c.Af30OnePass = ParseInt(val); break;
-                        case "fg_flujo_calidad": c.FgFlowQualityNv = Math.Max(1, Math.Min(5, ParseInt(val))); break;
                         case "vsr_categoria": c.VsrCategory = Math.Max(0, Math.Min(4, ParseInt(val))); break;
                         case "vsr_calidad": c.VsrQuality = Math.Max(0, Math.Min(3, ParseInt(val))); break;
                         case "upscale_sharpen": c.UpscaleSharpen = ParseNum(val); break;
@@ -1401,15 +1336,9 @@ namespace ConsoleEnhancer
                         case "generacion_tipo_30": c.FgType30 = val.Trim().Length == 0 ? "" : ParseFg(val); break;
                         case "generacion_lista_60": c.GenList60 = ParseGenList(val); break;   // 19-11 (GENERACION: el selector de L3)
                         case "generacion_lista_30": c.GenList30 = ParseGenList(val); break;
-                        case "generacion_60": c.FgMult60 = Math.Max(2, Math.Min(4, ParseInt(val))); break;
-                        case "modo30_generacion": c.CapFgMult = Math.Max(2, Math.Min(4, ParseInt(val))); break;
-                        case "dlss_fg_preset": c.DlssFgPreset = ParseInt(val); break;
                         case "magpie_vrr": c.MagpieVrr = ParseBool(val); break;
-                        case "magpie_vrr_60_fg": c.MagpieVrr60Fg = ParseBool(val); break;
                         case "magpie_vrr_30_fg": c.MagpieVrr30Fg = ParseBool(val); break;
                         case "magpie_vrr_dxgi": c.VrrDxgi = ParseBool(val); break;
-                        case "magpie_dlssfg_ritmo_vsync": c.DlssFgVsyncPacing = ParseBool(val); break;
-                        case "magpie_dlssfg_lite": c.DlssFgLite = ParseBool(val); break;
                         case "rtx_hdr": c.RtxHdr = ParseBool(val); break;
                         case "rtx_hdr_antes": c.RtxHdrBefore = ParseBool(val); break;
                         case "rtx_hdr_nits": c.RtxHdrNits = Math.Max(400, Math.Min(2000, ParseInt(val))); break;
@@ -1417,9 +1346,10 @@ namespace ConsoleEnhancer
                         case "rtx_hdr_contraste": c.RtxHdrContrast = Math.Max(0, Math.Min(200, ParseInt(val))); break;
                         case "rtx_hdr_saturacion": c.RtxHdrSaturation = Math.Max(0, Math.Min(200, ParseInt(val))); break;
                         case "reflex": c.Reflex = ParseBool(val); break;
-                        case "motor": c.Engine = val.Trim().ToLowerInvariant(); break;
+                        // (1.2.4 ronda 6, QUITAFG: sin Magpie la imagen la hace siempre el motor propio; motor=magpie de un ini de antes no cuenta)
+                        case "motor": c.Engine = "propio"; if (val.Trim().ToLowerInvariant() != "propio") Log.Write("motor=" + val.Trim() + " del ini no cuenta: sin Magpie, siempre el motor propio"); break;
                         case "motor_dlss5": break;   // (1.2.3 MOTOR5: 0 / 1 / auto. 1.2.4 SOLOMOTOR: ya no se elige; la puesta al dia la quita)
-                        case "motor_dlss5_pasadas": c.EngineDlss5MaxPasses = Math.Max(1, Math.Min(3, ParseInt(val))); break;   // (1.2.3 MOTOR5)
+                        case "motor_dlss5_pasadas": break;   // (1.2.3 MOTOR5: hasta cuantas pasadas hacia el motor -las demas por Magpie-; 1.2.4 ronda 6: sin Magpie, las 1-3 siempre en el motor)
                         case "motor_dlss5_entrada": c.EngineDlss5PctAll = Math.Max(0, Math.Min(100, ParseInt(val))); break;
                         case "motor_dlss5_entrada_30": ParsePctList(val, c.EngineDlss5Pct30); break;
                         case "motor_dlss5_entrada_30_4k": ParsePctList(val, c.EngineDlss5Pct30_4k); break;
@@ -1443,8 +1373,6 @@ namespace ConsoleEnhancer
                         case "motor_dlss5_home": c.EngineDlss5Home = ParseInt(val) != 0; break;
                         case "motor_60fg_refresco_fijo": c.EngineFixed60Fg = ParseInt(val) != 0; break;   // 20-11 (LATENCIA5)
                         case "motor_extra": c.EngineExtra = val.Trim(); break;
-                        case "motor_generacion_60": c.EngineSmooth60 = val.Trim().ToLowerInvariant() == "smooth"; break;   // 17-11 16:55
-                        case "motor_generacion_30": c.EngineSmooth30 = val.Trim().ToLowerInvariant() == "smooth"; break;   // 17-11 17:50
                         case "puente_ligero": c.BridgeLight = ParseBool(val) || val.Trim() == "2"; c.BridgeLightLevel = val.Trim() == "2" ? 2 : 1; break;   // 17-11 17:00 (21-11, 1.2.1: 2 = FSR 1 siempre, src\SinTelon.cs)
                         case "pasadas_vigilancia": c.D5Watch = ParseInt(val); break;   // 18-11 (PASADAS)
                         case "pasadas_vigilancia_reinicios": c.D5WatchResets = Math.Max(3, ParseInt(val)); break;
@@ -1463,7 +1391,6 @@ namespace ConsoleEnhancer
                         case "reflex_con_generacion": c.ReflexWithFg = ParseBool(val); break;
                         case "dxgi_60_sin_fg": c.VsyncNoFg = ParseBool(val); break;
                         case "magpie_sigue_fuente_60": c.Follow60NoFg = ParseBool(val); break;
-                        case "magpie_sigue_fuente_60_fg": c.Follow60Fg = ParseBool(val); break;
                         case "magpie_ritmo_ntsc": c.NtscRate = ParseBool(val); break;
                         case "magpie_cola_cpu": NvProfiles.MagpiePreRender = Math.Max(-1, Math.Min(8, ParseInt(val))); break;
                         case "nvidia_latencia_ultra": NvProfiles.MagpieUll = ParseBool(val) ? 1 : 0; break;   // 19-11 (LATENCIA3)
@@ -1480,11 +1407,9 @@ namespace ConsoleEnhancer
                         case "magpie_sm_vaciar_real_objetivo": c.SmRealTarget = Math.Max(0.3, Math.Min(5, ParseNum(val))); break;
                         case "magpie_sm_vaciar_real_ganancia": c.SmRealGain = Math.Max(0.5, Math.Min(3, ParseNum(val))); break;
                         case "presentmon_exe": c.PresentMonExe = val.Trim().Trim('"'); break;
-                        case "dxgi_30_fg": c.VsyncHalfFg30 = ParseBool(val); break;
                         case "dxgi_30_fg_119": c.VsyncHalf119 = ParseBool(val); break;
                         case "dxgi_30_xess": c.VsyncHalfByType["xess"] = ParseBool(val); break;   // 19-11 (GENERACION)
                         case "dxgi_30_fsr3": c.VsyncHalfByType["fsr3"] = ParseBool(val); break;
-                        case "dxgi_30_vfg": c.VsyncHalfByType["vfg"] = ParseBool(val); break;
                         case "magpie_repetidas": c.MagpieDuplicates = Math.Max(0, Math.Min(2, ParseInt(val))); break;
                         case "magpie_captura": c.MagpieCaptureMethod = Math.Max(0, ParseInt(val)); break;
                         // ---- mpv, HOME y telon ----
@@ -1561,6 +1486,7 @@ namespace ConsoleEnhancer
                 c.Dlss5AntiFlicker = 1;
             }
             Integrado.ResolvePaths(c); // (18-11, INTEGRADO: mpv y motor dentro de la app si estan, magpie_actualizar)
+            c.CeTiposTrasCargar(); // (1.2.4 ronda 6, QUITAFG: lo que va en lugar de DLSS FG en lo guardado, src\Lanzador\TiposGeneracion.cs)
             return c;
         }
 
@@ -1582,44 +1508,17 @@ namespace ConsoleEnhancer
         static string ParseScaler(string v)
         {
             v = v.Trim().ToLowerInvariant();
-            if (v == "dlss" || v == "vsr" || v == "xess" || v == "fsr" || v == "ninguno") return v;
-            if (v == "rtx" || v == "rtxvideo") return "vsr";
-            // 15-11 (exploracion): los demas escaladores de Magpie (ver MagpieConfig.Chain)
-            if (v == "sgsr" || v == "nvvfx" || v == "fsr2" || v == "fsr3" || v == "fsr4" || v == "lanczos" || v == "bicubic" || v == "cas") return v;
+            if (v == "dlss" || v == "xess" || v == "fsr" || v == "fsr3" || v == "fsr4" || v == "ninguno") return v;
             if (v == "fsr1") return "fsr";
-            if (v == "vfx") return "nvvfx";
-            throw new FormatException("escalador: dlss, vsr, xess, fsr, sgsr, nvvfx, fsr2, fsr3, fsr4, lanczos, bicubic, cas o ninguno");
+            if (v == "fsr2") return "fsr3";
+            // (1.2.4 ronda 6, QUITAFG: los escaladores que solo tenia Magpie -RTX Video, NVIDIA VFX, SGSR, CAS, Lanczos, Bicubico- ya no estan:
+            // el motor hace FSR 1 -el de siempre sin DLSS- o, los que solo estiran, sin reescalado)
+            if (v == "vsr" || v == "rtx" || v == "rtxvideo" || v == "nvvfx" || v == "vfx" || v == "sgsr" || v == "cas") return "fsr";
+            if (v == "lanczos" || v == "bicubic") return "ninguno";
+            throw new FormatException("escalador: dlss, xess, fsr, fsr3, fsr4 o ninguno");
         }
 
-        static string ParseFg(string v)
-        {
-            v = v.Trim().ToLowerInvariant();
-            if (v == "dlss" || v == "fsr3" || v == "xess" || v == "vfg" || v == "smooth") return v;
-            if (v == "fsr") return "fsr3";
-            if (v == "smoothmotion" || v == "smooth_motion" || v == "sm") return "smooth"; // (NVIDIA Smooth Motion, la del driver)
-            throw new FormatException("generacion_tipo: dlss, fsr3, xess, vfg o smooth");
-        }
-
-        // 19-11 (GENERACION): un tipo guardado (perfil, games\framegen_type.txt): el tipo o "" si no vale
-        public static string ParsePick(string v)
-        {
-            try { return string.IsNullOrEmpty(v) || v.Trim().Length == 0 ? "" : ParseFg(v); }
-            catch { return ""; }
-        }
-
-        // 19-11 (GENERACION): generacion_lista_60/30 = "smooth,dlss,xess" (sin, no, ninguna = nada: solo "Sin generacion")
-        static string[] ParseGenList(string v)
-        {
-            List<string> l = new List<string>();
-            foreach (string s in v.Split(new char[] { ',', ' ', ';' }, StringSplitOptions.RemoveEmptyEntries))
-            {
-                string t = s.Trim().ToLowerInvariant();
-                if (t == "sin" || t == "no" || t == "ninguna" || t == "0") continue;
-                t = ParseFg(t);
-                if (!l.Contains(t)) l.Add(t);
-            }
-            return l.ToArray();
-        }
+        // (ParseFg, ParsePick y ParseGenList: src\Lanzador\TiposGeneracion.cs)
 
         static int ParseFlow(string v)
         {
@@ -1863,7 +1762,6 @@ namespace ConsoleEnhancer
             // 20-11 (HZ120): a 120 nunca hay generacion (imagenes reales a 120, baja latencia), tambien por el camino de Magpie
             if (!cfg.FgOff && !cfg.Mode120 && cfg.FgTypeNow != "smooth")
             {
-                int m = cfg.FgMultNow;
                 switch (cfg.FgTypeNow)
                 {
                     case "fsr3":
@@ -1872,24 +1770,11 @@ namespace ConsoleEnhancer
                         break;
                     case "xess":
                         // 22-11 (1.2.2 CALIDAD): sus vectores por fg_xess_flujo / fg_xess_flujo_calidad (src\Lanzador\CalidadFg.cs; vacio = como antes)
-                        fx.Add(Effect("XeSSFG\\XeSS_FrameGeneration", false, Pars("multiplier", m, "opticalFlowMethod", cfg.XessFgFlowNow,
+                        // (1.2.4 ronda 6, QUITAFG: siempre x2)
+                        fx.Add(Effect("XeSSFG\\XeSS_FrameGeneration", false, Pars("multiplier", 2, "opticalFlowMethod", cfg.XessFgFlowNow,
                                                                                   "amdOpticalFlowMode", flowAmd, "nvidiaOpticalFlowQuality", cfg.XessFgFlowQNow)));
                         break;
-                    case "vfg":
-                        fx.Add(Effect("NvidiaVFX\\VFG", false, Pars("multiplier", m, "model", 1, "automaticShotDetection", 1)));
-                        break;
-                    default:
-                        // DLSS FG lleva su propio flujo optico (el acelerador de la RTX 40). 16-11 noche (el usuario, FC 26 en el modo 30: "el FG
-                        // causa a veces en el cesped como borrosidad"): sin vectores de Magpie (0) DLSS FG cree la escena quieta y en las texturas
-                        // finas que se repiten (cesped) mezcla las dos imagenes. En el modo 30 (sobra grafica) con los vectores de NVOF en calidad
-                        // (ini fg_flujo_30=ninguno/amd/nvidia, fg_flujo_calidad=1-5); en el de 60, como antes
-                        // (16-11 19:12: con captura 4K NO: banco, 30 con FG y DLSS 5, 23 reales con los vectores y 29,97 sin ellos)
-                        // 22-11 (1.2.2 CALIDAD): el flujo y su calidad en Config.DlssFgFlowNow / DlssFgFlowQNow (src\Lanzador\CalidadFg.cs: con la
-                        // captura de 4K, fg_dlss_flujo_4k; si no, fg_flujo_30 / fg_flujo_60 como antes)
-                        fx.Add(Effect("DLSSFG\\DLSS_FrameGeneration", false, Pars("multiplier", m, "renderPreset", cfg.DlssFgPresetNow,
-                                                                                  "opticalFlowMethod", cfg.DlssFgFlowNow, "amdOpticalFlowMode", flowAmd,
-                                                                                  "nvidiaOpticalFlowQuality", cfg.DlssFgFlowQNow)));
-                        break;
+                    // (1.2.4 ronda 6, QUITAFG: DLSS FG -DLSSFG\DLSS_FrameGeneration- y NVIDIA VFG ya no estan)
                 }
             }
             // magpie.efecto.<efecto>.<parametro>=valor del ini (efecto: DLSSNR, DLSS_SR, CAS... = el final de su nombre)
@@ -5768,17 +5653,17 @@ namespace ConsoleEnhancer
             return (Capture == "1280x720" ? "720p" : Capture == "1920x1080" ? "1080p" : Capture == "3840x2160" ? "4K" : "1440p") +
                    (Mode120 ? ", modo 120 fps" : Cap ? ", modo 30 fps" : "") + ", nivel " + Level + ", " + Passes + " pasada" + (Passes > 1 ? "s" : "") +
                    (Dlss5 ? "" : ", DLSS 5 apagado") + (ScalerPick == "fsr" ? ", FSR 1" : ScalerPick == "ninguno" ? ", sin reescalado" : Scaler ? "" : ", escalador alternativo") + (Fg ? "" : ", sin generacion de fotogramas") +
-                   (Pick60.Length > 0 ? ", generacion del 60: " + Pick60 : "") + (Pick30.Length > 0 ? ", generacion del 30: " + Pick30 : "") + MultSummary;
+                   (Pick60.Length > 0 ? ", generacion del 60: " + Pick60 : "") + (Pick30.Length > 0 ? ", generacion del 30: " + Pick30 : "");
         }
 
-        // 19-11 (GENERACION): la columna 10 ("smooth,xess"; vacio = los del ini). 1.2.2: y el multiplicador de cada modo ("dlss,xess,0,4")
-        public string PickText { get { string m = MultCols; return Pick60.Length == 0 && Pick30.Length == 0 && m.Length == 0 ? "" : Pick60 + "," + Pick30 + m; } }
+        // 19-11 (GENERACION): la columna 10 ("smooth,xess"; vacio = los del ini). (1.2.2-1.2.4 llevaba detras el multiplicador de cada modo,
+        // "dlss,xess,0,4": 1.2.4 ronda 6, QUITAFG, se lee y se tira -sin x3 / x4- y dlss / vfg pasan al mas parecido: Config.ParsePick)
+        public string PickText { get { return Pick60.Length == 0 && Pick30.Length == 0 ? "" : Pick60 + "," + Pick30; } }
         public void ParsePick(string s)
         {
             string[] f = (s ?? "").Split(',');
             Pick60 = Config.ParsePick(f.Length > 0 ? f[0] : "");
             Pick30 = Config.ParsePick(f.Length > 1 ? f[1] : "");
-            ParseMult(f);
         }
     }
 
@@ -6172,7 +6057,6 @@ namespace ConsoleEnhancer
                 Load();
                 p.Capture = from.Capture; p.Level = from.Level; p.Passes = from.Passes; p.Dlss5 = from.Dlss5;
                 p.Scaler = from.Scaler; p.ScalerPick = from.ScalerPick; p.Cap = from.Cap; p.Mode120 = from.Mode120; p.Fg = from.Fg; p.Pick60 = from.Pick60; p.Pick30 = from.Pick30;
-                p.Mult60 = from.Mult60; p.Mult30 = from.Mult30;   // (1.2.2, MULTI)
                 if (!list.Contains(p)) list.Add(p);
                 SaveAll();
             }
@@ -8374,14 +8258,14 @@ namespace ConsoleEnhancer
                 string up120 = cfg.UpscaleOn ? " · " + (Config.EngineActive ? (cfg.ScalerNow == "dlss" ? "DLSS " + Config.EngineModelName(cfg.EnginePresetNow) : "Catmull-Rom") : cfg.ScalerName(cfg.ScalerNow)) : "";
                 return (curGame ?? "Juego") + " · " + SizeName(cfg.VideoSize) + " · 120 fps (esports) · sin generación · Reflex" + (Config.EngineActive ? " · motor propio" : "") + up120;
             }
-            int fps = cfg.CapMode ? 30 * (fgWanted ? cfg.FgMultNow : 1) : 60 * (fgWanted ? cfg.FgMultNow : 1);
+            int fps = cfg.CapMode ? 30 * (fgWanted ? 2 : 1) : 60 * (fgWanted ? 2 : 1);
             if (Config.EngineActive)
                 return (curGame ?? "Juego") + " · " + SizeName(cfg.VideoSize) + " · " +
                        (fgWanted ? (cfg.CapMode ? "30" : "60") + " → " + fps + " fps (" + (cfg.EngineSmoothMode > 0 ? "Smooth Motion" : "DLSS-G + Reflex") + ")" : fps + " fps sin generación · Reflex") +
                        " · motor propio · " + (cfg.ScalerNow == "dlss" ? "DLSS " + Config.EngineModelName(cfg.EnginePresetNow) : "Catmull-Rom, sin DLSS") +
                        (!dlss5Shown ? " · DLSS 5 desactivado" : " · DLSS 5 no cabe en este modo");
             return (curGame ?? "Juego") + " · " + SizeName(cfg.VideoSize) + " · " +
-                   (fgWanted ? (cfg.CapMode ? "30" : "60") + " → " + fps + " fps (" + cfg.FgName + cfg.MultEtiqueta + ")" + MultNota() : fps + " fps sin generación") + " · " +
+                   (fgWanted ? (cfg.CapMode ? "30" : "60") + " → " + fps + " fps (" + cfg.FgName + ")" : fps + " fps sin generación") + " · " +
                    (!dlss5Shown ? "DLSS 5 desactivado" : !Integrado.Dlss5Available ? Integrado.Dlss5MissingText : !cfg.Dlss5FitsNow ? "DLSS 5 no cabe en este modo (se quita)" : "DLSS 5 nivel " + dlss5Level + " · " + Pasadas(cfg.Dlss5PassesNow) + (cfg.Dlss5PassesNow < dlss5Passes ? " (" + dlss5Passes + " no caben)" : "") + " · " + (cfg.Dlss5PctShownNow > 0 ? cfg.Dlss5PctShownNow + " %" : "adaptativo") + (cfg.EngineDlss5Now ? " · motor propio" : "")) +
                    (cfg.UpscaleOn ? " · " + cfg.ScalerName(cfg.ScalerNow) : "");
         }
@@ -8412,7 +8296,7 @@ namespace ConsoleEnhancer
                 Log.Write((applying ? "Perfil" : "Mando") + ": generacion de fotogramas " + (on ? "encendida" : "apagada") + ReopenNote);
                 SaveCurProfile();
                 RestartLs(on ? "Generación de fotogramas activada" : "Generación de fotogramas desactivada",
-                          on ? cfg.FgName + " x" + cfg.FgMultNow + " · imágenes intercaladas entre las reales" : "Solo las imágenes reales de la consola");
+                          on ? cfg.FgName + " · imágenes intercaladas entre las reales" : "Solo las imágenes reales de la consola");
             }
             finally { Interlocked.Exchange(ref fgBusy, 0); }
         }
@@ -10369,7 +10253,6 @@ namespace ConsoleEnhancer
             p.Mode120 = cfg.Mode120; // 20-11 (HZ120)
             p.Fg = fgWanted;
             p.Pick60 = cfg.FgPick60; p.Pick30 = cfg.FgPick30; // (19-11, GENERACION)
-            p.Mult60 = cfg.MultPick60; p.Mult30 = cfg.MultPick30; // (1.2.2, MULTI: el multiplicador de la generacion)
             return p;
         }
 
@@ -10635,7 +10518,6 @@ namespace ConsoleEnhancer
                 fgWanted = p.Fg;
                 SaveText(Paths.FgFile, p.Fg ? "1" : "0");
                 SetPicks(p.Pick60, p.Pick30); // (19-11, GENERACION: el tipo de generacion elegido con L3 en este juego)
-                SetMults(p.Mult60, p.Mult30); // (1.2.2, MULTI: y su multiplicador x2 / x3 / x4 de cada modo)
             }
             ClearPending();
             lock (homeSync) { homeHits = 0; homeGame = null; homeShape = null; selReads = null; }
@@ -10680,7 +10562,6 @@ namespace ConsoleEnhancer
                 fgWanted = p.Fg;
                 SaveText(Paths.FgFile, p.Fg ? "1" : "0");
                 SetPicks(p.Pick60, p.Pick30); // (19-11, GENERACION: el tipo de generacion elegido con L3 en este juego)
-                SetMults(p.Mult60, p.Mult30); // (1.2.2, MULTI: y su multiplicador x2 / x3 / x4 de cada modo)
                 SetScalerChoice(p.Scaler, p.ScalerPick);
                 // Otra ventana (la captura de 4K): mpv y Magpie se reabren y Magpie coge ya todo lo de arriba
                 if (newWindow)
@@ -11097,7 +10978,6 @@ namespace ConsoleEnhancer
                     SaveText(Paths.FgFile, p.Fg ? "1" : "0");
                 }
                 SetPicks(p.Pick60, p.Pick30); // (19-11, GENERACION: el tipo de generacion elegido con L3 en este juego)
-                SetMults(p.Mult60, p.Mult30); // (1.2.2, MULTI: y su multiplicador x2 / x3 / x4 de cada modo)
                 // (19-11: o si con sus ajustes toca el otro motor: FSR 3 / XeSS FG solo los hace Magpie; RestartLs cambia de motor)
                 if (!newWindow && LsHardChanges() > 0) pendingPassesRestart = true;
                 PrepareCfg();
@@ -11207,7 +11087,7 @@ namespace ConsoleEnhancer
             }
             RestartLs(ModoTexto(fps),
                       (m120 ? "captura a " + cfg.FramerateNow + " · baja latencia" :
-                       fgWanted ? (cap ? "30 → " + 30 * cfg.FgMultNow : "60 → " + 60 * cfg.FgMultNow) + " fps" + MultNota() + " · " + ScalerText() :
+                       fgWanted ? (cap ? "30 → 60" : "60 → 120") + " fps · " + ScalerText() :
                        ScalerText()),
                       fpsChange);
         }
@@ -11690,31 +11570,44 @@ namespace ConsoleEnhancer
             if ((now - reserveQuietSince).TotalSeconds < 10) return;
             int smRun = Config.EngineSmoothRunning;
             if (smRun < 0 || NvProfiles.EngineSmoothBroken) return;
-            int altSm, altFixed;
-            // (1.2.4 arreglos, RELEVO: con otra cadena delante -XeSS FG, FSR 3 FG, PrismaFg-, el de reserva es el de siempre -cadena 0, sin
-            // Smooth Motion: DLSS FG x2, la FG propia x3 / x4, sin generacion, DLSS SR-, lo mas probable despues; antes Smooth Motion)
+            int altSm, altFixed, altCh = 0;
+            // (1.2.4 arreglos, RELEVO: con otra cadena delante -XeSS FG, FSR 3 FG-, el de reserva es el de siempre -cadena 0-; antes Smooth Motion)
+            // (1.2.4 ronda 6, QUITAFG: sin DLSS-G, "el de siempre sin Smooth Motion" es un motor sin generacion -log del usuario 23-11 01:46:33,
+            // "se arranca uno escondido con DLSS FG" con Smooth Motion delante, y apagaba Smooth Motion en el perfil del driver mientras-. Ahora
+            // el otro tipo del selector que quede: con Smooth Motion delante, XeSS FG -su cadena 20, sin Smooth Motion-; con XeSS FG / FSR 3 FG
+            // delante, Smooth Motion si esta en el selector; si no hay otro, ninguno)
             int chRun = Config.EngineFfxOf(mpv);
-            if (smRun > 0 || chRun > 0) { altSm = 0; altFixed = (!cfg.CapMode && cfg.EngineFixed60Fg && cfg.CeRefrescoFijoAhora() && !NvProfiles.EngineFixedBroken) ? 1 : 0; }
-            else { altSm = cfg.CapMode ? (Pantalla.Hz() >= 100 ? 2 : 1) : (Pantalla.Hz() >= 100 ? 1 : 0); altFixed = 0; }
-            if (altSm == smRun && chRun <= 0) return;
-            string key = smRun + ">" + altSm + "|" + altFixed + "|c" + chRun + "|" + cfg.CaptureNow + "|" + (cfg.CapMode ? 30 : 60);
+            List<string> opts = GenOptions();
+            bool xeVa = opts.Contains("xess") && Config.MotorFgSabe("xess") && !cfg.MotorGenAMagpie("xess");
+            if (smRun > 0)
+            {
+                if (!xeVa) return;
+                altSm = 0; altCh = 20 + (Ce.EngineUpscaler(cfg) == "dlss" ? 1 : 0); altFixed = (!cfg.CapMode && !cfg.Mode120 && cfg.EngineFixed60Fg && cfg.CeRefrescoFijoAhora() && !NvProfiles.EngineFixedBroken) ? 1 : 0;
+            }
+            else
+            {
+                if (!opts.Contains("smooth")) return;
+                altSm = cfg.CapMode ? (Pantalla.Hz() >= 100 ? 2 : 1) : (Pantalla.Hz() >= 100 ? 1 : 0); altFixed = 0;
+            }
+            if (altSm == smRun && altCh == chRun) return;
+            string key = smRun + ">" + altSm + "|" + altFixed + "|c" + chRun + ">" + altCh + "|" + cfg.CaptureNow + "|" + (cfg.CapMode ? 30 : 60);
             if (key == reserveKeyDone) return;
             reserveKeyDone = key;
-            int sm = altSm, fx = altFixed;
-            Thread t = new Thread(delegate () { PrestartReserve(sm, fx); });
+            int sm = altSm, fx = altFixed, ch = altCh;
+            Thread t = new Thread(delegate () { PrestartReserve(sm, fx, ch); });
             t.IsBackground = true;
             t.Name = "Motor de reserva";
             t.Start();
         }
 
-        void PrestartReserve(int sm, int fixedRefresh)
+        void PrestartReserve(int sm, int fixedRefresh, int chain)
         {
             if (!StandbyLaunchBegin("de reserva")) return; // (21-11, 1.2.1: uno solo a la vez)
             try
             {
                 string ipc = MpvConst.StandbyIpcName();
                 PrepareCfg();
-                ProcessStartInfo psi = new ProcessStartInfo(cfg.EnginePath, EngineArgs(cfg, ipc, sm, fixedRefresh) + " standby=1");
+                ProcessStartInfo psi = new ProcessStartInfo(cfg.EnginePath, EngineArgs(cfg, ipc, sm, fixedRefresh, chain) + " standby=1");
                 psi.UseShellExecute = false;
                 psi.WorkingDirectory = Path.GetDirectoryName(cfg.EnginePath);
                 // 21-11 (1.2.1, log 1.2.07 18:31:55: el de reserva arranco justo cuando el modo 30 pasaba del motor a mpv + Magpie; arrancando a
@@ -11725,7 +11618,7 @@ namespace ConsoleEnhancer
                     Log.Write("Motor de reserva: no se arranca (ha empezado un cambio de imagen mientras se preparaba)");
                     return;
                 }
-                Log.Write("Motor de reserva: se arranca uno escondido con " + (sm > 0 ? "Smooth Motion" : "DLSS FG" + (fixedRefresh > 0 ? " y refresco fijo" : "")) +
+                Log.Write("Motor de reserva: se arranca uno escondido con " + (sm > 0 ? "Smooth Motion" : Config.ChainXess(chain) ? "XeSS FG" + (fixedRefresh > 0 ? " y refresco fijo" : "") : "la cadena de siempre") +
                           " (el otro tipo de generacion de este modo: cambiar a el sera despertarlo, ~0,5 s)");
                 Process e = Process.Start(psi);
                 if (userExit) { try { e.Kill(); } catch { } return; }
@@ -11944,8 +11837,7 @@ namespace ConsoleEnhancer
             // reves. Ahora dice lo que hay de verdad: el tipo de generacion de ahora, o desactivada solo si esta apagada
             string genNow = GenCurrent();
             bool genOff = genNow == "no" || cfg.FgOff;
-            string stTitle = title ?? (genOff ? "Generación de fotogramas desactivada" : "Generación: " + GenLabel(genNow, true) + GenMultSufijo(genNow) +
-                                       (genNow == "dlss" || genNow == "xess" ? cfg.MotorFgViaNota(genNow, cfg.FgMultNow) : ""));   // (1.2.4 arreglos, RELEVO: con x3 / x4 y la FG propia)
+            string stTitle = title ?? (genOff ? "Generación de fotogramas desactivada" : "Generación: " + GenLabel(genNow, true));
             string stSub = subtitle ?? (genOff ? "Solo las imágenes reales de la consola" : GenDetail(genNow, true) +
                                         (want == 0 && cfg.EngineFixedWanted ? " · ritmo fijo de la tele" : ""));
             if (cfg.Dlss5Seamless && StandbyOn() && EngineKnowsSinTelon() && signalOn && mpv != null)
@@ -12006,12 +11898,14 @@ namespace ConsoleEnhancer
         // En el HOME a 4K nativo, sin generacion (como sin Magpie)
         static string EngineLive(Config cfg) { return EngineLive(cfg, Config.EngineSmoothRunning > 0); }
         // smooth = el motor lleva Smooth Motion del driver: en el modo 60 la generacion la hace el (fg=0 al motor)
-        static string EngineLive(Config cfg, bool smooth)
+        static string EngineLive(Config cfg, bool smooth) { return EngineLive(cfg, smooth, -1); }
+        // chain = la cadena con la que se abre ese motor (-1 = la de ahora, Config.EngineFgChain): fg=1 solo con la de XeSS FG o FSR 3 FG
+        static string EngineLive(Config cfg, bool smooth, int chain)
         {
             bool fg = !cfg.FgOff && !cfg.HomeNative && !smooth && !cfg.Mode120 && (cfg.CapMode || Pantalla.Hz() >= 100);   // (ConsoleEnhancer: modo 60 con la pantalla a 60 Hz: sin generacion)   // (17:50: tambien en el modo 30; 20-11 HZ120: a 120 sin generacion de fotogramas)
-            // (1.2.4, integracion: x3 / x4 con la generacion propia del motor -EngineFgPropia.cs-: fg=0 y fg_propia=N, MotorFgLive)
-            bool genOn = fg;   // (con Smooth Motion -el de reserva-, en el HOME o sin generacion: ni DLSS-G ni la propia)
-            if (fg && cfg.MotorFgPropiaAhora) fg = false;
+            // (1.2.4 ronda 6, QUITAFG: sin DLSS-G, fg=1 solo con la cadena de XeSS FG o FSR 3 FG; con la de siempre el motor iria sin generacion
+            // -Smooth Motion va con fg=0 y sm=N-. Asi el motor de delante no enciende nada que no sea lo suyo)
+            if (fg && (chain >= 0 ? chain : cfg.EngineFgChain) <= 0) fg = false;
             return "fg=" + (fg ? "1" : "0") + " mode=" + (cfg.Mode120 && !cfg.HomeNative ? "120" : cfg.CapMode && !cfg.HomeNative ? "30" : "60") +
                    " preset=" + cfg.EnginePresetNow + " upscaler=" + Ce.EngineUpscaler(cfg) +
                    " sharp=" + EngineSharpen(cfg).ToString("0.00", CultureInfo.InvariantCulture) +
@@ -12021,8 +11915,7 @@ namespace ConsoleEnhancer
                    // Repetidas fuera con generacion (o en el modo 30), como el filtro de mpv: tambien al encenderla o apagarla en marcha
                    " dedupe=" + (DedupeOn(cfg, !cfg.FgOff) ? "1" : "0") +
                    // 16-11 noche: la captura reducida antes de DLSS (motor_entrada_<modo>_<captura>=WxH; 0 = tal cual)
-                   " entrada=" + cfg.EngineInNow + EngineDlss5Args(cfg) +
-                   (genOn ? cfg.MotorFgLive() : " fg_propia=0");   // (1.2.4 MOTORFG: el multiplicador de DLSS FG en marcha, src\Lanzador\MotorFg.cs; y la generacion propia)
+                   " entrada=" + cfg.EngineInNow + EngineDlss5Args(cfg);
         }
 
         // 20-11 (DLSS 5 EN EL MOTOR): nivel, estilo, modelo, mascara e interfaz de DLSS 5 para el motor (EngineDlss5.cs); dlss5=0 si no toca
@@ -12035,7 +11928,7 @@ namespace ConsoleEnhancer
             if (!cfg.EngineDlss5Now || (cfg.HomeNative && !cfg.EngineDlss5Home)) return cfg.EngineDlss5 || cfg.MotorDlss5Disponible ? " dlss5=0" : "";
             double[] n = cfg.LevelNums(cfg.Level30);
             Func<double, string> f = x => Math.Min(2, x).ToString("0.###", CultureInfo.InvariantCulture);
-            int passes = Math.Max(1, Math.Min(3, cfg.Dlss5PassesNow));
+            int passes = Math.Max(1, Math.Min(3, cfg.Dlss5PassesNow));   // (1.2.4 ronda 6: las 1-3, siempre en el motor)
             return " dlss5=1 dlss5_nivel=" + f(n[0]) + "," + f(n[1]) + "," + f(n[2]) + "," + f(n[3]) +
                    // 20-11 03:40: las pasadas, su fuerza (dlss5_fuerza_pasadas) y el antiparpadeo del modo (lo mismo que a Magpie)
                    " dlss5_pasadas=" + passes.ToString(CultureInfo.InvariantCulture) +
@@ -12049,14 +11942,16 @@ namespace ConsoleEnhancer
                    " dlss5_estilo=" + cfg.Dlss5Style.ToString(CultureInfo.InvariantCulture) +
                    " dlss5_modelo=" + cfg.Dlss5Model.ToString(CultureInfo.InvariantCulture) +
                    " dlss5_mascara=" + (cfg.Dlss5AutoMask ? "1" : "0") + " dlss5_interfaz=" + (cfg.Dlss5UiFix ? "1" : "0") +
-                   " dlss5_dir=" + Paths.MagpieDir;
+                   " dlss5_dir=" + Integrado.Dlss5Dir;   // (1.2.4 ronda 6, QUITAFG: la DLL del usuario en extras\, sin copiarla a magpie\)
         }
 
-        static string EngineArgs(Config cfg, string ipc) { return EngineArgs(cfg, ipc, -1, -1); }
+        static string EngineArgs(Config cfg, string ipc) { return EngineArgs(cfg, ipc, -1, -1, -1); }
+        static string EngineArgs(Config cfg, string ipc, int smOverride, int fixedOverride) { return EngineArgs(cfg, ipc, smOverride, fixedOverride, -1); }
 
         // smOverride / fixedOverride >= 0 (21-11, 1.0.9, motor de reserva): el Smooth Motion y el refresco con los que se abre, en vez de los de
         // la config de ahora (la "otra" generacion del modo, para que cambiarla con L3 sea despertar un motor ya abierto: ~0,5 s, no 4-5)
-        static string EngineArgs(Config cfg, string ipc, int smOverride, int fixedOverride)
+        // (1.2.4 ronda 6, QUITAFG: chainOverride >= 0 = la cadena del de reserva -20 XeSS FG con Smooth Motion delante-)
+        static string EngineArgs(Config cfg, string ipc, int smOverride, int fixedOverride, int chainOverride)
         {
             // 17-11 16:55 (motor_generacion_60=smooth): Smooth Motion en el perfil de ConsoleEnhancerEngine.exe justo antes de abrirlo (el driver lo
             // mira al abrir el proceso); quitado si no toca (o si lo dejo puesto otra sesion)
@@ -12070,7 +11965,7 @@ namespace ConsoleEnhancer
             Config.EngineFixedLaunched = fixedRefresh ? 1 : 0;
             // 21-11 (1.0.9): FSR 3 FG en el motor (1.2.4 MOTORFG: XeSS FG; src\Lanzador\MotorFg.cs). (1.2.4, integracion: el de reserva -Smooth
             // Motion / DLSS-G, la "otra" del modo- con la cadena de siempre: con la de XeSS FG de ahora no valdria nunca y gastaria memoria)
-            Config.EngineFfxLaunched = smOverride >= 0 ? 0 : cfg.EngineFgChain;
+            Config.EngineFfxLaunched = chainOverride >= 0 ? chainOverride : smOverride >= 0 ? 0 : cfg.EngineFgChain;
             List<string> a = new List<string>();
             a.Add("ipc=" + ipc);
             a.Add("flag=" + Paths.FlagFile);
@@ -12083,7 +11978,7 @@ namespace ConsoleEnhancer
             a.Add("format=" + EngineFormat(cfg));
             if (cfg.TestSource.Length > 0) a.Add(cfg.TestMotorArg);
             a.Add("dedupe=" + (DedupeOn(cfg, !cfg.FgOff) ? "1" : "0"));
-            a.AddRange(EngineLive(cfg, sm > 0).Split(' '));
+            a.AddRange(EngineLive(cfg, sm > 0, Config.EngineFfxLaunched).Split(' '));
             // 18-11 (LATENCIA): el motor sabe que va con Smooth Motion (1 sincronizacion forzada, 2 cada 2 refrescos): vigila la cola de la
             // tele y no deja que se llene (motor nuevo, EngineLatencia.cs; uno de antes solo dice "Ajuste desconocido: sm=")
             if (sm > 0) a.Add("sm=" + sm.ToString(CultureInfo.InvariantCulture));
@@ -12121,7 +12016,7 @@ namespace ConsoleEnhancer
             // (1.2.01: Magpie no llega a los fps del modo -> se baja un paso, src\FpsBajo.cs; 1.2.1: con DLSS 5 por Magpie lo vigila la escala
             // automatica, src\EscalaAuto.cs: primero el % de DLSS 5, en caliente)
             // (1.2.2, MULTI: con x3 / x4, si la salida no llega lo primero es bajar el multiplicador, src\Lanzador\Multiplicador.cs)
-            if (pid > 0 && !MultVigila(st) && !EscalaVigila(st)) FpsMagpieVigila(st.Captured);
+            if (pid > 0 && !ProteVigila(st) && !EscalaVigila(st)) FpsMagpieVigila(st.Captured);   // (1.2.4 ronda 6: ProteVigila, antes MultVigila)
             if (st.Errors > 0 && (now - lastErrLog).TotalSeconds >= 30)
             {
                 lastErrLog = now;
@@ -12486,8 +12381,6 @@ namespace ConsoleEnhancer
             DllDlssSr.Poner(true, "al abrir la app"); // (22-11, 1.2.2: apartado la vez anterior; el manifiesto de Magpie lo pide. TiemposCarga.cs)
             string detail;
             Stopwatch sw = Stopwatch.StartNew();
-            MagpieLive.DlssFgVsyncPacing = cfg.DlssFgVsyncPacing;
-            MagpieLive.DlssFgLite = cfg.DlssFgLite;
             try { magpieCopyOk = MagpieLive.EnsureCopy(cfg.MagpieSource, out detail); }
             catch (Exception ex) { magpieCopyOk = File.Exists(Paths.MagpieExe); detail = ex.Message; }
             Log.Write("Magpie de la app en " + Paths.MagpieDir + ": " + detail + " (" + sw.ElapsedMilliseconds + " ms)");
@@ -13250,7 +13143,6 @@ namespace ConsoleEnhancer
                         else if (line.Contains("\"p4\"")) ToggleDlss5(); // (como el boton A)
                         else if (line.Contains("\"fg\"")) ToggleFrameGeneration();
                         else if (line.Contains("\"tramado\"")) ToggleStrongDither(); // (como L3 mantenido)
-                        else if (line.Contains("\"mult")) MultPruebaPad(line); // (1.2.2: "mult2/3/4" ese multiplicador, "multsig" = Ctrl+X; Multiplicador.cs)
                         // 19-11 (GENERACION): "gen" = una pulsacion de L3 (el selector); "gen_<tipo>" = ese tipo ya (no, smooth, dlss, xess, fsr3, vfg)
                         else if (line.Contains("\"gen\"")) GenSelectorPress();
                         else if (line.Contains("\"gen_"))
@@ -13767,7 +13659,7 @@ namespace ConsoleEnhancer
                 }
                 Log.Write("Arranque de Magpie (" + (swEste != null ? swEste.ElapsedMilliseconds + " ms desde que se abrio" : "ya abierto") + "): " +
                           errors + " errores en su log" + sb);
-                MultComprobarArranque(text); // (1.2.2, MULTI: el multiplicador que ha puesto Magpie de verdad, src\Lanzador\Multiplicador.cs)
+                GenComprobarArranque(); // (1.2.4 ronda 6: lo elegido que no puede ir, src\Lanzador\TiposGeneracion.cs; antes con el multiplicador)
             });
             t.IsBackground = true;
             t.Start();
@@ -14698,8 +14590,15 @@ namespace ConsoleEnhancer
                 if (arg.StartsWith("--test-deteccion=")) return PruebaDeteccion.Run(arg.Substring(17));
                 // 21-11 (1.2.1): la escala de DLSS 5 automatica (modelo, decisiones, la config de Magpie) sin consola: --test-escala[=<informe>]
                 if (arg == "--test-escala" || arg.StartsWith("--test-escala=")) return EscalaPrueba.Run(arg.Length > 14 ? arg.Substring(14) : null);
-                // 1.2.2 (MULTI): las reglas de x2 / x3 / x4 con otras pantallas, sin abrir nada: --test-multiplicador[=<informe>] (src\Lanzador\Multiplicador.cs)
-                if (arg == "--test-multiplicador" || arg.StartsWith("--test-multiplicador=")) return Config.MultPrueba(arg.Length > 21 ? arg.Substring(21) : null);
+                // (1.2.4 ronda 6, QUITAFG) los tipos de generacion y la puesta al dia de lo guardado con DLSS FG / x3 / x4, sin abrir nada:
+                // --test-tipos-generacion[=<informe>][;<carpeta con copias de datos de usuario>] (src\Lanzador\TiposGeneracion.cs). El
+                // --test-multiplicador de la 1.2.2-1.2.4 (las reglas de x3 / x4, que ya no estan) hace lo mismo, para los guiones de antes
+                if (arg == "--test-tipos-generacion" || arg.StartsWith("--test-tipos-generacion=") || arg == "--test-multiplicador" || arg.StartsWith("--test-multiplicador="))
+                {
+                    int ig = arg.IndexOf('=');
+                    string[] pa = (ig > 0 ? arg.Substring(ig + 1) : "").Split(';');
+                    return TrayApp.TiposPrueba(pa[0].Length > 0 ? pa[0] : null, pa.Length > 1 ? pa[1] : null);
+                }
                 // 22-11 (1.2.2, REESCALADO): la config de Magpie de reescalado y DLSS 5 por combinacion: --test-reescalado[=<informe>]
                 if (arg == "--test-reescalado" || arg.StartsWith("--test-reescalado=")) return ReescaladoPrueba.Run(arg.Length > 18 ? arg.Substring(18) : null);
                 // 22-11 (1.2.3, MOTOR5): por donde va DLSS 5 (motor con PrismaNr.dll / Magpie) con cada combinacion: --test-motor-dlss5[=<informe>]

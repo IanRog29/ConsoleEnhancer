@@ -41,10 +41,9 @@ namespace ConsoleEnhancer
             if (CeParseEscalas(key, val)) return true;  // (20-11: escalas_adaptables..., src\Escalas.cs)
             if (CeParseLatencia(key, val)) return true; // (21-11, 1.2.1: mpv_cola_ms, audio_bloque_ms, audio_cola_*_ms, src\Latencia.cs)
             if (CeParseRitmo(key, val)) return true;    // (22-11, 1.2.2: magpie_vrr_30*, magpie_fijo_30_dlss, magpie_ritmo_margen_fg..., src\Ritmo.cs)
-            if (CeParseMult(key, val)) return true;     // (1.2.2: generacion_multiplicador, xess_fg_1080, src\Lanzador\Multiplicador.cs)
-            if (key == "motor_fg_multi") { MotorFgMulti = val.Trim() != "0"; return true; }   // (1.2.4 MOTORFG: src\Lanzador\MotorFg.cs)
-            if (key == "motor_fg_propia") { MotorFgPropia = val.Trim() != "0"; return true; }   // (1.2.4: la generacion propia del motor para x3 / x4, MotorFg.cs)
-            if (key == "motor_xefg_propia") { MotorXefgPropia = val.Trim() == "1"; return true; }   // (1.2.4 ronda 5, INTEGRA5: XeSS FG x3 / x4 por la propia en vez de Magpie, MotorFg.cs)
+            if (ClaveRetirada(key)) return true;        // (1.2.4 ronda 6, QUITAFG: lo de DLSS FG y x3 / x4 de un ini de antes, src\Lanzador\CalidadFg.cs)
+            if (CeParseTipos(key, val)) return true;    // (xess_fg_1080, proteccion*, motor_xefg_dlss5: src\Lanzador\TiposGeneracion.cs)
+            if (key == "motor_fg_multi") { MotorFgMulti = val.Trim() != "0"; return true; }   // (1.2.4 MOTORFG: XeSS FG en el motor; 0 = por Magpie. src\Lanzador\MotorFg.cs)
             if (CeParseReescalado(key, val)) return true; // (22-11, 1.2.2: magpie_nitidez_transformer..., src\Lanzador\Reescalado.cs)
             switch (key)
             {
@@ -55,7 +54,7 @@ namespace ConsoleEnhancer
                 case "motor_streamline": EngineStreamline = val.Trim().ToLowerInvariant(); return true;
                 case "motor_adaptador": EngineAdapter = val.Trim(); return true;
                 case "generacion_disponible": FgAvailable = val.Trim() != "0"; if (!FgAvailable) FgOff = true; return true;
-                case "dlssg_solo_magpie": Ce.DlssgSoloMagpie = val.Trim() == "1"; return true;   // (1.0.10: RTX 30 + dlssg_sm86)
+
                 case "idioma": Language = val.Trim().ToLowerInvariant(); Idioma.Poner(Language); return true;
                 // 21-11 (1.2.1): la escribe la app (src\Lanzador\DefenderAviso.cs: el ultimo aviso de Defender ya enseñado) y la lee ella misma
                 // con Ce.IniLeer; aqui solo para que el log no diga "Aviso: clave desconocida en ini: defender_aviso" en cada arranque
@@ -70,8 +69,7 @@ namespace ConsoleEnhancer
     {
         // Sin NVIDIA: nada de NVAPI (perfiles, Smooth Motion); lo pone gpu_fabricante del ini
         public static volatile bool NoNvidia;
-        // (1.0.10) RTX 30 con dlssg_sm86 (ini dlssg_solo_magpie=1): DLSS FG solo por Magpie (el DLSS-G del motor, Streamline, pide RTX 40)
-        public static volatile bool DlssgSoloMagpie;
+
 
         public static string BaseIni { get { return Path.Combine(Paths.AppDir, @"resources\base.ini"); } }
         public static string HardwareFile { get { return Path.Combine(Paths.Datos, "hardware.txt"); } }
@@ -100,7 +98,7 @@ namespace ConsoleEnhancer
             string luid = AdaptadorMotor.Luid(cfg.EngineAdapter);   // (22-11, 1.2.2: el LUID de AHORA de esa grafica; src\Lanzador\AdaptadorMotor.cs)
             if (luid.Length > 0) a.Add("adapter_luid=" + luid);
             a.Add("datos=" + EngineLogDir);
-            a.Add("dlls_sr=" + Paths.MagpieDir);   // 21-11 (1.0.9): libxess.dll / amd_fidelityfx_*.dll para XeSS y FSR 3/4 en el motor
+            a.Add("dlls_sr=" + Paths.SrDlls);   // 21-11 (1.0.9): libxess.dll / amd_fidelityfx_*.dll para XeSS y FSR 3/4 en el motor (1.2.4 ronda 6: de xess\ y fsr\, sin Magpie)
             Escalas.ArgsMotor(cfg, a);   // (20-11: adapta=1 adapta_clave=...: el motor ajusta las escalas solo, src\Escalas.cs)
             CeImagen.ArgsMotor(cfg, a);  // (20-11: vrr=1, src\ImagenCe.cs)
             return a.ToArray();
@@ -201,32 +199,20 @@ namespace ConsoleEnhancer
                 else if (!File.Exists(ex) && File.Exists(marca) && File.Exists(dst)) { File.Delete(dst); File.Delete(marca); Log.Write("DLSS 5: ya no esta en extras\\: quitada de magpie\\"); }
             }
             catch (Exception e) { Log.Error("Extras (DLSS 5)", e); }
-            // (19-11) DLSS-G en RTX 30: runtimes\dlssg_sm86 de la comunidad (DLL autofirmadas). Igual: extras\runtimes\dlssg_sm86 (o
-            // extras\dlssg_sm86) -> magpie\runtimes\dlssg_sm86, con su marca; si se quita de extras\, se quita la copia
+            // (19-11 a 1.2.4) runtimes\dlssg_sm86 de la comunidad, que pedia el DLSS FG de Magpie, se copiaba de extras\ a magpie\ (con su marca
+            // .de_extras). (1.2.4 ronda 6, QUITAFG: sin DLSS FG ya no se copia ni se busca; la copia que puso la app en magpie\ -con su marca- se
+            // quita; lo que puso el usuario en extras\ no se toca)
             try
             {
-                string ex = Path.Combine(Paths.AppDir, @"extras\runtimes\dlssg_sm86");
-                if (!Directory.Exists(ex)) ex = Path.Combine(Paths.AppDir, @"extras\dlssg_sm86");
                 string dst = Path.Combine(Paths.MagpieDir, @"runtimes\dlssg_sm86"), marca = dst + ".de_extras";
-                // (1.2.02: tambien si una copia anterior quedo a medias, sin version.dll). (1.2.08) Solo si es la version que valida Magpie
-                // (si no, DLSS FG no arranca: Componentes.AsegurarSm86 la quita)
-                if (Directory.Exists(ex) && Directory.Exists(Paths.MagpieDir) && !File.Exists(Path.Combine(dst, "version.dll")) && Componentes.Sm86Distinto(ex) == null)
-                {
-                    int n = CopiarCarpeta(ex, dst);
-                    File.WriteAllText(marca, ex);
-                    Log.Write("DLSS-G en RTX 30: runtimes\\dlssg_sm86 de extras\\ copiado a magpie\\ (" + n + " ficheros; de la comunidad, DLL autofirmadas, no oficial)");
-                }
-                else if (!Directory.Exists(ex) && File.Exists(marca))
+                if (File.Exists(marca))
                 {
                     if (Directory.Exists(dst)) Directory.Delete(dst, true);
                     File.Delete(marca);
-                    Log.Write("DLSS-G en RTX 30: ya no esta en extras\\: quitado runtimes\\dlssg_sm86 de magpie\\");
+                    Log.Write("dlssg_sm86: quitada la copia de magpie\\runtimes\\ que puso la app (sin DLSS FG ya no hace falta)");
                 }
             }
             catch (Exception e) { Log.Error("Extras (dlssg_sm86)", e); }
-            // (1.2.07, el usuario: "no tiene que hacer falta poner ningun archivo para activarlo ... que lo incluya la app"): con DLSS 5 en
-            // una NVIDIA y sin dlssg_sm86, la app lo busca en el PC (Componentes.AsegurarSm86, en segundo plano; 1.2.4: ya no lo baja)
-            Componentes.AsegurarSm86();
         }
 
         static int CopiarCarpeta(string de, string a)
@@ -255,7 +241,6 @@ namespace ConsoleEnhancer
             OpcionesDeteccion op = new OpcionesDeteccion();
             op.AbrirCapturadoras = abrir;
             op.RutasDlssNr = OpcionesDeteccion.RutasExtra(Paths.AppDir, Integrado.Dlss5Dll);
-            op.RutasDlssgSm86 = OpcionesDeteccion.RutasExtra(Paths.AppDir, @"runtimes\dlssg_sm86");
             return op;
         }
 
@@ -429,7 +414,8 @@ namespace ConsoleEnhancer
 
         // (22-11, 1.2.4 SOLOMOTOR) las claves que ya no existen y se quitan de todo el ini al ponerlo al dia: motor_dlss5=0|1|auto (la eleccion
         // del DLSS 5 por el motor o por Magpie)
-        static readonly string[] ClavesQuitadas = { "motor_dlss5" };
+        // (1.2.4 ronda 6, QUITAFG: y las de DLSS FG, los x3 / x4, la generacion propia y dlssg_sm86, Config.ClavesRetiradas de CalidadFg.cs)
+        static string[] ClavesQuitadas { get { List<string> l = new List<string> { "motor_dlss5" }; l.AddRange(Config.ClavesRetiradas); return l.ToArray(); } }
         public static string SinClavesQuitadasPrueba(string texto) { return SinClavesQuitadas(texto); }   // (--test-solo-motor)
         static string SinClavesQuitadas(string texto)
         {
@@ -559,45 +545,23 @@ namespace ConsoleEnhancer
             sb.AppendLine("escalador_alternativo=" + alt);
             string flujo = nv && g != null && g.F.Nvof.Si ? "nvidia" : "amd";
             sb.AppendLine("dlss_flujo=" + flujo);
-            sb.AppendLine("dlss5_flujo=" + flujo);
-            sb.AppendLine("fg_flujo_30=" + flujo);
+            sb.AppendLine("dlss5_flujo=" + flujo);   // (1.2.4 ronda 6, QUITAFG: fg_flujo_30, los vectores del DLSS FG de Magpie, ya no)
             if (!nv) { sb.AppendLine("flujo_calidad_amd=1"); sb.AppendLine("rtx_hdr=0"); sb.AppendLine("reflex=0"); }
             foreach (KeyValuePair<string, ModoPlan> kv in p.Modos) if (kv.Value.Modelo.Length > 0) sb.AppendLine("motor_modelo_" + kv.Key + "=" + kv.Value.Modelo);
-            // generacion
+            // generacion (1.2.4 ronda 6, QUITAFG: smooth -RTX 40 / 50-, xess -Intel Arc- o fsr3 -lo demas-, siempre x2; sin DLSS FG, dlssg_sm86
+            // ni multiplicadores: fuera motor_generacion_60 / _30, generacion_60, modo30_generacion y dlssg_solo_magpie)
             string g60 = p.Gen60, g30 = p.Gen30;
-            bool magpieFg = g60 == "fsr3fg" || g60 == "xessfg" || g30 == "fsr3fg" || g30 == "xessfg";
-            bool altFsr3 = p.GenAlternativa.IndexOf("FSR 3", StringComparison.Ordinal) >= 0;
-            bool engineFg = g60 == "dlssg" || g60 == "smooth" || g30 == "dlssg" || g30 == "smooth";
-            sb.AppendLine("motor_generacion_60=" + (g60 == "smooth" ? "smooth" : "dlss"));
-            sb.AppendLine("motor_generacion_30=" + (g30 == "smooth" ? "smooth" : "dlss"));
-            if (engineFg)
+            string t30 = g30 == "smooth" ? "smooth" : g30 == "xessfg" ? "xess" : g30 == "fsr3fg" ? "fsr3" : "";
+            string t60 = g60 == "smooth" ? "smooth" : g60 == "xessfg" ? "xess" : g60 == "fsr3fg" ? "fsr3" : "";
+            if (t30.Length == 0 && p.GenAlternativa.IndexOf("FSR 3", StringComparison.Ordinal) >= 0) t30 = "fsr3";
+            if (t30.Length > 0)
             {
-                sb.AppendLine("generacion_tipo=dlss");
-                sb.AppendLine("generacion_tipo_60=" + (g60 == "smooth" ? "smooth" : "dlss"));
-                sb.AppendLine("generacion_tipo_30=" + (g30 == "smooth" ? "smooth" : "dlss"));
-                sb.AppendLine("generacion_60=" + Math.Max(2, Math.Min(4, p.Mult60)));
-                sb.AppendLine("generacion_disponible=1");
-            }
-            else if (p.DlssgSoloMagpie)
-            {
-                // (1.0.10) RTX 30 con dlssg_sm86: DLSS FG por Magpie, apagada de serie (framegen.txt = 0: la enciende el boton, Ctrl+G o la bandeja)
-                sb.AppendLine("generacion_tipo=dlss");
-                sb.AppendLine("generacion_tipo_60=dlss");
-                sb.AppendLine("generacion_tipo_30=dlss");
-                sb.AppendLine("generacion_60=2");
-                sb.AppendLine("generacion_disponible=1");
-            }
-            else if (magpieFg || altFsr3)
-            {
-                string t = g60 == "xessfg" || g30 == "xessfg" ? "xess" : "fsr3";
-                sb.AppendLine("generacion_tipo=" + t);
-                sb.AppendLine("generacion_tipo_60=" + t);
-                sb.AppendLine("generacion_tipo_30=" + t);
+                sb.AppendLine("generacion_tipo=" + t30);
+                sb.AppendLine("generacion_tipo_60=" + (t60.Length > 0 ? t60 : t30));
+                sb.AppendLine("generacion_tipo_30=" + t30);
                 sb.AppendLine("generacion_disponible=1");
             }
             else sb.AppendLine("generacion_disponible=0");
-            sb.AppendLine("dlssg_solo_magpie=" + (p.DlssgSoloMagpie ? "1" : "0"));
-            sb.AppendLine("modo30_generacion=2");
             // (19-11) el selector de L3 / Ctrl+G: los tipos de generacion que tiene esta grafica (Plan.ListasGeneracion)
             sb.AppendLine("generacion_lista_60=" + (p.Lista60.Count > 0 ? string.Join(",", p.Lista60.ToArray()) : "no"));
             sb.AppendLine("generacion_lista_30=" + (p.Lista30.Count > 0 ? string.Join(",", p.Lista30.ToArray()) : "no"));
