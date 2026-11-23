@@ -322,7 +322,7 @@ namespace ConsoleEnhancer
                 if (e.Count > 0)
                 {
                     if (ajustesAbierto) OnUi(delegate { AjustesCerrar(null); });
-                    ThreadPool.QueueUserWorkItem(delegate { try { AjustesPonerTodo(e); } catch (Exception ex) { Log.Error("Prueba: aplicando", ex); } });
+                    ThreadPool.QueueUserWorkItem(delegate { try { AjustesPonerTodo(e, new HashSet<string>(e.Keys)); } catch (Exception ex) { Log.Error("Prueba: aplicando", ex); } });   // (1.2.4 ronda 7: lo pedido cuenta como tocado, para el aviso)
                 }
                 return true;
             }

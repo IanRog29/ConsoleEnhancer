@@ -13,7 +13,10 @@ namespace ConsoleEnhancer.Motor
     // 15-11 (Prisma): es el aspecto de toda la app (el lanzador lo copia en PrismaUi.cs y el script de mpv en ASS)
     class Osd
     {
-        public const int MaxW = 2400, MaxH = 200;
+        // (1.2.4 ronda 7, TEXTOS: 3600 de ancho; con 2400 a 4K -escala 2- solo cabian ~1160 px de 1080p y los avisos de varios cambios a la
+        // vez -"Captura 1440p · Smooth Motion x2 · 30 → 60 fps · x4 no: ... · DLSS 5 nivel 4 · 1 pasada · DLSS M"- salian cortados por la
+        // derecha; a 1080p / 1440p ya cabia el ancho de la pantalla. El lanzador lo mide antes: Avisos.cs, AvisoCabe)
+        public const int MaxW = 3600, MaxH = 200;
         public static readonly Color Cyan = Color.FromArgb(0, 200, 235), Warn = Color.FromArgb(255, 60, 85);
         readonly object sync = new object();
         string text;

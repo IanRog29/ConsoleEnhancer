@@ -26,18 +26,12 @@ namespace ConsoleEnhancer
         const int GenOpenMs = 3200, GenApplyMs = 2000; // (19-11 noche: 2 s para seguir pulsando antes de aplicar)
         [System.Runtime.InteropServices.DllImport("user32.dll")] static extern short GetAsyncKeyState(int vk);
 
-        public static string GenLabel(string t, bool engine)
-        {
-            switch (t)
-            {
-                case "no": return "Sin generación";
-                case "smooth": return "Smooth Motion";
-                case "fsr3": return "FSR 3 FG (experimental)";   // (1.2.4 ronda 7, FGREAL: solo con generacion_fsr3=1)
-                case "xess": return "XeSS FG";
-                case "efg": return Config.EfgLabel(true) + " (experimental)";   // (1.2.4 ronda 6, ENHANCED: EnhancedFg.cs. Ronda 7, FGREAL: el usuario con su PS5, "lo unico bueno la latencia": opcion experimental avisada)
-                default: return t;   // (1.2.4 ronda 6: DLSS FG y NVIDIA VFG ya no existen)
-            }
-        }
+        // El nombre del tipo (selector, menu de ajustes, bandeja). (1.2.4 ronda 7, TEXTOS: sin multiplicador: Enhanced FG decia "Enhanced FG x4 ·
+        // baja latencia" -lo guardado- en la fila del tipo con la fila "Multiplicador" en x2 al lado, y el " · " partia el titulo del aviso de
+        // L3. Lo que va de verdad, con su multiplicador: Config.AvisoGen, Avisos.cs)
+        // (1.2.4 ronda 7, FGREAL: Enhanced FG y FSR 3 FG, opciones experimentales avisadas: en el menu, el selector y la bandeja con
+        // " (experimental)"; en los avisos de lo que va, el nombre solo -Config.GenNombre-)
+        public static string GenLabel(string t, bool engine) { return Config.GenNombre(t) + (t == "efg" || t == "fsr3" ? " (experimental)" : ""); }
 
         // Los tipos del modo de ahora que funcionan aqui ("no" el primero)
         List<string> GenOptions() { return GenOptionsFor(cfg.CapMode, cfg.VideoSize); }
@@ -93,7 +87,7 @@ namespace ConsoleEnhancer
             {
                 List<string> opts = GenOptions();
                 string cur = GenCurrent();
-                if (opts.Count == 0) { Osd("Generación · no hay ninguna disponible en este PC"); return; }
+                if (opts.Count == 0) { Osd(Deteccion.Tx.T("Generación · no hay ninguna disponible en este PC", "Frame generation · none available on this PC")); return; }
                 bool open = genSel != null && (DateTime.Now - genLastPress).TotalMilliseconds < GenOpenMs;
                 // 19-11 noche (el usuario: "cuando pulso l3 sigue en smooth motion"): la 1a pulsacion ya pasa al siguiente (antes solo enseñaba la lista y, sin una 2a pulsacion en 1,4 s, dejaba lo puesto)
                 if (!open) { int c0 = opts.IndexOf(cur); genSel = opts[(c0 + 1) % opts.Count]; }
@@ -105,8 +99,8 @@ namespace ConsoleEnhancer
                 genLastPress = DateTime.Now;
                 bool engine = cfg.EngineNow;
                 // (1.0.8: el titulo es lo de antes del primer " · "; antes salia "Generación" solo y el tipo dos veces detras)
-                string head = "Generación: " + GenLabel(genSel, engine) + (genSel == cur ? " (actual)" : "");
-                string list = (opts.Count > 1 ? GenListText(opts, genSel, engine) + " · L3: cambiar" : "la única disponible en este PC");
+                string head = Deteccion.Tx.T("Generación: ", "Frame generation: ") + GenLabel(genSel, engine) + (genSel == cur ? Deteccion.Tx.T(" (la de ahora)", " (current)") : "");
+                string list = (opts.Count > 1 ? GenListText(opts, genSel, engine) + Deteccion.Tx.T(" · L3: cambiar", " · L3: change") : Deteccion.Tx.T("la única disponible en este PC", "the only one on this PC"));
                 lock (osdQueue) osdQueue.Add(OsdCmd(head + " · " + list, GenOpenMs.ToString(CultureInfo.InvariantCulture), false));
                 int seq = ++genSeq;
                 if (genTimer == null) genTimer = new System.Threading.Timer(delegate { GenTimerFired(); }, null, Timeout.Infinite, Timeout.Infinite);
@@ -143,7 +137,13 @@ namespace ConsoleEnhancer
             try
             {
                 string cur = GenCurrent();
-                if (t == cur) { Log.Write("Selector de generacion: " + t + " ya puesto (" + (cfg.CapMode ? "modo 30" : "modo 60") + ")"); return; }
+                if (t == cur)
+                {
+                    Log.Write("Selector de generacion: " + t + " ya puesto (" + (cfg.CapMode ? "modo 30" : "modo 60") + ")");
+                    Osd(Deteccion.Tx.T("Generación", "Frame generation") + " · " + AvisoConfig().AvisoGen(true) + Deteccion.Tx.T(" · ya puesta", " · already on"));
+                    return;
+                }
+                AvisoFoto antes = AvisoAhora();
                 lastPadAction = DateTime.Now; // (el telon / la reapertura llevan el aviso, como con un boton)
                 if (t == "no")
                 {
@@ -162,22 +162,19 @@ namespace ConsoleEnhancer
                           (engine != Config.EngineActive ? ": al motor propio" : ReopenNote) +
                           " · " + cfg.ProfileText);
                 SaveCurProfile();
-                string title = t == "no" ? "Generación de fotogramas desactivada" : "Generación: " + GenLabel(t, engine);
-                string sub = t == "no" ? "Solo las imágenes reales de la consola" : GenDetail(t, engine);
+                // (1.2.4 ronda 7, TEXTOS: lo que va de verdad -tipo, multiplicador, "30 → 120 fps"; si lo elegido no puede ir, por que y que va-;
+                // antes "Generación: <lo elegido>" y "30 → 60 fps · motor propio" con el x2 de antes. Avisos.cs)
+                string title, sub;
+                if (t == "no") AvisoVista(antes, out title, out sub);
+                else AvisoTipo(antes, out title, out sub);
                 RestartLs(title, sub, false, true);
             }
             finally { Interlocked.Exchange(ref fgBusy, 0); }
         }
 
-        // La linea de detalle del aviso: x2 y lo de DLSS 5 que cabe con ella
-        string GenDetail(string t, bool engine)
-        {
-            if (cfg.Mode120) return "120 fps (esports) · sin generacion · baja latencia"; // 20-11 (HZ120): a 120 no hay generacion
-            string fps = (cfg.CapMode ? "30" : "60") + " → " + ((cfg.CapMode ? 30 : 60) * (t == "fsr3" ? cfg.FsrMultNow : t == "efg" ? cfg.EfgMultNow : 2)) + " fps";   // (1.2.4 ronda 6: FGMULTI FSR 3 FG x3 / x4; ENHANCED x2-x4)
-            if (engine) return fps + " · motor propio";
-            if (cfg.Dlss5Off) return fps + " · sin DLSS 5";
-            return fps + " · DLSS 5 " + Dlss5PassText();
-        }
+        // La linea de detalle del aviso de la generacion. (1.2.4 ronda 7, TEXTOS: lo que va de verdad, Config.AvisoGen; t ya no cuenta: el
+        // aviso es de lo que se pone, no de lo pedido)
+        string GenDetail(string t, bool engine) { return AvisoConfig().AvisoGen(true); }
 
         // Lo elegido con L3 en cada modo ("" = lo del ini), en la config y en games\framegen_type.txt
         void SetPicks(string p60, string p30)

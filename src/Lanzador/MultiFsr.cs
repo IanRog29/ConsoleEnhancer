@@ -79,7 +79,8 @@ namespace ConsoleEnhancer
         {
             if (!MotorFsrMulti) return Tx.T("Apagado en el ini (motor_fsr_multi=0)", "Off in the ini (motor_fsr_multi=0)");
             if (!FsrMulDll) return Tx.T("Falta engine\\CeFsrFg.dll", "engine\\CeFsrFg.dll is missing");
-            if (FsrMulCaido) return Tx.T("La gráfica se perdió con x3 / x4: x2 esta sesión", "The GPU was lost with x3 / x4: x2 this session");
+            // (1.2.4 ronda 7, TEXTOS: tambien si la DLL no carga -switch2-fsrmulti rota-, no solo con la grafica perdida)
+            if (FsrMulCaido) return Tx.T("x3 / x4 han fallado en esta sesión", "x3 / x4 failed this session");
             if (!cap30) return Tx.T("x2 en el modo 60", "x2 in 60 fps mode");
             // (1.2.4 ronda 6, INTEGRA6: 90 / 120 imagenes/s solo tienen sentido con la pantalla a 100 Hz o mas; a 60 Hz el hilo de presentacion
             // se medio roto -9,8 reales de 29,97-, como el de Enhanced FG)
@@ -157,7 +158,8 @@ namespace ConsoleEnhancer
             if (!cfg.FgOff && cfg.FgTypeNow == "fsr3")
                 System.Threading.ThreadPool.QueueUserWorkItem(delegate
                 {
-                    try { System.Threading.Thread.Sleep(300); RestartLs("FSR 3 FG", Tx.T("x3 / x4 no han podido arrancar: x2", "x3 / x4 couldn't start: x2")); }
+                    // (1.2.4 ronda 7, TEXTOS: lo que va, "FSR 3 FG x2 · 30 → 60 fps · x4 no: <por que>", y con la hora del boton para el relevo)
+                    try { System.Threading.Thread.Sleep(300); lastPadAction = DateTime.Now; RestartLs(Tx.T("Generación", "Frame generation"), AvisoConfig().AvisoGen(true)); }
                     catch (Exception ex) { Log.Error("FSR FG x3 / x4: a x2", ex); }
                 });
             return true;
