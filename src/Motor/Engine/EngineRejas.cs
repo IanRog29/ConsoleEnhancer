@@ -18,7 +18,7 @@ namespace ConsoleEnhancer.Motor
     unsafe partial class Engine
     {
         // Tablas propias detras de TDown (Engine.cs: TablesCount)
-        const int TRBase = TQBase + TQCount + 1, TRTruth = TRBase /* + juego de luma */, TRCons = TRBase + 2 /* + juego */, TRCapas = TRBase + 4 /* + juego */, TRApert = TRBase + 6, TREdge = TRBase + 7 /* + juego */, TREns = TRBase + 9 /* + juego */, TRFg = TRBase + 11, TRFgD = TRBase + 12, TRCount = 40;   // (21-11 FG21: + TRFillA/B/C, EngineFgRelleno.cs) (21-11 1.2.1: + TRGlob*, EngineFgGlobal.cs) (1.2.4 ronda 6, CABEZA: + TRCab* 31-39, EngineFgCabeza.cs)
+        const int TRBase = TQBase + TQCount + 1, TRTruth = TRBase /* + juego de luma */, TRCons = TRBase + 2 /* + juego */, TRCapas = TRBase + 4 /* + juego */, TRApert = TRBase + 6, TREdge = TRBase + 7 /* + juego */, TREns = TRBase + 9 /* + juego */, TRFg = TRBase + 11, TRFgD = TRBase + 12, TRCount = 41;   // (21-11 FG21: + TRFillA/B/C, EngineFgRelleno.cs) (21-11 1.2.1: + TRGlob*, EngineFgGlobal.cs) (1.2.4 ronda 6, CABEZA: + TRCab* 31-40, EngineFgCabeza.cs)
         ID3D12PipelineState psoMvTruth, psoMvCons, psoMvCapas, psoMvApert, psoEdge, psoEns, psoFgSmooth, psoFgGlobal, psoFgDepth;
         ID3D12Resource edgeMap, mvecW;   // 17-11 13:20 (mvensancha): fuerza del borde por punto (R8) y los vectores ensanchados
         ID3D12Resource mvCons;      // el campo de bloques del nivel fino tras el consenso (se copia encima de mvLevel[0])
@@ -341,7 +341,7 @@ namespace ConsoleEnhancer.Motor
             list.CopyTextureRegion(ref dst, 0, 0, 0, ref src, &box);
             D3D12_BOX mbox = new D3D12_BOX((uint)dMx, (uint)dMy, (uint)(dMx + dMw), (uint)(dMy + dMh));
             // 21-11 (FG21, prueba): con la variable S2_VOLCADO_FG=1 los vectores que recibe la generacion (FgMvec) en vez de mvec
-            ID3D12Resource dmv = Environment.GetEnvironmentVariable("S2_VOLCADO_FG") == "1" ? FgMvec : mvec;
+            ID3D12Resource dmv = Environment.GetEnvironmentVariable("S2_VOLCADO_FG") == "1" ? (FfxFgVecNow && s.FgVec >= 2 && mvecFg != null ? mvecFg : FgMvec) : mvec;   // (1.2.4 ronda 6, CABEZA: con XeSS FG / FSR 3 FG, los que reciben)
             Barrier(dmv, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.COPY_SOURCE);
             dst = D3D12_TEXTURE_COPY_LOCATION.FromFootprint(dRb[e], dFpMv);
             src = D3D12_TEXTURE_COPY_LOCATION.FromSubresource(dmv, 0);

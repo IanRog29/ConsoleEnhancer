@@ -42,6 +42,7 @@ namespace ConsoleEnhancer.Motor
         public double FgCabMinG = 4;                // fg_cabeza_giro: px de la entrada que tiene que moverse la camara para clasificar
         public double FgCabNear = 0.5, FgCabFar = 0.99;   // fg_cabeza_cerca / _lejos (profundidad normal: 0 cerca, 1 lejos)
         public bool FgCabModel = true;              // fg_cabeza_modelo=1: el fondo con traslacion + acercamiento + giro (0 = solo el vector de la camara)
+        public int FgCabSkip = 0;                   // fg_cabeza_salta (prueba de coste): pasos que no se hacen (1 A, 2 M, 4 B, 8 D, 16 C)
         public int FgCabEdge = 18;                  // fg_cabeza_borde: en la frontera (5x5 bloques), casi quieto solo si su 3x3 casa (< esto x ruido, suma de 9); 0 = 3x3 sin limite
 
         bool ApplyFgCabeza(string k, string val)
@@ -58,6 +59,7 @@ namespace ConsoleEnhancer.Motor
                 case "fg_cabeza_lejos": FgCabFar = Math.Max(0, Math.Min(1, Dv(val))); return true;
                 case "fg_cabeza_modelo": FgCabModel = Bv(val); return true;
                 case "fg_cabeza_borde": FgCabEdge = Math.Max(0, Math.Min(200, Iv(val))); return true;
+                case "fg_cabeza_salta": FgCabSkip = Iv(val); return true;
             }
             return false;
         }
@@ -66,15 +68,15 @@ namespace ConsoleEnhancer.Motor
     unsafe partial class Engine
     {
         // Tablas (EngineRejas.cs TRCount): A y C por juego de luma, M una, B por juego y memoria (ida y vuelta)
-        const int TRCabA = TRBase + 31 /* + juego */, TRCabM = TRBase + 33, TRCabB = TRBase + 34 /* + 2 x juego + memoria */, TRCabC = TRBase + 38 /* + juego */;
-        ID3D12PipelineState psoCabA, psoCabM, psoCabB, psoCabC;
-        ID3D12Resource cabBlk, cabBg, cabCls, cabModel;
+        const int TRCabA = TRBase + 31 /* + juego */, TRCabM = TRBase + 33, TRCabB = TRBase + 34 /* + 2 x juego + memoria */, TRCabC = TRBase + 38 /* + juego */, TRCabD = TRBase + 40;
+        ID3D12PipelineState psoCabA, psoCabM, psoCabB, psoCabD, psoCabC;
+        ID3D12Resource cabBlk, cabBg, cabCls, cabCls2, cabModel;
         readonly ID3D12Resource[] cabMem = new ID3D12Resource[2];
         int cabBx, cabBy, cabMemCur;
         bool cabSaid;
 
         // XeSS FG / FSR 3 FG del motor (FfxFgVecNow) con el vector de la camara (fg_global, fg_vectores=3)
-        bool FgCabezaNow { get { return s.FgCab > 0 && FgGlobalNow && FfxFgVecNow && cabBlk != null && cabCls != null && cabModel != null && depthFg != null && mvecFg != null && gvec != null; } }
+        bool FgCabezaNow { get { return s.FgCab > 0 && FgGlobalNow && FfxFgVecNow && cabBlk != null && cabCls2 != null && cabModel != null && depthFg != null && mvecFg != null && gvec != null; } }
 
         void EnsureCabPsos()
         {
@@ -83,6 +85,7 @@ namespace ConsoleEnhancer.Motor
             psoCabA = Pso(CompileCs("fgcabezaa", CabShaders.A));
             psoCabM = Pso(CompileCs("fgcabezam", CabShaders.M));
             psoCabB = Pso(CompileCs("fgcabezab", CabShaders.B));
+            psoCabD = Pso(CompileCs("fgcabezad", CabShaders.D));
             psoCabC = Pso(CompileCs("fgcabezac", CabShaders.C));
             Log.Write("Generacion: shaders de la cabeza (" + Clock.SinceMs(t).ToString("0") + " ms)");
         }
@@ -93,12 +96,14 @@ namespace ConsoleEnhancer.Motor
             if (cabBlk != null) Com.Release(ref cabBlk);
             if (cabBg != null) Com.Release(ref cabBg);
             if (cabCls != null) Com.Release(ref cabCls);
+            if (cabCls2 != null) Com.Release(ref cabCls2);
             if (cabModel != null) Com.Release(ref cabModel);
             for (int m = 0; m < 2; m++) if (cabMem[m] != null) Com.Release(ref cabMem[m]);
             cabBx = Math.Max(1, (lw[1] + 7) / 8); cabBy = Math.Max(1, (lh[1] + 7) / 8);
             cabBlk = Tex(DXGI_FORMAT.R16G16B16A16_FLOAT, cabBx, cabBy, true, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, "cabeza: bloques");
             cabBg = Tex(DXGI_FORMAT.R32G32B32A32_FLOAT, cabBx, cabBy, true, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, "cabeza: fondo por bloque");
             cabCls = Tex(DXGI_FORMAT.R16G16B16A16_FLOAT, cabBx, cabBy, true, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, "cabeza: clases");
+            cabCls2 = Tex(DXGI_FORMAT.R16G16B16A16_FLOAT, cabBx, cabBy, true, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, "cabeza: clases para cada punto");
             cabModel = Tex(DXGI_FORMAT.R32G32B32A32_FLOAT, 1, 1, true, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, "cabeza: camara (traslacion, acercamiento, giro)");
             for (int m = 0; m < 2; m++) cabMem[m] = Tex(DXGI_FORMAT.R16G16_FLOAT, cabBx, cabBy, true, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, "cabeza: memoria " + m);
             cabMemCur = 0;
@@ -114,7 +119,7 @@ namespace ConsoleEnhancer.Motor
                 NullViews(TRCabC + st);
                 SrvTex(TRCabC + st, 0, luma[st, 0], DXGI_FORMAT.R8_UNORM);
                 SrvTex(TRCabC + st, 1, luma[1 - st, 0], DXGI_FORMAT.R8_UNORM);
-                SrvTex(TRCabC + st, 3, cabCls, DXGI_FORMAT.R16G16B16A16_FLOAT);
+                SrvTex(TRCabC + st, 3, cabCls2, DXGI_FORMAT.R16G16B16A16_FLOAT);
                 SrvTex(TRCabC + st, 4, cabModel, DXGI_FORMAT.R32G32B32A32_FLOAT);
                 if (mvecFg != null) UavTex(TRCabC + st, U0, mvecFg, DXGI_FORMAT.R16G16_FLOAT);
                 if (depthFg != null) UavTex(TRCabC + st, U0 + 1, depthFg, DXGI_FORMAT.R32_FLOAT);
@@ -131,6 +136,9 @@ namespace ConsoleEnhancer.Motor
                     UavTex(tb, U0 + 1, cabMem[1 - m], DXGI_FORMAT.R16G16_FLOAT);
                 }
             }
+            NullViews(TRCabD);
+            SrvTex(TRCabD, 0, cabCls, DXGI_FORMAT.R16G16B16A16_FLOAT);
+            UavTex(TRCabD, U0, cabCls2, DXGI_FORMAT.R16G16B16A16_FLOAT);
             NullViews(TRCabM);
             SrvTex(TRCabM, 0, cabBg, DXGI_FORMAT.R32G32B32A32_FLOAT);
             if (gvec != null) SrvTex(TRCabM, 2, gvec, DXGI_FORMAT.R32G32_FLOAT);
@@ -154,7 +162,7 @@ namespace ConsoleEnhancer.Motor
             c[8] = F((float)s.FgCabMinG); c[9] = F(1.25f); c[10] = F(cx); c[11] = F(cy);
             c[12] = F(half); c[13] = s.FgCabModel ? 1u : 0u;
             BindCompute(psoCabA, TRCabA + cur, c, 16);
-            list.Dispatch((uint)cabBx, (uint)cabBy, 1);
+            if ((s.FgCabSkip & 1) == 0) list.Dispatch((uint)cabBx, (uint)cabBy, 1);
             Barrier(cabBlk, D3D12_RESOURCE_STATES.UNORDERED_ACCESS, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE);
             Barrier(cabBg, D3D12_RESOURCE_STATES.UNORDERED_ACCESS, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE);
             // M) la camara de esta imagen: traslacion + acercamiento + giro con los bloques del fondo fiables (dos vueltas)
@@ -164,7 +172,7 @@ namespace ConsoleEnhancer.Motor
             c[4] = F(cx); c[5] = F(cy); c[6] = F(8f / sx); c[7] = F(8f / sy);
             c[8] = F(1.5f * 1.5f);
             BindCompute(psoCabM, TRCabM, c, 12);
-            list.Dispatch(1, 1, 1);
+            if ((s.FgCabSkip & 2) == 0) list.Dispatch(1, 1, 1);
             Barrier(cabModel, D3D12_RESOURCE_STATES.UNORDERED_ACCESS, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE);
             // B) relleno de lo liso, lo que la camara explica igual y memoria
             int m = cabMemCur;
@@ -175,10 +183,17 @@ namespace ConsoleEnhancer.Motor
             c[4] = F(cx); c[5] = F(cy); c[6] = F(8f / sx); c[7] = F(8f / sy);
             c[8] = F(sx); c[9] = F(sy); c[10] = F(noise); c[11] = F(lw[1]); c[12] = F(lh[1]);
             BindCompute(psoCabB, TRCabB + 2 * cur + m, c, 16);
-            list.Dispatch(Groups(cabBx, 8), Groups(cabBy, 8), 1);
+            if ((s.FgCabSkip & 4) == 0) list.Dispatch(Groups(cabBx, 8), Groups(cabBy, 8), 1);
             Barrier(cabCls, D3D12_RESOURCE_STATES.UNORDERED_ACCESS, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE);
             Barrier(cabMem[1 - m], D3D12_RESOURCE_STATES.UNORDERED_ACCESS, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE);
             cabMemCur = 1 - m;
+            // D) por bloque, lo que C lee de cada uno (vector de lo casi quieto, clase, frontera)
+            Barrier(cabCls2, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.UNORDERED_ACCESS);
+            for (int i = 0; i < 16; i++) c[i] = 0;
+            c[0] = (uint)cabBx; c[1] = (uint)cabBy; c[2] = s.FgCabEdge > 0 ? 1u : 0u;
+            BindCompute(psoCabD, TRCabD, c, 4);
+            if ((s.FgCabSkip & 8) == 0) list.Dispatch(Groups(cabBx, 8), Groups(cabBy, 8), 1);
+            Barrier(cabCls2, D3D12_RESOURCE_STATES.UNORDERED_ACCESS, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE);
             // C) por punto: vectores y profundidad de la generacion
             Barrier(mvecFg, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.UNORDERED_ACCESS);
             Barrier(depthFg, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.UNORDERED_ACCESS);
@@ -188,7 +203,7 @@ namespace ConsoleEnhancer.Motor
             c[8] = F((float)s.FgCabNear); c[9] = F((float)s.FgCabFar); c[10] = F((float)(s.FgQuietTex / 255.0)); c[11] = F((float)(s.FgQuietStill / 255.0));
             c[12] = (s.FgQuiet ? 1u : 0u) | ((uint)Math.Max(0, Math.Min(200, s.FgCabEdge)) << 8); c[13] = F((float)s.FgQuietRel); c[14] = F(cx); c[15] = F(cy);
             BindCompute(psoCabC, TRCabC + cur, c, 16);
-            list.Dispatch(Groups(inW, 16), Groups(inH, 8), 1);
+            if ((s.FgCabSkip & 16) == 0) list.Dispatch(Groups(inW, 16), Groups(inH, 8), 1);
             Barrier(mvecFg, D3D12_RESOURCE_STATES.UNORDERED_ACCESS, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE);
             Barrier(depthFg, D3D12_RESOURCE_STATES.UNORDERED_ACCESS, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE);
             if (!cabSaid)
@@ -224,6 +239,7 @@ groupshared float tb[196];
 groupshared float ss[176];
 groupshared float sb2[32];
 groupshared float sg[64];
+groupshared float fin[8];
 
 [numthreads(8, 8, 1)]
 void main(uint3 gid : SV_GroupID, uint3 gt : SV_GroupThreadID, uint gi : SV_GroupIndex)
@@ -279,32 +295,60 @@ void main(uint3 gid : SV_GroupID, uint3 gt : SV_GroupThreadID, uint gi : SV_Grou
         sb2[gi] = s * (1.0 / 64.0);
     }
     GroupMemoryBarrierWithGroupSync();
+    // (lo que queda, repartido entre tres hilos: la suma con la camara, la busqueda local y la del fondo)
+    if (gi == 0)
+    {
+        float a0 = 0;
+        for (int t = 0; t < 64; t++) a0 += sg[t];
+        fin[0] = a0 * (1.0 / 64.0);
+    }
+    else if (gi == 1)
+    {
+        // con la camara moviendose, sin los vectores pegados a la camara (eso ya lo mide sadG): para la clase, a < ExR px del nivel 1; para
+        // el vector del bloque, solo el punto de la camara (a < 0,75: el balanceo de 1-2 px junto a un giro lento no se pierde)
+        int best = Ri * D + Ri; float sb = 1e9, sv = 1e9;
+        for (int c2 = 0; c2 < D * D; c2++)
+        {
+            float dist = length(float2((int)((uint)c2 % (uint)D) - Ri, (int)((uint)c2 / (uint)D) - Ri) - g1);
+            float e = ss[c2];
+            if ((!haveG || dist >= ExR) && e < sb) sb = e;
+            if ((!haveG || dist >= 0.75) && e < sv) { sv = e; best = c2; }
+        }
+        int bx = (int)((uint)best % (uint)D), by = (int)((uint)best / (uint)D);
+        float2 v = float2(bx - Ri, by - Ri);
+        if (bx > 0 && bx < D - 1)
+        {
+            float l = ss[best - 1], r = ss[best + 1], a = l - 2 * sv + r;
+            if (a > 1e-6) v.x += clamp(0.5 * (l - r) / a, -0.5, 0.5);
+        }
+        if (by > 0 && by < D - 1)
+        {
+            float u = ss[best - D], dn = ss[best + D], a = u - 2 * sv + dn;
+            if (a > 1e-6) v.y += clamp(0.5 * (u - dn) / a, -0.5, 0.5);
+        }
+        fin[1] = sb; fin[2] = v.x; fin[3] = v.y;
+    }
+    else if (gi == 2)
+    {
+        // el fondo: lo mejor de +-RB alrededor de la camara prevista, con medio punto; fiable si el minimo esta dentro, hay textura (lo peor
+        // deja bastante mas) y casa
+        int bb = Rb * DB + Rb; float sbb = sb2[bb], worst = 0;
+        for (int c3 = 0; c3 < DB * DB; c3++) { worst = max(worst, sb2[c3]); if (sb2[c3] < sbb) { sbb = sb2[c3]; bb = c3; } }
+        int ibx = (int)((uint)bb % (uint)DB), iby = (int)((uint)bb / (uint)DB);
+        float2 db = float2(ibx - Rb, iby - Rb);
+        bool inside = ibx > 0 && ibx < DB - 1 && iby > 0 && iby < DB - 1;
+        if (inside)
+        {
+            float l = sb2[bb - 1], r = sb2[bb + 1], a = l - 2 * sbb + r;
+            if (a > 1e-6) db.x += clamp(0.5 * (l - r) / a, -0.5, 0.5);
+            float u = sb2[bb - DB], dn = sb2[bb + DB], a2 = u - 2 * sbb + dn;
+            if (a2 > 1e-6) db.y += clamp(0.5 * (u - dn) / a2, -0.5, 0.5);
+        }
+        fin[4] = sbb; fin[5] = db.x; fin[6] = db.y; fin[7] = inside && worst - sbb > 2 * Noise && sbb < 3 * Noise ? 1 : 0;
+    }
+    GroupMemoryBarrierWithGroupSync();
     if (gi != 0) return;
-    float sadG = 0;
-    for (int t = 0; t < 64; t++) sadG += sg[t];
-    sadG *= 1.0 / 64.0;
-    // con la camara moviendose, sin los vectores pegados a la camara (eso ya lo mide sadG): para la clase, a < ExR px del nivel 1; para
-    // el vector del bloque, solo el punto de la camara (a < 0,75: el balanceo de 1-2 px junto a un giro lento no se pierde)
-    int best = Ri * D + Ri; float sb = 1e9, sv = 1e9;
-    for (int c2 = 0; c2 < D * D; c2++)
-    {
-        float dist = length(float2((int)((uint)c2 % (uint)D) - Ri, (int)((uint)c2 / (uint)D) - Ri) - g1);
-        float e = ss[c2];
-        if ((!haveG || dist >= ExR) && e < sb) sb = e;
-        if ((!haveG || dist >= 0.75) && e < sv) { sv = e; best = c2; }
-    }
-    int bx = (int)((uint)best % (uint)D), by = (int)((uint)best / (uint)D);
-    float2 v = float2(bx - Ri, by - Ri);
-    if (bx > 0 && bx < D - 1)
-    {
-        float l = ss[best - 1], r = ss[best + 1], a = l - 2 * sv + r;
-        if (a > 1e-6) v.x += clamp(0.5 * (l - r) / a, -0.5, 0.5);
-    }
-    if (by > 0 && by < D - 1)
-    {
-        float u = ss[best - D], dn = ss[best + D], a = u - 2 * sv + dn;
-        if (a > 1e-6) v.y += clamp(0.5 * (u - dn) / a, -0.5, 0.5);
-    }
+    float sadG = fin[0], sb = fin[1];
     float score = 0;
     if (haveG && sb < 1e8)
     {
@@ -313,23 +357,9 @@ void main(uint3 gid : SV_GroupID, uint3 gt : SV_GroupThreadID, uint gi : SV_Grou
         else if (sadG < Ratio * sb && sb - sadG > Noise) score = -1;                   // con la camara
         else if (sadG <= sb) score = -0.5;                                              // mas bien con la camara
     }
-    Blk[int2(gid.xy)] = float4(v / float2(SX, SY), score, sb);
-    // el fondo: lo mejor de +-RB alrededor de la camara prevista, con medio punto; fiable si va con la camara, el minimo esta dentro, hay
-    // textura (lo peor deja bastante mas) y casa
-    int bb = Rb * DB + Rb; float sbb = sb2[bb], worst = 0;
-    for (int c3 = 0; c3 < DB * DB; c3++) { worst = max(worst, sb2[c3]); if (sb2[c3] < sbb) { sbb = sb2[c3]; bb = c3; } }
-    int ibx = (int)((uint)bb % (uint)DB), iby = (int)((uint)bb / (uint)DB);
-    float2 db = float2(ibx - Rb, iby - Rb);
-    bool inside = ibx > 0 && ibx < DB - 1 && iby > 0 && iby < DB - 1;
-    if (inside)
-    {
-        float l = sb2[bb - 1], r = sb2[bb + 1], a = l - 2 * sbb + r;
-        if (a > 1e-6) db.x += clamp(0.5 * (l - r) / a, -0.5, 0.5);
-        float u = sb2[bb - DB], dn = sb2[bb + DB], a2 = u - 2 * sbb + dn;
-        if (a2 > 1e-6) db.y += clamp(0.5 * (u - dn) / a2, -0.5, 0.5);
-    }
-    float w = score <= -0.5 && inside && worst - sbb > 2 * Noise && sbb < 3 * Noise ? 1 : 0;
-    Bg[int2(gid.xy)] = float4((g1 + db) / float2(SX, SY), w, sbb);
+    Blk[int2(gid.xy)] = float4(float2(fin[2], fin[3]) / float2(SX, SY), score, sb);
+    float w = score <= -0.5 && fin[7] > 0.5 ? 1 : 0;
+    Bg[int2(gid.xy)] = float4((g1 + float2(fin[5], fin[6])) / float2(SX, SY), w, fin[4]);
 }";
 
         // M) un grupo de 1024: la camara de esta imagen, v = t + s (p - c) + r (p - c) girado 90 grados, por minimos cuadrados con los bloques
@@ -483,6 +513,37 @@ void main(uint3 id : SV_DispatchThreadID)
     MemOut[p] = float2(noInfo ? mem : cls, 0);
 }";
 
+        // D) un hilo = un bloque, tras B: lo que C necesita de cada bloque en una lectura. c0: bloques x, y, frontera ancha (0/1).
+        // Cls2 = (vector de lo casi quieto: la media de los bloques casi quietos de 3x3, clase, frontera 0/1, -)
+        public const string D = @"
+cbuffer C : register(b0) { uint BX, BY, Wide, P0; uint4 Pad1; uint4 Pad2; uint4 Pad3; }
+Texture2D<float4> Cls : register(t0);
+RWTexture2D<float4> Cls2 : register(u0);
+
+[numthreads(8, 8, 1)]
+void main(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= BX || id.y >= BY) return;
+    int2 b = int2(id.xy);
+    int2 mx = int2((int)BX - 1, (int)BY - 1);
+    float4 own = Cls.Load(int3(b, 0));
+    float mn = own.z, mxc = own.z;
+    float2 sL = float2(0, 0);
+    float nL = 0;
+    [unroll] for (int j = -2; j <= 2; j++)
+        [unroll] for (int i = -2; i <= 2; i++)
+        {
+            bool in3 = abs(i) <= 1 && abs(j) <= 1;
+            if (!in3 && Wide == 0) continue;
+            float4 n = Cls.Load(int3(clamp(b + int2(i, j), int2(0, 0), mx), 0));
+            mn = min(mn, n.z); mxc = max(mxc, n.z);
+            if (in3 && n.z > 0.5) { sL += n.xy; nL += 1; }
+        }
+    // el vector de lo casi quieto: la media de los bloques casi quietos de alrededor (sin saltos de bloque en el personaje)
+    float2 vL = nL > 0 ? sL / nL : own.xy;
+    Cls2[b] = float4(vL.x, vL.y, own.z, mxc - mn < 0.5 ? 0.0 : 1.0);
+}";
+
         // C) por punto de la entrada. c0: ancho, alto, bloques x, y | c1 (float): de la entrada a la rejilla de bloques (x, y), ruido, giro
         // minimo | c2 (float): cerca, lejos, textura minima y diferencia maxima de lo quieto (fg_quieto) | c3: fg_quieto (0/1), su proporcion,
         // centro de la entrada. El fondo con la camara de esta imagen (Mdl: traslacion + acercamiento + giro)
@@ -524,30 +585,12 @@ void main(uint3 id : SV_DispatchThreadID, uint3 gt : SV_GroupThreadID, uint3 gid
     float2 bp = (float2(id.xy) + 0.5) * float2(KX, KY);
     int2 b = int2(floor(bp));
     float4 own = CB(b);
-    float mn = own.z, mxc = own.z;
-    float2 sL = float2(0, 0);
-    float nL = 0;
-    [unroll] for (int j = -1; j <= 1; j++)
-        [unroll] for (int i = -1; i <= 1; i++)
-        {
-            float4 n = CB(b + int2(i, j));
-            mn = min(mn, n.z); mxc = max(mxc, n.z);
-            if (n.z > 0.5) { sL += n.xy; nL += 1; }
-        }
-    // el vector de lo casi quieto: la media de los bloques casi quietos de alrededor (sin saltos de bloque en el personaje)
-    float2 vL = nL > 0 ? sL / nL : own.xy;
+    float2 vL = own.xy;
     float edgeMax = (float)(Quiet >> 8) * Noise;
-    if (edgeMax > 0)
-    {
-        // frontera mas ancha (5x5 bloques): el fondo que destapa el personaje (y el de los rincones entre cabeza y hombros) cae en bloques
-        // casi quietos; ahi cada punto se mira por su cuenta
-        [unroll] for (int j5 = -2; j5 <= 2; j5++)
-            [unroll] for (int i5 = -2; i5 <= 2; i5 += 4) { float z5 = CB(b + int2(i5, j5)).z; mn = min(mn, z5); mxc = max(mxc, z5); }
-        [unroll] for (int i6 = -1; i6 <= 1; i6++)
-            [unroll] for (int j6 = -2; j6 <= 2; j6 += 4) { float z6 = CB(b + int2(i6, j6)).z; mn = min(mn, z6); mxc = max(mxc, z6); }
-    }
     bool near;
-    if (mxc - mn < 0.5) near = own.z > 0.5;
+    // (frontera: con fg_cabeza_borde, 5x5 bloques; el fondo que destapa el personaje y el de los rincones entre cabeza y hombros cae en
+    // bloques casi quietos; ahi cada punto se mira por su cuenta)
+    if (own.w < 0.5) near = own.z > 0.5;
     else
     {
         // frontera: cada punto elige por su 3x3 (empate: la clase de los bloques, bilineal entre sus centros)
