@@ -49,7 +49,7 @@ namespace ConsoleEnhancer.Motor
         double tsFreq;
 
         // Tablas de 4 descriptores [t0 t1 u0 u1]
-        const int TUnpack = 0, TScale = 3, TCasOut = 4, TCasIn = 5, TOsd = 6, TLuma = 7, TSearch = 15, TExpand = 23, TAa = 24, TDown = TQBase + TQCount, TablesCount = TQBase + TQCount + 1 + TRCount + 11;   // (23-11 DLSSSR: + TSrVec x2, EngineSrVec.cs) (22-11 DLSS5Q: + TD5qMed, TD5qHold, EngineDlss5Q.cs) (20-11: + TLinIn, TLinOut, EngineLinear.cs) (16-11: TQ* = las de calidad, EngineMotion.cs; 17-11: TR* = las de las rejas, EngineRejas.cs; 20-11: + TNr, TNrDown, TNrPrep, TNrAf0/1, EngineDlss5.cs)
+        const int TUnpack = 0, TScale = 3, TCasOut = 4, TCasIn = 5, TOsd = 6, TLuma = 7, TSearch = 15, TExpand = 23, TAa = 24, TDown = TQBase + TQCount, TablesCount = TQBase + TQCount + 1 + TRCount + 13;   // (23-11 DLSSSR: + TSrVec x2 y TSrBlur x2, EngineSrVec.cs) (22-11 DLSS5Q: + TD5qMed, TD5qHold, EngineDlss5Q.cs) (20-11: + TLinIn, TLinOut, EngineLinear.cs) (16-11: TQ* = las de calidad, EngineMotion.cs; 17-11: TR* = las de las rejas, EngineRejas.cs; 20-11: + TNr, TNrDown, TNrPrep, TNrAf0/1, EngineDlss5.cs)
         const int U0 = Shaders.SlotU0;
 
         // ---- Recursos
