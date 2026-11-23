@@ -75,7 +75,7 @@ namespace ConsoleEnhancer.Motor
         {
             bool first = lastPassed < 0;
             if (dup30Recovery > capN) dup30Recovery = -1000;   // (capN vuelve a 0 al despertar de la espera)
-            bool back = isNew && dup30LateCopy && since == 1 && capN - dup30Recovery > 40 && (s.SmoothMode == 0 || s.Dedupe30 >= 3);
+            bool back = isNew && dup30LateCopy && since == 1 && capN - dup30Recovery > 40 && (s.SmoothMode == 0 || s.SmoothMode == 3 || s.Dedupe30 >= 3);   // (1.2.4 ronda 6, SMX4: con x4 -sm=3, XeSS FG debajo- como con XeSS FG)
             bool pass = first || (since >= 2 && (isNew || dup30PrevNew)) || since >= 3 || (isNew && dup30Forced && s.Dedupe30 >= 3) || back;
             if (pass)
             {

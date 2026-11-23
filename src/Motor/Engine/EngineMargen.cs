@@ -54,7 +54,7 @@ namespace ConsoleEnhancer.Motor
             if (s.Is120) return t;   // (a 120 sin generacion)
             double q = Math.Max(0.1, outW * (double)outH / (3840.0 * 2160.0));
             double idx = s.GpuIndice > 0.05 ? s.GpuIndice : 1.0;
-            if (s.SmoothMode > 0) t -= Math.Max(0.8, 2.5 * q / idx);
+            if (s.SmoothMode > 0) t -= Math.Max(0.8, 2.5 * q / idx) * (s.SmoothMode == 3 ? 2 : 1);   // (1.2.4 ronda 6, SMX4: sm=3 = Smooth Motion x4 encima de XeSS FG x2: dos inventadas del driver por real)
             // (DLSS-G x2: numFramesToGenerate = 1 en Engine.cs)
             // (1.2.4, XEFG) x3 / x4 y XeSS FG en el motor (agente MOTORFG): la reserva por cada imagen inventada. Medido el 22-11 por Magpie en la
             // RTX 4060 Ti con salida 4K: DLSS-G la primera ~5 ms y cada una de mas ~1,5 (reutiliza el flujo del par); XeSS FG ~8 ms de grafica por

@@ -883,7 +883,7 @@ namespace ConsoleEnhancer
         // Smooth Motion en el motor para este modo: el tipo de ese modo (lo elegido con L3 / el menu, o el del ini) es smooth
         public bool EngineSmoothFor(bool cap) { return FgTypeFor(cap, VideoSize) == "smooth"; }
         // (19-11: en el menu de la PS5 a 4K nativo, nunca: el usuario lo quiere "nativamente sin smooth motion ni nada", src\MenuPs5.cs)
-        public int EngineSmoothMode { get { if (FgOff || Mode120 || NvProfiles.EngineSmoothBroken || (HomeNative && Consolas.Actual.MenuPropio)) return 0; if (CapMode) return EngineSmoothFor(true) ? (Pantalla.Hz() >= 100 ? 2 : 1) : 0; return EngineSmoothFor(false) && Pantalla.Hz() >= 100 ? 1 : 0; } }   // (ConsoleEnhancer: en el modo 60 la generacion solo con la pantalla a 100 Hz o mas; 20-11 HZ120: a 120 sin Smooth Motion)
+        public int EngineSmoothMode { get { if (FgOff || Mode120 || NvProfiles.EngineSmoothBroken || (HomeNative && Consolas.Actual.MenuPropio)) return 0; if (CapMode) return EngineSmoothFor(true) ? (SmoothX4Now ? 3 : Pantalla.Hz() >= 100 ? 2 : 1) : 0; return EngineSmoothFor(false) && Pantalla.Hz() >= 100 ? 1 : 0; } }   // (ConsoleEnhancer: en el modo 60 la generacion solo con la pantalla a 100 Hz o mas; 20-11 HZ120: a 120 sin Smooth Motion)
         // 19-11 (GENERACION): la generacion de ahora solo la hace Magpie (FSR 3 FG, XeSS FG, NVIDIA VFG): con DLSS 5 apagado, mpv + Magpie sin el
         // 21-11 (1.0.9): FSR 3 FG ya la hace el motor propio (src\Motor\Engine\EngineFgFfx.cs) salvo con DLSS de escalador (con ella el motor
         // va sin Streamline, sin DLSS): entonces sigue Magpie. XeSS FG y la de NVIDIA VFX, Magpie
@@ -2387,9 +2387,10 @@ namespace ConsoleEnhancer
         // motor (EngineArgs)
         static int engineSmoothState = -1;            // en el perfil de ConsoleEnhancerEngine.exe: -1 sin mirar, 0 no, 1 si
         public static volatile bool EngineSmoothBroken; // el driver no deja ponerlo: el motor sigue con DLSS-G
-        static int EngineSmoothRead() { return SmoothRw(-1, "ConsoleEnhancerEngine.exe") ? (SmoothRw(-2, "ConsoleEnhancerEngine.exe") ? 2 : 1) : 0; }
+        static int EngineSmoothRead() { return SmoothRw(-1, "ConsoleEnhancerEngine.exe") ? (SmoothRw(-2, "ConsoleEnhancerEngine.exe") ? 2 : SmoothRw(-3, "ConsoleEnhancerEngine.exe") ? 1 : 3) : 0; }   // (1.2.4 ronda 6, SMX4: 3 = sin la sincronizacion del perfil)
         public static bool EngineSmoothOn { get { lock (smoothSync) { if (engineSmoothState < 0) engineSmoothState = EngineSmoothRead(); return engineSmoothState > 0; } } }
-        // want: 0 quitar, 1 con la sincronizacion forzada (modo 60), 2 con la de cada 2 refrescos (modo 30)
+        // want: 0 quitar, 1 con la sincronizacion forzada (modo 60), 2 con la de cada 2 refrescos (modo 30), 3 sin tocar la sincronizacion (la de
+        // la aplicacion: Smooth Motion x4 encima de XeSS FG x2 con VRR, src\Lanzador\SmoothX4.cs)
         public static bool SetEngineSmooth(int want)
         {
             bool on = want > 0;
@@ -2398,10 +2399,10 @@ namespace ConsoleEnhancer
                 if (engineSmoothState < 0) engineSmoothState = EngineSmoothRead();
                 if (engineSmoothState == want) return true;
                 Stopwatch sw = Stopwatch.StartNew();
-                bool ok = SmoothRw(want == 2 ? 2 : want == 1 ? 1 : 0, "ConsoleEnhancerEngine.exe");
+                bool ok = SmoothRw(want == 3 ? 5 : want == 2 ? 2 : want == 1 ? 1 : 0, "ConsoleEnhancerEngine.exe");   // (1.2.4 ronda 6, SMX4: 3 = x4, src\Lanzador\SmoothX4.cs)
                 if (ok) engineSmoothState = want;
                 else if (on) EngineSmoothBroken = true;
-                Log.Write("NVIDIA: Smooth Motion para ConsoleEnhancerEngine.exe " + (want == 2 ? "encendido (sincronizacion cada 2 refrescos: modo 30)" : on ? "encendido (con sincronizacion vertical forzada)" : "apagado") +
+                Log.Write("NVIDIA: Smooth Motion para ConsoleEnhancerEngine.exe " + (want == 3 ? "encendido sin tocar la sincronizacion (x4: encima de XeSS FG x2, VRR)" : want == 2 ? "encendido (sincronizacion cada 2 refrescos: modo 30)" : on ? "encendido (con sincronizacion vertical forzada)" : "apagado") +
                           (ok ? "" : " NO SE PUDO" + (on ? " (el motor sigue con DLSS FG)" : "")) + " en " + sw.ElapsedMilliseconds + " ms");
                 return ok;
             }
@@ -2560,10 +2561,25 @@ namespace ConsoleEnhancer
                         Marshal.WriteInt32(w, SettingCurrentOffset, 1);
                         Check(Fn<FnSetSettingEx>(IdSetSettingEx)(session, profile, w, 0, 0), "SetSettingEx Smooth Motion");
                     }
+                    if (op == 5)
+                    {
+                        // (1.2.4 ronda 6, SMX4: Smooth Motion sin sincronizacion del perfil -la de la aplicacion, con VRR-; si la que hay en el
+                        // perfil es una de las nuestras, fuera. Medido: con la forzada, XeSS FG + Smooth Motion deja la mitad sin verse)
+                        IntPtr s5 = Alloc(mem, SettingSize);
+                        if (Fn<FnGetSetting>(IdGetSetting)(session, profile, VerticalSync, s5) == NvOk && Marshal.ReadInt32(s5, SettingLocationOffset) == 0 &&
+                            ((uint)Marshal.ReadInt32(s5, SettingCurrentOffset) == VerticalSyncForceOn || (uint)Marshal.ReadInt32(s5, SettingCurrentOffset) == VerticalSyncHalf))
+                        {
+                            rc = Fn<FnDelSetting>(IdDeleteProfileSetting)(session, profile, VerticalSync);
+                            if (rc != NvSettingNotFound) Check(rc, "DeleteProfileSetting sincronizacion vertical");
+                        }
+                    }
+                    else
+                    {
                     IntPtr v = Alloc(mem, SettingSize);
                     Marshal.WriteInt32(v, SettingIdOffset, (int)VerticalSync);
                     Marshal.WriteInt32(v, SettingCurrentOffset, unchecked((int)(op == 2 || op == 4 ? VerticalSyncHalf : VerticalSyncForceOn)));
                     Check(Fn<FnSetSetting>(IdSetSetting)(session, profile, v), "SetSetting sincronizacion vertical");
+                    }
                 }
                 else
                 {
@@ -10153,7 +10169,7 @@ namespace ConsoleEnhancer
         // chain = la cadena con la que se abre ese motor (-1 = la de ahora, Config.EngineFgChain): fg=1 solo con la de XeSS FG o FSR 3 FG
         static string EngineLive(Config cfg, bool smooth, int chain)
         {
-            bool fg = !cfg.FgOff && !cfg.HomeNative && !smooth && !cfg.Mode120 && (cfg.CapMode || Pantalla.Hz() >= 100);   // (ConsoleEnhancer: modo 60 con la pantalla a 60 Hz: sin generacion)   // (17:50: tambien en el modo 30; 20-11 HZ120: a 120 sin generacion de fotogramas)
+            bool fg = !cfg.FgOff && !cfg.HomeNative && (!smooth || cfg.SmoothX4Now) && !cfg.Mode120 && (cfg.CapMode || Pantalla.Hz() >= 100);   // (1.2.4 ronda 6, SMX4: con Smooth Motion x4 el motor hace XeSS FG x2 debajo)   // (ConsoleEnhancer: modo 60 con la pantalla a 60 Hz: sin generacion)   // (17:50: tambien en el modo 30; 20-11 HZ120: a 120 sin generacion de fotogramas)
             // (1.2.4 ronda 6, QUITAFG: sin DLSS-G, fg=1 solo con la cadena de XeSS FG o FSR 3 FG; con la de siempre el motor iria sin generacion
             // -Smooth Motion va con fg=0 y sm=N-. Asi el motor de delante no enciende nada que no sea lo suyo)
             if (fg && (chain >= 0 ? chain : cfg.EngineFgChain) <= 0) fg = false;
@@ -10212,6 +10228,7 @@ namespace ConsoleEnhancer
         {
             // 17-11 16:55 (motor_generacion_60=smooth): Smooth Motion en el perfil de ConsoleEnhancerEngine.exe justo antes de abrirlo (el driver lo
             // mira al abrir el proceso); quitado si no toca (o si lo dejo puesto otra sesion)
+            cfg.SmoothX4Log();   // (1.2.4 ronda 6, SMX4)
             int sm = smOverride >= 0 ? smOverride : cfg.EngineSmoothMode;
             if (cfg.EngineSmoothAny || NvProfiles.EngineSmoothOn || smOverride > 0) { if (!NvProfiles.SetEngineSmooth(sm)) sm = 0; }
             else sm = 0;
@@ -12190,6 +12207,8 @@ namespace ConsoleEnhancer
                 if (arg == "--test-motor-dlss5" || arg.StartsWith("--test-motor-dlss5=")) return Config.MotorDlss5Prueba(arg.Length > 19 ? arg.Substring(19) : null);
                 // 22-11 (1.2.4, SOLOMOTOR): el reparto motor / Magpie (reserva) con cada combinacion: --test-solo-motor[=<informe>] (SoloMotor.cs)
                 if (arg == "--test-solo-motor" || arg.StartsWith("--test-solo-motor=")) return Config.SoloMotorPrueba(arg.Length > 18 ? arg.Substring(18) : null);
+                // 23-11 (1.2.4 ronda 6, SMX4): cuando hay Smooth Motion x4 y que va al perfil y al motor: --test-smooth-x4[=<informe>] (SmoothX4.cs)
+                if (arg == "--test-smooth-x4" || arg.StartsWith("--test-smooth-x4=")) return Config.SmoothX4Prueba(arg.Length > 17 ? arg.Substring(17) : null);
                 // 22-11 (1.2.3, MOTOR5): PrismaNr.dll junto a la DLL elegida en "Añadir DLSS 5": --test-extras-guardados[=<informe>]
                 if (arg == "--test-extras-guardados" || arg.StartsWith("--test-extras-guardados=")) return ExtrasGuardados.Prueba(arg.Length > 24 ? arg.Substring(24) : null);
                 // 22-11 (1.2.4): la busqueda de los archivos de DLSS 5 en el PC con carpetas falsas: --test-buscar-extras[=<informe>] (BuscaExtras.cs)

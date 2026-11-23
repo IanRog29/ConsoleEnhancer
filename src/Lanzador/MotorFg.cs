@@ -51,6 +51,7 @@ namespace ConsoleEnhancer
                 motorFgFab = (GpuVendor ?? "").Trim().ToLowerInvariant();
                 if (FgOff || HomeNative || Mode120) return 0;
                 if (EngineFfxWanted) return FsrMultNow > 2 ? FsrMulChainId : 1;   // (1.2.4 ronda 6, FGMULTI: FSR 3 FG x3 / x4, la nuestra de varios instantes; MultiFsr.cs)
+                if (SmoothX4Now) return 20 + (Ce.EngineUpscaler(this) == "dlss" ? 1 : 0);   // (1.2.4 ronda 6, SMX4: Smooth Motion x4 = XeSS FG x2 + Smooth Motion, SmoothX4.cs)
                 if (FgTypeNow == "xess" && MotorFgSabe("xess") && !MotorGenAMagpie("xess")) return 20 + (Ce.EngineUpscaler(this) == "dlss" ? 1 : 0);   // (1.2.4 ronda 5, XEFGM: salvo si va por Magpie, XefgMotor.cs)
                 if (FgTypeNow == "efg" && EfgPuede()) return EfgChainId;   // (1.2.4 ronda 6, ENHANCED: Enhanced FG, su cola de presentacion se crea al abrir el motor; EnhancedFg.cs)
                 return 0;
