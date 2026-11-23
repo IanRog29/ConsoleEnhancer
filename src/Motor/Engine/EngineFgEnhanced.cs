@@ -57,7 +57,8 @@ namespace ConsoleEnhancer.Motor
         public int EfgStillN = 3, EfgRadius = 8;
         public int EfgLevels = 5;               // (EFG2) niveles de la piramide del flujo (4-6; antes 4)
         public bool EfgPropAll = true;          // (EFG2) la pasada de apoyo entre vecinos tambien en los niveles gruesos (antes solo en L0)
-        public int EfgSearch = 2;               // (EFG2) busqueda alrededor del mejor en los niveles gruesos (+-N; antes 1)
+        public int EfgSearch = 1;               // (EFG2) busqueda alrededor del mejor en los niveles gruesos (+-N). De serie 1: con 2 el simulador
+                                                // daba -1 %, pero en la tele (otra sesion) salio algo peor y no pude repetirlo: queda para probar
         public bool EfgStamps = true;           // efg_tiempos=0: sin las marcas de tiempo de la grafica (prueba)
 
         bool ApplyEfg(string key, string val)

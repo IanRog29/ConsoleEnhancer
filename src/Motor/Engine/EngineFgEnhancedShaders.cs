@@ -38,7 +38,7 @@ void main(uint3 id : SV_DispatchThreadID)
 
         // ---- Flujo de un nivel (de lo grueso a lo fino), por bloques de 8x8 de A buscados en B. Candidatos: en el nivel mas grueso busqueda
         // entera de +-R; en los demas el vector del bloque padre y de sus 4 vecinos (x2), el 0 y el de la pareja anterior (temporal, solo L0);
-        // despues +-SR alrededor del mejor (EFG2: +-2 en los niveles gruesos, +-1 en L0) y, en L0, medio y cuarto de punto. Coste = diferencia
+        // despues +-SR alrededor del mejor (EFG2: efg_busqueda en los niveles gruesos, de serie 1; +-1 en L0) y, en L0, medio y cuarto de punto. Coste = diferencia
         // media + Lambda x lo que se aparta del padre.
         // Flags: 1 = hay padre, 2 = hay temporal, 8 = subpunto
         public const string Flow = @"
