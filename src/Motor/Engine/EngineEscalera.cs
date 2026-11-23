@@ -133,7 +133,8 @@ namespace ConsoleEnhancer.Motor
             string clave = s.Mode + "|" + (s.Fg ? 1 : 0) + "|" + s.FgTipo + "|sm" + s.SmoothMode + "|efg" + (EfgWanted() ? s.Efg : 0) + "|" + inW + "x" + inH + "|" + outW + "x" + outH + "|nr" + (AdNrActivo ? 1 : 0);
             if (clave != escClave)
             {
-                escClave = clave; escPasosHechos = 0; escDicho = ""; escBajo = false; escLimpioDesde = now; escNrEspera = 0;
+                // (escBajo: si se empieza por debajo de lo pedido -lo aprendido, x4d5_inicio-, tambien se dice cuando ya cabe)
+                escClave = clave; escPasosHechos = 0; escDicho = ""; escBajo = true; escBajadaAt = now; escLimpioDesde = now; escNrEspera = 0;
                 EscCalma(3000);
                 return;
             }
@@ -275,8 +276,8 @@ namespace ConsoleEnhancer.Motor
                 EscCalma(3000); escBajadaAt = now; escBajo = true; escDicho = "";
                 return;
             }
-            // (3) ya no queda nada en el motor: al lanzador (12 s como poco entre avisos)
-            if (escAgotadoAt != 0 && Clock.SinceMs(escAgotadoAt) < 12000) { EscCalma(2000); return; }
+            // (3) ya no queda nada en el motor: al lanzador (30 s como poco entre avisos, como EngineFps: casi siempre cambia de motor antes)
+            if (escAgotadoAt != 0 && Clock.SinceMs(escAgotadoAt) < 30000) { EscCalma(2000); return; }
             escAgotadoAt = now;
             string r = reales.ToString("0.0", IC), o = EscObjetivo.ToString("0.00", IC), g = stats.LastGpuP95.ToString("0.0", IC);
             string d5 = AdNrActivo ? s.NrPct.ToString(IC) : "-", m = EscSrActivo ? s.Preset : "-";
