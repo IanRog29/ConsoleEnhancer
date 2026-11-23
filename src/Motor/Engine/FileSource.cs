@@ -482,6 +482,9 @@ namespace ConsoleEnhancer.Motor
                         }
                     }
                     nNext = n + 1;
+                    // (test_paso=1: la siguiente imagen DISTINTA del juego; las repetidas -un juego a 30 en la señal de 59,94- el motor las
+                    // quita como iguales y no las coge: se esperaban los 2 s enteros cada vez, SRBLUR 13:05)
+                    if (lockstep && stillF < 0) { long kk = GameOf(n), q = n + 1; while (q < n + 64 && GameOf(q) == kk) q++; nNext = q; }
                     prepWake.Set();
                     if (lockstep) TestSource.Consumed.WaitOne(2000);   // (test_paso=1, como TestSource: la siguiente cuando el motor coge esta)
                     if (late != lateLogged && Clock.SinceMs(lastLogAt) > 10000)
