@@ -437,8 +437,20 @@ namespace ConsoleEnhancer.Motor
                 float t = (float)(1.0 + (i - nReal) / (double)k);
                 bool dup = !flow;
                 bool skip = !real && (stale || !genReady);
-                if (!skip && !real) { lock (efgJobs) { if (efgJobs.Count > 0 && i > nReal) skip = true; } }   // (otra real esperando: lo de despues de esta sobra)
                 long ti = EfgAt(B, i * step);
+                // (otra real esperando: lo de despues de esta sobra. 1.2.4 ronda 7, EFGFIX: solo si iria a la vez o despues de la primera de la
+                // siguiente -su llegada + L-: la siguiente entra en la cola en cuanto el motor la manda, mucho antes de estar; con la baja latencia
+                // x4 + DLSS 5 se saltaban 2 de cada 3 inventadas -49 de 90 por segundo con DLSS 5 al 45 %, app entera a 4K- y el vigilante de x4
+                // bajaba DLSS 5 hasta el 25 %)
+                if (!skip && !real && i > nReal)
+                    lock (efgJobs)
+                    {
+                        if (efgJobs.Count > 0)
+                        {
+                            EfgJob nx = efgJobs.Peek();
+                            if (nx.Show || !s.EfgSaltoFino || ti + (long)(step * 0.5 / Clock.TickMs) > EfgAt(nx.Arrival, efgLcur)) skip = true;
+                        }
+                    }
                 if (!skip && !real && Clock.SinceMs(ti) > step * 0.5) skip = true;   // (ya es tarde para esta)
                 if (skip) { efgSkipped++; genReady = false; }
                 else

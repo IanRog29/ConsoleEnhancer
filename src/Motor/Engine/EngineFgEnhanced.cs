@@ -65,6 +65,7 @@ namespace ConsoleEnhancer.Motor
                                                 // daba -1 %, pero en la tele (otra sesion) salio algo peor y no pude repetirlo: queda para probar
         public bool EfgStamps = true;           // efg_tiempos=0: sin las marcas de tiempo de la grafica (prueba)
         public bool EfgPrecompile = true;       // (1.2.4 ronda 7, EFGFIX) efg_precompilar=0: sin compilar sus sombreadores de fondo (EfgPrecompilar)
+        public bool EfgSaltoFino = true;        // (1.2.4 ronda 7, EFGFIX) efg_salto_fino=0: con otra real en la cola se saltan las inventadas de despues de la real (como antes)
 
         bool ApplyEfg(string key, string val)
         {
@@ -94,6 +95,7 @@ namespace ConsoleEnhancer.Motor
                 case "efg_busqueda": EfgSearch = Math.Max(1, Math.Min(4, I(val))); return true;
                 case "efg_tiempos": EfgStamps = B(val); return true;
                 case "efg_precompilar": EfgPrecompile = B(val); return true;   // (EFGFIX)
+                case "efg_salto_fino": EfgSaltoFino = B(val); return true;   // (EFGFIX)
             }
             return false;
         }

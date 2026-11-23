@@ -201,7 +201,7 @@ namespace ConsoleEnhancer.Motor
             }
             D3D12_COMMAND_QUEUE_DESC qd = new D3D12_COMMAND_QUEUE_DESC();
             qd.Type = D3D12_COMMAND_LIST_TYPE.DIRECT;
-            qd.Priority = EfgMainQueuePriority(FgXe && !s.XeHighPrio && !(s.SmoothMode == 3 && s.XeHighPrioSm4) ? 0 : 100); // HIGH (1.2.4 ronda 7, EFGFIX: y con Smooth Motion x4, sm=3, EngineX4D5.cs) (1.2.4 ronda 6, ENHANCED: con la cola propia de Enhanced FG, normal) (1.2.4 MOTORFG: con XeSS FG la normal, como la que espera XeSS FG; xefg_prioridad=1 = alta)
+            qd.Priority = EfgMainQueuePriority(FgXe && !s.XeHighPrio && !(s.SmoothMode == 3 && s.XeHighPrioSm4 && s.Nr) ? 0 : 100); // HIGH (1.2.4 ronda 7, EFGFIX: y con Smooth Motion x4 + DLSS 5 al abrir, sm=3, EngineX4D5.cs) (1.2.4 ronda 6, ENHANCED: con la cola propia de Enhanced FG, normal) (1.2.4 MOTORFG: con XeSS FG la normal, como la que espera XeSS FG; xefg_prioridad=1 = alta)
             iid = typeof(ID3D12CommandQueue).GUID;
             Hr.Check(dev.CreateCommandQueue(ref qd, ref iid, out o), "CreateCommandQueue");
             queue = (ID3D12CommandQueue)o;

@@ -15,8 +15,9 @@ namespace ConsoleEnhancer.Motor
     //   - ya en lo minimo (25 %, 1 pasada) y 4 de 6 s mal -> "switch2-x4d5" "no": el lanzador pasa a x2 esta sesion y lo dice;
     //   - 12 s seguidos bien con DLSS 5 bajado -> "switch2-x4d5" "ok" <%>: el lanzador avisa "x4 con DLSS 5: DLSS 5 al N % para que quepa".
     // Primera vez con Smooth Motion x4 + DLSS 5 (sin nada aprendido): se empieza en x4d5_inicio (35 %; medido: 45 % no llega) en vez de lo pedido.
-    // Y con sm=3 la cola del motor va en prioridad ALTA (xefg_prioridad_x4, de serie 1; Engine.cs InitDevice): medido con DLSS 5 al 45 %, 27,6 ->
-    // 29,6 reales y 107 -> 120 imagenes/s.
+    // Y con sm=3 y DLSS 5 al abrir el motor la cola del motor va en prioridad ALTA (xefg_prioridad_x4, de serie 1; Engine.cs InitDevice): medido
+    // con DLSS 5 al 45 %, 27,6 -> 29,6 reales y 107 -> 120 imagenes/s; en la app a 4K con DLSS 5 al 35 %: 30 reales, 119 vistas/s, el 92 % a un
+    // refresco. Sin DLSS 5 al abrir, la normal de siempre (INTEGRA7: 99,3 % a un refresco; con la alta y DLSS 5 quitado en marcha salio 76,5 %).
     // Claves: x4d5=0 (sin el vigilante), x4d5_reales=29.4, x4d5_inicio=35 (0 = lo pedido), xefg_prioridad_x4=0 (la cola en normal, como antes).
     partial class Settings
     {
