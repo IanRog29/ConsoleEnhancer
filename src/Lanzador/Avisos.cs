@@ -121,12 +121,12 @@ namespace ConsoleEnhancer
             if (t == "xess" && (XessCaido || !MotorFgSabe("xess"))) return Tx.T("el motor no ha podido con él en esta sesión", "the engine couldn't run it this session");
             // (1.2.4 ronda 7, INTEGRA7: la de FGREAL -TrayApp.GenNoVaPorque, TiposGeneracion.cs-, tambien aqui)
             // (en la pastilla, corto y sin la clave del ini: la dice el menu -GenNoVaPorque- y el README)
-            if (t == "fsr3" && !FsrFgOfrecer) return Tx.T("quitada: fallos y poca fluidez con juego real", "removed: artifacts and poor smoothness in real games");
+            if (t == "fsr3" && !FsrFgOfrecer) return Tx.T("quitada: fallos y poca fluidez con juego real", "removed (artifacts, poor smoothness)");   // (EFGFIX: en ingles mas corto, que quepa en la pastilla con x4 + DLSS 5)
             if (t == "fsr3" && !Paths.HayLib("amd_fidelityfx_framegeneration_dx12.dll")) return Tx.T("falta su DLL en fsr\\", "its DLL is missing in fsr\\");
             if (t == "smooth" && Ce.NoNvidia) return Tx.T("solo en NVIDIA RTX 40 / 50", "NVIDIA RTX 40 / 50 only");
             if (t == "smooth" && Pantalla.Is119) return Tx.T("no con la tele a 119,88 Hz", "not with the TV at 119.88 Hz");
             if (t == "smooth" && (NvProfiles.SmoothBroken || NvProfiles.EngineSmoothBroken)) return Tx.T("el driver no deja ponerlo", "the driver doesn't allow it");
-            if (t == "efg" && EfgCaido) return Tx.T("la gráfica se perdió con él en esta sesión", "the GPU was lost with it this session");
+            if (t == "efg" && EfgCaido) return EfgCaidoTexto(true);   // (1.2.4 ronda 7, EFGFIX: cuando y que se puede reintentar)
             if (t == "efg") { double hz = Pantalla.Hz(); if (hz > 0 && hz < 100) return Tx.T("necesita la pantalla a 100 Hz o más", "needs the screen at 100 Hz or more"); }
             return null;
         }
@@ -945,20 +945,24 @@ namespace ConsoleEnhancer
         {
             int fallos = 0;
             sb.AppendLine("== lo elegido que no puede ir");
-            string[] casos = { "xess_caido", "efg_60hz", "fsrmul_caido", "smx4_sin_vrr", "smx4_dlss5", "efg_caido", "smx4_xess_caido" };
+            // (1.2.4 ronda 7, EFGFIX: x4 con DLSS 5 ya se puede -"smx4_dlss5" ya no es "no puede ir"-; lo que no puede es x4 con DLSS 5 que no llego ni
+            // al 25 % en esta sesion -switch2-x4d5 no-, de Smooth Motion y de Enhanced FG)
+            string[] casos = { "xess_caido", "efg_60hz", "fsrmul_caido", "smx4_sin_vrr", "smx4_dlss5_nollega", "efg_caido", "smx4_xess_caido", "efgx4_dlss5_nollega" };
             foreach (string caso in casos)
                 foreach (string boton in new[] { "estado", "vista" })
                 {
                     n++;
                     object[] pa = caso.StartsWith("xess") ? new object[] { "2560x1440", "30", "xess", 2, true, "dlss:M", true } :
-                                  caso.StartsWith("efg") ? new object[] { "3840x2160", "30", "efg", 4, false, "dlss:auto", true } :
+                                  caso.StartsWith("efg") ? new object[] { "3840x2160", "30", "efg", 4, caso == "efgx4_dlss5_nollega", "dlss:auto", true } :
                                   caso.StartsWith("fsrmul") ? new object[] { "3840x2160", "30", "fsr3", 4, false, "dlss:auto", true } :
-                                  new object[] { "3840x2160", "30", "smooth", 4, caso == "smx4_dlss5", "dlss:auto", true };
+                                  new object[] { "3840x2160", "30", "smooth", 4, caso == "smx4_dlss5_nollega", "dlss:auto", true };
                     Pantalla.HzPrueba = caso == "efg_60hz" ? 60 : 120;
                     TrayApp t = AvisoApp(baseCfg, pa);
                     if (caso == "xess_caido" || caso == "smx4_xess_caido") Config.MotorGenCaidaAnota("xess");
                     if (caso == "efg_caido") Config.MotorGenCaidaAnota("efg");
                     if (caso == "fsrmul_caido") Config.MotorGenCaidaAnota("fsrmul");
+                    if (caso == "smx4_dlss5_nollega") Config.SmoothX4NoLlegaAnota(true, "3840x2160");   // (EFGFIX)
+                    if (caso == "efgx4_dlss5_nollega") Config.EfgNoLlegaAnota(true, "3840x2160");
                     if (caso == "smx4_sin_vrr") t.cfg.EngineVrr = 0;
                     string tit, det;
                     if (boton == "vista")
@@ -976,6 +980,7 @@ namespace ConsoleEnhancer
                     if (r != null) { fallos++; fallosTxt.Add(caso + " " + boton + ": " + r + " | " + aviso); }
                     sb.AppendLine((r == null ? "      " : "FALLO ") + caso + " " + boton + " | motor: " + m + " | " + aviso + (r != null ? "   <- " + r : ""));
                     Config.MotorGenCaidaOlvida();
+                    Config.X4NoLlegaOlvida();
                 }
             Pantalla.HzPrueba = 120;
             return fallos;

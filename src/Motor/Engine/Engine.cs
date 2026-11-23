@@ -201,7 +201,7 @@ namespace ConsoleEnhancer.Motor
             }
             D3D12_COMMAND_QUEUE_DESC qd = new D3D12_COMMAND_QUEUE_DESC();
             qd.Type = D3D12_COMMAND_LIST_TYPE.DIRECT;
-            qd.Priority = EfgMainQueuePriority(FgXe && !s.XeHighPrio ? 0 : 100); // HIGH (1.2.4 ronda 6, ENHANCED: con la cola propia de Enhanced FG, normal) (1.2.4 MOTORFG: con XeSS FG la normal, como la que espera XeSS FG; xefg_prioridad=1 = alta)
+            qd.Priority = EfgMainQueuePriority(FgXe && !s.XeHighPrio && !(s.SmoothMode == 3 && s.XeHighPrioSm4 && s.Nr) ? 0 : 100); // HIGH (1.2.4 ronda 7, EFGFIX: y con Smooth Motion x4 + DLSS 5 al abrir, sm=3, EngineX4D5.cs) (1.2.4 ronda 6, ENHANCED: con la cola propia de Enhanced FG, normal) (1.2.4 MOTORFG: con XeSS FG la normal, como la que espera XeSS FG; xefg_prioridad=1 = alta)
             iid = typeof(ID3D12CommandQueue).GUID;
             Hr.Check(dev.CreateCommandQueue(ref qd, ref iid, out o), "CreateCommandQueue");
             queue = (ID3D12CommandQueue)o;
@@ -255,17 +255,30 @@ namespace ConsoleEnhancer.Motor
             SlProxyCreate();   // (1.2.4 ronda 5, INTEGRA5: con el enganche manual, el Present por el proxy de Streamline; EngineSlProxy.cs)
         }
 
+        static string CsFull(string src) { return "#define RS \"" + Shaders.RootSig + "\"\n" + src.Replace("[numthreads", "[RootSignature(RS)]\n[numthreads"); }
+        static string CsPath(string name, string full) { return Path.Combine(Path.Combine(Program.DataDir, "cache"), name + "_" + ((uint)full.GetHashCode()).ToString("x8") + ".cso"); }
+        // (1.2.4 ronda 7, EFGFIX) ¿ya esta en la cache? (EfgPrecompilar)
+        static bool CsCached(string name, string src) { try { return File.Exists(CsPath(name, CsFull(src))); } catch { return false; } }
+
         byte[] CompileCs(string name, string src)
         {
-            string full = "#define RS \"" + Shaders.RootSig + "\"\n" + src.Replace("[numthreads", "[RootSignature(RS)]\n[numthreads");
+            string full = CsFull(src);
             string cacheDir = Path.Combine(Program.DataDir, "cache");   // (18-11, MOTOR-CE: en datos=)
-            string key = name + "_" + ((uint)full.GetHashCode()).ToString("x8") + ".cso";
-            string path = Path.Combine(cacheDir, key);
+            string path = CsPath(name, full);
             try { if (File.Exists(path)) return File.ReadAllBytes(path); } catch { }
             string msgs;
             byte[] b = D3DCompilerApi.Compile(full, "main", "cs_5_1", D3DCompilerApi.D3DCOMPILE_OPTIMIZATION_LEVEL3, out msgs, name + ".hlsl");
             if (msgs.Length > 0) Log.Write("Shader " + name + ": " + msgs);
-            try { Directory.CreateDirectory(cacheDir); File.WriteAllBytes(path, b); } catch { }
+            // (1.2.4 ronda 7, EFGFIX) a un fichero aparte y luego el nombre de verdad: con dos motores a la vez (el de delante y el escondido del
+            // relevo, o la compilacion de fondo de EfgPrecompilar) uno podia leer el .cso a medio escribir
+            try
+            {
+                Directory.CreateDirectory(cacheDir);
+                string tmp = path + "." + System.Diagnostics.Process.GetCurrentProcess().Id.ToString(CultureInfo.InvariantCulture) + ".tmp";
+                File.WriteAllBytes(tmp, b);
+                if (File.Exists(path)) File.Delete(tmp); else File.Move(tmp, path);
+            }
+            catch { }
             return b;
         }
 
@@ -323,6 +336,7 @@ namespace ConsoleEnhancer.Motor
             if (s.MvPx || s.MvMask > 0 || s.MvCapas) EnsureQualityPsos();
             if (s.MvCons > 0 || s.MvCapas || s.MvTruth > 0 || s.MvApert > 0 || s.MvEns > 0 || s.FgVec >= 2) EnsureRejasPsos();   // 17-11 (REJAS): tambien al arrancar
             if (s.Efg >= 2) EfgPsos();   // (1.2.4 ronda 6, ENHANCED: Enhanced FG, EngineFgEnhanced.cs)
+            else EfgPrecompilar();       // (1.2.4 ronda 7, EFGFIX: si no, a la cache de fondo para cuando se elija)
         }
 
         ID3D12Resource MakeBuffer(D3D12_HEAP_TYPE type, long size, D3D12_RESOURCE_STATES state, string name)
@@ -1231,6 +1245,7 @@ namespace ConsoleEnhancer.Motor
             TirSecond();    // (16-11 tirones: una linea cada ~20 s si ha pasado algo)
             LatSecond();    // (18-11 LATENCIA: lat_csv al fichero)
             AdaptaTick();   // (ConsoleEnhancer: escalas que se adaptan, EngineAdapta.cs)
+            X4D5Tick();     // (1.2.4 ronda 7, EFGFIX: x4 con DLSS 5, que quepa; EngineX4D5.cs)
             FpsVigila();    // (21-11: si no se llega a los fps del modo por el PC, aviso al lanzador, EngineFps.cs)
             AutoPresetTick();
             Unbury(false);

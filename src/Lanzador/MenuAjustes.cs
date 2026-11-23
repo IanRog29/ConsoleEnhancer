@@ -855,6 +855,7 @@ namespace ConsoleEnhancer
             // de antes: "x4 ... ahora no: la generacion del modo 30 no es Smooth Motion" eligiendo Smooth Motion x4 a la vez, 23-11 12:05:54)
             if ((v = AjVal(e, "tipo")) != null && v.Length > 0 && v != "\u0000" && modo != 120)
             {
+                if (v == "efg") { FilaAjuste ft = AjFila("tipo"); if (ft == null || ft.Cambiada) Config.EfgReintenta("menu de ajustes"); }   // (1.2.4 ronda 7, EFGFIX)
                 if (modo == 30) SetPicks(cfg.FgPick60, v); else SetPicks(v, cfg.FgPick30);
             }
             FsrMulAplicar(e);   // (1.2.4 ronda 6, FGMULTI: MultiFsr.cs)

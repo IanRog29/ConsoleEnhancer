@@ -30,7 +30,12 @@ namespace ConsoleEnhancer
         // escala de DLSS 5 baja para que quepa, pero aun asi no llega: medido el 23-11 (4K, modo 30, DLSS 5 nivel 4, tele 120 VRR): DLSS 5 del
         // 65 al 55 %, el motor a 15,5 ms y 25-27 reales de 30 -el Present de XeSS FG espera a la grafica 31,6 ms (sin DLSS 5, 2,1)-, en la tele
         // el 43 % de las imagenes pisadas. Con DLSS 5, x2 (y la nota del menu lo dice). smooth_x4_dlss5=1 lo deja probar
-        public static volatile bool SmoothX4Dlss5 = false;
+        // (1.2.4 ronda 7, EFGFIX: de serie SI. El usuario: "no se porque con dlss 5 activado no dejas activar el x4 de smooth y enhance". Con la
+        // cola del motor en prioridad alta con sm=3 y DLSS 5 bajado lo que haga falta -el vigilante de EngineX4D5.cs mira las reales, no el p95 del
+        // motor, que no ve XeSS FG ni el driver-: medido con el video real de GTA V a 4K, DLSS 5 nivel 4: al 45 % 27,6 -> 29,6 reales con la
+        // prioridad, al 30 % 29,4 sin ella (ver notas\EFGFIX.md). Si ni al 25 % llega, x2 esta sesion y se dice -SmoothX4NoLlegaAnota-.
+        // smooth_x4_dlss5=0 = como antes: x2 con DLSS 5)
+        public static volatile bool SmoothX4Dlss5 = true;
         // (FGREAL) FpsBajo: x4 no llego a las reales con esta captura y DLSS 5 si / no: en esta sesion x2 con eso (se puede volver a elegir
         // con otra captura o con DLSS 5 cambiado; la nota del menu lo dice)
         static string smx4NoLlega = "";
@@ -40,7 +45,7 @@ namespace ConsoleEnhancer
 
         public bool CeParseSmoothX4(string key, string val)
         {
-            if (key == "smooth_x4_dlss5") { SmoothX4Dlss5 = val.Trim() == "1"; return true; }
+            if (key == "smooth_x4_dlss5") { SmoothX4Dlss5 = val.Trim() != "0"; return true; }   // (1.2.4 ronda 7, EFGFIX: de serie 1)
             if (key != "smooth_x4") return false;
             SmoothX4 = val.Trim() == "1";
             return true;
@@ -209,7 +214,7 @@ namespace ConsoleEnhancer
             mul.Activa = on && fgSi;
             mul.Nota = !on ? "" : !fgSi ? Tx.T("Con la generación encendida", "With frame generation on") :
                        no.Length > 0 ? (smx4Quiere == "4" ? Tx.T("x4 vuelve cuando se pueda · ", "x4 comes back when possible · ") : "") + no :
-                       mul.Val == "4" ? (d5Sel ? Tx.T("XeSS FG x2 + Smooth Motion · DLSS 5 se ajusta para que quepa", "XeSS FG x2 + Smooth Motion · DLSS 5 is scaled to fit")
+                       mul.Val == "4" ? (d5Sel ? Tx.T("x4 con DLSS 5: DLSS 5 se baja lo que haga falta para que quepa", "x4 with DLSS 5: DLSS 5 is lowered as needed to fit")
                                                : Tx.T("XeSS FG x2 del motor + Smooth Motion encima", "Engine XeSS FG x2 + Smooth Motion on top")) : "";
         }
 

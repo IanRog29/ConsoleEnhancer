@@ -51,7 +51,7 @@ namespace ConsoleEnhancer.Motor
                 case "uso_grafica": case "gpu_indice": case "fg_reserva_ms": case "cadena_buffers": return ApplyMargen(key, val);   // (FGREAL: fg_reserva_ms, cadena_buffers)   // (1.2.2, UNIVERSAL: EngineMargen.cs)
                 // (vrr= y vrr_fg_vsync= ya los hace el motor: Settings.Apply de Common.cs y EngineLatencia.cs, de Prisma LATENCIA4, fusion 20-11)
             }
-            return ApplySrVec(key.Trim().ToLowerInvariant(), val);   // (1.2.4 ronda 6, DLSSSR: sr_vectores, sr_vec_*: EngineSrVec.cs)
+            return ApplySrVec(key.Trim().ToLowerInvariant(), val) || ApplyX4D5(key, val);   // (1.2.4 ronda 6, DLSSSR: sr_vectores, sr_vec_*: EngineSrVec.cs) (ronda 7, EFGFIX: x4d5*, EngineX4D5.cs)
         }
     }
 
@@ -98,6 +98,8 @@ namespace ConsoleEnhancer.Motor
             if (inW <= 0 || inH <= 0 || capW != s.CapW || capH != s.CapH) AdaptaEntradaPrevista(out iw, out ih);
             // (1.2.4 ronda 6, QUITAFG: sin x3 / x4 -fg1xm3, fg0p4...- ni DLSS-G: fg=1 sin fg_tipo no genera, cuenta como fg0)
             string fg = s.Fg && (s.FgTipo == "xess" || s.FgTipo == "xefg" || s.FgTipo == "fsr3") ? "fg1" + (s.FgTipo == "fsr3" ? "f" : "x") : "fg0";
+            // (1.2.4 ronda 7, EFGFIX) Enhanced FG con su multiplicador: con "fg0" compartia lo aprendido con sin generacion (y x2 con x4)
+            if (fg == "fg0" && s.Efg >= 2) fg = "efg" + s.Efg;
             return (s.AdaptaClave.Length > 0 ? s.AdaptaClave : "-") + "|" + s.Mode + "|" + fg + "|sm" + s.SmoothMode + "|" + s.CapW + "x" + s.CapH +
                    "|in" + iw + "x" + ih + "|out" + outW + "x" + outH + "|nr" + (s.Nr ? 1 : 0) + (s.Nr ? "p" + Math.Max(1, Math.Min(3, adPedidoPasadas > 0 ? adPedidoPasadas : s.NrPasses)) : "");
         }
@@ -207,7 +209,12 @@ namespace ConsoleEnhancer.Motor
             adClave = k; adMal = adBien = 0; adSubida = ""; adSubirCorte = 0;
             // (con la misma clave tambien: el lanzador vuelve a mandar lo pedido con cualquier cambio y se volveria a lo pedido)
             AdaptaFila f;
-            if (!adTabla.TryGetValue(k, out f)) { if (nueva) Log.Write("Adapta: clave nueva " + k + " (se empieza por lo pedido: " + s.Preset + (s.Nr ? ", DLSS 5 al " + s.NrPct + " %" : "") + ")"); return; }
+            if (!adTabla.TryGetValue(k, out f))
+            {
+                if (nueva) Log.Write("Adapta: clave nueva " + k + " (se empieza por lo pedido: " + s.Preset + (s.Nr ? ", DLSS 5 al " + s.NrPct + " %" : "") + ")");
+                if (nueva) X4D5ClaveNueva();   // (1.2.4 ronda 7, EFGFIX: Smooth Motion x4 + DLSS 5 la primera vez, de x4d5_inicio; EngineX4D5.cs)
+                return;
+            }
             List<string> hecho = new List<string>();
             if (f.Preset.Length > 0 && f.Preset != s.Preset && AdRango(f.Preset) <= AdRango(TechoPreset) && AdModeloAprendidoVale(f))
             {
