@@ -298,11 +298,13 @@ namespace ConsoleEnhancer.Motor
             }
         }
 
-        void EfgStamp(uint i) { efgList.EndQuery(efgQheap, D3D12_QUERY_TYPE.TIMESTAMP, i); }
-        void EfgStampsResolve() { efgList.ResolveQueryData(efgQheap, D3D12_QUERY_TYPE.TIMESTAMP, 0, 4, efgTsBuf, 0); }
+        void EfgStamp(uint i) { if (s.EfgStamps) efgList.EndQuery(efgQheap, D3D12_QUERY_TYPE.TIMESTAMP, i); if (i == 1) efgFlowStamped = true; }
+        bool efgFlowStamped;
+        void EfgStampsResolve() { if (s.EfgStamps && efgFlowStamped) efgList.ResolveQueryData(efgQheap, D3D12_QUERY_TYPE.TIMESTAMP, 0, 4, efgTsBuf, 0); }
         // (con las listas acabadas) lo que tardaron en la grafica el flujo y la ultima inventada
         void EfgStampsRead(bool flow, bool gen)
         {
+            if (!s.EfgStamps || !efgFlowStamped) return;
             ulong* t = (ulong*)efgTsPtr;
             if (flow && t[1] > t[0]) { double ms = (t[1] - t[0]) * 1000.0 / efgTsFreq; if (ms < 50) efgFlowGpu = efgFlowGpu * 0.9 + ms * 0.1; }
             if (gen && t[3] > t[2]) { double ms = (t[3] - t[2]) * 1000.0 / efgTsFreq; if (ms < 50) efgGenGpu = efgGenGpu * 0.9 + ms * 0.1; }

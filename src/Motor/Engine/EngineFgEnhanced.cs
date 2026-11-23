@@ -51,6 +51,7 @@ namespace ConsoleEnhancer.Motor
         public float EfgTau = 0.04f, EfgKappa = 0.01f, EfgSigma = 0.012f, EfgZeroPen = 0.02f, EfgCutThr = 0.45f, EfgLambda = 0.002f, EfgBeta = 0.01f;
         public float EfgStillDiff = 3f / 255, EfgStillGrad = 0.05f;
         public int EfgStillN = 3, EfgRadius = 8;
+        public bool EfgStamps = true;           // efg_tiempos=0: sin las marcas de tiempo de la grafica (prueba)
 
         bool ApplyEfg(string key, string val)
         {
@@ -75,6 +76,7 @@ namespace ConsoleEnhancer.Motor
                 case "efg_quieto_dif": EfgStillDiff = (float)D(val); return true;
                 case "efg_quieto_borde": EfgStillGrad = (float)D(val); return true;
                 case "efg_radio": EfgRadius = Math.Max(2, Math.Min(16, I(val))); return true;
+                case "efg_tiempos": EfgStamps = B(val); return true;
             }
             return false;
         }
