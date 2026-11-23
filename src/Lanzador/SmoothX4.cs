@@ -14,6 +14,7 @@
 // siempre.
 // ini smooth_x4=0|1 (de serie 0: se elige; 1 = en el modo 30 con Smooth Motion, x4 cuando se pueda)
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Reflection;
@@ -52,6 +53,17 @@ namespace ConsoleEnhancer
             }
         }
         public bool SmoothX4Now { get { return SmoothX4Falta.Length == 0; } }
+
+        // (1.2.4 ronda 6, INTEGRA6) Para el menu: lo que falta para x4 que no depende de lo elegido en el menu (modo, tipo) ("" = se puede)
+        public string SmoothX4FaltaMenu()
+        {
+            if (Ce.NoNvidia || NvProfiles.EngineSmoothBroken) return Tx.T("Smooth Motion no se puede poner en este PC", "Smooth Motion can't be set on this PC");
+            if (Pantalla.Hz() < 119) return Tx.T("La pantalla no va a 120 Hz", "The screen is not at 120 Hz");
+            if (EngineVrr <= 0) return Tx.T("Sin VRR (G-SYNC) en la pantalla", "No VRR (G-SYNC) on the screen");
+            if (!GenPuedeIr("xess", VideoSize)) return XessCaido ? Tx.T("XeSS FG se ha caído en el motor en esta sesión", "XeSS FG failed in the engine this session")
+                                                               : Tx.T("Necesita XeSS FG en el motor (falta su DLL en xess\\)", "Needs XeSS FG in the engine (its DLL is missing in xess\\)");
+            return "";
+        }
 
         // Para el log: una vez por cambio
         static string smoothX4Dicho;
@@ -101,6 +113,47 @@ namespace ConsoleEnhancer
             Console.Write(txt);
             try { if (!string.IsNullOrEmpty(informe)) File.WriteAllText(informe, txt, new UTF8Encoding(false)); } catch { }
             return fallos == 0 ? 0 : 1;
+        }
+    }
+
+    partial class TrayApp
+    {
+        // (1.2.4 ronda 6, INTEGRA6) El menu de ajustes: con Smooth Motion en el modo 30, la fila "Multiplicador" x2 / x4 (x4 = smooth_x4=1: XeSS FG x2
+        // del motor debajo + Smooth Motion del driver encima, con VRR; de serie x2). x4 con candado y el motivo cuando no se puede aqui
+        FilaAjuste SmoothX4Fila()
+        {
+            FilaAjuste mul = new FilaAjuste { Id = "smx4", Nombre = Tx.T("Multiplicador", "Multiplier") };
+            string m = cfg.SmoothX4 ? "4" : "2";
+            mul.Poner(new List<string> { "2", "4" }, new List<string> { "x2", "x4" }, m, m);
+            mul.Visible = false;
+            return mul;
+        }
+
+        // (AjustesDepende, tras el tipo) visible con Smooth Motion elegido en el modo 30
+        void SmoothX4Depende(string modoSel)
+        {
+            FilaAjuste tipo = AjFila("tipo"), fg = AjFila("fg"), mul = AjFila("smx4");
+            if (mul == null) return;
+            bool on = tipo != null && tipo.Visible && tipo.Val == "smooth" && modoSel == "30";
+            bool fgSi = fg == null || fg.Val == "1";
+            string no = cfg.SmoothX4FaltaMenu();
+            mul.Bloq = new List<string> { "", no };
+            mul.Visible = on;
+            mul.Activa = on && fgSi;
+            mul.Nota = !on ? "" : !fgSi ? Tx.T("Con la generación encendida", "With frame generation on") :
+                       no.Length > 0 ? no : mul.Val == "4" ? Tx.T("XeSS FG x2 del motor + Smooth Motion encima (prueba)", "Engine XeSS FG x2 + Smooth Motion on top (test)") : "";
+        }
+
+        // (AjustesPonerTodo) lo elegido, en el ini (smooth_x4); el reparto abre el motor con la cadena de XeSS FG y el perfil sin la sincronizacion
+        void SmoothX4Aplicar(Dictionary<string, string> e)
+        {
+            string a = AjVal(e, "smx4");
+            if (a == null) return;
+            bool x4 = a == "4";
+            if (x4 == cfg.SmoothX4) return;
+            cfg.SmoothX4 = x4;
+            Ce.IniPoner("smooth_x4", x4 ? "1" : "0");
+            Log.Write("Smooth Motion: multiplicador x" + (x4 ? "4 (smooth_x4=1: XeSS FG x2 del motor + Smooth Motion)" : "2") + (x4 && cfg.SmoothX4Falta.Length > 0 ? "; ahora no: " + cfg.SmoothX4Falta : ""));
         }
     }
 }

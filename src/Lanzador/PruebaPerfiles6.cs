@@ -28,7 +28,7 @@ namespace ConsoleEnhancer
             c.Mode120 = true;
             bool en120 = c.EngineFixedWanted;
             // (la cuenta de antes, sin mirar el modo 120)
-            bool antes120 = c.EngineFixed60Fg && c.CeRefrescoFijoAhora() && (!c.CapMode || c.MotorFgFactorRefresco() == 4) && !c.FgOff && !c.EngineSmoothFor(false) && !NvProfiles.EngineFixedBroken;
+            bool antes120 = c.EngineFixed60Fg && c.CeRefrescoFijoAhora() && !c.CapMode && !c.FgOff && !c.EngineSmoothFor(false) && !NvProfiles.EngineFixedBroken;
             Mira(en60, "refresco fijo en el 60 con generacion (motor_60fg_refresco_fijo=1): " + (en60 ? "si" : "no") + " (como antes)");
             Mira(!en120, "refresco fijo en el modo 120 (Rocket League, 23-11 02:49:16 / 03:14:23): " + (en120 ? "si" : "no") + " (antes " + (antes120 ? "si: el motor se volvia a abrir con G-SYNC apagado" : "no") + ")");
             c.HomeNative = true;

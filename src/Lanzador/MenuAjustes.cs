@@ -542,10 +542,14 @@ namespace ConsoleEnhancer
             // (23-11, 1.2.4 ronda 6 DLSSSR; el usuario: "añade reescalado xess si puedes tambien al motor"): XeSS SR, por el motor (EngineSr.cs,
             // libxess.dll de dlls_sr= o junto al motor), tambien en NVIDIA; para este juego como FSR 1
             bool xessSr = false;
-            try { xessSr = File.Exists(Path.Combine(Paths.MagpieDir, "libxess.dll")) || (cfg.EnginePath.Length > 0 && File.Exists(Path.Combine(Path.GetDirectoryName(cfg.EnginePath), "libxess.dll"))); } catch { }
+            // (1.2.4 ronda 6, INTEGRA6: sin Magpie la DLL de Intel esta en xess\, Paths.HayLib; antes se buscaba en magpie\ y sin el no salia)
+            try { xessSr = Paths.HayLib("libxess.dll") || (cfg.EnginePath.Length > 0 && File.Exists(Path.Combine(Path.GetDirectoryName(cfg.EnginePath), "libxess.dll"))); } catch { }
             if (cfg.Scaler != "xess" && xessSr) { ev.Add("pick:xess"); et.Add("XeSS"); }
             if (cfg.Scaler != "ninguno") { ev.Add("pick:ninguno"); et.Add(Tx.T("Sin reescalado", "No upscaling")); }
-            string ea = scalerPick.Length > 0 && cfg.Scaler != scalerPick ? "pick:" + scalerPick :
+            // (1.2.4 ronda 6, INTEGRA6: el alternativo de R3 / un perfil "escalador alternativo" de antes -RTX Video de Magpie- es ahora FSR 1 o sin
+            // reescalado, que no salen como "alt": la fila dice lo que hace de verdad el motor, no DLSS)
+            string altPick = !dlssScalerOn && scalerPick.Length == 0 && !ev.Contains("alt") && ev.Contains("pick:" + cfg.AltScaler) ? "pick:" + cfg.AltScaler : "";
+            string ea = scalerPick.Length > 0 && cfg.Scaler != scalerPick ? "pick:" + scalerPick : altPick.Length > 0 ? altPick :
                         !dlssScalerOn && ev.Contains("alt") ? "alt" : ev[0] == "normal" ? "normal" : "dlss:" + (Config.DlssPick.Length > 0 ? Config.DlssPick : "auto");
             esc.Poner(ev, et, ea, ea);
             esc.Carrusel = ev.Count > 3;
@@ -553,7 +557,7 @@ namespace ConsoleEnhancer
 
             // (1.2.3 MOTOR5 tenia aqui la fila "DLSS 5 por: Motor / Magpie"; 1.2.4 SOLOMOTOR: fuera, no se elige: el motor siempre que sepa, SoloMotor.cs)
             FilaAjuste[] efgF = EfgFilas();   // (1.2.4 ronda 6, ENHANCED: multiplicador y baja latencia de Enhanced FG, EnhancedFg.cs)
-            ajFilas.AddRange(new[] { cap, mo, fg, tipo, efgF[0], efgF[1], FsrMulFila(), d5, d5no, niv, pas, esc });   // (FGMULTI: el multiplicador de FSR 3 FG, MultiFsr.cs)
+            ajFilas.AddRange(new[] { cap, mo, fg, tipo, efgF[0], efgF[1], FsrMulFila(), SmoothX4Fila(), d5, d5no, niv, pas, esc });   // (FGMULTI: el multiplicador de FSR 3 FG, MultiFsr.cs; INTEGRA6: el de Smooth Motion, SmoothX4.cs)
             ajFilas.RemoveAll(delegate(FilaAjuste f) { return !f.Visible; });
             AjustesDepende(true);
         }
@@ -656,6 +660,7 @@ namespace ConsoleEnhancer
             }
             FsrMulDepende(modoSel);   // (1.2.4 ronda 6, FGMULTI: la fila del multiplicador de FSR 3 FG, MultiFsr.cs)
             EfgDepende(modoSel);   // (1.2.4 ronda 6, ENHANCED: las filas de Enhanced FG, EnhancedFg.cs)
+            SmoothX4Depende(modoSel);   // (1.2.4 ronda 6, INTEGRA6: x2 / x4 de Smooth Motion, SmoothX4.cs)
             bool d5si = d5 == null || d5.Val == "1";
             foreach (string id in new[] { "nivel", "pasadas" })
             {
@@ -816,6 +821,7 @@ namespace ConsoleEnhancer
                 }
                 FsrMulAplicar(e);   // (1.2.4 ronda 6, FGMULTI: MultiFsr.cs)
                 EfgAplicar(e);   // (1.2.4 ronda 6, ENHANCED: EnhancedFg.cs)
+                SmoothX4Aplicar(e);   // (1.2.4 ronda 6, INTEGRA6: SmoothX4.cs)
                 if ((v = AjVal(e, "tipo")) != null && v.Length > 0 && v != "\u0000" && modo != 120)
                 {
                     if (modo == 30) SetPicks(cfg.FgPick60, v); else SetPicks(v, cfg.FgPick30);

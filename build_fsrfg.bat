@@ -11,6 +11,7 @@ set "VCVARS="
 set "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
 if exist "%VSWHERE%" for /f "usebackq tokens=*" %%i in (`"%VSWHERE%" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do set "VCVARS=%%i\VC\Auxiliary\Build\vcvars64.bat"
 if not exist "%VCVARS%" (echo *** No esta Visual Studio con C++ *** & exit /b 1)
+set "FFX_COMMIT=c6efa6bf7f2027b3ec94f28578bb5965eabb9e55"
 if "%FFX_SDK_DIR%"=="" (set "FFX=%~dp0obj\fidelityfx-1.1.4") else (set "FFX=%FFX_SDK_DIR%")
 set "SDK=%FFX%\sdk"
 if not exist "%SDK%\src\components\frameinterpolation\ffx_frameinterpolation.cpp" (
@@ -36,6 +37,8 @@ if not exist "%SDK%\src\components\frameinterpolation\ffx_frameinterpolation.cpp
     echo /LICENSE.txt
   ) > "%FFX%\.git\info\sparse-checkout"
   git -C "%FFX%" checkout v1.1.4 || (echo *** git checkout *** & exit /b 1)
+  rem (1.2.4 ronda 6, INTEGRA6) la etiqueta v1.1.4 tiene que ser el commit de AMD de siempre (si alguien la moviera, no se compila otra cosa)
+  for /f "usebackq tokens=*" %%h in (`git -C "%FFX%" rev-parse HEAD`) do if /i not "%%h"=="%FFX_COMMIT%" (echo *** FidelityFX SDK v1.1.4: commit %%h, se esperaba %FFX_COMMIT% *** & exit /b 1)
   git -C "%FFX%" apply "%~dp0parches\fidelityfx-fi-multi.patch" || (echo *** el parche no entra *** & exit /b 1)
 )
 set "SC=%SDK%\tools\binary_store\FidelityFX_SC.exe"

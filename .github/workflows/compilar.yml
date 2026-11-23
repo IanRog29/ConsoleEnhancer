@@ -48,7 +48,7 @@ jobs:
         shell: cmd
         run: call .\build_motor.bat
 
-      # (1.2.4) la pieza propia del motor en C++ con el MSVC del runner: PrismaNr.dll (con las DOS cabeceras publicas de NGX de
+      # (1.2.4) las piezas propias del motor en C++ con el MSVC del runner: PrismaNr.dll (con las DOS cabeceras publicas de NGX de
       # github.com/NVIDIA/DLSS en una version fija, con su SHA-256; no van en el repositorio). (1.2.4 ronda 6: PrismaFg ya no existe)
       - name: Cabeceras de NGX (scripts\descargar_cabeceras_ngx.ps1)
         shell: pwsh
@@ -58,6 +58,14 @@ jobs:
         shell: cmd
         run: |
           call .\build_prismanr.bat || exit /b 1
+
+      # (1.2.4 ronda 6) CeFsrFg.dll = la FSR FG x3 / x4 del motor: la interpolacion de FSR 3.1 de AMD (codigo MIT) con nuestro parche.
+      # build_fsrfg.bat baja solo lo necesario del FidelityFX SDK de AMD en su etiqueta v1.1.4 (y comprueba que es el commit c6efa6b),
+      # aplica parches\fidelityfx-fi-multi.patch y compila sus shaders y la DLL. El SDK no va al repositorio
+      - name: CeFsrFg.dll (build_fsrfg.bat, FidelityFX SDK v1.1.4 de AMD)
+        shell: cmd
+        run: |
+          call .\build_fsrfg.bat || exit /b 1
 
       - name: Prueba de deteccion (tests\build_deteccion.bat)
         shell: cmd
@@ -76,6 +84,7 @@ jobs:
             bin/ConsoleEnhancer.exe
             bin/engine/ConsoleEnhancerEngine.exe
             bin/engine/PrismaNr.dll
+            bin/engine/CeFsrFg.dll
             deteccion.txt
 
   release:
@@ -107,6 +116,7 @@ jobs:
           call .\build.bat || exit /b 1
           call .\build_motor.bat || exit /b 1
           call .\build_prismanr.bat || exit /b 1
+          call .\build_fsrfg.bat || exit /b 1
 
       # (1.2.3) Firma de codigo de los exe, OPCIONAL: solo con los secretos del repositorio CE_FIRMA_PFX (el .pfx en base64) y
       # CE_FIRMA_CLAVE (su contrasena), en Settings > Secrets and variables > Actions. Sin ellos, todo como siempre: los exe sin firmar.
@@ -147,7 +157,7 @@ jobs:
           $notas.Add('')
           $notas.Add('SHA-256: `' + ((Get-Content "dist/ConsoleEnhancer-$tag.zip.sha256" -Raw).Split(' ')[0]) + '` (each file inside / cada fichero de dentro: `ConsoleEnhancer-' + $tag + '.files.sha256`)')
           $notas.Add('')
-          $notas.Add('License GPL-3.0 (+ LICENSE-EXCEPTION.txt). Includes unmodified NVIDIA Streamline / DLSS / Reflex (licenses\) and the engine''s own PrismaNr, which loads files you add yourself without NVIDIA''s NGX check (see README). Does not include nvngx_dlssnr.dll or any modified NVIDIA file. / Licencia GPL-3.0 (+ LICENSE-EXCEPTION.txt). Incluye NVIDIA Streamline / DLSS / Reflex sin cambios (licenses\) y la pieza propia del motor PrismaNr, que carga los archivos que pones tu sin la comprobacion de NGX de NVIDIA (ver README). No incluye nvngx_dlssnr.dll ni ningun archivo de NVIDIA modificado.')
+          $notas.Add('License GPL-3.0 (+ LICENSE-EXCEPTION.txt). Includes unmodified NVIDIA Streamline / DLSS / Reflex (licenses\), the engine''s CeFsrFg (AMD FidelityFX SDK 1.1.4 frame interpolation, MIT, modified) and the engine''s own PrismaNr, which loads files you add yourself without NVIDIA''s NGX check (see README). Does not include nvngx_dlssnr.dll or any modified NVIDIA file. / Licencia GPL-3.0 (+ LICENSE-EXCEPTION.txt). Incluye NVIDIA Streamline / DLSS / Reflex sin cambios (licenses\), CeFsrFg del motor (la interpolacion de AMD FidelityFX SDK 1.1.4, MIT, cambiada) y la pieza propia del motor PrismaNr, que carga los archivos que pones tu sin la comprobacion de NGX de NVIDIA (ver README). No incluye nvngx_dlssnr.dll ni ningun archivo de NVIDIA modificado.')
           Set-Content -LiteralPath notas.md -Value $notas -Encoding UTF8
 
       - name: Crear la Release
