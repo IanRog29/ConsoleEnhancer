@@ -45,6 +45,9 @@ namespace ConsoleEnhancer
                 if (Ce.NoNvidia || NvProfiles.EngineSmoothBroken) return Tx.T("Smooth Motion no se puede poner en este PC", "Smooth Motion can't be set on this PC");
                 if (Pantalla.Hz() < 119) return Tx.T("la pantalla no va a 120 Hz", "the screen is not at 120 Hz");
                 if (EngineVrr <= 0) return Tx.T("sin VRR (G-SYNC) en la pantalla", "no VRR (G-SYNC) on the screen");
+                // (1.2.4 ronda 6, INTEGRA6: con DLSS 5 no llega: 16,4 reales de 29,97 en el banco de SMX4 -y_xe2sm_v_d5- y 22,5 en la app entera
+                // -sesion a3 del 23-11-, 4K modo 30, RTX 4060 Ti. Con DLSS 5, Smooth Motion x2)
+                if (MotorD5Simple) return Tx.T("con DLSS 5 no llega a las reales", "with DLSS 5 it can't keep the real frames");
                 // (1.2.4 ronda 6, integracion: sin Magpie ni el multiplicador viejo, lo mismo que pide el tipo XeSS FG -DLL, el motor, la captura y
                 // que no se haya caido en esta sesion, XessCaido-)
                 if (!GenPuedeIr("xess", VideoSize)) return XessCaido ? Tx.T("XeSS FG se ha caido en el motor en esta sesion", "XeSS FG failed in the engine this session")
@@ -60,6 +63,7 @@ namespace ConsoleEnhancer
             if (Ce.NoNvidia || NvProfiles.EngineSmoothBroken) return Tx.T("Smooth Motion no se puede poner en este PC", "Smooth Motion can't be set on this PC");
             if (Pantalla.Hz() < 119) return Tx.T("La pantalla no va a 120 Hz", "The screen is not at 120 Hz");
             if (EngineVrr <= 0) return Tx.T("Sin VRR (G-SYNC) en la pantalla", "No VRR (G-SYNC) on the screen");
+            if (MotorD5Simple) return Tx.T("x2 con DLSS 5 (con x4 no llega a las reales)", "x2 with DLSS 5 (x4 can't keep the real frames)");
             if (!GenPuedeIr("xess", VideoSize)) return XessCaido ? Tx.T("XeSS FG se ha caído en el motor en esta sesión", "XeSS FG failed in the engine this session")
                                                                : Tx.T("Necesita XeSS FG en el motor (falta su DLL en xess\\)", "Needs XeSS FG in the engine (its DLL is missing in xess\\)");
             return "";

@@ -5838,7 +5838,6 @@ namespace ConsoleEnhancer
         }
 
         // Con el telon aun puesto se comprueba que la ventana de escalado de Magpie sigue ahi y, si no, se vuelve a escalar
-        volatile int lsScaledPid = -1; // el Magpie que ya escalo una vez (LsFocusGuard sin punto ciego)
         // (1.2.4 ronda 6, QUITAFG, fase 2: EnsureStillScaling era de Magpie; fuera)
 
         [DllImport("user32.dll", CharSet = CharSet.Unicode, EntryPoint = "GetClassNameW")] static extern int GetClassNameFg(IntPtr h, StringBuilder s, int n);
@@ -6090,8 +6089,6 @@ namespace ConsoleEnhancer
         int fast60, slow30;         // lecturas seguidas (cada 0,5 s) a 45 fps o mas / a ~30 con imagenes nuevas
         double vfFps;               // imagenes por segundo a la salida del filtro de repetidas (mpv)
         bool vfNew;                 // la ultima que salio era nueva (no una copia de una imagen quieta)
-        int lsPidSeen = -1;
-        long lsLogPos = -1;
 
         // Cada 0,5 s que Magpie siga escalando; cada 5 s el ritmo
         void WatchLoop(Process p)
@@ -11448,8 +11445,6 @@ namespace ConsoleEnhancer
         // 16-11: mpv al primer plano en cuanto tiene ventana, con Magpie ya abierto (RunMpv): su escalado automatico salta ya y crea los
         // modelos de NVIDIA (~8 s) mientras mpv abre la capturadora (~1,2 s hasta su primera imagen) en vez de despues. Probado sin consola
         // (16-11, 4 vueltas alternas con una fuente de prueba): Magpie presenta igual de bien y antes. Debajo del telon: no se ve nada.
-        // WaitForScaling luego no toca el primer plano mientras Magpie ya prepara (earlyScaled)
-        volatile Process earlyScaled;
         // (1.2.4 ronda 6, QUITAFG, fase 2: EarlyScale era de Magpie; fuera)
 
         // (1.2.4 ronda 6, QUITAFG, fase 2: WaitForScalingCore era de Magpie; fuera)
