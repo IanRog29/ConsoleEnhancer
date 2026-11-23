@@ -116,6 +116,7 @@ namespace ConsoleEnhancer
         // Por que un tipo pedido no va con esta captura (null = si va o no se sabe)
         public static string GenNoVaPorqueAv(string t, string capSel)
         {
+            if (t == "xess" && !XessFgOfrecer) return Tx.T("quitada de momento", "removed for now");   // (1.3.1, AJUSTES: corto, para la pastilla)
             if (t == "xess" && !Paths.HayLib("libxess_fg.dll")) return Tx.T("falta libxess_fg.dll en xess\\", "libxess_fg.dll is missing in xess\\");
             if (t == "xess" && XessNo1080(capSel)) return Tx.T("no va con la captura de 1080p", "doesn't run with the 1080p capture");
             if (t == "xess" && (XessCaido || !MotorFgSabe("xess"))) return Tx.T("el motor no ha podido con él en esta sesión", "the engine couldn't run it this session");
@@ -1023,6 +1024,8 @@ namespace ConsoleEnhancer
                         int pr = t.AjPruebaPon(x[0], x[1]);
                         // (1.2.4 ronda 7, INTEGRA7: FSR 3 FG fuera del menu -FGREAL, generacion_fsr3=0 de serie-: que no se pueda elegir es lo bueno)
                         if (pr != 0 && !Config.FsrFgOfrecer && (kv == "tipo=fsr3" || kv.StartsWith("fsrmul=", StringComparison.Ordinal))) { r = ""; break; }
+                        // (1.3.1, AJUSTES: XeSS FG fuera del menu de momento -generacion_xess=0 de serie-: igual)
+                        if (pr != 0 && !Config.XessFgOfrecer && kv == "tipo=xess") { r = ""; break; }
                         // (INTEGRA7: con DLSS 5 elegido, Enhanced FG x3 / x4 con candado -efg_multi_dlss5=0-: lo bueno es que no se pueda; el resto del paso sigue)
                         FilaAjuste fd5 = t.AjFila("d5");
                         if (pr != 0 && !Config.EfgMultiDlss5 && kv.StartsWith("efgmul=", StringComparison.Ordinal) && kv != "efgmul=2" && fd5 != null && fd5.Val == "1")
@@ -1030,7 +1033,7 @@ namespace ConsoleEnhancer
                         if (pr != 0) { r = "el menu no deja poner " + kv + " (" + pr + ")"; break; }
                     }
                     string aviso = "", antes = "";
-                    if (r == "") { sb.AppendLine("      " + hp[0] + ": " + hp[1] + " no sale en el menu (FSR 3 FG quitada): bien"); continue; }
+                    if (r == "") { sb.AppendLine("      " + hp[0] + ": " + hp[1] + " no sale en el menu (" + (hp[1].Contains("tipo=xess") ? "XeSS FG" : "FSR 3 FG") + " quitada): bien"); continue; }
                     if (r == null)
                     {
                         Dictionary<string, string> e; HashSet<string> cambiadas; List<string> que;

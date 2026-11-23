@@ -26,10 +26,13 @@ namespace ConsoleEnhancer
             get
             {
                 string e = Environment.GetEnvironmentVariable("CE_EXTRAS_GUARDADOS");
-                return !string.IsNullOrEmpty(e) ? e : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), @"ConsoleEnhancer\extras");
+                if (!string.IsNullOrEmpty(e)) return e;
+                // (1.3.1, AJUSTES: con CE_PC_DIR -pruebas de la carpeta del PC, AjustesPc.cs- tambien extras\ en esa)
+                if (AjustesPc.PcDePrueba) return Path.Combine(AjustesPc.PcBase, "extras");
+                return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), @"ConsoleEnhancer\extras");
             }
         }
-        static bool EnPrueba { get { return !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("CE_EXTRAS_GUARDADOS")); } }
+        static bool EnPrueba { get { return !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("CE_EXTRAS_GUARDADOS")) || AjustesPc.PcDePrueba; } }
         static string Manifiesto { get { return Path.Combine(Dir, "guardado.txt"); } }
         static readonly object sync = new object();
 

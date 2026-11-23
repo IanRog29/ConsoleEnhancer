@@ -10,7 +10,7 @@
 #  - nvngx_dlssnr.dll ("DLSS 5": DLL de NVIDIA modificada, sin firma), runtimes\dlssg_sm86 (autofirmado) ni ninguna otra DLL de NVIDIA que
 #    no sea de las redistribuibles. (1.2.4) SI va la pieza propia del motor engine\PrismaNr.dll (build_prismanr.bat): carga el archivo
 #    que pone el usuario saltandose la comprobacion de NGX (ver README). (1.2.4 ronda 6: sin DLSS FG, ni PrismaFg.dll ni las DLL de DLSS-G)
-#  - el ini, logs, data\, games\ ni nada del PC donde se monta
+#  - el ini, logs, data\, games\ ni nada del PC donde se monta; (1.3.1) ni portable.txt: los ajustes van en %LOCALAPPDATA%\ConsoleEnhancer\settings
 # Antes: build.bat y build_motor.bat (o preparar.bat). Streamline sale de terceros\streamline (scripts\descargar_dependencias.ps1;
 # si falta, se baja, salvo con -SinDescargar).
 #
@@ -87,11 +87,9 @@ $webTxt = if ($Web) { $Web } else { 'la pagina de GitHub del proyecto / the proj
 Poner "$Raiz\bin\ConsoleEnhancer.exe" "$Destino\ConsoleEnhancer.exe"
 # (20-11, CIERRES de Prisma) legacyUnhandledExceptionPolicy: un fallo en un hilo secundario va al log y no cierra la app
 Poner "$Raiz\resources\ConsoleEnhancer.exe.config" "$Destino\ConsoleEnhancer.exe.config"
-Texto "$Destino\portable.txt" @(
-    'ConsoleEnhancer portable: with this file the data (settings, log, games, calibration) is kept in the data\ folder next to it.',
-    'Delete it to keep them in %LOCALAPPDATA%\ConsoleEnhancer (e.g. if the app folder cannot be written to).',
-    'ConsoleEnhancer portable: con este fichero los datos (ajustes, log, juegos, calibracion) van en la carpeta data\ de aqui al lado.',
-    'Borralo para guardarlos en %LOCALAPPDATA%\ConsoleEnhancer (p. ej. si la carpeta de la app no se puede escribir).')
+# (1.3.1, AJUSTES) sin portable.txt: los ajustes van en la carpeta del PC (%LOCALAPPDATA%\ConsoleEnhancer\settings), la misma para todas
+# las versiones (src\Lanzador\AjustesPc.cs). Hasta la 1.3 el zip lo traia y cada version guardaba los suyos en su data\. Portable: el
+# usuario crea un portable.txt (vacio) junto al exe
 # (23-11, 1.2.4 SINMPV: sin los lua ni los glsl de mpv: la imagen, las capturas y el sonido los hace el motor)
 foreach ($f in @('components.json')) { Poner "$Raiz\scripts\$f" "$Destino\scripts\$f" }
 Poner "$Raiz\resources\base.ini" "$Destino\resources\base.ini"
@@ -216,6 +214,9 @@ Texto "$Destino\README.txt" @(
     'SETTINGS AND UNINSTALL: "ConsoleEnhancer Settings.exe" (next to it): how the PC is used, start with Windows, what the PC does',
     'when the console is turned off, DLSS 5 (your own file, in extras\), download the components again, logs and uninstall.',
     'Unzip it into one of your own folders, not Program Files.',
+    'YOUR SETTINGS (settings, game profiles, console, language...) are kept on this PC in %LOCALAPPDATA%\ConsoleEnhancer\settings, the same',
+    'for every version: a new version unzipped anywhere uses them as they are (logs in its logs\ folder). Start from scratch: close the app',
+    'and delete that folder. Keep them next to the exe instead (portable): create an empty portable.txt here.',
     "Help, issues and source code: $webTxt. Licenses: licenses\README.txt. No warranty (GPL-3.0).",
     'DLSS 5: not included and never downloaded. Legal DLSS 5 does not exist today outside NVIDIA''s own games on RTX 50;',
     'whatever you add yourself is yours and at your own risk (extras\README.txt). The app works fully without it. The engine''s own',
@@ -234,7 +235,9 @@ Texto "$Destino\README.txt" @(
     'AJUSTES Y DESINSTALAR: "ConsoleEnhancer Settings.exe" (aqui al lado): como se usa el PC, abrirse con Windows, que hace el PC',
     '    al apagar la consola, DLSS 5 (tu propio archivo, en extras\), volver a bajar los componentes, registros y desinstalar.',
     'Descomprime en una carpeta tuya (Documentos, Escritorio, D:\Juegos...), no en Archivos de programa.',
-    'Datos: data\ (con portable.txt) o %LOCALAPPDATA%\ConsoleEnhancer. Log: data\logs\consoleenhancer.log y engine.log.',
+    'TUS AJUSTES (ajustes, perfiles de juegos, consola, idioma...) se guardan en este PC en %LOCALAPPDATA%\ConsoleEnhancer\settings, la misma',
+    '    para todas las versiones: una nueva descomprimida donde sea los usa tal cual. Log: settings\logs\consoleenhancer.log y engine.log.',
+    '    Empezar de cero: cierra la app y borra esa carpeta. Guardarlos junto al exe (portable): crea aqui un portable.txt vacio.',
     'Requisitos: Windows 10 2004 o posterior (64 bits), .NET Framework 4.8, grafica con Direct3D 12, una capturadora.',
     "Ayuda, problemas y codigo fuente: $webTxt",
     'Licencias: licenses\README.txt. Extras no oficiales: extras\README.txt. Sin garantia (GPL-3.0).',
@@ -245,6 +248,7 @@ Texto "$Destino\README.txt" @(
 
 # ---- comprobaciones ----
 $noVan = @('nvngx_dlssnr.dll', 'DLSSNR-DLL-Options.zip', 'NGX_OTA_Switch.bat', 'switch2.ini', 'consoleenhancer.ini', 'hardware.txt', 'mpv.exe', 'Magpie.exe', 'PrismaNrTest.exe',
+            'portable.txt',   # (1.3.1, AJUSTES: sin el, los ajustes en la carpeta del PC)
             'libxess.dll', 'libxess_fg.dll', 'libxell.dll', 'amd_fidelityfx_loader_dx12.dll',   # (1.2.4 ronda 6: XeSS / FSR los baja la app)
             'PrismaFg.dll', 'sl.dlss_g.dll', 'nvngx_dlssg.dll')   # (1.2.4 ronda 6: sin DLSS FG)
 $malos = @(Get-ChildItem -LiteralPath $Destino -Recurse -File -Force | Where-Object { $_.Name -in $noVan -or $_.FullName -like '*dlssg_sm86*' -or $_.FullName -like '*\games\*' -or $_.FullName -like '*\data\*' -or $_.FullName -like "$Destino\magpie\*" -or $_.Extension -in @('.log', '.pdb', '.obj', '.zip') })
