@@ -14,7 +14,7 @@ namespace ConsoleEnhancer.Motor
     // mvapertura / mvconsenso alisan el campo (en un suelo en perspectiva el movimiento cambia de un sitio a otro). Con esos vectores DLSS SR
     // trae la historia desalineada: borroso y doble. Con los vectores de VERDAD (mvverdad=8) el error de la imagen baja a menos de la mitad
     // en todos los modelos (K 1,32 -> 0,53 niveles, M 1,00 -> 0,61, L 1,01 -> 0,64, E 1,10 -> 0,79) y deja de depender de la velocidad.
-    // ARREGLO: por casilla de 4x4, Lucas-Kanade desde el vector de la busqueda sobre la luma algo desenfocada ([1 2 1] x [1 2 1], FP16: sin
+    // ARREGLO: por casilla de 8x8 (sr_vec_casilla; con 4x4 sale igual y cuesta 4 veces mas), Lucas-Kanade desde el vector de la busqueda sobre la luma algo desenfocada ([1 2 1] x [1 2 1], FP16: sin
     // el, la interpolacion bilineal de la anterior "tira" de la fraccion hacia el punto entero y el afinado se va 0,3 px), con las muestras
     // de una ventana de 16x16 que llevan ese mismo movimiento (la interfaz quieta y el borde del personaje no cuentan), sr_vec_vueltas
     // vueltas; se queda con el que mejor casa si casa mejor que el de la busqueda (sr_vec_ganancia) y la correccion se suma a los puntos de
