@@ -191,6 +191,7 @@ namespace ConsoleEnhancer.Motor
             EfgZero(k); k[0] = (uint)efgLw[0]; k[1] = (uint)efgLh[0]; k[2] = flow && efgStillOk[p] ? 1u : 0u;
             k[4] = F(s.EfgStillDiff); k[5] = F(s.EfgStillGrad); k[6] = F(60f);
             EfgRun(psoEfgStill, c, EfgTabStill, k, Groups(efgLw[0], 16), Groups(efgLh[0], 8), efgSt[c]);
+            EfgLatFit(c, flow);   // (1.3.1, EFGLAT: el modelo global de la baja latencia, EngineFgEnhancedLat.cs)
             EfgStamp(1);
             efgFlowOk[c] = flow; efgStillOk[c] = true;
             ulong v = EfgSubmit();
@@ -203,6 +204,7 @@ namespace ConsoleEnhancer.Motor
         // Una inventada en el instante t (> 1 = hacia delante) a efgGen (marcas 2-3). dup = sin flujo: la real mas cercana en el tiempo
         ulong EfgGenList(int c, float t, bool dup, bool hasPrev, bool cutCpu)
         {
+            if (t > 1.0001f && EfgLatOn()) return EfgLatGenList(c, t, dup, hasPrev, cutCpu);   // (1.3.1, EFGLAT: hacia delante, EngineFgEnhancedLat.cs)
             uint* k = stackalloc uint[16];
             int p = (c + EfgSets - 1) % EfgSets;
             EfgBegin();

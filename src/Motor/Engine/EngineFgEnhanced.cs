@@ -116,7 +116,7 @@ namespace ConsoleEnhancer.Motor
                 case "efg_sel_local": EfgSelLocal = Math.Max(0, Math.Min(3, I(val))); return true;   // (1.3.1, EFGCAL)
                 case "efg_nitido": EfgNitido = Math.Max(-1, Math.Min(1, I(val))); return true;   // (1.3.1, EFGCAL)
             }
-            return ApplyEfgRitmo(key, val);   // (1.3.1, EFGCAL: efg_ritmo, efg_ritmo_x2, efg_colchon_ms; EngineFgEnhancedRitmo.cs)
+            return ApplyEfgRitmo(key, val) || ApplyEfgLat(key, val);   // (1.3.1: EFGCAL efg_ritmo* / efg_colchon_ms, EngineFgEnhancedRitmo.cs; EFGLAT efg_lat*, EngineFgEnhancedLat.cs)
         }
     }
 
@@ -291,6 +291,7 @@ namespace ConsoleEnhancer.Motor
                 EfgSrv(c, EfgTabFin, 2, efgSel, DXGI_FORMAT.R16G16B16A16_FLOAT); EfgSrv(c, EfgTabFin, 3, efgSt[c], DXGI_FORMAT.R16G16_FLOAT);
                 EfgSrv(c, EfgTabFin, 4, efgCut[c], DXGI_FORMAT.R32_FLOAT); EfgUav(c, EfgTabFin, 0, efgGen, ColorFmt);
             }
+            EfgLatEnsure();   // (1.3.1, EFGLAT: el camino propio de la baja latencia, EngineFgEnhancedLat.cs)
             iid = typeof(ID3D12Fence).GUID;
             Hr.Check(dev.CreateFence(0, D3D12_FENCE_FLAGS.NONE, ref iid, out o), "CreateFence (Enhanced FG)");
             efgFence = (ID3D12Fence)o;
@@ -315,6 +316,7 @@ namespace ConsoleEnhancer.Motor
             System.Threading.Tasks.Parallel.For(0, nm.Length, delegate (int i) { cs[i] = CompileCs(nm[i], src[i]); });
             psoEfgLuma = Pso(cs[0]); psoEfgDown = Pso(cs[1]); psoEfgFlow = Pso(cs[2]); psoEfgProp = Pso(cs[3]);
             psoEfgStill = Pso(cs[4]); psoEfgCut = Pso(cs[5]); psoEfgSel = Pso(cs[6]); psoEfgFin = Pso(cs[7]);
+            EfgLatPsos();   // (1.3.1, EFGLAT)
             Log.Write("Enhanced FG: shaders (" + Clock.SinceMs(t0).ToString("0", IC) + " ms)");
         }
 
@@ -338,6 +340,7 @@ namespace ConsoleEnhancer.Motor
                     int hechos = 0;
                     for (int i = 0; i < nm.Length && !Program.Quit; i++)
                         if (!CsCached(nm[i], src[i])) { CompileCs(nm[i], src[i]); hechos++; }
+                    if (!Program.Quit) hechos += EfgLatPrecompile();   // (1.3.1, EFGLAT)
                     if (hechos > 0) Log.Write("Enhanced FG: " + hechos + " sombreadores a la cache de fondo (" + Clock.SinceMs(t0).ToString("0", IC) + " ms): elegirla luego no espera a compilarlos");
                 }
                 catch (Exception ex) { Log.Write("Enhanced FG: sombreadores de fondo: " + ex.Message); }
