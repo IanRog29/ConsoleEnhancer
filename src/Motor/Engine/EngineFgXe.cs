@@ -314,7 +314,7 @@ namespace ConsoleEnhancer.Motor
             XefgResourceData mv = new XefgResourceData();
             mv.type = XEFG_RES_MV; mv.validity = rv;
             mv.sizeX = (uint)inW; mv.sizeY = (uint)inH;
-            mv.pResource = Com.BorrowPtr(FfxFgVecNow && s.FgVec >= 2 && mvecFg != null ? mvecFg : FgMvec, typeof(ID3D12Resource));
+            mv.pResource = Com.BorrowPtr(FgVecPropiosNow ? mvecFg : FgMvec, typeof(ID3D12Resource));   // (FGREAL: o a cero con fg_vectores=0)
             mv.incomingState = (int)D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE;
             int r = xeTagRes(xeFg, cl, xeFgFrame, ref mv);
             XefgResourceData dp = new XefgResourceData();

@@ -173,7 +173,7 @@ namespace ConsoleEnhancer.Motor
             d.frameTimeDelta = (float)Math.Max(1, Math.Min(100, dt));
             d.cameraNear = 0.1f; d.cameraFar = 1000f; d.cameraFovAngleVertical = 1.0471976f; d.viewSpaceToMetersFactor = 1f;
             d.depth = FfxRes(FgCabezaNow ? depthFg : depth, FFX_FMT_R32_FLOAT, inW, inH, false);   // (1.2.4 ronda 6, CABEZA: el personaje delante; antes toda a 0, EngineFgCabeza.cs)
-            d.motionVectors = FfxRes(FfxFgVecNow && s.FgVec >= 2 && mvecFg != null ? mvecFg : FgMvec, FFX_FMT_R16G16_FLOAT, inW, inH, false);   // (22-11 1.2.1: los de la generacion, EngineFgGlobal.cs)
+            d.motionVectors = FfxRes(FgVecPropiosNow ? mvecFg : FgMvec, FFX_FMT_R16G16_FLOAT, inW, inH, false);   // (22-11 1.2.1: los de la generacion, EngineFgGlobal.cs)
             r = ffxDispatch(ffxFgBox, &d);
             if (r != 0 && !ffxFgPrepSaid) { ffxFgPrepSaid = true; Log.Write("FSR 3 FG: preparacion = " + r); }
         }

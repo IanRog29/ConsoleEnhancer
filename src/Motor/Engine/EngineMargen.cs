@@ -86,14 +86,15 @@ namespace ConsoleEnhancer.Motor
             }
             else if (ffxFgOn) r = FgCosteFsr3;
             else if (FmWanted()) r = FgCosteFsrFlujo + FgCosteFsrMulti * Math.Max(1, FmK - 1);
-            else if (EfgWanted()) r = FgCosteEfgFlujo + FgCosteEfg * Math.Max(1, s.Efg - 1);
+            // (Enhanced FG: sin reserva. Medido 23-11, 4K + DLSS 5 nivel 4, x4: con ella la escala bajo DLSS 5 del 65 al 50 % -con un paron de
+            // 0,1 s al rehacerlo- y Enhanced FG siguio igual -saltadas 241 / tarde 417 en 60 s frente a 212 / 589 sin ella-: su hilo, no la grafica)
             return r <= 0 ? 0 : Math.Max(1.0, r * q / idx);
         }
 
         // (FGREAL) costes por real (ms, salida 4K, RTX 4060 = gpu_indice 1,0; ver FgReservaMs y notas\FGREAL.md). Sacados de la sesion del
         // usuario del 23-11 12:27-12:36 (4K, modo 30, sin DLSS 5, nvidia-smi a 2,3-2,7 GHz: grafica de toda la app por real, menos la de sin
-        // generacion, x gpu_indice 1,2): XeSS FG x2 ~6,3 ms en la 4060 Ti, FSR 3 FG x2 de AMD ~7,1, FSR FG x4 nuestra ~7,9, Enhanced FG x4 ~2-5
-        const double FgCosteXess = 8.0, FgCosteFsr3 = 8.5, FgCosteFsrFlujo = 3.5, FgCosteFsrMulti = 2.0, FgCosteEfgFlujo = 3.0, FgCosteEfg = 1.0;
+        // generacion, x gpu_indice 1,2): XeSS FG x2 ~6,3 ms en la 4060 Ti, FSR 3 FG x2 de AMD ~7,1, FSR FG x4 nuestra ~7,9 (Enhanced FG x4 ~2-5: sin reserva, ver arriba)
+        const double FgCosteXess = 8.0, FgCosteFsr3 = 8.5, FgCosteFsrFlujo = 3.5, FgCosteFsrMulti = 2.0;
 
         string FgReservaTxt()
         {

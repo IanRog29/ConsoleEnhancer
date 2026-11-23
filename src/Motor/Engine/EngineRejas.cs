@@ -194,7 +194,7 @@ namespace ConsoleEnhancer.Motor
         // los bloques en -32..32 dejaba 32 px en los giros de mas de 32 px por imagen y 0 en los paneos de 5-64 px a 4K
         void RecordFgVec(bool on, int cur)
         {
-            if (!((fgApplied || FfxFgVecNow) && s.FgVec >= 2) || mvecFg == null || gvec == null || FgVecFullNow) return;   // (20-11 FGFALLOS: fg_vectores_completos, DLSS-G con mvec) (22-11 1.2.1: o FSR 3 FG, EngineFgFfx.cs)
+            if (!((fgApplied || FfxFgVecNow) && (s.FgVec >= 2 || FgVecCeroNow)) || mvecFg == null || gvec == null || FgVecFullNow) return;   // (1.2.4 ronda 7, FGREAL: fg_vectores=0 con XeSS FG / FSR FG = a cero, FgVecCeroNow)   // (20-11 FGFALLOS: fg_vectores_completos, DLSS-G con mvec) (22-11 1.2.1: o FSR 3 FG, EngineFgFfx.cs)
             EnsureRejasPsos();
             uint* c = stackalloc uint[16];
             if (on && FgGlobalNow && FgCabezaNow) { RecordFgGlobal(cur); RecordFgCabeza(cur); return; }   // 1.2.4 ronda 6 (CABEZA): vectores y profundidad, EngineFgCabeza.cs
