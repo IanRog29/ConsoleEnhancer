@@ -112,7 +112,7 @@ namespace ConsoleEnhancer
                 {
                     MethodInfo es = typeof(TrayApp).GetMethod("EngineSharpen", BindingFlags.NonPublic | BindingFlags.Static);
                     sb.AppendLine();
-                    foreach (string pick in new[] { "ninguno", "" })
+                    foreach (string pick in new[] { "ninguno", "", "xess", "fsr" })   // (23-11 DLSSSR: XeSS / FSR 1 sin el x0 de los modelos transformer)
                         foreach (string cap in new[] { "1920x1080", "2560x1440" })
                         {
                             cfg.VideoSize = cap; cfg.Dlss5Off = true; cfg.ScalerPick = pick; cfg.AltScalerOn = false;
@@ -120,7 +120,7 @@ namespace ConsoleEnhancer
                             string eu = Ce.EngineUpscaler(cfg);
                             double s0 = cap == "1920x1080" ? cfg.UpscaleSharpen1080 : cfg.UpscaleSharpen;
                             string p = cfg.EnginePresetNow;
-                            double kt = p == "J" || p == "K" || p == "L" || p == "M" ? cfg.EngineSharpenTransformer : 1;
+                            double kt = (p == "J" || p == "K" || p == "L" || p == "M") && eu == "dlss" ? cfg.EngineSharpenTransformer : 1;
                             double esperado = s0 * kt * (eu == "catrom" ? cfg.SharpenNoScale : 1);
                             Ok(Math.Abs(v - esperado) < 0.002, "motor " + cap + " " + eu + " (modelo " + p + "): enfoque " + N(v) + " = " + N(esperado));
                         }
