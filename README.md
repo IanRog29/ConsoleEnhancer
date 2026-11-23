@@ -144,12 +144,12 @@ with help a lot too.
   otherwise FSR 3.1), plus whatever frame generation each one has (driver AFMF, FSR 3 FG, XeSS FG).
 - **Built-in image engine** (D3D12, `src\Motor`), the path the game takes whenever it can (there is nothing to choose): DirectShow
   capture; upscaling with DLSS, XeSS, FSR 3.1 / FSR 4 (with the Intel and AMD DLLs that come with Magpie) or FSR 1 (EASU + RCAS); frame
-  generation with DLSS FG (×2; ×3 / ×4 on RTX 50 through NVIDIA's official path), **XeSS FG ×2**, Smooth Motion, **FSR 3 FG on any
-  GPU** and, for ×3 / ×4 on any other GPU, **its own frame generation** (shown as "x4 (own FG)"; `motor_fg_propia=0` turns it off);
-  Reflex / XeLL; and, optionally, NVIDIA RTX Dynamic Vibrance (`motor_extra=vibrancia=1`). In the 30 fps mode it gives DLSS FG the
-  picture without the still HUD, so HUDs, minimaps and text don't wobble (`fgui=0` in `motor_extra` turns it off). Only for what the
-  engine doesn't do (NVIDIA VFG, RTX Video, FSR 3 FG together with DLSS) and DLSS 5 when the engine can't run it, mpv + Magpie step in by
-  themselves. Colour from YUY2 / NV12 capture cards is properly reconstructed, without blocky red edges (`croma=2` in `motor_extra`;
+  generation with DLSS FG (×2; ×3 / ×4 on RTX 50 through NVIDIA's official path), **XeSS FG ×2** (without DLSS 5), Smooth Motion,
+  **FSR 3 FG on any GPU** and, only as a last resort for ×3 / ×4, **its own frame generation** (shown as "x4 (own FG)";
+  `motor_fg_propia=0` turns it off); Reflex / XeLL; and, optionally, NVIDIA RTX Dynamic Vibrance (`motor_extra=vibrancia=1`). For what
+  the engine doesn't do (NVIDIA VFG, RTX Video, FSR 3 FG together with DLSS), for what it doesn't do as well as 1.2.3 did (XeSS FG
+  together with DLSS 5, XeSS FG ×3 / ×4 outside Intel GPUs, its own ×3 / ×4 with DLSS 5) and for DLSS 5 when the engine can't run it,
+  mpv + Magpie step in by themselves, as in 1.2.3. Colour from YUY2 / NV12 capture cards is properly reconstructed, without blocky red edges (`croma=2` in `motor_extra`;
   `croma=0` = as before).
 - **Scaling that adapts to your PC** (`escalas_adaptables=1`, on by default): the wizard estimates the DLSS model and percentages for
   your GPU and display; while you play, the engine measures GPU time every second and lowers quality if it can't keep up (within 2 s)
@@ -194,10 +194,11 @@ with help a lot too.
 - **×2 / ×3 / ×4 frame generation** (DLSS FG and XeSS FG): the settings menu's *Multiplier* row, the tray or Ctrl+X. ×3 / ×4 only
   when they fit your screen (real fps × multiplier ≤ refresh rate: with a 120 Hz TV, the 30 fps mode gives 90 / 120 fps); otherwise
   they are shown locked with the reason. Saved per game and mode; if the output can't be reached, the multiplier is lowered first.
-  ×3 / ×4 run in the engine: NVIDIA's DLSS FG ×3 / ×4 on RTX 50, Intel's XeSS FG ×3 / ×4 on Intel GPUs and, everywhere else, the
-  engine's own frame generation, which the menu shows as **"x4 (own FG)"** (measured on an RTX 4060 Ti at 4K: ×4 at 119.8 fps with every
-  frame 8.3 ms apart, also with DLSS 5 in the engine; on thin bars it is weaker than DLSS FG ×2). Only through Magpie (the fallback, e.g.
-  when the engine can't run DLSS 5), DLSS 5 is kept at 35 % or more with ×3 / ×4, or removed for that multiplier when it doesn't fit.
+  ×3 / ×4: NVIDIA's DLSS FG ×3 / ×4 run in the engine (RTX 50; RTX 40 with `engine\PrismaFg.dll` and your own `dlssg_sm86`) and Intel's
+  XeSS FG ×3 / ×4 in the engine on Intel GPUs; on other GPUs XeSS FG ×3 / ×4 go through Magpie, as in 1.2.3 (the engine's own frame
+  generation smeared HUDs and text on real console content). The engine's own frame generation (**"x4 (own FG)"**) is only used when
+  nothing else can (`motor_xefg_propia=1` uses it for XeSS FG ×3 / ×4). Through Magpie, DLSS 5 is kept at 35 % or more with ×3 / ×4, or
+  removed for that multiplier when it doesn't fit.
 - **Protection**: if a combination can't hold the real frame rate of the mode, the app lowers what shows least (DLSS 5 scale and
   passes, multiplier, DLSS SR model...), tells you, and remembers it for that game and settings for 7 days. Picking something by hand
   always tries it. `proteccion=0` turns it off.
@@ -396,6 +397,12 @@ draw in the background and, if the TV has one, turn on game mode. The log says w
 **"Recovering the picture" shows up.** The picture froze with the console on (almost always the GPU: driver, heavy load) and the app
 reopens it by itself; you don't need to do anything. If it happens often, update the driver and remove the GPU *overclock*. The log says
 why ("NO es la consola apagada: ...").
+
+**Black screens of a few seconds, and `DXGI_ERROR_DEVICE_HUNG` / "grafica perdida" in `engine.log`.** That is the graphics card
+resetting under load (Windows logs it as `nvlddmkm` event 153 in *Event Viewer > System*). A **video memory overclock** (for example a
+memory clock offset in MSI Afterburner) can do it with DLSS 5 plus frame generation even when games look fine: set the memory clock back
+to stock and test again. Since 1.2.4 the app keeps the last picture on screen while it recovers, and if it happens with XeSS FG or the
+engine's own frame generation, that frame generation goes through Magpie for the rest of the session.
 
 **My desktop is stuck black.** `ConsoleEnhancer.exe --restaurar-escritorio`.
 
@@ -658,12 +665,12 @@ y contar en qué PC y con qué consola lo usas.
   FSR 3.1), y la generación que tenga cada una (AFMF del driver, FSR 3 FG, XeSS FG).
 - **Motor de imagen propio** (D3D12, `src\Motor`), el camino del juego siempre que se pueda (no hay nada que elegir): captura
   DirectShow; escalado con DLSS, XeSS, FSR 3.1 / FSR 4 (con las DLL de Intel y AMD que trae Magpie) o FSR 1 (EASU + RCAS); generación
-  de fotogramas con DLSS FG (×2; ×3 / ×4 en RTX 50 por la vía oficial de NVIDIA), **XeSS FG ×2**, Smooth Motion, **FSR 3 FG en
-  cualquier gráfica** y, para ×3 / ×4 en las demás gráficas, **su generación propia** (sale como «x4 (FG propia)»; `motor_fg_propia=0`
-  la quita); Reflex / XeLL; y, si quieres, la Vibrancia RTX de NVIDIA (`motor_extra=vibrancia=1`). En el modo 30 le da a DLSS FG la
-  imagen sin la interfaz quieta, para que la interfaz, los minimapas y los textos no tiemblen (`fgui=0` en `motor_extra` lo quita). Solo
-  para lo que el motor no hace (NVIDIA VFG, RTX Video, FSR 3 FG junto con DLSS) y DLSS 5 cuando el motor no puede, entran mpv + Magpie
-  solos. El color de las capturadoras YUY2 / NV12 se
+  de fotogramas con DLSS FG (×2; ×3 / ×4 en RTX 50 por la vía oficial de NVIDIA), **XeSS FG ×2** (sin DLSS 5), Smooth Motion, **FSR 3
+  FG en cualquier gráfica** y, solo como último recurso para ×3 / ×4, **su generación propia** (sale como «x4 (FG propia)»;
+  `motor_fg_propia=0` la quita); Reflex / XeLL; y, si quieres, la Vibrancia RTX de NVIDIA (`motor_extra=vibrancia=1`). Para lo que el
+  motor no hace (NVIDIA VFG, RTX Video, FSR 3 FG junto con DLSS), para lo que no hace tan bien como la 1.2.3 (XeSS FG junto con DLSS 5,
+  XeSS FG ×3 / ×4 fuera de las gráficas Intel, su ×3 / ×4 propia con DLSS 5) y para DLSS 5 cuando el motor no puede, entran mpv + Magpie
+  solos, como en la 1.2.3. El color de las capturadoras YUY2 / NV12 se
   reconstruye bien, sin bordes rojos en escalones (`croma=2` en `motor_extra`; `croma=0` = como antes).
 - **Escalas que se adaptan a tu PC** (`escalas_adaptables=1`, de serie): el asistente estima el modelo de DLSS y los porcentajes para tu
   gráfica y tu pantalla; jugando, el motor mide el tiempo de gráfica cada segundo y baja la calidad si no llega (en 2 s) o la sube poco
@@ -708,10 +715,11 @@ y contar en qué PC y con qué consola lo usas.
 - **Generación ×2 / ×3 / ×4** (DLSS FG y XeSS FG): la fila *Multiplicador* del menú de ajustes, la bandeja o Ctrl+X. ×3 / ×4 solo si
   caben en tu pantalla (fps reales × multiplicador ≤ refresco: con una tele de 120 Hz, el modo 30 da 90 / 120 fps); si no, salen
   bloqueados con el motivo. Se guarda por juego y modo; si no se llega a la salida, lo primero que baja es el multiplicador.
-  ×3 / ×4 van por el motor: DLSS FG ×3 / ×4 de NVIDIA en RTX 50, XeSS FG ×3 / ×4 de Intel en gráficas Intel y, en lo demás, la
-  generación propia del motor, que el menú enseña como **«x4 (FG propia)»** (medido en una RTX 4060 Ti a 4K: ×4 a 119,8 fps con todas a
-  8,3 ms, también con DLSS 5 en el motor; en barrotes finos, peor que DLSS FG ×2). Solo por Magpie (la reserva, p. ej. cuando el motor
-  no puede con DLSS 5), DLSS 5 se deja al 35 % o más con ×3 / ×4, o se quita con ese multiplicador si no cabe.
+  ×3 / ×4: DLSS FG ×3 / ×4 de NVIDIA van por el motor (RTX 50; RTX 40 con `engine\PrismaFg.dll` y tu `dlssg_sm86`) y XeSS FG ×3 / ×4
+  de Intel por el motor en gráficas Intel; en las demás gráficas XeSS FG ×3 / ×4 van por Magpie, como en la 1.2.3 (la generación propia
+  del motor emborronaba la interfaz y el texto con imagen real de la consola). La generación propia (**«x4 (FG propia)»**) solo se usa
+  cuando no hay otra (`motor_xefg_propia=1` la usa para XeSS FG ×3 / ×4). Por Magpie, DLSS 5 se deja al 35 % o más con ×3 / ×4, o se
+  quita con ese multiplicador si no cabe.
 - **Protección**: si una combinación no llega a las imágenes reales del modo, la app baja lo que menos se nota (escala y pasadas de
   DLSS 5, multiplicador, modelo de DLSS SR...), lo dice y lo recuerda para ese juego y ajustes 7 días. Lo elegido a mano siempre se
   prueba. `proteccion=0` la quita.
@@ -911,6 +919,12 @@ pinten de fondo y, si la tele lo tiene, pon el modo juego. El log dice qué cade
 **Sale "Recuperando la imagen".** La imagen se paró con la consola encendida (casi siempre la gráfica: driver, mucha carga) y la app
 la vuelve a abrir sola; no hace falta tocar nada. Si pasa a menudo, actualiza el driver y quita el *overclock* de la gráfica. El log
 dice el motivo ("NO es la consola apagada: ...").
+
+**Pantallazos negros de unos segundos y `DXGI_ERROR_DEVICE_HUNG` / "grafica perdida" en `engine.log`.** Es la gráfica reiniciándose con
+la carga (Windows lo apunta como el evento 153 de `nvlddmkm` en *Visor de eventos > Sistema*). Un **overclock de la memoria de la
+gráfica** (por ejemplo, subir el reloj de la memoria en MSI Afterburner) puede provocarlo con DLSS 5 y la generación de fotogramas aunque
+los juegos vayan bien: deja la memoria a su velocidad de serie y vuelve a probar. Desde la 1.2.4 la app deja la última imagen en pantalla
+mientras se recupera y, si pasa con XeSS FG o con la generación propia del motor, esa generación va por Magpie el resto de la sesión.
 
 **Se me ha quedado el escritorio en negro.** `ConsoleEnhancer.exe --restaurar-escritorio`.
 

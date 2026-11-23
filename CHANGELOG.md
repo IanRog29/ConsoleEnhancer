@@ -7,14 +7,82 @@ publicada es una etiqueta `vX.Y.Z` de git; GitHub Actions monta su zip y copia a
 
 ## [1.2.4] - 2026-11-22
 
+### Fixed after the first test of 1.2.4 / Arreglado tras la primera prueba de la 1.2.4
+The first 1.2.4 build was withdrawn after a test with the console ("everything worked better in the previous one"). Rule for this
+round: whatever the engine can't do at least as well as 1.2.3 goes the 1.2.3 way. Measured without the console: a file source that
+plays real PS5 captures into the engine like the capture card (`test=archivo`) and a real-content scene for frame generation
+(`test=real`), in the whole app, on the 4K 120 Hz VRR TV.
+*La primera 1.2.4 se retiró tras probarla con la consola («en la anterior iban todos los mecanismos mejor»). Regla de esta ronda: lo
+que el motor no haga al menos igual que la 1.2.3 va como en la 1.2.3. Medido sin la consola: una fuente que reproduce capturas reales
+de la PS5 en el motor como la capturadora (`test=archivo`) y una escena de imagen real para la generación (`test=real`), en la app
+entera, en la tele 4K 120 Hz con VRR.*
+- **Picking XeSS FG no longer shows DLSS FG for a few seconds, and the notices say the real frame generation.** The engine in front got
+  `fg=1` live and turned DLSS FG on until the engine with XeSS FG took over; now it keeps the frame generation it had until the cut, and
+  the notices / L3 say XeSS FG (and ×3 / ×4, own FG) instead of always "DLSS FG".
+  *Elegir XeSS FG ya no enseña DLSS FG unos segundos, y los avisos dicen la generación de verdad: el motor de delante sigue con la que
+  llevaba hasta el corte, y los avisos / L3 dicen XeSS FG (y ×3 / ×4, FG propia) en vez de siempre «DLSS FG».*
+- **Engine switches in ~0.5 s instead of ~5 s, without black**: the engine that leaves goes to standby (going back is waking it), the
+  standby engine is only closed when it doesn't fit, the cut waits for the new engine's fourth painted frame (`relevo_pintadas=4`; with the first one, the engine woken with DLSS 5 showed a ~1.2 s stall right after the cut: now 0.45 s, 1.2.3 1.7 s). Measured: 0.40-0.67 s from
+  the button to the new picture (was 6.3-7.6 s), at most one 91-308 ms gap at the cut.
+  *Cambios de motor en ~0,5 s en vez de ~5 s y sin negro: el que se va pasa a la espera, el de espera solo se cierra si no vale y el
+  corte espera a la cuarta imagen pintada del motor nuevo (`relevo_pintadas=4`: con la primera se veía un parón de ~1,2 s al despertar con DLSS 5; ahora 0,45 s, la 1.2.3 1,7 s). Medido: 0,40-0,67 s del botón a la imagen nueva (antes 6,3-7,6 s).*
+- **XeSS FG together with DLSS 5 goes through Magpie again, as in 1.2.3**: on the user's PC the GPU reset twice in two minutes
+  (`DXGI_ERROR_DEVICE_HUNG`, NVIDIA driver error logged first) with both in the engine; it could not be reproduced here in 11 minutes, so
+  that pair goes the 1.2.3 way (`motor_xefg_dlss5=1` keeps it in the engine). Without DLSS 5, XeSS FG stays in the engine. If the GPU is
+  lost with XeSS FG or the engine's own frame generation in the engine, that frame generation goes through Magpie for the rest of the
+  session, and the last picture stays on screen while it recovers (instead of ~3 s of black).
+  *XeSS FG junto con DLSS 5 vuelve a ir por Magpie, como en la 1.2.3: en el PC del usuario la gráfica se reinició dos veces con los dos
+  en el motor y aquí no se pudo reproducir. Sin DLSS 5, XeSS FG sigue en el motor. Si la gráfica se pierde con XeSS FG o la generación
+  propia en el motor, esa generación va por Magpie el resto de la sesión, con la última imagen en pantalla mientras se recupera.*
+- **XeSS FG ×3 / ×4 outside Intel GPUs go through Magpie again, as in 1.2.3** (when Magpie is there): the engine's own frame generation
+  smeared the HUD and text on real console content (text error 3.6-4.1 against 0.3-0.5 for DLSS FG; Magpie's XeSS FG ×4 / ×3 on the same scene: text 0.33 / 0.48, whole picture 0.90 / 0.98, against 3.6 / 4.1 and 0.98 / 1.04 for the own frame generation). The engine's own frame
+  generation stays as the last resort (`motor_xefg_propia=1` uses it for XeSS FG ×3 / ×4). It now also keeps its real frames
+  (a present thread: at 4K ×4, 29.97 real fps and no drops, was 29.4 with 10-11 drops every 20 s) and, with DLSS 5, goes through Magpie
+  (`motor_propia_dlss5=1` keeps it in the engine).
+  *XeSS FG ×3 / ×4 fuera de las gráficas Intel vuelven a ir por Magpie, como en la 1.2.3 (si está): la generación propia del motor
+  emborronaba la interfaz y el texto con imagen real (error del texto 3,6-4,1 frente a 0,3-0,5 de DLSS FG). La generación propia queda de
+  último recurso (`motor_xefg_propia=1` la usa para XeSS FG ×3 / ×4); ahora no pierde imágenes reales (hilo de presentación) y con DLSS 5
+  va por Magpie (`motor_propia_dlss5=1` = en el motor).*
+- **DLSS FG ×2 (engine) without odd bad frames**: the HUD-less mask added in 1.2.4 (`fgui=4`, on in the 30 fps mode) is off again, as in
+  1.2.3: on real content it barely helped text (0.4 → 0.3) and brought single bad frames (background doubled for an instant, ~1 every
+  2-3 s). `fgui=4` in `motor_extra` brings it back. With DLSS 5 on, a single bad frame still shows up now and then (1 in 125-315 generated frames on the real-content scene, about one every 5-10 s); it is not the motion search DLSS 5 needs: giving DLSS 5 the frame generation's camera vectors instead (dlss5_vec_camara=1 in motor_extra, 4.5 ms less GPU at 4K) did not remove it and left the picture around the character slightly worse (0.67 → 0.76), so that stays off.
+  *DLSS FG ×2 del motor sin imágenes malas sueltas: la máscara sin interfaz de la 1.2.4 (`fgui=4`) vuelve a ir apagada, como en la
+  1.2.3 (apenas mejoraba el texto y traía imágenes malas, ~1 cada 2-3 s). `fgui=4` en `motor_extra` la vuelve a poner. Con DLSS 5 aún sale de vez en cuando una imagen mala suelta (1 de cada 125-315 inventadas en la escena de imagen real, una cada 5-10 s); no la trae la búsqueda de movimiento que necesita DLSS 5: darle a DLSS 5 los vectores de la cámara (dlss5_vec_camara=1 en motor_extra, 4,5 ms menos de gráfica a 4K) no la quitó y dejó algo peor el contorno del personaje (0,67 → 0,76), así que sigue apagado.*
+- **DLSS 5 in the engine no longer flashes or changes colour out of the blue**: every rebuild of DLSS 5 (scale, guard, capture change,
+  waking a standby engine) sent one frame without DLSS 5 and froze the picture 0.2-0.9 s, often several times in a row. Now the frame
+  where DLSS 5 is created already has it, the scale and the guard go straight to what fits, going up waits for a scene cut, the scale
+  no longer mixes DLSS FG with XeSS FG / own FG, and new instances are created on another thread. Measured on real captures (4K, level
+  3): colour jump on a rebuild 1.6-3.3 → 0.1-0.6 levels, longest freeze 0.40-0.86 → 0.21-0.36 s. 2-3 passes in the engine get the
+  colour of Magpie's 2-3 passes (saturation 0.72 → 0.86). `dlss5_suave=0` = as before.
+  *DLSS 5 del motor ya no da destellos ni cambia de color de golpe: la imagen en que se crea ya lo lleva, la escala y el guardián van de
+  una vez a lo que cabe, subir espera a un corte, la escala no mezcla DLSS FG con XeSS FG / FG propia y las instancias nuevas se crean
+  en otro hilo. Medido: salto de color al rehacer 1,6-3,3 → 0,1-0,6 niveles; peor parón 0,40-0,86 → 0,21-0,36 s; 2-3 pasadas con el color
+  de Magpie (saturación 0,72 → 0,86). `dlss5_suave=0` = como antes.*
+- **XeSS FG / FSR 3 FG with DLSS SR in the engine**: Streamline (used there only for DLSS SR, with manual hooking) never saw a present
+  ("presentCommon() was not observed": no bookkeeping or garbage collection) and crashed in its shutdown, writing a 2.6 MB dump every
+  time. The present now goes through Streamline's swap-chain proxy, released before shutdown: no warning and no dump, same frame rate
+  and latency (measured at 1440p → 4K, XeSS FG ×2: 29.97 real fps, 3.3 ms). `sl_proxy_present=0` = as before.
+  *XeSS FG / FSR 3 FG con DLSS SR en el motor: Streamline no veía ningún Present (sin su limpieza) y fallaba al cerrar con un volcado de
+  2,6 MB cada vez. Ahora el Present va por su proxy y se suelta antes de cerrarlo: sin aviso ni volcado, el mismo ritmo y latencia.*
+- **Protection**: the engine's own ×4 is no longer called and remembered as "XeSS FG ×4" (each path is remembered on its own), and
+  "not keeping up" is also reported when real frames are lost in bursts.
+  *Protección: la ×4 propia ya no se llama ni se recuerda como «XeSS FG ×4» (cada camino aparte), y avisa también con pérdidas a rachas.*
+- **The whole session of the test, again** (GTA VI-like real captures, 4K 30 fps mode, DLSS 5 level 3, XeSS FG ×2 → ×4 → ×2 → 1440p
+  DLSS M → 3 passes → ×4 → DLSS E → ×3 → 4K → DLSS 5 off / on): every step ends in the requested frame generation, the same black
+  curtains as 1.2.3 (only when the capture size changes, ~2 s) and XeSS FG ×4 now honoured (1.2.3 dropped to ×3). With DLSS FG in the engine (DLSS FG ×2 + DLSS 5 → XeSS FG → DLSS FG → ×4 → ×2 → DLSS 5 off → XeSS FG → 1440p DLSS M → DLSS FG → DLSS 5 on → 4K): every step with the requested frame generation, the old picture on screen until the new one is ready, the longest freeze 446 ms (1.2.3: 1.7 s going back to the engine, 1.6 s for ×4 and 5.1 s with a dimmed curtain going back to 4K), DLSS FG ×4 in the engine in 8.6 s (1.2.3: through Magpie in 17 s) and capture changes in place (1.2.3: 1.9 s of black at 1440p).
+  *La sesión entera de la prueba, otra vez: cada paso acaba con la generación pedida, los mismos telones que la 1.2.3 (solo al cambiar
+  la captura, ~2 s) y XeSS FG ×4 se respeta (la 1.2.3 bajaba a ×3). Con DLSS FG en el motor: la generación pedida en cada paso, la imagen
+  de antes hasta que la nueva está lista, el peor parón 446 ms (la 1.2.3: 1,7 s al volver al motor, 1,6 s con ×4 y 5,1 s con el telón
+  atenuado al volver a 4K), DLSS FG ×4 en el motor en 8,6 s (la 1.2.3: por Magpie en 17 s) y los cambios de captura en marcha.*
+
 ### Changed / Cambiado
 - **No more "engine or Magpie" choice: the game goes through the built-in engine whenever it can.** The settings-menu row *DLSS 5
   through: Engine / Magpie*, the tray items and the *Add DLSS 5* question are gone, and so is the `motor_dlss5` setting (removed from
   your ini on update; an old `motor_dlss5=0` no longer sends DLSS 5 to Magpie). The engine does DLSS SR / XeSS / FSR, DLSS FG ×2,
   **XeSS FG ×2 (new)**, Smooth Motion, FSR 3 FG, the 30 / 60 / 120 modes and Reflex and, with your own `nvngx_dlssnr.dll` (through `engine\PrismaNr.dll`, which now
   ships), DLSS 5 with **1 to 3 passes** (`motor_dlss5_pasadas=3`, was 1). mpv + Magpie only step in, without a black screen and without being named,
-  for what the engine doesn't do: NVIDIA VFG, FSR 3 FG together with DLSS, and DLSS 5 when the engine can't run it (×3 / ×4 now always go through
-  the engine, see below). At 120 fps the frame generation picked for 60 fps no longer sends the game to Magpie. The start-up
+  for what the engine doesn't do: NVIDIA VFG, FSR 3 FG together with DLSS, and DLSS 5 when the engine can't run it (and, after the first
+  test, XeSS FG with DLSS 5 and XeSS FG ×3 / ×4 outside Intel: see above). At 120 fps the frame generation picked for 60 fps no longer sends the game to Magpie. The start-up
   log and `--dry-run` say which path the picture takes and why. Measured (RTX 4060 Ti, 4K 120 Hz VRR TV, from a frame arriving to it
   being on screen): 4K 30 fps mode with DLSS 5 + DLSS FG ×2, real frame **43 ms / generated 27 ms** (Magpie ~73 / ~57); 1080p → 4K with
   DLSS SR + 2 DLSS 5 passes + DLSS FG ×2, **37-40 / 20-23 ms** (Magpie ~52 / ~36), every frame shown for 2 refreshes and every real
@@ -24,7 +92,8 @@ publicada es una etiqueta `vX.Y.Z` de git; GitHub Actions monta su zip y copia a
   Magpie», lo de la bandeja, la pregunta de «Añadir DLSS 5» y la clave `motor_dlss5` (se quita del ini al actualizar). El motor hace
   DLSS SR / XeSS / FSR, DLSS FG ×2, XeSS FG ×2 (nuevo), Smooth Motion, FSR 3 FG, los modos 30 / 60 / 120, Reflex y, con tu
   `nvngx_dlssnr.dll` (por `engine\PrismaNr.dll`, que ahora viene con la app), DLSS 5 de 1 a 3 pasadas (`motor_dlss5_pasadas=3`, antes 1). mpv + Magpie solo entran, sin telón, para lo que el
-  motor no hace (NVIDIA VFG, FSR 3 FG con DLSS, DLSS 5 cuando el motor no puede; ×3 / ×4 van ya siempre por el motor, ver abajo).
+  motor no hace (NVIDIA VFG, FSR 3 FG con DLSS, DLSS 5 cuando el motor no puede y, tras la primera prueba, XeSS FG con DLSS 5 y XeSS FG
+  ×3 / ×4 fuera de Intel: ver arriba).
   Medido de que llega la imagen a que se ve: 4K modo 30 con DLSS 5 + DLSS FG ×2, 43 ms la real y 27 la inventada (Magpie ~73 / ~57);
   1080p → 4K con 2 pasadas, 37-40 / 20-23 (Magpie ~52 / ~36), todas a 2 refrescos; 4K modo 30 sin generación ~21 ms y 4K a 60 ~9 ms.*
 - **The app no longer downloads `dlssg_sm86`** ("haz lo que sea legal": that community package makes NVIDIA's NGX load DLSS Frame
@@ -71,12 +140,14 @@ publicada es una etiqueta `vX.Y.Z` de git; GitHub Actions monta su zip y copia a
   119.8/s with every frame 8.3 ms apart (p99 8.8 ms), also with DLSS 5 on; ×3 at 89.8/s, 14.0 / 8.5 / 11.3 ms apart (with DLSS 5: with
   vsync, 1 / 1 / 2 refreshes). Quality (4K test scenes): on a moving head ×3 error 1.0 (DLSS FG ×2 0.35, no interpolation 6.8), weaker
   than DLSS FG on thin bars; real-frame delay ~27 ms at ×3 (Magpie ×3 / ×4 ~70 ms). `motor_fg_propia=0` = ×3 / ×4 through Magpie as
-  before. DLSS FG ×2 and XeSS FG ×2 are unchanged.
+  before. DLSS FG ×2 and XeSS FG ×2 are unchanged. (After the first test it is the last resort: XeSS FG ×3 / ×4 go through Magpie and,
+  with DLSS 5, the own ×3 / ×4 too; see above.)
   *×3 / ×4 para cualquier gráfica en el motor con su generación propia (código propio con los vectores del motor; la única ×3 / ×4 legal
   en RTX 20 / 30 / 40 y AMD). Al elegir DLSS FG o XeSS FG ×3 / ×4 el motor usa, por orden, la vía oficial (RTX 50, XeSS FG en Intel), un
   `PrismaFg` con tu `dlssg_sm86` (RTX 40) o su generación propia; Magpie solo si nada vale. El menú, la bandeja y los avisos lo
   dicen: «x4 (FG propia)». Medido en la app entera: ×4 a 119,8/s con todas a 8,3 ms (p99 8,8), también con DLSS 5; ×3 a 89,8/s. En
-  barrotes finos, peor que DLSS FG. `motor_fg_propia=0` = como antes.*
+  barrotes finos, peor que DLSS FG. `motor_fg_propia=0` = como antes. (Tras la primera prueba es el último recurso: XeSS FG ×3 / ×4 van
+  por Magpie y, con DLSS 5, la propia ×3 / ×4 también.)*
 - **Protection for every combination** (upscaler + DLSS 5 + frame generation + multiplier): before applying, the app estimates the real
   frame rate (now with the upscaler's cost and the measured XeSS FG ×3 / ×4 pacing) and uses the next multiplier down when it is far off
   or already failed for that combination; while playing, real frames under 95 % for ~10 s lower, in order, the DLSS 5 scale and passes,
@@ -116,9 +187,10 @@ publicada es una etiqueta `vX.Y.Z` de git; GitHub Actions monta su zip y copia a
   HUD included, as the "HUD-less" image, so DLSS FG interpolated the HUD together with the moving world behind it. The engine now finds
   the still HUD, fills it with the surrounding background and gives DLSS FG that real HUD-less image: on a test scene with a minimap,
   small text, a compass and a health bar over a panning city (4K, 30 fps mode, ×2) HUD error −60 %, text −15 %, the same with DLSS 5,
-  same real fps and latency. On in the 30 fps mode.
+  same real fps and latency. (After the first test: off by default, see above; `fgui=4` in `motor_extra` turns it on.)
   *La generación ya no deforma la interfaz, los minimapas ni los textos (DLSS FG del motor): el motor le da a DLSS FG la imagen sin la
-  interfaz quieta: error en la interfaz −60 %, en el texto −15 %, igual con DLSS 5. En el modo 30.*
+  interfaz quieta: error en la interfaz −60 %, en el texto −15 %, igual con DLSS 5. (Tras la primera prueba: apagada de serie, ver
+  arriba; `fgui=4` en `motor_extra` la enciende.)*
 - **DLSS FG through Magpie always gets motion vectors**: at 4K without DLSS 5 (×2) and in the 60 fps mode it ran without them and blended
   the still HUD with the background (text error ×2 7.0 → 1.0, ×3 8.1 → 0.75, 60 mode 3.1 → 1.06 at 60 real fps).
   *DLSS FG por Magpie siempre con vectores: sin ellos mezclaba la interfaz quieta con el fondo.*
@@ -127,10 +199,9 @@ publicada es una etiqueta `vX.Y.Z` de git; GitHub Actions monta su zip y copia a
   now decides with the whole chain, and the protection above keeps such combinations from stuttering.
   *«DLSS 3 con XeSS FG ×3 a tirones»: la cuenta se guardaba sin el escalador y Magpie se abría con ×4 creyendo ×3. Ahora decide con la
   cadena entera.*
-- **XeSS FG ×4 at 4K is no longer "locked"**: it can be picked from the menu, tray and Ctrl+X (on NVIDIA / AMD it is now the engine's
-  own ×4; through Magpie, the fallback, it runs "on trial" and drops to ×3 by itself if it doesn't hold: measured 29.1-29.6 real fps with
-  a 4K capture, 26-28 in heavy games).
-  *XeSS FG ×4 a 4K ya no sale bloqueado (en NVIDIA / AMD va con la generación propia del motor; por Magpie, «a prueba» y baja sola a ×3).*
+- **XeSS FG ×4 at 4K is no longer "locked"**: it can be picked from the menu, tray and Ctrl+X (on NVIDIA / AMD through Magpie, as in
+  1.2.3, "on trial": it drops to ×3 by itself if it doesn't hold; measured 29.1-29.6 real fps with a 4K capture, 26-28 in heavy games).
+  *XeSS FG ×4 a 4K ya no sale bloqueado (en NVIDIA / AMD por Magpie, como en la 1.2.3, «a prueba»: baja sola a ×3 si no llega).*
 
 ### Notes / Notas
 - **DLSS 5 and the law (see the README)**: since 1.2.4 the repository and the zip carry the engine's own native pieces `PrismaNr`
@@ -140,18 +211,25 @@ publicada es una etiqueta `vX.Y.Z` de git; GitHub Actions monta su zip y copia a
   own, at their own risk, and *Add DLSS 5* only looks on their own PC. PrismaNr is built in CI with NVIDIA's two public NGX headers
   (pinned, SHA-256 checked), which are not in the repository. Without the user's files both pieces do nothing. DLSS 5 is not legally
   available to apps today. Elsewhere the engine never alters NVIDIA's or Intel's libraries: NVIDIA's DLSS FG ×3 / ×4 only on RTX 50,
-  Intel's XeSS FG ×3 / ×4 only on Intel GPUs, and otherwise the engine's own frame generation.
+  Intel's XeSS FG ×3 / ×4 only on Intel GPUs (elsewhere XeSS FG ×3 / ×4 is Magpie's, as in 1.2.3), and otherwise the engine's own frame
+  generation.
   *DLSS 5 y la ley (ver el README): desde la 1.2.4 el repositorio y el zip llevan las piezas nativas propias del motor `PrismaNr` (DLSS 5
   en el motor) y `PrismaFg` (DLSS FG ×3 / ×4 en el motor en RTX 40 / 30). Son código propio que carga los archivos que pone el usuario
   (`nvngx_dlssnr.dll`, el paquete `dlssg_sm86`) sin pasar por la comprobación de NVIDIA (NGX), cosa que los términos de NVIDIA no
   permiten; el usuario decidió publicarlas sabiéndolo. La app no reparte, no baja ni enlaza ningún archivo de NVIDIA modificado: cada uno
   pone el suyo bajo su responsabilidad, y «Añadir DLSS 5» solo mira en su propio PC. PrismaNr se compila en el CI con las dos cabeceras
-  públicas de NGX (versión fija, SHA-256), que no van en el repositorio. Sin los archivos del usuario no hacen nada.*- **To go back** (add the line at the end of `consoleenhancer.ini`): `motor_dlss5_pasadas=1` (2-3 DLSS 5 passes through Magpie, as in
+  públicas de NGX (versión fija, SHA-256), que no van en el repositorio. Sin los archivos del usuario no hacen nada.*
+- **To go back** (add the line at the end of `consoleenhancer.ini`): `motor_dlss5_pasadas=1` (2-3 DLSS 5 passes through Magpie, as in
   1.2.3) · `motor_fg_multi=0` (XeSS FG and ×3 / ×4 not in the engine) · `motor_fg_propia=0` (×3 / ×4 without the own frame generation) · `proteccion=0` (no protection; XeSS FG ×3 / ×4 locked as
-  before) · `motor_extra=<yours> fgui=0` (no HUD-less image for DLSS FG) · `fg_dlss_vectores=0` (Magpie's DLSS FG without vectors) ·
-  `dlss5_escala_grafica=88` and `motor_uso_grafica=85` · `motor=magpie` (everything through mpv + Magpie).
+  before) · `fg_dlss_vectores=0` (Magpie's DLSS FG without vectors) · `dlss5_escala_grafica=88` and `motor_uso_grafica=85` ·
+  `motor=magpie` (everything through mpv + Magpie). After the first test, to get the first 1.2.4 back: `motor_xefg_dlss5=1` (XeSS FG with
+  DLSS 5 in the engine), `motor_propia_dlss5=1` (own ×3 / ×4 with DLSS 5 in the engine), `motor_xefg_propia=1` (XeSS FG ×3 / ×4 with the
+  own frame generation), `relevo_motor_espera=0`, `relevo_generacion_antes=0`, `relevo_pintadas=1`; in `motor_extra`: `fgui=4`, `dlss5_suave=0`,
+  `fg_propia_hilo=0`, `sl_proxy_present=0`.
   *Para volver atrás (la línea al final de `consoleenhancer.ini`): `motor_dlss5_pasadas=1`, `motor_fg_multi=0`, `motor_fg_propia=0`, `proteccion=0`,
-  `fgui=0` en `motor_extra`, `fg_dlss_vectores=0`, `dlss5_escala_grafica=88` y `motor_uso_grafica=85`, `motor=magpie`.*
+  `fg_dlss_vectores=0`, `dlss5_escala_grafica=88` y `motor_uso_grafica=85`, `motor=magpie`. Para la primera 1.2.4: `motor_xefg_dlss5=1`,
+  `motor_propia_dlss5=1`, `motor_xefg_propia=1`, `relevo_motor_espera=0`, `relevo_generacion_antes=0`, `relevo_pintadas=1`; en `motor_extra`: `fgui=4`,
+  `dlss5_suave=0`, `fg_propia_hilo=0`, `sl_proxy_present=0`.*
 
 ## [1.2.3] - 2026-11-22
 
