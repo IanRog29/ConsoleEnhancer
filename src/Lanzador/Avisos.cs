@@ -120,7 +120,8 @@ namespace ConsoleEnhancer
             if (t == "xess" && XessNo1080(capSel)) return Tx.T("no va con la captura de 1080p", "doesn't run with the 1080p capture");
             if (t == "xess" && (XessCaido || !MotorFgSabe("xess"))) return Tx.T("el motor no ha podido con él en esta sesión", "the engine couldn't run it this session");
             // (1.2.4 ronda 7, INTEGRA7: la de FGREAL -TrayApp.GenNoVaPorque, TiposGeneracion.cs-, tambien aqui)
-            if (t == "fsr3" && !FsrFgOfrecer) return Tx.T("quitada (fallos y poca fluidez con juego real; generacion_fsr3=1 la vuelve a poner)", "removed (artifacts and poor smoothness in real games; generacion_fsr3=1 brings it back)");
+            // (en la pastilla, corto y sin la clave del ini: la dice el menu -GenNoVaPorque- y el README)
+            if (t == "fsr3" && !FsrFgOfrecer) return Tx.T("quitada: fallos y poca fluidez con juego real", "removed: artifacts and poor smoothness in real games");
             if (t == "fsr3" && !Paths.HayLib("amd_fidelityfx_framegeneration_dx12.dll")) return Tx.T("falta su DLL en fsr\\", "its DLL is missing in fsr\\");
             if (t == "smooth" && Ce.NoNvidia) return Tx.T("solo en NVIDIA RTX 40 / 50", "NVIDIA RTX 40 / 50 only");
             if (t == "smooth" && Pantalla.Is119) return Tx.T("no con la tele a 119,88 Hz", "not with the TV at 119.88 Hz");
@@ -141,6 +142,10 @@ namespace ConsoleEnhancer
             if (string.IsNullOrEmpty(r)) r = Tx.T("no puede ir ahora", "can't run now");
             // (las del menu empiezan en mayuscula y algunas por "x2 ...": aqui van detras de "x4 no: ")
             if (r.StartsWith("x2 ", StringComparison.Ordinal)) r = r.Substring(3);
+            // (1.2.4 ronda 7, INTEGRA7: la de Smooth Motion x4 con DLSS 5 -SmoothX4FaltaD5, para la fila del menu, que enseña x2- detras de
+            // "Smooth Motion x2 · ... · x4 no: ", sin repetir el x2 ni el "sin DLSS 5")
+            if (r.StartsWith("con DLSS 5 va x2: ", StringComparison.Ordinal)) r = Tx.T("con DLSS 5 la gráfica no llega", "with DLSS 5 the GPU can't keep up");
+            if (r.StartsWith("with DLSS 5 it runs x2: ", StringComparison.Ordinal)) r = "with DLSS 5 the GPU can't keep up";
             // (las de SmoothX4Falta salian sin tildes: en pantalla, con ellas)
             r = r.Replace("generacion", "generación").Replace("se ha caido", "se ha caído").Replace("esta sesion", "esta sesión").Replace("no esta o", "no está o");
             // (en minuscula solo las palabras normales del principio, no los nombres: "XeSS FG se ha caído...", "Smooth Motion no se puede...")
@@ -1010,9 +1015,12 @@ namespace ConsoleEnhancer
                     {
                         string[] x = kv.Split('=');
                         int pr = t.AjPruebaPon(x[0], x[1]);
+                        // (1.2.4 ronda 7, INTEGRA7: FSR 3 FG fuera del menu -FGREAL, generacion_fsr3=0 de serie-: que no se pueda elegir es lo bueno)
+                        if (pr != 0 && !Config.FsrFgOfrecer && (kv == "tipo=fsr3" || kv.StartsWith("fsrmul=", StringComparison.Ordinal))) { r = ""; break; }
                         if (pr != 0) { r = "el menu no deja poner " + kv + " (" + pr + ")"; break; }
                     }
                     string aviso = "", antes = "";
+                    if (r == "") { sb.AppendLine("      " + hp[0] + ": " + hp[1] + " no sale en el menu (FSR 3 FG quitada): bien"); continue; }
                     if (r == null)
                     {
                         Dictionary<string, string> e; HashSet<string> cambiadas; List<string> que;
