@@ -33,7 +33,8 @@ namespace ConsoleEnhancer.Motor
         public bool FsrMultiScQueue = true;  // fsrfg_multi_cola_cadena=0|1: la cadena (y las copias a ella) en una cola de presentacion propia
         public int FsrMultiQueue = 1;     // fsrfg_multi_cola=0|1|2: cola de calculo de prioridad normal / alta (de serie) / la de la imagen (sin asincrono)
         public bool FsrMultiStill = true;   // fsrfg_multi_quieto=1|0: lo que no cambia entre las dos reales (la interfaz, el texto) va tal cual
-        public float FsrMultiStillThr = 0.03f;   // fsrfg_multi_quieto_umbral: diferencia de color 0-1 (la mayor de 3x3) por debajo de la cual es "quieto"
+        public float FsrMultiStillThr = 0.03f;
+        public float FsrMultiStillRel = 0.15f;   // fsrfg_multi_quieto_relativo: el cambio frente al contraste de alli (3x3) por debajo del cual es quieto (0 = sin esto)   // fsrfg_multi_quieto_umbral: diferencia de color 0-1 (la mayor de 3x3) por debajo de la cual es "quieto"
         public bool FsrMultiHalf = false;   // fsrfg_multi_mitad=0|1: la profundidad y los vectores a FSR a la mitad (sus pasadas "de render" a 1/4 de pixeles)
         public bool FsrMultiSteps = true;   // fsrfg_multi_una=1|0: cada inventada en su lista (la 1a se enseña en cuanto esta)
         public string FsrMultiCsv = "";   // fsrfg_multi_csv=<fichero> (pruebas): cada Present del hilo (real / inventada, llegada de la real, hora del Present)
@@ -51,6 +52,7 @@ namespace ConsoleEnhancer.Motor
                 case "fsrfg_multi_mitad": FsrMultiHalf = B(val); return true;
                 case "fsrfg_multi_quieto": FsrMultiStill = B(val); return true;
                 case "fsrfg_multi_quieto_umbral": FsrMultiStillThr = (float)Math.Max(0.001, Math.Min(0.5, D(val))); return true;
+                case "fsrfg_multi_quieto_relativo": FsrMultiStillRel = (float)Math.Max(0, Math.Min(10, D(val))); return true;
                 case "fsrfg_multi_cola": FsrMultiQueue = Math.Max(0, Math.Min(2, I(val))); return true;
                 case "fsrfg_multi_cola_cadena": FsrMultiScQueue = B(val); return true;
             }
@@ -197,7 +199,7 @@ void main(uint3 id : SV_DispatchThreadID)
         // cada inventada: donde las dos reales son iguales (la mayor diferencia de 3x3 por debajo del umbral) va la mezcla de las dos en su
         // instante, con un borde suave hasta 2 x el umbral. Lo que se mueve no cambia
         const string FmStillShader = @"
-cbuffer C : register(b0) { uint W, H, P0, P1; float T, Thr, P2, P3; uint4 Q2, Q3; }
+cbuffer C : register(b0) { uint W, H, P0, P1; float T, Thr, Rel, P3; uint4 Q2, Q3; }
 Texture2D<float4> Prev : register(t0);
 Texture2D<float4> Cur : register(t1);
 RWTexture2D<unorm float4> Out : register(u0);
@@ -205,14 +207,19 @@ RWTexture2D<unorm float4> Out : register(u0);
 void main(uint3 id : SV_DispatchThreadID)
 {
     if (id.x >= W || id.y >= H) return;
-    float d = 0;
+    float d = 0, lo = 1, hi = 0;
     [unroll] for (int y = -1; y <= 1; y++) [unroll] for (int x = -1; x <= 1; x++)
     {
         int2 p = clamp(int2(id.xy) + int2(x, y), int2(0, 0), int2(W - 1, H - 1));
-        float3 e = abs(Prev[p].rgb - Cur[p].rgb);
+        float3 c = Cur[p].rgb;
+        float3 e = abs(Prev[p].rgb - c);
         d = max(d, max(e.r, max(e.g, e.b)));
+        float l = dot(c, float3(0.2126, 0.7152, 0.0722));
+        lo = min(lo, l); hi = max(hi, l);
     }
-    float w = 1 - smoothstep(Thr, 2 * Thr, d);
+    // quieto = cambia poco Y poco para lo que hay alli: con detalle (texto, bordes) un cambio pequeño es quieto; lo liso o de poco contraste
+    // que se mueve cambia lo mismo que su contraste (no es quieto: lo hace FSR). Medido: solo con el umbral, el fondo empeoraba (0,89 -> 1,43)
+    float w = (1 - smoothstep(Thr, 2 * Thr, d)) * (Rel > 0 ? 1 - smoothstep(Rel, 2 * Rel, d / max(hi - lo, 0.001)) : 1);
     if (w <= 0) return;
     float3 m = lerp(Prev[id.xy].rgb, Cur[id.xy].rgb, T);
     Out[id.xy] = float4(lerp(Out[id.xy].rgb, m, w), 1);
@@ -257,7 +264,7 @@ void main(uint3 id : SV_DispatchThreadID)
             cl.ResourceBarrier(1, ref x);
             uint* c = stackalloc uint[16];
             for (int i = 0; i < 16; i++) c[i] = 0;
-            c[0] = (uint)outW; c[1] = (uint)outH; c[4] = F(t); c[5] = F(s.FsrMultiStillThr);
+            c[0] = (uint)outW; c[1] = (uint)outH; c[4] = F(t); c[5] = F(s.FsrMultiStillThr); c[6] = F(s.FsrMultiStillRel);
             cl.SetDescriptorHeaps(1, ref fmStillHeapPtr);
             cl.SetComputeRootSignature(rootSig);
             cl.SetPipelineState(psoFmStill);
