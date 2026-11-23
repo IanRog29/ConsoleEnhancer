@@ -6,10 +6,13 @@ namespace ConsoleEnhancer.Motor
 {
     partial class Settings
     {
-        // 23-11 (ronda 7, SRBLUR) sr_nitidez_mov=X: con un escalador temporal que reescala, enfoque CAS de mas donde la imagen se mueve
-        // (x la velocidad de sus vectores entre sr_nitidez_mov_px=a,b px de la entrada): en movimiento el escalador pierde detalle (historia
-        // rechazada o remuestreada) y quieto no (alli el enfoque solo aumenta el "hervido"). 0 = el enfoque de siempre (sharp=)
-        public double SrSharpMov = 0, SrSharpMovA = 0.5, SrSharpMovB = 3;
+        // 23-11 (ronda 7, SRBLUR) sr_nitidez_mov=X (de serie 0,3): con un escalador temporal que reescala SIN enfoque (sharp=0: los modelos
+        // transformer de DLSS, motor_nitidez_transformer=0), enfoque CAS solo donde la imagen se mueve (X por la velocidad de sus vectores,
+        // de 0 a sr_nitidez_mov_px=a,b px de la entrada por imagen). Medido con video real 4K -> 1440p (BF1 en marcha): DLSS M en movimiento
+        // nitidez 0,75 -> 0,84 (la verdad = 1), banda media 0,86 -> 0,92, hervido igual (0,14 -> 0,15), quieto sin cambios (0,83; hervido 0,15);
+        // un CAS 0,1 por toda la imagen daba 0,87 en movimiento pero quieto el hervido 0,15 -> 0,23. Sin halos en el texto del HUD (con K + CAS
+        // 0,5, el de antes, si). 0 = el enfoque de siempre (sharp=)
+        public double SrSharpMov = 0.3, SrSharpMovA = 0.5, SrSharpMovB = 3;
 
         bool ApplySrBlur(string key, string val)
         {
@@ -82,7 +85,7 @@ void main(uint3 id : SV_DispatchThreadID)
         {
             n = 8;
             bool tmp = !native && (scalerNow == "dlss" || scalerNow == "xess" || scalerNow == "ffx") && mvec != null;
-            if (s.SrSharpMov <= 0 || casMovBroken || !tmp || noSignalScreen || RcasNow) return psoCas;
+            if (s.SrSharpMov <= 0 || s.Sharp > 0.001 || casMovBroken || !tmp || noSignalScreen || RcasNow) return psoCas;   // (con enfoque propio -E, XeSS, FSR: upscale_sharpen- el de siempre)
             if (psoCasMov == null)
             {
                 try { psoCasMov = Pso(CompileCs("casmov", CasMovShader)); }

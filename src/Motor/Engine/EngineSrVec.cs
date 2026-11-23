@@ -28,10 +28,16 @@ namespace ConsoleEnhancer.Motor
         public int SrVecRadius = 8, SrVecStep = 2, SrVecIter = 6, SrVecTile = 8;
         public bool SrVec120 = false;   // (sr_vec_120: tambien en el modo 120 -esports, 8 ms por imagen-; de serie no)
         public double SrVecMax = 1.5, SrVecGain = 0.8, SrVecLambda = 5e-6, SrVecFloor = 0;
-        // 23-11 (1.2.4 ronda 7, SRBLUR) sr_vec_textura (niveles): sin afinar la casilla si su detalle (el menor autovalor del tensor de
-        // estructura por muestra) no llega a eso. sr_vec_incert (px): la correccion solo si la incertidumbre de Lucas-Kanade (desviacion del
-        // vector = raiz(residuo por muestra / (muestras x menor autovalor))) no pasa de eso y la correccion es al menos el doble
-        public double SrVecTex = 0, SrVecIncert = 0;
+        // 23-11 (1.2.4 ronda 7, SRBLUR) sr_vec_incert (px, de serie 0,1): la correccion solo si la incertidumbre de Lucas-Kanade (desviacion
+        // del vector = raiz(residuo por muestra / (muestras x menor autovalor del tensor de estructura))) no pasa de eso y la correccion es al
+        // menos el doble. CAUSA (medido con video real: Dead by Daylight 4K de noche, 1440p + DLSS M): en lo oscuro / de poco detalle con
+        // ruido la interpolacion de la anterior a medio punto ya "casa mejor" (promedia el ruido) y la casilla se corria hasta 1,5 px CADA
+        // imagen con la camara quieta: DLSS SR remuestreaba su historia sin parar y el suelo se deshacia en una mancha (nitidez 0,83 -> 0,15 en
+        // 2 s; con los vectores de la busqueda, 0,80). Con 0,1: 0,80 (arreglado) y lo que los afinados ganaban se queda (BF1 quieto nitidez
+        // 0,621 -> 0,641, Battlefront quieto "fantasma" 0,34 -> 0,16; error igual que con los de la ronda 6 en todo). 0 = como la ronda 6.
+        // sr_vec_textura (niveles, de serie 0 = no): sin afinar la casilla si su menor autovalor por muestra no llega (arregla lo oscuro con 2,
+        // pero quita lo que se gana en lo claro)
+        public double SrVecTex = 0, SrVecIncert = 0.1;
         public bool SrVecEsm = true;
         // Los filtros de la entrada (Shaders.cs Aa: bordes -FXAA-, tramado y liso; con aa=0 la pasada es una copia y tampoco hay tramado ni
         // liso) con el escalador temporal que reescala y SIN DLSS 5 (con DLSS 5 son su entrada: no cambian). -1 = los de siempre (aa=,
@@ -43,9 +49,13 @@ namespace ConsoleEnhancer.Motor
         // XeSS SR / FSR 3.1-4 de escalador con los vectores COMPLETOS de la busqueda, como DLSS SR (antes los ligeros a 1440p: mv_ligero).
         // Medido (escena zoom, 1440p, XeSS): vectores 1,42 px de error con los ligeros (0,72 los completos). sr_completos_xess=0 = como antes
         public bool SrXessFfxFull = true;
-        // 23-11 (1.2.4 ronda 7, SRBLUR) sr_aa_dlss5=1: lo de sr_aa / sr_tramado / sr_liso tambien con DLSS 5 cuando el escalador reescala
-        // (1440p / 1080p + DLSS 5 -> DLSS SR / XeSS / FSR); a 4K nativo DLSS 5 sigue con su entrada de siempre
-        public bool SrAaNr = false;
+        // 23-11 (1.2.4 ronda 7, SRBLUR) sr_aa_dlss5=1 (de serie): lo de sr_aa / sr_tramado / sr_liso tambien con DLSS 5 cuando el escalador
+        // reescala (1440p / 1080p + DLSS 5 -> DLSS SR / XeSS / FSR); a 4K nativo DLSS 5 sigue con su entrada de siempre. El usuario juega asi
+        // (1440p + DLSS M + DLSS 5 nivel 4) y el arreglo del suelo de la ronda 6 (sin FXAA / liso antes del escalador) no le llegaba: con DLSS 5
+        // el FXAA y el liso=6 seguian. Medido con video real (BF1 y Battlefront 4K -> 1440p), contra DLSS 5 a 4K nativo (lo que el usuario ve
+        // perfecto): quieto err 2,82 -> 2,65, nitidez 0,80 -> 0,85; en movimiento 1,87 -> 1,84 y 0,76 -> 0,82; el hervido igual (0,16 / 0,31-0,33).
+        // sr_aa_dlss5=0 = como antes
+        public bool SrAaNr = true;
         // 23-11 (1.2.4 ronda 7, SRBLUR) sr_vec_suave=1: la correccion de cada casilla no se suma igual a sus puntos sino interpolada entre
         // los centros de las 4 casillas vecinas (las del mismo movimiento), como los vectores por punto: sin escalones de casilla a casilla
         public bool SrVecSmooth = false;
@@ -286,7 +296,7 @@ void main(uint3 id : SV_DispatchThreadID)
             if (fs != srFiltroSaid)
             {
                 srFiltroSaid = fs;
-                if (fs == 1) Log.Write("Entrada del escalador (" + scalerNow + (s.Nr ? ", con DLSS 5" : ", sin DLSS 5") + "): " + (AaNow ? "bordes" + (DeditherNow ? ", tramado" : "") + (FlatNow > 0 ? ", liso " + FlatNow.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture) : "") : "sin FXAA, tramado ni liso") + " (sr_aa / sr_tramado / sr_liso; con DLSS 5, los de siempre)");
+                if (fs == 1) Log.Write("Entrada del escalador (" + scalerNow + (s.Nr ? ", con DLSS 5" : ", sin DLSS 5") + "): " + (AaNow ? "bordes" + (DeditherNow ? ", tramado" : "") + (FlatNow > 0 ? ", liso " + FlatNow.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture) : "") : "sin FXAA, tramado ni liso") + " (sr_aa / sr_tramado / sr_liso; con DLSS 5, sr_aa_dlss5; a 4K nativo, los de siempre)");
             }
             if (s.SrVec <= 0 || !on || srVecValid || s.MvMaskMode == 1 || s.MvFixed || mvecSr == null || srBlur[0] == null || (s.Is120 && !s.SrVec120)) return;
             bool sr = (inW != outW || inH != outH) && (scalerNow == "dlss" || scalerNow == "xess" || scalerNow == "ffx");
@@ -296,7 +306,7 @@ void main(uint3 id : SV_DispatchThreadID)
                 long t = Clock.Now;
                 psoSrVec = Pso(CompileCs("srvec", SrVecShader));
                 psoSrBlur = Pso(CompileCs("srblur", SrBlurShader));
-                Log.Write("Vectores de DLSS SR afinados (sr_vectores=" + s.SrVec + "): shaders en " + Clock.SinceMs(t).ToString("0") + " ms");
+                Log.Write("Vectores de DLSS SR afinados (sr_vectores=" + s.SrVec + (s.SrVecIncert > 0 ? ", solo los fiables: sr_vec_incert=" + s.SrVecIncert.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture) + " px" : "") + "): shaders en " + Clock.SinceMs(t).ToString("0") + " ms");
             }
             int w = lw[0], h = lh[0];
             // la luma desenfocada de las dos imagenes (la de ahora y la anterior: barato, y asi no depende de lo que se hizo antes)
