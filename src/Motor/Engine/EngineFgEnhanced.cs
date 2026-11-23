@@ -65,6 +65,19 @@ namespace ConsoleEnhancer.Motor
                                                 // daba -1 %, pero en la tele (otra sesion) salio algo peor y no pude repetirlo: queda para probar
         public bool EfgStamps = true;           // efg_tiempos=0: sin las marcas de tiempo de la grafica (prueba)
         public bool EfgPrecompile = true;       // (1.2.4 ronda 7, EFGFIX) efg_precompilar=0: sin compilar sus sombreadores de fondo (EfgPrecompilar)
+        // (1.3.1, EFGCAL) la eleccion del movimiento de las inventadas al interpolar (modo calidad; la baja latencia no cambia):
+        // efg_sel_vecinos=1: candidatos de los 3x3 bloques de alrededor (antes los 2x2 mas cercanos); efg_sel_local=N: busqueda +-N puntos de
+        // L0 alrededor del elegido (lo fino que se mueve distinto de su bloque). De serie 0 / 0 (= la 1.3): medido en el simulador con video
+        // real, -0,3 % / 0 % (Fallout 4 13-15 s 7,43 -> 7,41 / 7,42; CS2 3,99 -> 3,98 / 3,99) por +70 % / +60 % de grafica en la eleccion
+        public bool EfgSelVecinos = false;
+        public int EfgSelLocal = 0;
+        // (1.3.1, EFGCAL) efg_nitido: al interpolar, el candidato que mas pesa de cada punto se lee con Catmull-Rom (5 muestras) en vez de
+        // bilineal: la textura fina (grietas del asfalto, hierba) se lava menos al llevarla a medio punto. -1 = solo en x2 (en x3 / x4 son 2-3
+        // inventadas por real y la grafica ya va justa con DLSS 5), 1 = siempre, 0 = nunca (lo de la 1.3). De serie 0: medido con video real
+        // en el simulador (efgsim, GTA V 2,5-11 s / Fallout 4 9-17 s) la nitidez sube 80,0 -> 83,3 % / 88,6 -> 91,5 % de la de la verdad, pero
+        // el error no baja (5,40 -> 5,40 / 7,80 -> 7,85) y los puntos muy errados suben un 2 %: no es claramente mejor; queda para probar a ojo
+        public int EfgNitido = 0;
+        public bool EfgNitidoOn { get { return EfgNitido > 0 || (EfgNitido < 0 && Efg <= 2); } }
         public bool EfgSaltoFino = false;       // (1.2.4 ronda 7, EFGFIX) efg_salto_fino=1: con otra real en la cola solo se saltan las inventadas que llegarian a
                                                 // la siguiente real. (1.3, RELEASE13) de serie 0 = como antes: medido con video real, x4 baja latencia + DLSS 5 al 65 %
                                                 // a 4K, sin saltos pero la grafica se colgo a los 37 s (DXGI_ERROR_DEVICE_HUNG, nvlddmkm 153); con 0, sin cuelgue y
@@ -99,6 +112,9 @@ namespace ConsoleEnhancer.Motor
                 case "efg_tiempos": EfgStamps = B(val); return true;
                 case "efg_precompilar": EfgPrecompile = B(val); return true;   // (EFGFIX)
                 case "efg_salto_fino": EfgSaltoFino = B(val); return true;   // (EFGFIX)
+                case "efg_sel_vecinos": EfgSelVecinos = B(val); return true;   // (1.3.1, EFGCAL)
+                case "efg_sel_local": EfgSelLocal = Math.Max(0, Math.Min(3, I(val))); return true;   // (1.3.1, EFGCAL)
+                case "efg_nitido": EfgNitido = Math.Max(-1, Math.Min(1, I(val))); return true;   // (1.3.1, EFGCAL)
             }
             return ApplyEfgRitmo(key, val);   // (1.3.1, EFGCAL: efg_ritmo, efg_ritmo_x2, efg_colchon_ms; EngineFgEnhancedRitmo.cs)
         }

@@ -27,7 +27,7 @@ namespace ConsoleEnhancer.Motor
     //    esta lista y le tocaria antes de medio paso, la inventada se deja y va la real (antes la real se retrasaba hasta 8 ms).
     // Y el filtro de repetidas del modo 30 con Enhanced FG (EngineLatencia.cs Pass30, repetidas_30_efg=1): tras una imagen de 3 refrescos la
     // nueva que llega a 1 pasa en cuanto llega (antes pasaba su copia, 16,7 ms tarde).
-    // efg_ritmo=0 = lo de antes (todo igual que la 1.3). efg_ritmo_x2=2: con x2 hasta 2 inventadas en un hueco de 50 ms (1 = como mucho 1).
+    // efg_ritmo=1 (de serie) = esto con x2; 2 = tambien con x3 / x4; 0 = lo de antes (todo igual que la 1.3). efg_ritmo_x2=2: con x2 hasta 2 inventadas en un hueco de 50 ms (1 = como mucho 1).
     // efg_colchon_ms=N (modo calidad, de serie 0): N ms mas de retraso para que tambien quepan las inventadas del principio de un hueco largo
     // (con 16,7, un hueco de 50 ms se reparte entero en x2; cuesta esos ms de latencia).
     partial class Settings
@@ -41,7 +41,7 @@ namespace ConsoleEnhancer.Motor
         {
             switch (key.Trim().ToLowerInvariant())
             {
-                case "efg_ritmo": EfgRitmo = Math.Max(0, Math.Min(1, I(val))); return true;
+                case "efg_ritmo": EfgRitmo = Math.Max(0, Math.Min(2, I(val))); return true;
                 case "efg_ritmo_x2": EfgRitmoX2 = Math.Max(1, Math.Min(3, I(val))); return true;
                 case "efg_colchon_ms": EfgColchonMs = Math.Max(0, Math.Min(40, D(val))); return true;
                 case "repetidas_30_efg": Pass30Efg = B(val); return true;
@@ -78,7 +78,8 @@ namespace ConsoleEnhancer.Motor
         }
 
         // ---- el estado entre reales (hilo de presentacion)
-        long efgPrevRealAt;      // cuando se presento la real anterior
+        long efgPrevRealAt;      // cuando se presento la real anterior (la llamada a Present)
+        long efgLastCall;        // la ultima llamada a Present del hilo
         long efgPrevContent;     // la hora del contenido de la real anterior
         long efgRitmoN, efgRitmoGap, efgRitmoMas, efgRitmoMenos, efgRitmoSalta;   // (para el registro: cuantas, huecos irregulares, con mas / menos inventadas)
 
@@ -101,7 +102,8 @@ namespace ConsoleEnhancer.Motor
             long tc = EfgJobContent(j, hasPrev);
             long rp = efgPrevRealAt;
             if (!flow || !hasPrev || rp == 0 || Clock.SinceMs(rp) > j.RealMs * 4) { efgPrevContent = tc; return false; }
-            double minGap = Math.Max(step * 0.5, 1000.0 / (efgHz > 20 ? efgHz : 60) * 0.9);
+            // (lo minimo entre dos imagenes: un refresco de la tele, pero nunca mas que el paso: x2 del modo 60 en una tele de 60 Hz)
+            double minGap = Math.Min(step * 0.9, Math.Max(step * 0.5, 1000.0 / (efgHz > 20 ? efgHz : 60) * 0.9));
             double need0 = efgFlowGpu + efgGenGpu + 0.4 + efgCopyMs;
             long now = Clock.Now;
             // la real: contenido + D (D = L + (k-1)/k del intervalo: lo de antes con el ritmo exacto) [+ el colchon]
@@ -109,25 +111,30 @@ namespace ConsoleEnhancer.Motor
             long rc = EfgAt(tc, D);
             long early = EfgAt(now, efgCopyMs + 0.3);
             if (rc < early) { rc = early; efgLate++; }
-            if (rc < EfgAt(efgLastPresent, minGap)) rc = EfgAt(efgLastPresent, minGap);
+            // (con la hora de la LLAMADA a Present: la vuelta tarda ~1 ms y con un paso de 8,3 ms se perdian inventadas)
+            long lastCall = efgLastCall != 0 ? efgLastCall : efgLastPresent;
+            if (rc < EfgAt(lastCall, minGap)) rc = EfgAt(lastCall, minGap);
             // (nunca mas lejos que una imagen real + 20 ms: una hora mala no deja el hilo esperando)
             if (Clock.Ms(now, rc) > j.RealMs + 20 + s.EfgColchonMs) rc = EfgAt(now, need0 + s.EfgMarginMs + (k - 1) * step);
             double I = Clock.Ms(rp, rc);
             long first = EfgAt(now, need0);
-            long lastP = efgLastPresent > rp ? efgLastPresent : rp;
+            long lastP = lastCall > rp ? lastCall : rp;
             List<EfgPlan> plan = new List<EfgPlan>(k + 2);
             if (k == 2)
             {
-                // x2 (con VRR, sin sincronizacion): las que quepan a un paso, repartidas a partes iguales en el hueco
+                // x2 (con VRR, sin sincronizacion): las que quepan a un paso, repartidas a partes iguales en el hueco. Se colocan de la
+                // ultima hacia atras: la que no llega a su hora por poco (menos de medio paso: la real algo tarde) sale en cuanto se puede,
+                // con el t de esa hora; las que no llegan por mas, no se hacen
                 int n = (int)Math.Floor(I / step + 0.5) - 1;
                 n = Math.Max(0, Math.Min(Math.Max(1, s.EfgRitmoX2), n));
-                long last = lastP;
-                for (int q = 1; q <= n; q++)
+                long next = rc;
+                for (int q = n; q >= 1; q--)
                 {
                     long at = EfgAt(rp, I * q / (n + 1));
-                    if (at < first || at < EfgAt(last, minGap) || Clock.Ms(at, rc) < minGap) continue;
+                    if (at < first) { if (Clock.Ms(at, first) > step * 0.5) break; at = first; }
+                    if (Clock.Ms(at, next) < minGap || Clock.Ms(lastP, at) < minGap) break;
                     EfgPlan e = new EfgPlan(); e.At = at; e.T = (float)Math.Max(0.02, Math.Min(0.98, Clock.Ms(rp, at) / I)); e.Real = false;
-                    plan.Add(e); last = at;
+                    plan.Insert(0, e); next = at;
                 }
             }
             else
@@ -218,7 +225,7 @@ namespace ConsoleEnhancer.Motor
         bool EfgShowAt(EfgJob j, int c, bool real, long ti, uint sy, uint fl, bool firstGen, float t, double readyMs, int idx, double watchStep = 0)
         {
             EfgWaitUntilWatch(EfgAt(ti, -(efgCopyMs + 0.5)), watchStep > 0 ? ti : 0, watchStep);
-            if (watchStep > 0 && !real && EfgNextRealFirst(ti, watchStep)) { efgSkipped++; efgRitmoSalta++; return true; }
+            if (watchStep > 0 && !real && EfgNextRealFirst(ti, watchStep)) { efgRitmoSalta++; return true; }   // (no cuenta como saltada: no es la grafica, la real va antes)
             long tSub = Clock.Now;
             ulong v = EfgCopyList(c, !real);
             bool ok = EfgWaitOwn(v, Math.Max(4, Clock.Ms(Clock.Now, ti) + 30));
@@ -227,7 +234,7 @@ namespace ConsoleEnhancer.Motor
             EfgWaitUntil(ti);
             long call = Clock.Now;
             int hr = swap.Present(sy, (DXGI_PRESENT)fl);
-            efgLastPresent = Clock.Now;
+            efgLastPresent = Clock.Now; efgLastCall = call;
             if (hr < 0) { Log.Write("Enhanced FG: Present: " + Hr.Format(hr)); if (Hr.IsDeviceLost(hr)) { efgHr = hr; return false; } }
             if (real) { efgReals++; efgPrevRealAt = call; } else efgGens++;
             EfgCsvRow(j, idx, real ? 'r' : 'g', t, call, readyMs);

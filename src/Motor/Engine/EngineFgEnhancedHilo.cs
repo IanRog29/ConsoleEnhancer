@@ -216,6 +216,8 @@ namespace ConsoleEnhancer.Motor
                 k[0] = (uint)efgQw; k[1] = (uint)efgQh; k[2] = (uint)efgBx[0]; k[3] = (uint)efgBy[0];
                 k[4] = F(t); k[5] = F(s.EfgKappa); k[6] = F(s.EfgTau); k[7] = F(s.EfgStillN);
                 k[8] = (uint)efgLw[0]; k[9] = (uint)efgLh[0]; k[10] = extrap ? 1u : 0u;
+                // (1.3.1, EFGCAL) solo al interpolar: los 3x3 bloques de alrededor y la busqueda local +-N en la eleccion (EfgShaders.Sel)
+                k[11] = extrap ? 0u : (uint)(Math.Max(0, Math.Min(3, s.EfgSelLocal)) | (s.EfgSelVecinos ? 256 : 0));
                 k[12] = (uint)efgBx[1]; k[13] = (uint)efgBy[1]; k[14] = (uint)efgBx[3]; k[15] = (uint)efgBy[3];
                 EfgRun(psoEfgSel, c, EfgTabSel, k, Groups(efgQw, 16), Groups(efgQh, 8), efgSel);
             }
@@ -224,6 +226,7 @@ namespace ConsoleEnhancer.Motor
             k[4] = F(hasPrev ? t : 1f); k[5] = F(s.EfgZeroPen); k[6] = F(s.EfgStillN); k[7] = F(s.EfgSigma);
             k[8] = extrap || !hasPrev ? 1u : 0u; k[9] = dup || cutCpu ? 1u : 0u; k[10] = (uint)efgLw[0]; k[11] = (uint)efgLh[0];
             k[12] = F(s.EfgCutThr); k[13] = F(s.EfgTau);
+            k[14] = extrap || !hasPrev ? 0u : (s.EfgNitidoOn ? 1u : 0u);   // (1.3.1, EFGCAL) Catmull-Rom para el candidato que mas pesa (solo al interpolar)
             EfgRun(psoEfgFin, c, EfgTabFin, k, Groups(outW, 16), Groups(outH, 8), null);
             EB(efgRing[p], D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.COMMON);
             EB(efgRing[c], D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.COMMON);
@@ -425,7 +428,7 @@ namespace ConsoleEnhancer.Motor
                 B = EfgAt(Clock.Now, need0 + s.EfgMarginMs);
             }
             // (1.3.1, ronda 8, EFGCAL) el ritmo por la hora del contenido y el hueco de verdad (EngineFgEnhancedRitmo.cs; efg_ritmo=0 = lo de abajo)
-            if (s.EfgRitmo > 0 && !stale && s.EfgPhase < 0)
+            if (s.EfgRitmo > 0 && (k == 2 || s.EfgRitmo >= 2) && !stale && s.EfgPhase < 0)
             {
                 bool done = nReal == k - 1 && nReal > 0 ? EfgDoJobRitmoCalidad(j, c, flow, hasPrev, k, step, readyMs, vs, sy, fl)
                           : nReal == 0 ? EfgDoJobRitmoLatencia(j, c, flow, hasPrev, k, step, readyMs, vs, sy, fl, B) : false;
@@ -477,7 +480,7 @@ namespace ConsoleEnhancer.Motor
                     EfgWaitUntil(ti);
                     long call = Clock.Now;
                     int hr = swap.Present(sy, (DXGI_PRESENT)fl);
-                    efgLastPresent = Clock.Now;
+                    efgLastPresent = Clock.Now; efgLastCall = call;
                     if (hr < 0) { Log.Write("Enhanced FG: Present: " + Hr.Format(hr)); if (Hr.IsDeviceLost(hr)) { efgHr = hr; return; } }
                     if (real) { efgReals++; efgPrevRealAt = call; } else if (dup) efgDups++; else efgGens++;
                     EfgCsvRow(j, i, real ? 'r' : dup ? 'd' : 'g', t, call, readyMs);
