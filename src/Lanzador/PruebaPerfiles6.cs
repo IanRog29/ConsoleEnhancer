@@ -24,6 +24,9 @@ namespace ConsoleEnhancer
             Config c = new Config();
             c.CeRefrescoFijo = "1";   // (sin depender de la tele de este PC: "si" en cuanto toque)
             c.EngineFixed60Fg = true; c.CapMode = false; c.FgOff = false; c.Mode120 = false; c.HomeNative = false;
+            // (1.2.4 ronda 6, INTEGRA6: sin DLSS FG, de serie en NVIDIA el 60 va con Smooth Motion, que nunca lleva refresco fijo: la prueba
+            // con un tipo del motor en el 60 -XeSS FG, FSR 3 FG o Enhanced FG, el que pueda ir aqui-)
+            foreach (string t in new[] { "xess", "fsr3", "efg" }) if (Config.GenPuedeIr(t, c.VideoSize)) { c.FgPick60 = t; break; }
             bool en60 = c.EngineFixedWanted;
             c.Mode120 = true;
             bool en120 = c.EngineFixedWanted;
