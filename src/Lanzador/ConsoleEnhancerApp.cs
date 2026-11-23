@@ -315,6 +315,10 @@ namespace ConsoleEnhancer
         // 22-11 (1.2.3): motor_dlss5=auto y motor_dlss5_pasadas (DLSS 5 en el motor con engine\PrismaNr.dll), la escala de DLSS 5 por el hilo de
         // Magpie (dlss5_escala_hilo / dlss5_escala_grafica / generacion_dlss5_minimo) y comentarios del ritmo (magpie_fijo_30*)
         public const string IniVersion = "1.2.4";
+        // (1.2.4 ronda 6, INTEGRA6) la marca de la puesta al dia: la 1.2.4 retirada y la de prueba ya escribieron "1.2.4" (con DLSS FG, Magpie y
+        // mpv); con esta los ini de esas tambien se ponen al dia (base.ini sin DLSS FG / Magpie / mpv, la generacion del plan con Smooth Motion
+        // y las claves quitadas fuera). IniAnteriorA lee de ella la 1.2.4
+        public const string IniMarca = "1.2.4-r6";
         static readonly string[] ClavesGenPlan = { "generacion_tipo", "generacion_tipo_60", "generacion_tipo_30", "motor_generacion_60", "motor_generacion_30",
                                                    // (1.2.2, UNIVERSAL: el modo ligero de Magpie en el 30 con una grafica bastante mas lenta que la de referencia)
                                                    "tabla_ligero_30_fg", "tabla_ligero_30", "tabla_ligero_30_fg_4k", "tabla_ligero_30_4k",
@@ -332,7 +336,7 @@ namespace ConsoleEnhancer
                 string ini = Paths.IniFile;
                 if (!File.Exists(ini) || !File.Exists(BaseIni)) return;
                 string t = File.ReadAllText(ini);
-                string marca = "# ce_ini_version=" + IniVersion;
+                string marca = "# ce_ini_version=" + IniMarca;
                 if (t.Contains(marca)) return;
                 int ip = t.IndexOf("# ===== Plan de ConsoleEnhancer", StringComparison.Ordinal);
                 if (ip < 0) { Log.Write("Ini: sin el bloque del plan, no se pone al dia (" + ini + ")"); return; }
@@ -404,10 +408,10 @@ namespace ConsoleEnhancer
                     if (!ahora.TryGetValue(kv.Key, out v) || v != kv.Value) detras.AppendLine(kv.Key + "=" + kv.Value);
                 }
                 sb.Append(detras.ToString());
-                try { File.Copy(ini, ini + ".antes-" + IniVersion, true); } catch { }
+                try { File.Copy(ini, ini + ".antes-" + IniMarca, true); } catch { }
                 File.WriteAllText(ini, sb.ToString(), new UTF8Encoding(false));
                 Log.Write("Ini al dia para la " + IniVersion + ": base.ini nuevo y la generacion del plan (" + gen.ToString().Replace("\r\n", " ").Trim() + ")" +
-                          (detras.Length > 0 ? "; se conserva " + detras.ToString().Replace("\r\n", " ").Trim() : "") + "; copia en " + ini + ".antes-" + IniVersion);
+                          (detras.Length > 0 ? "; se conserva " + detras.ToString().Replace("\r\n", " ").Trim() : "") + "; copia en " + ini + ".antes-" + IniMarca);
             }
             catch (Exception ex) { Log.Error("Poniendo el ini al dia", ex); }
         }

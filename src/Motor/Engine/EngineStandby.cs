@@ -303,7 +303,9 @@ namespace ConsoleEnhancer.Motor
             list.Dispatch(Groups(outW, 16), Groups(outH, 8), 1);
             Barrier(final, D3D12_RESOURCE_STATES.UNORDERED_ACCESS, D3D12_RESOURCE_STATES.COPY_SOURCE);
             bool viaFm = scQueue != null;   // (1.2.4 ronda 6, FGMULTI: con la cola de presentacion de FSR FG la copia a la cadena va en ella, FmScBlank)
-            if (!viaFm)
+            // (1.2.4 ronda 6, INTEGRA6: con la cadena en la cola propia de Enhanced FG, igual: 'final' a una ranura y la presenta su hilo)
+            bool viaEfg = !viaFm && efgQueue != null && EfgTakeReal(final, -1);
+            if (!viaFm && !viaEfg)
             {
                 uint bi = ScIndex();
                 ID3D12Resource bb = backbuf[bi];
@@ -323,7 +325,8 @@ namespace ConsoleEnhancer.Motor
             if (pclOk && token != IntPtr.Zero) { Sl.PCLSetMarker(SlPCLMarker.eRenderSubmitEnd, token); Sl.PCLSetMarker(SlPCLMarker.ePresentStart, token); }
             XeFgBlank();   // (1.2.4 MOTORFG, EngineFgXe.cs)
             int hr;
-            if (!(viaFm && FmScBlank(final, s.Vsync ? 1u : 0u, out hr))) hr = ScPresent(s.Vsync ? 1u : 0u, 0);
+            if (viaEfg) { hr = EfgPresent(s.Vsync ? 1u : 0u, 0); EfgDrain(); }
+            else if (!(viaFm && FmScBlank(final, s.Vsync ? 1u : 0u, out hr))) hr = ScPresent(s.Vsync ? 1u : 0u, 0);
             if (pclOk && token != IntPtr.Zero) Sl.PCLSetMarker(SlPCLMarker.ePresentEnd, token);
             if (hr < 0) Log.Write("En espera: Present de la imagen negra: " + Hr.Format(hr));
             fi = (fi + 1) % FramesInFlight;

@@ -102,6 +102,14 @@ namespace ConsoleEnhancer.Motor
         D3D12_CPU_DESCRIPTOR_HANDLE efgCpu0;
         D3D12_GPU_DESCRIPTOR_HANDLE efgGpu0;
         bool efgReady, efgBroken, efgHold, efgJobReset;
+        // (1.2.4 ronda 6, INTEGRA6) con la cadena en la cola propia NADA puede escribirla desde la cola del motor (DXGI_ERROR_ACCESS_DENIED: las
+        // pasadas q01 de ENHANCED y la cadena propia de FGMULTI): los repintados (aviso, imagen quieta 250 ms), lo que se enseña con Enhanced FG
+        // apagada en marcha y la imagen negra de la espera tambien van por el hilo: el motor deja la imagen en una ranura y el hilo la copia
+        // a la cadena y la presenta tal cual (sin inventar ni tocar el flujo). efgShow = este Present es eso
+        bool efgShow;
+        int efgShowW;
+        long efgShows;
+        volatile int efgShowPend;
         int efgW = EfgSets - 1;
         long efgJobArrival, efgSeq;
 
@@ -275,16 +283,27 @@ namespace ConsoleEnhancer.Motor
         // RenderFrame, paso 5 (con 'show' = lo que se enseñaria, con su aviso si lo hay): la real se copia a su ranura y la presenta el hilo
         bool EfgTakeReal(ID3D12Resource show, int slot)
         {
-            efgHold = false;
-            if (!EfgWanted() || slot < 0 || s.NoPresent) return false;
+            efgHold = false; efgShow = false;
+            if (s.NoPresent) return false;
+            bool real = EfgWanted() && slot >= 0;
+            if (!real && efgQueue == null) return false;   // (sin la cola propia lo demas va por la cadena como siempre)
             try { EfgEnsure(); }
             catch (Exception ex) { efgBroken = true; Log.Write("Enhanced FG no disponible: " + ex.Message + " (se sigue sin ella)"); return false; }
             int w = (efgW + 1) % EfgSets;
+            // (INTEGRA6: si el hilo aun no ha copiado la de enseñar de antes -la misma ranura-, que acabe: son raras y cortas)
+            for (int i = 0; i < 100 && efgShowPend > 0; i++) Thread.Sleep(1);
             long done = Interlocked.Read(ref efgSlotDone[w]);
             if (done > 0 && efgFence.GetCompletedValue() < (ulong)done) queue.Wait(efgFence, (ulong)done);   // (la grafica: el hilo ya no la lee)
             Barrier(efgRing[w], D3D12_RESOURCE_STATES.COMMON, D3D12_RESOURCE_STATES.COPY_DEST);
             list.CopyResource(efgRing[w], show);
             Barrier(efgRing[w], D3D12_RESOURCE_STATES.COPY_DEST, D3D12_RESOURCE_STATES.COMMON);
+            if (!real)
+            {
+                // (INTEGRA6) solo enseñarla: la ranura siguiente sin pasar a ser la "anterior" (la proxima real la vuelve a usar)
+                efgShowW = w; efgShow = true; efgHold = true;
+                efgJobArrival = slot >= 0 ? slotArrival[slot] : Clock.Now;
+                return true;
+            }
             efgW = w;
             efgJobArrival = slotArrival[slot];
             efgJobReset = frameReset;
@@ -298,7 +317,11 @@ namespace ConsoleEnhancer.Motor
             efgHold = false;
             if (efgHr < 0) { int e = efgHr; efgHr = 0; return e; }
             EfgJob j = new EfgJob();
-            j.W = efgW; j.Arrival = efgJobArrival; j.Fence = fenceValue; j.Reset = efgJobReset; j.Seq = ++efgSeq;
+            bool show = efgShow;
+            efgShow = false;
+            j.Show = show;
+            if (show) Interlocked.Increment(ref efgShowPend);
+            j.W = show ? efgShowW : efgW; j.Arrival = efgJobArrival; j.Fence = fenceValue; j.Reset = efgJobReset; j.Seq = show ? efgSeq : ++efgSeq;
             j.Sync = sync; j.Flags = flags; j.K = Math.Max(2, Math.Min(4, s.Efg));
             j.Phase = EfgPhaseFor(j.K);
             j.RealMs = 1000.0 / Math.Max(1.0, (s.FpsNum > 0 ? s.FpsNum / (double)Math.Max(1, s.FpsDen) : 59.94) * (s.Mode == 30 ? 0.5 : 1));
@@ -322,7 +345,8 @@ namespace ConsoleEnhancer.Motor
             if (s.Efg < 2) return "";
             return "\tefg=x" + s.Efg + " modo=" + (s.EfgMode == 1 ? "latencia" : "calidad") + " reales=" + efgReals + " inventadas=" + efgGens + " repetidas=" + efgDups +
                    " tarde=" + efgLate + " saltadas=" + efgSkipped + " L=" + efgLcur.ToString("0.0", IC) + "ms flujo=" + efgFlowMs.ToString("0.00", IC) +
-                   "ms inventada=" + efgGenMs.ToString("0.00", IC) + "ms copia=" + efgCopyMs.ToString("0.00", IC) + "ms" + (efgQueue != null ? " cola=propia" : " cola=motor") + (efgBroken ? " rota" : "");
+                   "ms inventada=" + efgGenMs.ToString("0.00", IC) + "ms copia=" + efgCopyMs.ToString("0.00", IC) + "ms" + (efgQueue != null ? " cola=propia" : " cola=motor") +
+                   " ensenadas=" + efgShows + (efgBroken ? " rota" : "");
         }
     }
 }

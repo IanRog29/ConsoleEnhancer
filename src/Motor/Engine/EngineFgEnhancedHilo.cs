@@ -17,7 +17,7 @@ namespace ConsoleEnhancer.Motor
     // a que la grafica la acabe y se presenta a su hora. Si llega otra real antes de acabar (la grafica no da), las inventadas que quedan se saltan.
     unsafe partial class Engine
     {
-        class EfgJob { public int W, K; public long Arrival, Seq, ReadyAt; public ulong Fence; public bool Reset; public uint Sync, Flags; public double Phase, RealMs; public ManualResetEvent Ready; }
+        class EfgJob { public int W, K; public long Arrival, Seq, ReadyAt; public ulong Fence; public bool Reset, Show; public uint Sync, Flags; public double Phase, RealMs; public ManualResetEvent Ready; }
 
         Thread efgThread;
         readonly Queue<EfgJob> efgJobs = new Queue<EfgJob>();
@@ -337,8 +337,27 @@ namespace ConsoleEnhancer.Motor
             }
         }
 
+        // (1.2.4 ronda 6, INTEGRA6) Solo enseñar la imagen de la ranura (repintado, Enhanced FG apagada en marcha, la espera): copia a la cadena
+        // desde la cola propia y Present como lo pidio el bucle; sin inventar ni cambiar la "anterior" de la siguiente real
+        void EfgDoShow(EfgJob j)
+        {
+            try
+            {
+                if (!j.Ready.WaitOne(1000)) Log.Write("Enhanced FG: la grafica no acaba la imagen a enseñar (1 s)");
+                if (efgQueue != null) efgQueue.Wait(fence, j.Fence);
+                ulong v = EfgCopyList(j.W, false);
+                EfgWaitOwn(v, 100);
+                int hr = swap.Present(j.Sync, (DXGI_PRESENT)j.Flags);
+                efgLastPresent = Clock.Now;
+                efgShows++;
+                if (hr < 0) { Log.Write("Enhanced FG: Present (enseñar): " + Hr.Format(hr)); if (Hr.IsDeviceLost(hr)) efgHr = hr; }
+            }
+            finally { Interlocked.Decrement(ref efgShowPend); }
+        }
+
         void EfgDoJob(EfgJob j, bool stale)
         {
+            if (j.Show) { EfgDoShow(j); return; }
             // 1. la real en su ranura: la hora a la que la grafica la acabo (el vigilante)
             if (!j.Ready.WaitOne(1000)) Log.Write("Enhanced FG: la grafica no acaba la real (1 s)");
             long tReady = j.ReadyAt != 0 ? j.ReadyAt : Clock.Now;

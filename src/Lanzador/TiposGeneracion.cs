@@ -43,7 +43,9 @@ namespace ConsoleEnhancer
             "magpie_sm_vaciar_real", "magpie_sm_vaciar_real_alto", "magpie_sm_vaciar_real_ganancia", "magpie_sm_vaciar_real_objetivo",
             "magpie_sm_vaciar_tras_ms", "magpie_sm_vaciar_umbral", "pasadas_vigilancia", "pasadas_vigilancia_imagen", "pasadas_vigilancia_imagen_pct",
             "pasadas_vigilancia_imagen_umbral", "pasadas_vigilancia_prueba", "pasadas_vigilancia_reinicios", "puente_ligero",
-            "telon_esperar_magpie_max_ms", "rtx_hdr_metodo" };
+            "telon_esperar_magpie_max_ms", "rtx_hdr_metodo",
+            // (SINMPV / INTEGRA6: las de mpv, que ya no se abre)
+            "mpv_path", "test_mpv_args", "mpv_cola_ms", "mpv_cscale", "mpv_sin_marco", "captura_png" };
         // (fase 2) y todas las magpie_* (ritmo, VRR, cola, nitidez... de Magpie: ninguna la lee ya nadie)
         public static bool ClaveRetirada(string key)
         {
