@@ -218,7 +218,15 @@ namespace ConsoleEnhancer
             relaunchEngine = true;    // (RunMpv: al cerrarse mpv, el motor; mientras, ningun otro cambio de motor)
             // El filtro de bordes / tramado de DLSS 5 apagado (SetDlss5State) no va a mpv, que se va: se veria el cambio y un tiron
             lock (cmdQueue) cmdQueue.RemoveAll(delegate (string c) { return c.StartsWith("{\"command\":[\"set\",\"glsl-shaders\"", StringComparison.Ordinal); });
-            if (pad && pill != null) Osd(pill); // (en la imagen de ahora: Magpie la escala)
+            // (1.2.4 ronda 7, TEXTOS: el aviso entero sale UNA vez, en el motor nuevo al ponerse delante -RelevoToEngine-; antes tambien aqui, en
+            // el de antes, diciendo ya lo nuevo con lo de antes a la vista y repetido 4-25 s despues. Aqui solo "preparando", y nada si el motor
+            // en espera vale -se despierta en ~0,5 s-)
+            if (pad && pill != null)
+            {
+                bool rapido = false;
+                try { PrepareCfg(); rapido = standbyEngine != null && standbyReady && StandbyIdentityDiff() == null; } catch { }
+                if (!rapido) Osd(PillPreparando(title));
+            }
             // (16-11, velocidad: tambien desde el HOME a 4K, sin Magpie: la imagen de mpv tal cual)
             bool withMagpie = false;   // (1.2.4 ronda 6, QUITAFG: sin Magpie)
             Log.Write(title + ": sin telon (" + (r.OldEngine ? "del motor propio a otro motor propio" : "de mpv" + (withMagpie ? " + Magpie" : " (HOME a 4K)") + " al motor propio") + "): " +
@@ -277,7 +285,7 @@ namespace ConsoleEnhancer
                 if (lr > 0.5) r.Send(JsonCmd("script-message", "switch2-launch", Ms(Math.Ceiling(lr))));
                 double pr = powerMenuAt == DateTime.MinValue ? 0 : PowerMenuSecs - (nowL - powerMenuAt).TotalSeconds;
                 if (pr > 0.5) r.Send(JsonCmd("script-message", "switch2-powermenu", Ms(Math.Ceiling(pr))));
-                if (pad && pill != null) r.Send(OsdCmd(pill, OsdMs, false)); // (el motor lo enseña al despertar: sigue en el corte)
+                if (pad && pill != null) r.Send(OsdCmd(pill, "3500", false)); // (el motor lo enseña al despertar: sigue en el corte. 1.2.4 ronda 7: 3,5 s, es el unico)
                 r.WakeMs = r.Since.ElapsedMilliseconds;
                 r.WakeSent = r.Send(JsonCmd("script-message", "switch2-wake", "detras"));
                 Log.Write("Sin telon: motor (pid " + e.Id + ") despertado detras de la imagen de ahora a los " + r.WakeMs + " ms del boton: " + set);

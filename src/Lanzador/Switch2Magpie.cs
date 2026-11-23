@@ -1173,7 +1173,7 @@ namespace ConsoleEnhancer
 
         public string FgName
         {
-            get { string t = FgTypeNow; return t == "smooth" ? "Smooth Motion" : t == "fsr3" ? "FSR 3 FG" : "XeSS FG"; }
+            get { return GenNombre(FgTypeNow); }   // (1.2.4 ronda 7, TEXTOS: con Enhanced FG decia "XeSS FG")
         }
 
         // Lo que se aplica, para el log
@@ -1643,9 +1643,11 @@ namespace ConsoleEnhancer
             }
         }
 
-        // Hz de la pantalla principal (0 = no se sabe)
+        // Hz de la pantalla principal (0 = no se sabe). (1.2.4 ronda 7, TEXTOS: HzPrueba >= 0 = la de las pruebas sin pantalla, --test-avisos)
+        public static volatile int HzPrueba = -1;
         public static int Hz()
         {
+            if (HzPrueba >= 0) return HzPrueba;
             try
             {
                 DEVMODE d = new DEVMODE();
@@ -6238,6 +6240,8 @@ namespace ConsoleEnhancer
         static string OsdCmd(string text, string ms, bool warn)
         {
             text = Idioma.T(text); // (ConsoleEnhancer: en ingles, languages\en.txt)
+            // (1.2.4 ronda 7, TEXTOS: lo que sale en pantalla, al log: hasta ahora no quedaba en ninguna parte y no se podia saber que vio el usuario)
+            Log.Write("Aviso en pantalla" + (warn ? " (rojo)" : "") + ": " + text);
             return warn ? JsonCmd("script-message", "switch2-osd", ms, text, "warn")
                         : JsonCmd("script-message", "switch2-osd", ms, text);
         }
@@ -6414,14 +6418,20 @@ namespace ConsoleEnhancer
             return size == "1280x720" ? "720p" : size == "1920x1080" ? "1080p" : size == "3840x2160" ? "4K nativo" : "1440p";
         }
 
-        void RequestCapture(string size)
+        void RequestCapture(string size) { RequestCapture(size, null, null); }
+
+        // avTit / avSub: el aviso de quien lo pide (el "Aplicar" del menu); null = el de la captura (lo que queda con ella: Avisos.cs)
+        void RequestCapture(string size, string avTit, string avSub)
         {
-            if (size == cfg.VideoSize) { Osd("Captura " + SizeName(size) + " · ya activa"); return; }
+            if (size == cfg.VideoSize) { Osd(Deteccion.Tx.T("Captura ", "Capture ") + SizeName(size) + Deteccion.Tx.T(" · ya activa", " · already on")); return; }
             if (CapturaSinSentido(size)) return; // (18-11, CONSOLAS: mas de lo que saca la consola: la capturadora solo agrandaria)
             if (relaunchSize != null) return; // ya se esta cambiando
             // 15-11: no con Magpie reabriendose (como SetPasses / SetMode): a las 19:26:37 se acepto la de 1440p con Magpie aun
             // preparando la de 1080p, que siguio con su enfoque de 1080p. Los ajustes de un juego (applying) si: los pone el
             if (!applying && (passesBusy || !lsReady)) return;
+            // (1.2.4 ronda 7, TEXTOS: el aviso con lo que queda -escalado, y la generacion o DLSS 5 si cambian con la captura-; antes solo
+            // "Captura 1440p", y del menu "Captura 1440p" aunque se aplicara a la vez DLSS 5 no y sin reescalado, 23-11 12:15:29)
+            if (avTit == null && !applying) AvisoCapturaBoton(AvisoAhora(), size, out avTit, out avSub);
             // 21-11 (1.2.01, el usuario: "he cambiado de 1440p a 4k y se ha quedado pillada la app ahi cargando"): en el modo 120 una captura
             // que la capturadora no da a 120 (4K en la GC573) se abria a 3840x2160 a 120 fps -> No Signal para siempre. Se baja al 60 antes
             if (cfg.Mode120 && !cfg.Captura120Ok(size))
@@ -6459,6 +6469,7 @@ namespace ConsoleEnhancer
                         Log.Write((applying ? "Perfil" : "Mando") + ": captura a " + SizeName(size) + " (se reabre la imagen)");
                         relaunchSize = size;
                         SaveCurProfile();
+                        if (!applying && avTit != null) AvisoGuarda(avTit, avSub, 90);   // (sale con la imagen nueva: AvisoTrasReabrir)
                         ShowPadCurtain("Un momento…", "Captura " + SizeName(size));
                         QuitMpvForRelaunch(true); // (16-11: el motor, en espera)
                         return;
@@ -6470,6 +6481,11 @@ namespace ConsoleEnhancer
                 SaveCurProfile();
                 switchUntil = DateTime.Now.AddSeconds(SwitchSecs);
                 string engSet = EngineSetCmd(); // (17-11, VELOCIDAD: con el motor, sus ajustes de esta captura en la misma tanda)
+                // (1.2.4 ronda 7, TEXTOS: si con la captura nueva toca otro motor -relevo despues, CheckEngineFfx / Smooth-, el aviso entero va con
+                // el y ahora solo "preparando": una vez, cuando se ve)
+                bool relevoDespues = false;
+                if (!applying && avTit != null) { try { relevoDespues = Config.EngineActive && relevo == null && EngineIdentityDiff(mpv) != null; } catch { } }
+                if (relevoDespues) AvisoGuarda(avTit, avSub, 20); else AvisoOlvida();
                 lock (cmdQueue)
                 {
                     if (engSet != null) cmdQueue.Add(JsonCmd("engine", "set " + engSet));
@@ -6478,7 +6494,7 @@ namespace ConsoleEnhancer
                     if (cfg.TestSource.Length == 0 || (Config.EngineActive && cfg.TestMotor.Length > 0)) cmdQueue.Add(JsonCmd("set", "demuxer-lavf-o", LavfOptions(cfg)));
                     cmdQueue.Add(JsonCmd("loadfile", SourceUrl(cfg), "replace"));
                     // (10-11: al poner los ajustes de un juego, sin aviso: lo mas discreto posible)
-                    if (!applying) cmdQueue.Add(OsdCmd("Captura " + SizeName(size), OsdMs, false));
+                    if (!applying && avTit != null) cmdQueue.Add(OsdCmd(relevoDespues ? PillPreparando(avTit) : PillText(avTit, avSub), OsdMs, false));
                 }
                 if (engSet != null) Log.Write("Motor propio: " + engSet + " (con el cambio de captura)");
                 // Si no llega imagen nueva a tiempo, a la manera de siempre
@@ -6495,9 +6511,10 @@ namespace ConsoleEnhancer
                 guard.Start();
                 return;
             }
-            Log.Write((applying ? "Perfil" : "Mando") + ": captura a " + SizeName(size) + " (otra ventana: se reabren mpv y Magpie)");
+            Log.Write((applying ? "Perfil" : "Mando") + ": captura a " + SizeName(size) + " (otra ventana: se reabre la imagen)");
             relaunchSize = size;
             SaveCurProfile();
+            if (!applying && avTit != null) AvisoGuarda(avTit, avSub, 90);   // (sale con la imagen nueva: AvisoTrasReabrir)
             // El telon (con el aviso si es del mando) ya, y mpv se cierra sin esperar (antes 0,4 s para ver el aviso en mpv). 16-11: al
             // momento, negro con el aviso arriba (antes la ultima imagen atenuada: 0,8-0,9 s de componerla a 4K antes de cerrar nada) y,
             // con otra ventana, Magpie fuera ya, a la vez que mpv (RunMpv lo reabre para la ventana nueva; antes se cerraba despues)
@@ -6557,32 +6574,28 @@ namespace ConsoleEnhancer
             Process p = mpv;
             if (p == null || p.HasExited || GetForegroundWindow() != p.MainWindowHandle) return;
             if (passesBusy || relaunchSize != null || !lsReady) return;
+            AvisoFoto antes = AvisoAhora();
             SetDlss5State(!dlss5Shown);
             Log.Write("Mando: DLSS 5 " + (dlss5Shown ? "encendido" : "apagado") + ReopenNote);
             SaveCurProfile();
-            RestartLs(dlss5Shown ? "DLSS 5 activado" : "DLSS 5 desactivado",
-                      dlss5Shown ? "Nivel " + dlss5Level + " · " + Dlss5PassText() : "Escalado " + ScalerText(), false, true); // (16-11: sin telon si se puede)
+            // (1.2.4 ronda 7, TEXTOS: lo que va de verdad -"activado" solo si el motor lo lleva; si no, por que- y lo que cambia con ello, p. ej.
+            // Smooth Motion x4 a x2; antes "· motor propio" en todo y "activado" sin PrismaNr.dll o sin caber. Avisos.cs)
+            string tit, det;
+            AvisoDlss5Boton(antes, out tit, out det);
+            RestartLs(tit, det, false, true); // (16-11: sin telon si se puede)
         }
 
-        // 16-11 (el usuario: "si hay algun texto de que escalado se usa, corrigelo"): los avisos con lo que de verdad se usa: las pasadas y
-        // la entrada de DLSS 5 que caben en este modo (antes las pedidas: "2 pasadas · Resolucion adaptativa" en el 60 con Smooth Motion,
-        // que va con 1 pasada al 35 %) y el escalado del motor propio con DLSS 5 apagado (Config.ScalerShownName)
+        // 16-11 (el usuario: "si hay algun texto de que escalado se usa, corrigelo"): las pasadas que caben de verdad. (1.2.4 ronda 7, TEXTOS:
+        // de lo que va -Config.Dlss5Va / Dlss5Pasadas, Avisos.cs-; antes "· motor propio" y "activado" aunque el motor no lo llevara)
         string Dlss5PassText()
         {
-            PrepareCfg();
-            if (!cfg.Dlss5FitsNow) return Integrado.Dlss5Available ? "DLSS 5 no cabe en este modo" : Integrado.Dlss5MissingText;
-            int now = cfg.Dlss5PassesNow, pct = cfg.Dlss5PctShownNow;   // (20-11: con DLSS 5 en el motor, su % de entrada)
-            string t = Pasadas(now) + (pct > 0 ? " al " + pct + " %" : " · resolución adaptativa");
-            // 16-11 (coordinador): en el 60 con generacion las 3 pasadas no caben ni con lo ligero (medido: 93-94 % de grafica a 720p); la
-            // generacion no se quita sola: se dice que sin ella si caben
-            if (now < dlss5Passes && !cfg.CapMode && !cfg.FgOff && cfg.PassesFitWithoutFg(dlss5Passes))
-                t = Pasadas(dlss5Passes) + " solo caben sin generación (botón de captura): " + (now == 1 ? "va " : "van ") + t;
-            else if (now < dlss5Passes) t += " (" + Pasadas(dlss5Passes) + " no caben en este modo)";
-            string note = cfg.EngineDlss5Now ? "motor propio" : cfg.D5PassNote; // (20-11: con el motor, nada de lo de Magpie) (16-11: lo que se quita para que quepan estas pasadas, p. ej. "ligero: sin antiparpadeo, sin enfoque")
-            if (note.Length > 0) t += " · " + note;
-            return t;
+            Config c = AvisoConfig();
+            string porque;
+            if (c.Dlss5Va(out porque)) return c.Dlss5Pasadas();
+            return porque == null ? Deteccion.Tx.T("DLSS 5 desactivado", "DLSS 5 off") : Deteccion.Tx.T("DLSS 5 no: ", "DLSS 5 unavailable: ") + porque;
         }
-        string ScalerText() { PrepareCfg(); return cfg.ScalerShownName; }
+        // El escalado que hace el motor ("4K nativo" con la captura de 4K). (1.2.4 ronda 7, TEXTOS: antes ScalerShownName, con "· motor propio")
+        string ScalerText() { string e = AvisoConfig().AvisoEscalado(); return e.Length > 0 ? e : Deteccion.Tx.T("4K nativo", "native 4K"); }
 
         // DLSS 5 si/no: DLSSNR en la cadena de Magpie o no
         void SetDlss5State(bool on)
@@ -6615,7 +6628,9 @@ namespace ConsoleEnhancer
             if (cfg.StrongDither <= 0 || !File.Exists(Paths.EdgeAaShaderStrong) || !cfg.EdgeAa || !cfg.Dedither)
             {
                 // (23-11, 1.2.4 SINMPV: el filtro fuerte era un shader de mpv -scripts\\s2_aa_strong.glsl-; el motor lleva el normal)
-                Osd(File.Exists(Paths.EdgeAaShaderStrong) ? "Filtro de tramado nuevo desactivado en el ini" : "Filtro de tramado fuerte: era de mpv; el motor lleva el normal");
+                // (1.2.4 ronda 7, TEXTOS: sin "mpv" -ya no esta-: lo que pasa)
+                Osd(File.Exists(Paths.EdgeAaShaderStrong) ? "Filtro de tramado nuevo desactivado en el ini" :
+                    Deteccion.Tx.T("Filtro de tramado · el motor lleva uno solo: no hay otro que elegir", "Dither filter · the engine has only one: nothing to switch"));
                 return;
             }
             cfg.StrongDitherOn = !cfg.StrongDitherOn;
@@ -6637,16 +6652,19 @@ namespace ConsoleEnhancer
             if (passesBusy || relaunchSize != null || !lsReady) return;
             if (!cfg.UpscaleOn && !cfg.AltScalerOn)
             {
-                if (!applying) Osd("Captura 4K · no hay escalado que cambiar");
+                if (!applying) Osd(Config.WindowFor(cfg.VideoSize) == "3840x2160" ? Deteccion.Tx.T("Captura 4K nativo · no hay escalado que cambiar", "Native 4K capture · no scaling to change")
+                                                                                 : Deteccion.Tx.T("Escalador · sin reescalado en el ini (escalador=ninguno)", "Upscaler · none in the ini (escalador=ninguno)"));
                 return;
             }
+            AvisoFoto antes = applying ? null : AvisoAhora();
             // (1.2.02) con FSR 1 / sin reescalado elegidos en el menu (o por el aviso de fps bajos) R3 no cambiaba nada: R3 los quita y va
             // al escalador normal; despues alterna como siempre
             if (scalerPick.Length > 0) SetScalerChoice(true);
             else SetScalerChoice(!dlssScalerOn);
             Log.Write((applying ? "Perfil" : "Mando") + ": escalador " + ScalerText() + ReopenNote);
             SaveCurProfile();
-            if (!applying) RestartLs("Escalador · " + ScalerText(), "Un momento…");
+            // (1.2.4 ronda 7, TEXTOS: "Escalador · FSR 1", sin "· motor propio · Un momento…": se cambia en marcha. Avisos.cs)
+            if (!applying) { string tit, det; AvisoEscalador(antes, out tit, out det); RestartLs(tit, det); }
         }
 
         // ---- Generacion de fotogramas con el boton de captura del mando ----
@@ -6773,24 +6791,19 @@ namespace ConsoleEnhancer
             catch { return false; }
         }
 
-        // "Zelda · 1440p · 60 → 120 fps · DLSS 5 nivel 4 · 1 pasada": lo puesto, para el aviso en pantalla
+        // "Zelda · 1440p · Smooth Motion x2 · 30 → 60 fps · DLSS 5 nivel 4 · 1 pasada · DLSS M (DLSS 4.5)": lo que va, para el aviso en
+        // pantalla (bandeja "Ver lo que va puesto", Ctrl+I). (1.2.4 ronda 7, TEXTOS: de lo que va de verdad -Avisos.cs-; antes "DLSS-G +
+        // Reflex" con cualquier generacion que no fuera Smooth Motion, siempre "30 → 60", "DLSS 5 no cabe en este modo" con DLSS 5 encendido,
+        // "Catmull-Rom, sin DLSS" con FSR 1 / XeSS y "· motor propio")
         string StatusText()
         {
-            if (cfg.Mode120) // 20-11 (HZ120): esports, imagenes reales a 120, sin generacion, baja latencia
-            {
-                string up120 = cfg.UpscaleOn ? " · " + (Config.EngineActive ? (cfg.ScalerNow == "dlss" ? "DLSS " + Config.EngineModelName(cfg.EnginePresetNow) : "Catmull-Rom") : cfg.ScalerName(cfg.ScalerNow)) : "";
-                return (curGame ?? "Juego") + " · " + SizeName(cfg.VideoSize) + " · 120 fps (esports) · sin generación · Reflex" + (Config.EngineActive ? " · motor propio" : "") + up120;
-            }
-            int fps = cfg.CapMode ? 30 * (fgWanted ? 2 : 1) : 60 * (fgWanted ? 2 : 1);
-            if (Config.EngineActive)
-                return (curGame ?? "Juego") + " · " + SizeName(cfg.VideoSize) + " · " +
-                       (fgWanted ? (cfg.CapMode ? "30" : "60") + " → " + fps + " fps (" + (cfg.EngineSmoothMode > 0 ? "Smooth Motion" : "DLSS-G + Reflex") + ")" : fps + " fps sin generación · Reflex") +
-                       " · motor propio · " + (cfg.ScalerNow == "dlss" ? "DLSS " + Config.EngineModelName(cfg.EnginePresetNow) : "Catmull-Rom, sin DLSS") +
-                       (!dlss5Shown ? " · DLSS 5 desactivado" : " · DLSS 5 no cabe en este modo");
-            return (curGame ?? "Juego") + " · " + SizeName(cfg.VideoSize) + " · " +
-                   (fgWanted ? (cfg.CapMode ? "30" : "60") + " → " + fps + " fps (" + cfg.FgName + ")" : fps + " fps sin generación") + " · " +
-                   (!dlss5Shown ? "DLSS 5 desactivado" : !Integrado.Dlss5Available ? Integrado.Dlss5MissingText : !cfg.Dlss5FitsNow ? "DLSS 5 no cabe en este modo (se quita)" : "DLSS 5 nivel " + dlss5Level + " · " + Pasadas(cfg.Dlss5PassesNow) + (cfg.Dlss5PassesNow < dlss5Passes ? " (" + dlss5Passes + " no caben)" : "") + " · " + (cfg.Dlss5PctShownNow > 0 ? cfg.Dlss5PctShownNow + " %" : "adaptativo") + (cfg.EngineDlss5Now ? " · motor propio" : "")) +
-                   (cfg.UpscaleOn ? " · " + cfg.ScalerName(cfg.ScalerNow) : "");
+            Config c = AvisoConfig();
+            AvisoFoto f = AvisoFoto.De(c);
+            string cap = SizeName(c.VideoSize);
+            if (cap == "4K nativo") cap = Deteccion.Tx.T("4K nativo", "native 4K");
+            string tit = curGame ?? Deteccion.Tx.T("Juego", "Game"), det = AvisoJunta(cap, f.Gen, f.D5, f.Esc);
+            AvisoSinTitulo(ref tit, ref det);   // (si no cabe en la pastilla, sin el nombre del juego)
+            return PillText(tit, det);
         }
 
         void ToggleFrameGeneration()
@@ -6814,12 +6827,16 @@ namespace ConsoleEnhancer
             try
             {
                 if (on && !cfg.FgAvailable) { Osd(Deteccion.Tx.T("Generación de imágenes no disponible con esta gráfica", "Frame generation not available on this GPU")); return; } // (ConsoleEnhancer)
+                AvisoFoto antes = AvisoAhora();
                 fgWanted = on;
                 SaveText(Paths.FgFile, on ? "1" : "0");
                 Log.Write((applying ? "Perfil" : "Mando") + ": generacion de fotogramas " + (on ? "encendida" : "apagada") + ReopenNote);
                 SaveCurProfile();
-                RestartLs(on ? "Generación de fotogramas activada" : "Generación de fotogramas desactivada",
-                          on ? cfg.FgName + " · imágenes intercaladas entre las reales" : "Solo las imágenes reales de la consola");
+                // (1.2.4 ronda 7, TEXTOS: el tipo y el multiplicador que van de verdad -"Smooth Motion x4 · 30 → 120 fps"- o por que no va; antes
+                // "XeSS FG · imágenes intercaladas entre las reales" con Enhanced FG -FgName no la conocia- y sin multiplicador. Avisos.cs)
+                string tit, det;
+                AvisoVista(antes, out tit, out det);
+                RestartLs(tit, det);
             }
             finally { Interlocked.Exchange(ref fgBusy, 0); }
         }
@@ -6832,13 +6849,16 @@ namespace ConsoleEnhancer
             n = Math.Max(1, Math.Min(4, n));
             if (n == dlss5Level) { Osd("DLSS 5 · Nivel " + n + " de 4 · ya activo" + (cfg.Dlss5Off ? " (desactivado)" : "")); return; }
             if (!applying && (passesBusy || relaunchSize != null || !lsReady)) return;
+            AvisoFoto antes = applying ? null : AvisoAhora();
             dlss5Level = n;
             SaveText(Paths.Dlss5LevelFile, n.ToString(CultureInfo.InvariantCulture));
             Log.Write((applying ? "Perfil" : "Mando") + ": DLSS 5 nivel " + n + (cfg.Dlss5Off ? " (DLSS 5 apagado: se aplicara al encenderlo)" : ReopenNote));
             SaveCurProfile();
             if (applying) return;
             if (cfg.Dlss5Off) { Osd("DLSS 5 · Nivel " + n + " de 4 · se aplicará al activarlo"); return; }
-            RestartLs("DLSS 5 · Nivel " + n + " de 4", Dlss5PassText());
+            string tit, det;
+            AvisoNivel(antes, Deteccion.Tx.T("DLSS 5 · Nivel " + n + " de 4", "DLSS 5 · Level " + n + " of 4"), false, out tit, out det);   // (1.2.4 ronda 7, TEXTOS: lo que va, Avisos.cs)
+            RestartLs(tit, det);
         }
 
         // ---------------- Ajustes por juego ----------------
@@ -9401,13 +9421,16 @@ namespace ConsoleEnhancer
             if (passesBusy || relaunchSize != null || !lsReady) return;
             Process p = mpv;
             if (p == null || p.HasExited) return;
+            AvisoFoto antes = AvisoAhora();
             dlss5Passes = n;
             SaveText(Paths.Dlss5PassesFile, n.ToString(CultureInfo.InvariantCulture));
             Log.Write("Mando: DLSS 5 con " + Pasadas(n) + ReopenNote);
             SaveCurProfile();
             if (cfg.Dlss5Off) { Osd("DLSS 5 · " + Pasadas(n) + " · se aplicará al activarlo"); return; }
-            // (16-11: lo que de verdad va: en el 60 con Smooth Motion "2 pasadas" es 1 pasada al 35 %, y lo dice)
-            RestartLs("DLSS 5 · " + Pasadas(n), Dlss5PassText());
+            // (16-11: lo que de verdad va: en el 60 con Smooth Motion "2 pasadas" es 1 pasada al 35 %, y lo dice. 1.2.4 ronda 7, TEXTOS: Avisos.cs)
+            string tit, det;
+            AvisoNivel(antes, "DLSS 5 · " + Pasadas(n), true, out tit, out det);
+            RestartLs(tit, det);
         }
 
         // Modo 30 fps (Share / -) o 60 fps (Options / +). Compatibilidad: SetMode(true/false) = 30/60 (lo llaman los perfiles y las ordenes
@@ -9418,11 +9441,16 @@ namespace ConsoleEnhancer
         // del escalado van en la config de Magpie (se reabre con el telon). A/desde 120 cambia la velocidad REAL de captura (60000/1001 ->
         // 120): hay que reabrir la captura (el motor reinicia su fuente; mpv recarga la capturadora). El 30 y el 60 comparten captura (60) y
         // solo se diferencian por el filtro de repetidas
-        void SetModeN(int fps)
+        void SetModeN(int fps) { SetModeN(fps, null, null, null); }
+
+        // avTit / avSub: el aviso de quien lo pide (el "Aplicar" del menu); null = el del modo (lo que queda: Avisos.cs). nota: algo mas para
+        // el aviso del modo (por que no hay 120, el boton Menu)
+        void SetModeN(int fps, string avTit, string avSub, string nota)
         {
             bool cap = fps == 30, m120 = fps == 120;
             if (cap == cfg.CapMode && m120 == cfg.Mode120) { Osd(ModoTexto(fps) + " · ya activo"); return; }
             if (passesBusy || relaunchSize != null || !lsReady) { if (!applying) return; }
+            AvisoFoto antes = applying || avTit != null ? null : AvisoAhora();
             bool fpsChange = m120 != cfg.Mode120;   // la velocidad de captura cambia (a/desde 120)
             cfg.CapMode = cap;
             cfg.Mode120 = m120;
@@ -9437,6 +9465,9 @@ namespace ConsoleEnhancer
             else { want30 = false; slow30 = 0; fast60 = 0; }
             SaveCurProfile();
             if (applying) return; // los perfiles reabren la imagen una sola vez (coge FramerateNow en EngineArgs / LavfOptions)
+            // (1.2.4 ronda 7, TEXTOS: el aviso con la generacion que va en este modo -tipo, multiplicador y "30 → 120 fps"-; antes siempre
+            // "30 → 60" / "60 → 120" sin decir cual, y con "· motor propio". Avisos.cs)
+            if (avTit == null) AvisoModo(antes, fps, nota, out avTit, out avSub);
             // Cambio de velocidad de captura: el motor propio reinicia su fuente con el nuevo fps por la tuberia; con mpv + Magpie se recarga
             // la capturadora a la nueva velocidad y luego Magpie (cambia la generacion: a 120 sin ella)
             if (fpsChange && Config.EngineActive && ipcUp)
@@ -9448,7 +9479,7 @@ namespace ConsoleEnhancer
                 string set = EngineSessionSet(cfg, cfg.Mode120 ? false : Config.EngineSmoothRunning > 0);
                 lock (cmdQueue) cmdQueue.Add(JsonCmd("engine", "set " + set));
                 Log.Write("Motor propio: " + set + " (cambio de velocidad de captura a " + cfg.FramerateNow + ")");
-                Osd(ModoTexto(fps) + " · " + ScalerText());
+                AvisoFinal(avTit, avSub);   // (si toca otro motor -Smooth Motion fuera / dentro-, el aviso con el)
                 return;
             }
             if (fpsChange && !Config.EngineActive && ipcUp && cfg.TestSource.Length == 0)
@@ -9477,11 +9508,7 @@ namespace ConsoleEnhancer
                 guard.IsBackground = true;
                 guard.Start();
             }
-            RestartLs(ModoTexto(fps),
-                      (m120 ? "captura a " + cfg.FramerateNow + " · baja latencia" :
-                       fgWanted ? (cap ? "30 → 60" : "60 → 120") + " fps · " + ScalerText() :
-                       ScalerText()),
-                      fpsChange);
+            RestartLs(avTit, avSub, fpsChange);
         }
 
         string ModoTexto(int fps) { return "Modo " + fps + " fps" + (fps == 120 ? " (esports)" : ""); }
@@ -9517,12 +9544,20 @@ namespace ConsoleEnhancer
 
         string Aviso120NoCabe()
         {
+            // (1.2.4 ronda 7, TEXTOS: corto -sale junto al del modo- y con las capturas que si lo dan en esta capturadora, no siempre "1080p o 1440p")
             string p = cfg.Permit120;
-            if (p == "0" || p == "no" || p == "false" || p == "off") return "120 fps desactivado (permitir_120=0)";
+            if (p == "0" || p == "no" || p == "false" || p == "off") return Deteccion.Tx.T("120 fps apagado en el ini (permitir_120=0)", "120 fps off in the ini (permitir_120=0)");
             if (!cfg.Captura120Ok(cfg.VideoSize))
-                return "120 fps no disponible a " + SizeName(cfg.VideoSize) + " con esta capturadora: pon la captura a 1080p o 1440p";
-            if (!Consolas.Actual.Da120) return "120 fps: la " + Consolas.Actual.Corto + " no saca 120 Hz";
-            return "120 fps: pon la tele a 120 Hz o mas";
+            {
+                List<string> si = new List<string>();
+                if (cfg.Capturas120 != null) foreach (string c in cfg.Capturas120) si.Add(SizeName(c));
+                string cap = SizeName(cfg.VideoSize) == "4K nativo" ? "4K" : SizeName(cfg.VideoSize);
+                return si.Count == 0 ? Deteccion.Tx.T("120 fps: esta capturadora no lo da", "120 fps: this capture device doesn't do it")
+                                     : Deteccion.Tx.T("120 fps: no a " + cap + " con esta capturadora (sí a " + string.Join(" / ", si.ToArray()) + ")",
+                                                      "120 fps: not at " + cap + " with this capture device (yes at " + string.Join(" / ", si.ToArray()) + ")");
+            }
+            if (!Consolas.Actual.Da120) return Deteccion.Tx.T("120 fps: la " + Consolas.Actual.Corto + " no saca 120 Hz", "120 fps: the " + Consolas.Actual.Corto + " doesn't output 120 Hz");
+            return Deteccion.Tx.T("120 fps: pon la tele a 120 Hz o más", "120 fps: set the TV to 120 Hz or more");
         }
 
         // Reabre Magpie (con lo elegido ahora en su config) con el telon puesto
@@ -9542,7 +9577,8 @@ namespace ConsoleEnhancer
                     // (1.2.4 arreglos, RELEVO: si lo nuevo pide otro motor -otra cadena de generacion, Smooth Motion, refresco-, el relevo ya; el
                     // aviso lo da el motor nuevo. RelevoMotor.cs)
                     if (RelevoSiOtraIdentidad(title, subtitle)) return;
-                    if (!applying && title != null) Osd(string.IsNullOrEmpty(subtitle) ? title : title + " · " + subtitle);
+                    // (1.2.4 ronda 7, TEXTOS: si el relevo llega despues -WatchLoop-, el aviso entero con el; si no, ya. Avisos.cs)
+                    if (!applying && title != null) AvisoFinal(title, subtitle);
                     return;
                 }
                 if (relaunchEngine || relaunchSize != null) return;
@@ -9560,7 +9596,7 @@ namespace ConsoleEnhancer
                 // 16-11: al momento, negro con el aviso arriba (como el de las reaperturas de Magpie). Antes la ultima imagen atenuada:
                 // 0,8-0,9 s de componerla a 4K ANTES de cerrar (o pasar a espera) el motor
                 bool padNow = PadRecent;
-                if (padNow) { padRestart = true; padRestartAt = DateTime.Now; }
+                if (padNow) { padRestart = true; padRestartAt = DateTime.Now; AvisoGuarda(title, subtitle, 90); }   // (1.2.4 ronda 7: y con la imagen nueva, AvisoTrasReabrir)
                 ShowFastCurtain(padNow ? subtitle : null, padNow ? title : null, false);
                 QuitMpvForRelaunch();
                 CurtainToFront();
@@ -10108,11 +10144,17 @@ namespace ConsoleEnhancer
             // 21-11 (el usuario: "al cambiar de fg sale que se desactiva y activa sin tocarlo"): el aviso decia "desactivada" con want=0, que
             // solo es SIN SMOOTH MOTION (p. ej. de Smooth Motion a DLSS FG, o el cambio de refresco del 60 con DLSS FG), y "activada" al
             // reves. Ahora dice lo que hay de verdad: el tipo de generacion de ahora, o desactivada solo si esta apagada
-            string genNow = GenCurrent();
-            bool genOff = genNow == "no" || cfg.FgOff;
-            string stTitle = title ?? (genOff ? "Generación de fotogramas desactivada" : "Generación: " + GenLabel(genNow, true));
-            string stSub = subtitle ?? (genOff ? "Solo las imágenes reales de la consola" : GenDetail(genNow, true) +
-                                        (want == 0 && cfg.EngineFixedWanted ? " · ritmo fijo de la tele" : ""));
+            // (1.2.4 ronda 7, TEXTOS: sin titulo -CheckEngineFfx / Smooth / Fixed-, el aviso que esperaba a este motor -el de lo que lo pidio:
+            // menu, captura, modo- y si no hay, la generacion que va DE VERDAD con su multiplicador y "30 → 120 fps" -Avisos.cs-; antes
+            // "Generación: Smooth Motion · 120 fps (esports) · sin generacion" en el modo 120 y el x2 de siempre)
+            string stTitle = title, stSub = subtitle;
+            if (stTitle == null)
+            {
+                string tt, ss;
+                if (AvisoToma(out tt, out ss)) { stTitle = tt; stSub = ss; }
+                else { stTitle = Deteccion.Tx.T("Generación", "Frame generation"); stSub = AvisoConfig().AvisoGen(true); }
+            }
+            else AvisoOlvida();
             if (cfg.Dlss5Seamless && StandbyOn() && EngineKnowsSinTelon() && signalOn && mpv != null)
             {
                 Log.Write("Smooth Motion del motor: sin telon (otro motor detras con el ajuste nuevo; el de ahora sigue jugando)");
@@ -10122,7 +10164,7 @@ namespace ConsoleEnhancer
             lsReady = false;
             relaunchEngine = true;
             bool pad = PadRecent;
-            if (pad) { padRestart = true; padRestartAt = DateTime.Now; }
+            if (pad) { padRestart = true; padRestartAt = DateTime.Now; AvisoGuarda(stTitle, stSub, 90); }   // (1.2.4 ronda 7: y con la imagen nueva, AvisoTrasReabrir)
             ShowFastCurtain(pad ? "Un momento…" : null, pad ? stTitle : null, false);
             QuitMpvForRelaunch();
             CurtainToFront();
@@ -11427,6 +11469,7 @@ namespace ConsoleEnhancer
             }
             Log.Write("El motor ya muestra imagen (consola o pantalla No Signal)");
             PaintWait(p);   // (1.2.4 arreglos, RELEVO: el motor, hasta su primera imagen pintada: el telon no se quita sobre negro)
+            AvisoTrasReabrir();   // (1.2.4 ronda 7, TEXTOS: el aviso de lo que hizo reabrir la imagen -otra captura, otro motor con telon-, ya con ella)
             if (cfg.PerformanceBoost) Perf.GpuHigh(p, "mpv");
             // 16-11 (revision): waitAsked no se quitaba nunca: tras una espera larga (la app abierta con la consola apagada), cada espera
             // despues miraba cada 1 s (hasta 1 s mas de negro en cada relanzamiento) y no cada 0,2 s (o 0,04 s al despertar el motor)
@@ -12215,6 +12258,9 @@ namespace ConsoleEnhancer
                 if (arg == "--test-solo-motor" || arg.StartsWith("--test-solo-motor=")) return Config.SoloMotorPrueba(arg.Length > 18 ? arg.Substring(18) : null);
                 // 23-11 (1.2.4 ronda 6, SMX4): cuando hay Smooth Motion x4 y que va al perfil y al motor: --test-smooth-x4[=<informe>] (SmoothX4.cs)
                 if (arg == "--test-smooth-x4" || arg.StartsWith("--test-smooth-x4=")) return Config.SmoothX4Prueba(arg.Length > 17 ? arg.Substring(17) : null);
+                // 23-11 (1.2.4 ronda 7, TEXTOS): los avisos al aplicar (menu de ajustes, botones, bandeja) contra lo que va de verdad, todas las
+                // combinaciones del menu, sin abrir nada: --test-avisos[=<informe>] (src\Lanzador\Avisos.cs; con --datos=<copia>: escribe lo elegido)
+                if (arg == "--test-avisos" || arg.StartsWith("--test-avisos=")) return TrayApp.AvisosPrueba(arg.Length > 14 ? arg.Substring(14) : null);
                 // 22-11 (1.2.3, MOTOR5): PrismaNr.dll junto a la DLL elegida en "Añadir DLSS 5": --test-extras-guardados[=<informe>]
                 if (arg == "--test-extras-guardados" || arg.StartsWith("--test-extras-guardados=")) return ExtrasGuardados.Prueba(arg.Length > 24 ? arg.Substring(24) : null);
                 // 22-11 (1.2.4): la busqueda de los archivos de DLSS 5 en el PC con carpetas falsas: --test-buscar-extras[=<informe>] (BuscaExtras.cs)

@@ -178,9 +178,11 @@ namespace ConsoleEnhancer
             if (BotonesCe.Prisma) { CycleMode(+1); return; }   // (Options / + sube 30 -> 60 -> 120)
             int cur = cfg.Mode120 ? 120 : cfg.CapMode ? 30 : 60;
             int next = cur == 30 ? 60 : cur == 60 ? (Puede120() ? 120 : 30) : 30;
-            if (cur == 60 && next == 30 && !avisado120) { avisado120 = true; Osd(Aviso120NoCabe()); }
+            // (1.2.4 ronda 7, TEXTOS: el por que de no haber 120 va en el aviso del modo; antes eran dos avisos seguidos y el del modo pisaba al otro)
+            string nota = null;
+            if (cur == 60 && next == 30 && !avisado120) { avisado120 = true; nota = Aviso120NoCabe(); }
             Log.Write("Mando: " + BotonesCe.NombreMenu(PadHub.Shared.MainKind, false) + " = modo " + next + " fps");
-            SetModeN(next);
+            SetModeN(next, null, null, nota);
         }
         bool avisado120;
     }

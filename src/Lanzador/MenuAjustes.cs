@@ -764,7 +764,21 @@ namespace ConsoleEnhancer
         void AjustesAplicar()
         {
             if (AjCambios() == 0) { AjustesCerrar("aplicar sin cambios"); return; }
-            Dictionary<string, string> e = new Dictionary<string, string>();
+            Dictionary<string, string> e;
+            HashSet<string> cambiadas;
+            List<string> que;
+            AjRecoge(out e, out cambiadas, out que);
+            AjustesCerrar(null);
+            Log.Write("Menu de ajustes: aplicar " + string.Join(", ", que.ToArray()));
+            ThreadPool.QueueUserWorkItem(delegate { try { AjustesPonerTodo(e, cambiadas); } catch (Exception ex) { Log.Error("Menu de ajustes: aplicando", ex); } });
+        }
+
+        // Lo que se aplica (e: las filas que cuentan), las filas tocadas (para el aviso: lo que se dice aunque no cambie) y el texto del log
+        void AjRecoge(out Dictionary<string, string> e, out HashSet<string> cambiadas, out List<string> que)
+        {
+            e = new Dictionary<string, string>();
+            cambiadas = new HashSet<string>();
+            que = new List<string>();
             FilaAjuste fm = AjFila("modo");
             bool modoCambia = fm != null && fm.Cambiada;
             foreach (FilaAjuste f in ajFilas)
@@ -776,16 +790,63 @@ namespace ConsoleEnhancer
                 if (f.Id == "esc" && !f.Cambiada) continue;
                 e[f.Id] = f.Val;
             }
-            List<string> que = new List<string>();
-            foreach (FilaAjuste f in ajFilas) if (f.Cambiada) que.Add(f.Nombre + " " + (f.Sel < f.Txts.Count ? f.Txts[f.Sel] : f.Val));
-            AjustesCerrar(null);
-            Log.Write("Menu de ajustes: aplicar " + string.Join(", ", que.ToArray()));
-            ThreadPool.QueueUserWorkItem(delegate { try { AjustesPonerTodo(e); } catch (Exception ex) { Log.Error("Menu de ajustes: aplicando", ex); } });
+            foreach (FilaAjuste f in ajFilas)
+                if (f.Cambiada) { cambiadas.Add(f.Id); que.Add(f.Nombre + " " + (f.Sel < f.Txts.Count ? f.Txts[f.Sel] : f.Val)); }
         }
 
         static string AjVal(Dictionary<string, string> e, string k) { string v; return e.TryGetValue(k, out v) ? v : null; }
 
-        void AjustesPonerTodo(Dictionary<string, string> e)
+        // El modo que va a quedar (120 con una captura que no lo da: 60) y la captura; modoPedido = el del menu
+        int AjModoDe(Dictionary<string, string> e, out string capV, out int modoPedido)
+        {
+            int modoAhora = cfg.Mode120 ? 120 : cfg.CapMode ? 30 : 60;
+            capV = AjVal(e, "cap") ?? cfg.VideoSize;
+            string modoV = AjVal(e, "modo") ?? modoAhora.ToString();
+            int modo = int.Parse(modoV);
+            modoPedido = modo;
+            if (modo == 120 && !cfg.Captura120Ok(capV)) modo = 60;   // (1.2.01: 4K a 120 no lo da la capturadora)
+            return modo;
+        }
+
+        // Lo elegido, a la config (con applying puesto: solo se guarda; la captura y el modo, despues)
+        void AjPonerEstado(Dictionary<string, string> e, int modo)
+        {
+            string v;
+            if ((v = AjVal(e, "nivel")) != null) { int n = int.Parse(v); if (n != dlss5Level) SetLevel(n); }
+            if ((v = AjVal(e, "pasadas")) != null)
+            {
+                int n = int.Parse(v);
+                if (n != dlss5Passes) { dlss5Passes = n; SaveText(Paths.Dlss5PassesFile, v); }
+            }
+            if ((v = AjVal(e, "d5")) != null && (v == "1") != dlss5Shown) SetDlss5State(v == "1");
+            if ((v = AjVal(e, "esc")) != null)
+            {
+                if (v.StartsWith("pick:")) SetScalerChoice(true, v.Substring(5));   // (1.2.01: FSR 1 / sin reescalado)
+                else SetScalerChoice(v != "alt");
+                if (v.StartsWith("dlss:")) { string l = v.Substring(5); Config.DlssPick = l == "auto" ? "" : l; }
+            }
+            if ((v = AjVal(e, "fg")) != null)
+            {
+                bool on = v == "1" && cfg.FgAvailable;
+                if (on != fgWanted) { fgWanted = on; SaveText(Paths.FgFile, on ? "1" : "0"); }
+            }
+            // (1.2.4 ronda 7, TEXTOS: el tipo antes que los multiplicadores: el log de SmoothX4Aplicar -"ahora no: <por que>"- miraba el tipo
+            // de antes: "x4 ... ahora no: la generacion del modo 30 no es Smooth Motion" eligiendo Smooth Motion x4 a la vez, 23-11 12:05:54)
+            if ((v = AjVal(e, "tipo")) != null && v.Length > 0 && v != "\u0000" && modo != 120)
+            {
+                if (modo == 30) SetPicks(cfg.FgPick60, v); else SetPicks(v, cfg.FgPick30);
+            }
+            FsrMulAplicar(e);   // (1.2.4 ronda 6, FGMULTI: MultiFsr.cs)
+            EfgAplicar(e);   // (1.2.4 ronda 6, ENHANCED: EnhancedFg.cs)
+            SmoothX4Aplicar(e);   // (1.2.4 ronda 6, INTEGRA6: SmoothX4.cs)
+            if ((v = AjVal(e, "tram")) != null && (v == "1") != cfg.StrongDitherOn)
+            {
+                cfg.StrongDitherOn = v == "1";
+                SaveText(Paths.StrongDitherFile, v);
+            }
+        }
+
+        void AjustesPonerTodo(Dictionary<string, string> e, HashSet<string> cambiadas)
         {
             // 22-11 (1.2.2, MENU): con Magpie preparando (el puente o el telon a la vista; sin otra captura ni el 120) se pone ya y Magpie se
             // reabre con lo nuevo sin esperar a que acabe (src\Lanzador\AjustesGuia.cs). Si no, con algo cambiando aun se espera a que acabe
@@ -793,46 +854,18 @@ namespace ConsoleEnhancer
             bool enCaliente = AjEnCaliente(e);
             if (enCaliente) Log.Write("Menu de ajustes: la imagen se esta preparando: se aplica ya (en caliente)");
             else if (!AjEsperarParaAplicar()) return;
+            // (1.2.4 ronda 7, TEXTOS: el aviso, de lo que va a quedar de verdad -no de lo pedido- frente a lo de antes; src\Lanzador\Avisos.cs)
+            AvisoFoto antes = AvisoAhora();
             int modoAhora = cfg.Mode120 ? 120 : cfg.CapMode ? 30 : 60;
-            string capV = AjVal(e, "cap") ?? cfg.VideoSize, modoV = AjVal(e, "modo") ?? modoAhora.ToString();
-            int modo = int.Parse(modoV);
-            if (modo == 120 && !cfg.Captura120Ok(capV)) modo = 60;   // (1.2.01: 4K a 120 no lo da la capturadora)
+            string capV;
+            int modoPedido;
+            int modo = AjModoDe(e, out capV, out modoPedido);
             bool capCambia = capV != cfg.VideoSize, modoCambia = modo != modoAhora;
             lastPadAction = DateTime.Now;   // (el telon / el aviso de lo que reabre lleva el texto, como con un boton)
             lock (profileSync) applying = true;
             try
             {
-                string v;
-                if ((v = AjVal(e, "nivel")) != null) { int n = int.Parse(v); if (n != dlss5Level) SetLevel(n); }
-                if ((v = AjVal(e, "pasadas")) != null)
-                {
-                    int n = int.Parse(v);
-                    if (n != dlss5Passes) { dlss5Passes = n; SaveText(Paths.Dlss5PassesFile, v); }
-                }
-                if ((v = AjVal(e, "d5")) != null && (v == "1") != dlss5Shown) SetDlss5State(v == "1");
-                if ((v = AjVal(e, "esc")) != null)
-                {
-                    if (v.StartsWith("pick:")) SetScalerChoice(true, v.Substring(5));   // (1.2.01: FSR 1 / sin reescalado)
-                    else SetScalerChoice(v != "alt");
-                    if (v.StartsWith("dlss:")) { string l = v.Substring(5); Config.DlssPick = l == "auto" ? "" : l; }
-                }
-                if ((v = AjVal(e, "fg")) != null)
-                {
-                    bool on = v == "1" && cfg.FgAvailable;
-                    if (on != fgWanted) { fgWanted = on; SaveText(Paths.FgFile, on ? "1" : "0"); }
-                }
-                FsrMulAplicar(e);   // (1.2.4 ronda 6, FGMULTI: MultiFsr.cs)
-                EfgAplicar(e);   // (1.2.4 ronda 6, ENHANCED: EnhancedFg.cs)
-                SmoothX4Aplicar(e);   // (1.2.4 ronda 6, INTEGRA6: SmoothX4.cs)
-                if ((v = AjVal(e, "tipo")) != null && v.Length > 0 && v != "\u0000" && modo != 120)
-                {
-                    if (modo == 30) SetPicks(cfg.FgPick60, v); else SetPicks(v, cfg.FgPick30);
-                }
-                if ((v = AjVal(e, "tram")) != null && (v == "1") != cfg.StrongDitherOn)
-                {
-                    cfg.StrongDitherOn = v == "1";
-                    SaveText(Paths.StrongDitherFile, v);
-                }
+                AjPonerEstado(e, modo);
                 // (con otra captura, el modo solo se guarda: la reapertura de la captura lo coge todo, como los perfiles. 1.2.2: en caliente
                 // tambien: lo coge el Magpie que se reabre)
                 if ((capCambia || enCaliente) && modoCambia) SetModeN(modo);
@@ -840,17 +873,19 @@ namespace ConsoleEnhancer
             finally { applying = false; }
             ApplyEdgeShader();
             SaveCurProfile();
+            string tit, det;
+            AjAvisoCalcula(antes, cambiadas, capV, modo, modoPedido, out tit, out det);
             if (enCaliente)
             {
                 if (AjReiniciarEnCaliente()) return;
                 // (no se pudo en caliente: al acabar lo que estaba cambiando, una reapertura con todo; el modo ya esta puesto)
                 if (!AjEsperarParaAplicar()) return;
-                RestartLs(Tx.T("Ajustes aplicados", "Settings applied"), StatusText());
+                RestartLs(tit, det);
                 return;
             }
-            if (capCambia) RequestCapture(capV);
-            else if (modoCambia) SetModeN(modo);
-            else RestartLs(Tx.T("Ajustes aplicados", "Settings applied"), StatusText());
+            if (capCambia) RequestCapture(capV, tit, det);
+            else if (modoCambia) SetModeN(modo, tit, det, null);
+            else RestartLs(tit, det);
         }
 
         // ---------------- pintar ----------------

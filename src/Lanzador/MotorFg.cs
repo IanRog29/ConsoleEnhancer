@@ -91,7 +91,9 @@ namespace ConsoleEnhancer
             if (eraXess)
                 System.Threading.ThreadPool.QueueUserWorkItem(delegate
                 {
-                    try { System.Threading.Thread.Sleep(300); RestartLs("XeSS FG", Tx.T("el motor no ha podido arrancarlo: va otra generación", "the engine couldn't start it: using another frame generation")); }
+                    // (1.2.4 ronda 7, TEXTOS: y cual va: "XeSS FG no: el motor no ha podido con él en esta sesión · Smooth Motion x2 · 30 → 60 fps";
+                    // con la hora del boton para que el relevo lo enseñe)
+                    try { System.Threading.Thread.Sleep(300); lastPadAction = DateTime.Now; RestartLs(Tx.T("Generación", "Frame generation"), AvisoConfig().AvisoGen(true)); }
                     catch (Exception ex) { Log.Error("generacion del motor: otro tipo", ex); }
                 });
             return true;
