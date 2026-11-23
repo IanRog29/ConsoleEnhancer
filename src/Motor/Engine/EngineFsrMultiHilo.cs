@@ -34,18 +34,33 @@ namespace ConsoleEnhancer.Motor
         double fmhHz; long fmhHzAt;
         long fmhSqueezed, fmhSqueezedSaid, fmGensSaid;
 
+        ID3D12CommandQueue fmhCq;   // (fsrfg_multi_copia=1: la cola de copia de la cadena)
+
         void FmhEnsure()
         {
             if (fmhThread != null) return;
             object o;
-            Guid iid = typeof(ID3D12CommandAllocator).GUID;
+            Guid iid;
+            D3D12_COMMAND_LIST_TYPE lt = D3D12_COMMAND_LIST_TYPE.DIRECT;
+            if (s.FsrMultiCopyQ && scQueue != null)
+            {
+                D3D12_COMMAND_QUEUE_DESC qd = new D3D12_COMMAND_QUEUE_DESC();
+                qd.Type = D3D12_COMMAND_LIST_TYPE.COPY;
+                qd.Priority = 100;
+                iid = typeof(ID3D12CommandQueue).GUID;
+                Hr.Check(dev.CreateCommandQueue(ref qd, ref iid, out o), "CreateCommandQueue (FSR FG, copia a la cadena)");
+                fmhCq = (ID3D12CommandQueue)o;
+                lt = D3D12_COMMAND_LIST_TYPE.COPY;
+                Log.Write("FSR FG: la copia a la cadena en una cola de copia (fsrfg_multi_copia=1)");
+            }
+            iid = typeof(ID3D12CommandAllocator).GUID;
             for (int i = 0; i < fmhAlloc.Length; i++)
             {
-                Hr.Check(dev.CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE.DIRECT, ref iid, out o), "CreateCommandAllocator (presentacion de FSR FG)");
+                Hr.Check(dev.CreateCommandAllocator(lt, ref iid, out o), "CreateCommandAllocator (presentacion de FSR FG)");
                 fmhAlloc[i] = (ID3D12CommandAllocator)o;
             }
             iid = typeof(ID3D12GraphicsCommandList).GUID;
-            Hr.Check(dev.CreateCommandList(0, D3D12_COMMAND_LIST_TYPE.DIRECT, fmhAlloc[0], null, ref iid, out o), "CreateCommandList (presentacion de FSR FG)");
+            Hr.Check(dev.CreateCommandList(0, lt, fmhAlloc[0], null, ref iid, out o), "CreateCommandList (presentacion de FSR FG)");
             fmhList = (ID3D12GraphicsCommandList)o;
             Hr.Check(fmhList.Close(), "Close");
             iid = typeof(ID3D12Fence).GUID;
@@ -205,12 +220,13 @@ namespace ConsoleEnhancer.Motor
             fmhList.ResourceBarrier(1, ref b);
             Hr.Check(fmhList.Close(), "Close (presentacion de FSR FG)");
             IntPtr lp = Com.BorrowPtr(fmhList, typeof(ID3D12CommandList));
-            ID3D12CommandQueue q = ScQ;
+            ID3D12CommandQueue q = fmhCq ?? ScQ;
             if (scQueue != null) q.Wait(fence, mainFence);   // (la real la copio la cola de la imagen; las inventadas, la de calculo: ya hechas)
             q.ExecuteCommandLists(1, ref lp);
             fmhFenceValue++;
             q.Signal(fmhFence, fmhFenceValue);
             fmhAllocFence[fmhAi] = fmhFenceValue;
+            if (fmhCq != null) scQueue.Wait(fmhFence, fmhFenceValue);   // (el Present, en la cola de la cadena, tras la copia)
             if (freeSet >= 0) fmhFree[freeSet].Set();
             long tp = Clock.Now;
             int hr = swap.Present(sy, (DXGI_PRESENT)fl);
