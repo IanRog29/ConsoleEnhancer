@@ -18,7 +18,7 @@ namespace ConsoleEnhancer.Motor
     unsafe partial class Engine
     {
         // Tablas propias detras de TDown (Engine.cs: TablesCount)
-        const int TRBase = TQBase + TQCount + 1, TRTruth = TRBase /* + juego de luma */, TRCons = TRBase + 2 /* + juego */, TRCapas = TRBase + 4 /* + juego */, TRApert = TRBase + 6, TREdge = TRBase + 7 /* + juego */, TREns = TRBase + 9 /* + juego */, TRFg = TRBase + 11, TRFgD = TRBase + 12, TRCount = 31;   // (21-11 FG21: + TRFillA/B/C, EngineFgRelleno.cs) (21-11 1.2.1: + TRGlob*, EngineFgGlobal.cs)
+        const int TRBase = TQBase + TQCount + 1, TRTruth = TRBase /* + juego de luma */, TRCons = TRBase + 2 /* + juego */, TRCapas = TRBase + 4 /* + juego */, TRApert = TRBase + 6, TREdge = TRBase + 7 /* + juego */, TREns = TRBase + 9 /* + juego */, TRFg = TRBase + 11, TRFgD = TRBase + 12, TRCount = 41;   // (21-11 FG21: + TRFillA/B/C, EngineFgRelleno.cs) (21-11 1.2.1: + TRGlob*, EngineFgGlobal.cs) (1.2.4 ronda 6, CABEZA: + TRCab* 31-40, EngineFgCabeza.cs)
         ID3D12PipelineState psoMvTruth, psoMvCons, psoMvCapas, psoMvApert, psoEdge, psoEns, psoFgSmooth, psoFgGlobal, psoFgDepth;
         ID3D12Resource edgeMap, mvecW;   // 17-11 13:20 (mvensancha): fuerza del borde por punto (R8) y los vectores ensanchados
         ID3D12Resource mvCons;      // el campo de bloques del nivel fino tras el consenso (se copia encima de mvLevel[0])
@@ -100,6 +100,7 @@ namespace ConsoleEnhancer.Motor
             }
             // (1.2.4 ronda 6, QUITAFG: fuera fg_relleno y fg_borde -EngineFgRelleno.cs, EngineFgBorde.cs-: solo eran para DLSS-G)
             FgGlobalViews();   // 21-11 (1.2.1): fg_global / fg_quieto, EngineFgGlobal.cs
+            FgCabezaViews();   // 1.2.4 ronda 6 (CABEZA): el personaje separado del fondo para XeSS FG / FSR 3 FG, EngineFgCabeza.cs
         }
 
         // RecordMotion, tras la busqueda (mvLevel[0] en NON_PIXEL_SHADER_RESOURCE): mvconsenso=N. Cada bloque elige entre su vector y los
@@ -196,6 +197,7 @@ namespace ConsoleEnhancer.Motor
             if (!((fgApplied || FfxFgVecNow) && s.FgVec >= 2) || mvecFg == null || gvec == null || FgVecFullNow) return;   // (20-11 FGFALLOS: fg_vectores_completos, DLSS-G con mvec) (22-11 1.2.1: o FSR 3 FG, EngineFgFfx.cs)
             EnsureRejasPsos();
             uint* c = stackalloc uint[16];
+            if (on && FgGlobalNow && FgCabezaNow) { RecordFgGlobal(cur); RecordFgCabeza(cur); return; }   // 1.2.4 ronda 6 (CABEZA): vectores y profundidad, EngineFgCabeza.cs
             if (on && FgGlobalNow) { RecordFgGlobal(cur); RecordFgGlobalOut(cur); return; }   // 21-11 (1.2.1)
             if (on && s.FgVec == 3)
             {
@@ -222,6 +224,7 @@ namespace ConsoleEnhancer.Motor
         {
             if (!((fgApplied || FfxFgVecNow) && s.FgDepth > 0) || depthFg == null || edgeMap == null) return;
             if (FgLayerDepthNow) return;   // 21-11 (1.2.1): la profundidad por capas ya la ha escrito RecordFgGlobalOut (EngineFgGlobal.cs)
+            if (FgCabezaNow) return;   // 1.2.4 ronda 6 (CABEZA): la ha escrito RecordFgCabeza (EngineFgCabeza.cs)
             EnsureRejasPsos();
             uint* c = stackalloc uint[16];
             Barrier(edgeMap, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.UNORDERED_ACCESS);
@@ -354,7 +357,7 @@ namespace ConsoleEnhancer.Motor
             list.CopyTextureRegion(ref dst, 0, 0, 0, ref src, &box);
             D3D12_BOX mbox = new D3D12_BOX((uint)dMx, (uint)dMy, (uint)(dMx + dMw), (uint)(dMy + dMh));
             // 21-11 (FG21, prueba): con la variable S2_VOLCADO_FG=1 los vectores que recibe la generacion (FgMvec) en vez de mvec
-            ID3D12Resource dmv = Environment.GetEnvironmentVariable("S2_VOLCADO_FG") == "1" ? FgMvec : mvec;
+            ID3D12Resource dmv = Environment.GetEnvironmentVariable("S2_VOLCADO_FG") == "1" ? (FfxFgVecNow && s.FgVec >= 2 && mvecFg != null ? mvecFg : FgMvec) : mvec;   // (1.2.4 ronda 6, CABEZA: con XeSS FG / FSR 3 FG, los que reciben)
             if (Environment.GetEnvironmentVariable("S2_VOLCADO_SR") == "1" && srVecValid && mvecSr != null) dmv = mvecSr;   // (23-11 DLSSSR: los de DLSS SR)
             Barrier(dmv, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.COPY_SOURCE);
             dst = D3D12_TEXTURE_COPY_LOCATION.FromFootprint(dRb[e], dFpMv);

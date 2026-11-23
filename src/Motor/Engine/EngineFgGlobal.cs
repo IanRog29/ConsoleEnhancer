@@ -62,7 +62,7 @@ namespace ConsoleEnhancer.Motor
                 case "fg_solo_camara": FgCamOnly = Bv(val); return true;
                 case "dlss5_vec_camara": D5CamVec = Bv(val); return true;   // (1.2.4 ronda 5, INTEGRA5: EngineMotion.cs RecordMotion)
             }
-            return false;
+            return ApplyFgCabeza(key.Trim().ToLowerInvariant(), val);   // 1.2.4 ronda 6 (CABEZA): fg_cabeza*, EngineFgCabeza.cs
         }
         static bool Bv(string v) { v = v.Trim().ToLowerInvariant(); return v == "1" || v == "true" || v == "si" || v == "on" || v == "yes"; }
         static int Iv(string v) { return int.Parse(v.Trim(), CultureInfo.InvariantCulture); }
