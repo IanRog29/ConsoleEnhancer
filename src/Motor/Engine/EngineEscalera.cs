@@ -211,7 +211,9 @@ namespace ConsoleEnhancer.Motor
             {
                 int k = (escPos - i + EscQ) % EscQ;
                 v.Pres += escPres[k]; dist += escDist[k]; ms += escMs[k];
-                if (escTarde[k] > 0) { v.Tarde += escTarde[k]; v.CuartosTarde++; if (ultT < 0) ultT = i; priT = i; }
+                // (un cuarto "con tiradas" tiene que haber presentado algo: un paron entero -todo tirado- es un tiron, no falta de grafica)
+                v.Tarde += escTarde[k];
+                if (escTarde[k] > 0 && escPres[k] > 0) { v.CuartosTarde++; if (ultT < 0) ultT = i; priT = i; }
                 v.Salt += escSalt[k]; v.Inv += escInv[k];
                 if (escSalt[k] > 1) { v.CuartosSalt++; if (ultS < 0) ultS = i; priS = i; }
             }
