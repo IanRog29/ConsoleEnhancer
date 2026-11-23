@@ -6125,6 +6125,11 @@ namespace ConsoleEnhancer
                     catch (InvalidOperationException) { break; } // mpv acaba de cerrarse
                     DateTime now = DateTime.Now;
                     if (!signalOn) continue;
+                    // (1.2.4 ronda 6, INTEGRA6: un fallo en una vuelta ya no para la vigilancia del motor: en la sesion b1 del 23-11 una
+                    // NullReferenceException al pasar al modo 120 dejo sin SyncEngine / CheckEngineSmooth el resto de la vida de ese motor -el 120
+                    // con Smooth Motion puesto y el vuelta al 30 sin relevo-. Ahora se apunta con su pila y se sigue)
+                    try
+                    {
 
                     // 16-11 (motor_en_espera): en el HOME a 4K nativo con mpv, 3 s seguidos sin cambios en marcha: el motor en espera, si
                     // hace falta (una vez por sesion; ahi el tiron de su arranque no se ve)
@@ -6162,10 +6167,16 @@ namespace ConsoleEnhancer
                     // (1.2.4 ronda 6, QUITAFG: sin Magpie, ni "Magpie ha dejado de escalar" ni su ritmo cada 5 s -CheckLsPacing-)
                     if (lsReady && !cfg.HomeNative && !homeGrace) ChooseLook(hwnd, now);
                     if (lsReady) RunHomeTick(now);
+                    }
+                    catch (Exception ex)
+                    {
+                        if (++watchErrs <= 5) Log.Write("ERROR: Vigilando la imagen del motor (se sigue vigilando): " + ex.ToString().Replace("\r\n", " | "));
+                    }
                 }
             }
             catch (Exception ex) { Log.Error("Vigilando la imagen de mpv", ex); }
         }
+        int watchErrs;
 
         // (1.2.4 ronda 6, QUITAFG, fase 2: LsStats era de Magpie; fuera)
 
