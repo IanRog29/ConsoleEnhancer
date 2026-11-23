@@ -240,7 +240,7 @@ namespace ConsoleEnhancer.Motor
         void LatPresented(int slot, long arrival, long submit, long ret, double gpuMs)
         {
             bool real = slot >= 0;
-            if (real) { latLastReal = ret; if (latFirstReal == 0) latFirstReal = ret; }
+            if (real) { latLastReal = ret; if (latFirstReal == 0) latFirstReal = ret; latDropRun = 0; }
             if (real && latPickup != 0) { double d = Clock.Ms(latPickup, submit); if (d > 0 && d < 50) latPickSubEma = latPickSubEma <= 0 ? d : latPickSubEma * 0.9 + d * 0.1; }
             if (real && latPickup != 0) LatReflexWatch(Clock.Ms(arrival, latPickup));   // 21-11 (1.2.1)
             QueueModelPresented(submit);
@@ -369,6 +369,7 @@ namespace ConsoleEnhancer.Motor
             if (s.QueueDropMs <= 0 || s.SmoothMode <= 0) return false;
             double x = QueueModelPeek(now + (long)(Math.Max(0, latPickSubEma) / Clock.TickMs));   // (a la hora a la que se presentaria)
             if (x < s.QueueDropMs) return false;
+            if (QueueDropCapped(x, now)) return false;   // (23-11, CAIDAS: como mucho cola_tirar_seguidas seguidas; EngineCaidas.cs)
             if (latDrops < 20 || Clock.Ms(latDropAt, now) > 20000)
                 Log.Write(string.Format(CultureInfo.InvariantCulture, "Cola de la tele: esta imagen esperaria {0:0.0} ms (Smooth Motion): se tira para vaciarla", x));
             latDropAt = now;

@@ -44,7 +44,7 @@ namespace ConsoleEnhancer.Motor
                 case "prueba_apagado_s": TestOffAt = Math.Max(0, I(val)); return true;
                 case "prueba_apagado_modo": TestOffMode = val.Trim().ToLowerInvariant(); return true;
             }
-            return false;
+            return ApplyCaidas(key, val);   // (23-11, 6a ronda, CAIDAS: cola_tirar_seguidas, cola_sin_repintar; EngineCaidas.cs)
         }
     }
 
