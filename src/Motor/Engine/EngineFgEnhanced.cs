@@ -300,6 +300,9 @@ namespace ConsoleEnhancer.Motor
             j.Sync = sync; j.Flags = flags; j.K = Math.Max(2, Math.Min(4, s.Efg));
             j.Phase = EfgPhaseFor(j.K);
             j.RealMs = 1000.0 / Math.Max(1.0, (s.FpsNum > 0 ? s.FpsNum / (double)Math.Max(1, s.FpsDen) : 59.94) * (s.Mode == 30 ? 0.5 : 1));
+            j.Ready = new ManualResetEvent(false);
+            lock (efgWatchQ) efgWatchQ.Enqueue(j);   // (el vigilante apunta cuando la grafica la acaba: EngineFgEnhancedHilo.cs)
+            efgWatchEv.Set();
             lock (efgJobs) { efgJobs.Enqueue(j); efgIdle.Reset(); }
             efgJobEv.Set();
             return 0;

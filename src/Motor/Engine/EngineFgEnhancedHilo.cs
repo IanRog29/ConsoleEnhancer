@@ -17,7 +17,7 @@ namespace ConsoleEnhancer.Motor
     // a que la grafica la acabe y se presenta a su hora. Si llega otra real antes de acabar (la grafica no da), las inventadas que quedan se saltan.
     unsafe partial class Engine
     {
-        class EfgJob { public int W, K; public long Arrival, Seq; public ulong Fence; public bool Reset; public uint Sync, Flags; public double Phase, RealMs; }
+        class EfgJob { public int W, K; public long Arrival, Seq, ReadyAt; public ulong Fence; public bool Reset; public uint Sync, Flags; public double Phase, RealMs; public ManualResetEvent Ready; }
 
         Thread efgThread;
         readonly Queue<EfgJob> efgJobs = new Queue<EfgJob>();
@@ -40,6 +40,17 @@ namespace ConsoleEnhancer.Motor
         double efgHz; long efgHzAt;
         readonly StringBuilder efgCsvBuf = new StringBuilder();
         long efgCsvAt;
+        // el vigilante: la hora EXACTA a la que la grafica acaba cada real (si no, con el hilo de presentacion ocupado con la anterior, "lista"
+        // se veia tarde, L subia y todo iba aun mas tarde: x4 medido a las 05:29 con L 112 ms)
+        Thread efgWatch;
+        readonly Queue<EfgJob> efgWatchQ = new Queue<EfgJob>();
+        readonly AutoResetEvent efgWatchEv = new AutoResetEvent(false), efgWatchFenceEv = new AutoResetEvent(false);
+        // tiempos de la grafica de lo propio (marcas de tiempo en la cola de presentacion): 0-1 el flujo, 2-3 la ultima inventada
+        ID3D12QueryHeap efgQheap;
+        ID3D12Resource efgTsBuf;
+        IntPtr efgTsPtr;
+        double efgTsFreq;
+        double efgFlowGpu = 1.0, efgGenGpu = 1.0;
 
         void EfgThreadStart()
         {
@@ -54,6 +65,20 @@ namespace ConsoleEnhancer.Motor
             Hr.Check(dev.CreateCommandList(0, D3D12_COMMAND_LIST_TYPE.DIRECT, efgAlloc[0], null, ref iid, out o), "CreateCommandList (Enhanced FG)");
             efgList = (ID3D12GraphicsCommandList)o;
             Hr.Check(efgList.Close(), "Close");
+            D3D12_QUERY_HEAP_DESC qhd = new D3D12_QUERY_HEAP_DESC();
+            qhd.Type = D3D12_QUERY_HEAP_TYPE.TIMESTAMP;
+            qhd.Count = 4;
+            iid = typeof(ID3D12QueryHeap).GUID;
+            Hr.Check(dev.CreateQueryHeap(ref qhd, ref iid, out o), "CreateQueryHeap (Enhanced FG)");
+            efgQheap = (ID3D12QueryHeap)o;
+            efgTsBuf = MakeBuffer(D3D12_HEAP_TYPE.READBACK, 8 * 4, D3D12_RESOURCE_STATES.COPY_DEST, "Enhanced FG: tiempos");
+            Hr.Check(efgTsBuf.Map(0, null, out efgTsPtr), "Map (Enhanced FG)");
+            ulong tf; efgTsFreq = EfgPq.GetTimestampFrequency(out tf) >= 0 && tf > 0 ? tf : 1e7;
+            efgWatch = new Thread(EfgWatchLoop);
+            efgWatch.IsBackground = true;
+            efgWatch.Name = "Enhanced FG (vigilante)";
+            efgWatch.Priority = ThreadPriority.Highest;
+            efgWatch.Start();
             efgThread = new Thread(EfgLoop);
             efgThread.IsBackground = true;
             efgThread.Name = "Enhanced FG";
@@ -118,12 +143,13 @@ namespace ConsoleEnhancer.Motor
 
         static void EfgZero(uint* c) { for (int i = 0; i < 16; i++) c[i] = 0; }
 
-        // La piramide de la real 'c' y, si hay anterior, el flujo en los dos sentidos, lo quieto y el corte
+        // La piramide de la real 'c' y, si hay anterior, el flujo en los dos sentidos, lo quieto y el corte (marcas 0-1)
         ulong EfgFlowList(int c, bool flow)
         {
             uint* k = stackalloc uint[16];
             int p = (c + EfgSets - 1) % EfgSets;
             EfgBegin();
+            EfgStamp(0);
             EB(efgRing[c], D3D12_RESOURCE_STATES.COMMON, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE);
             EfgZero(k); k[0] = (uint)efgLw[0]; k[1] = (uint)efgLh[0]; k[2] = (uint)outW; k[3] = (uint)outH;
             EfgRun(psoEfgLuma, c, 0, k, Groups(efgLw[0], 16), Groups(efgLh[0], 8), efgL[c, 0]);
@@ -158,68 +184,65 @@ namespace ConsoleEnhancer.Motor
             EfgZero(k); k[0] = (uint)efgLw[0]; k[1] = (uint)efgLh[0]; k[2] = flow && efgStillOk[p] ? 1u : 0u;
             k[4] = F(s.EfgStillDiff); k[5] = F(s.EfgStillGrad); k[6] = F(60f);
             EfgRun(psoEfgStill, c, 14, k, Groups(efgLw[0], 16), Groups(efgLh[0], 8), efgSt[c]);
+            EfgStamp(1);
             efgFlowOk[c] = flow; efgStillOk[c] = true;
             ulong v = EfgSubmit();
             SetSlotDone(c, v);
             return v;
         }
 
-        // La lista del flujo y esperar a que acabe (lo que va detras en la cola la espera igual): su tiempo, para la hora de la siguiente
-        ulong EfgSendFlow(int c, bool flow)
-        {
-            long tf = Clock.Now;
-            ulong v = EfgFlowList(c, flow);
-            if (EfgWaitOwn(v, 60) && flow) efgFlowMs = efgFlowMs * 0.9 + Math.Min(12, Clock.SinceMs(tf)) * 0.1;
-            return v;
-        }
-
         void SetSlotDone(int c, ulong v) { Interlocked.Exchange(ref efgSlotDone[c], (long)v); }
 
-        // Una imagen a la cadena: la real (t = 1, o sin inventar: 'src' tal cual) o una inventada en el instante t (> 1 = hacia delante)
-        ulong EfgFrameList(int c, float t, bool gen, bool dup, bool hasPrev, bool cutCpu)
+        // Una inventada en el instante t (> 1 = hacia delante) a efgGen (marcas 2-3). dup = sin flujo: la real mas cercana en el tiempo
+        ulong EfgGenList(int c, float t, bool dup, bool hasPrev, bool cutCpu)
         {
             uint* k = stackalloc uint[16];
             int p = (c + EfgSets - 1) % EfgSets;
             EfgBegin();
-            ID3D12Resource src = efgGen;
-            if (gen)
+            EfgStamp(2);
+            EB(efgRing[p], D3D12_RESOURCE_STATES.COMMON, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE);
+            EB(efgRing[c], D3D12_RESOURCE_STATES.COMMON, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE);
+            bool extrap = t > 1.0001f;
+            if (!dup)
             {
-                EB(efgRing[p], D3D12_RESOURCE_STATES.COMMON, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE);
-                EB(efgRing[c], D3D12_RESOURCE_STATES.COMMON, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE);
-                bool extrap = t > 1.0001f;
-                if (!dup)
-                {
-                    EfgZero(k);
-                    k[0] = (uint)efgQw; k[1] = (uint)efgQh; k[2] = (uint)efgBx[0]; k[3] = (uint)efgBy[0];
-                    k[4] = F(t); k[5] = F(s.EfgKappa); k[6] = F(s.EfgTau); k[7] = F(s.EfgStillN);
-                    k[8] = (uint)efgLw[0]; k[9] = (uint)efgLh[0]; k[10] = extrap ? 1u : 0u;
-                    k[12] = (uint)efgBx[1]; k[13] = (uint)efgBy[1]; k[14] = (uint)efgBx[3]; k[15] = (uint)efgBy[3];
-                    EfgRun(psoEfgSel, c, 16, k, Groups(efgQw, 16), Groups(efgQh, 8), efgSel);
-                }
                 EfgZero(k);
-                k[0] = (uint)outW; k[1] = (uint)outH; k[2] = (uint)efgQw; k[3] = (uint)efgQh;
-                k[4] = F(hasPrev ? t : 1f); k[5] = F(s.EfgZeroPen); k[6] = F(s.EfgStillN); k[7] = F(s.EfgSigma);
-                k[8] = extrap || !hasPrev ? 1u : 0u; k[9] = dup || cutCpu ? 1u : 0u; k[10] = (uint)efgLw[0]; k[11] = (uint)efgLh[0];
-                k[12] = F(s.EfgCutThr); k[13] = F(s.EfgTau);
-                EfgRun(psoEfgFin, c, 17, k, Groups(outW, 16), Groups(outH, 8), null);
-                EB(efgRing[p], D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.COMMON);
-                EB(efgRing[c], D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.COMMON);
-                EB(efgGen, D3D12_RESOURCE_STATES.UNORDERED_ACCESS, D3D12_RESOURCE_STATES.COPY_SOURCE);
+                k[0] = (uint)efgQw; k[1] = (uint)efgQh; k[2] = (uint)efgBx[0]; k[3] = (uint)efgBy[0];
+                k[4] = F(t); k[5] = F(s.EfgKappa); k[6] = F(s.EfgTau); k[7] = F(s.EfgStillN);
+                k[8] = (uint)efgLw[0]; k[9] = (uint)efgLh[0]; k[10] = extrap ? 1u : 0u;
+                k[12] = (uint)efgBx[1]; k[13] = (uint)efgBy[1]; k[14] = (uint)efgBx[3]; k[15] = (uint)efgBy[3];
+                EfgRun(psoEfgSel, c, 16, k, Groups(efgQw, 16), Groups(efgQh, 8), efgSel);
             }
-            else
-            {
-                src = efgRing[c];
-                EB(src, D3D12_RESOURCE_STATES.COMMON, D3D12_RESOURCE_STATES.COPY_SOURCE);
-            }
+            EfgZero(k);
+            k[0] = (uint)outW; k[1] = (uint)outH; k[2] = (uint)efgQw; k[3] = (uint)efgQh;
+            k[4] = F(hasPrev ? t : 1f); k[5] = F(s.EfgZeroPen); k[6] = F(s.EfgStillN); k[7] = F(s.EfgSigma);
+            k[8] = extrap || !hasPrev ? 1u : 0u; k[9] = dup || cutCpu ? 1u : 0u; k[10] = (uint)efgLw[0]; k[11] = (uint)efgLh[0];
+            k[12] = F(s.EfgCutThr); k[13] = F(s.EfgTau);
+            EfgRun(psoEfgFin, c, 17, k, Groups(outW, 16), Groups(outH, 8), null);
+            EB(efgRing[p], D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.COMMON);
+            EB(efgRing[c], D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.COMMON);
+            D3D12_RESOURCE_BARRIER u = D3D12_RESOURCE_BARRIER.CreateUav(efgGen);
+            efgList.ResourceBarrier(1, ref u);
+            EfgStamp(3);
+            EfgStampsResolve();
+            ulong v = EfgSubmit();
+            SetSlotDone(c, v); SetSlotDone(p, v);
+            return v;
+        }
+
+        // La imagen a la cadena: la real (su ranura) o la inventada (efgGen)
+        ulong EfgCopyList(int c, bool gen)
+        {
+            EfgBegin();
+            ID3D12Resource src = gen ? efgGen : efgRing[c];
+            D3D12_RESOURCE_STATES rest = gen ? D3D12_RESOURCE_STATES.UNORDERED_ACCESS : D3D12_RESOURCE_STATES.COMMON;
+            EB(src, rest, D3D12_RESOURCE_STATES.COPY_SOURCE);
             ID3D12Resource bb = backbuf[swap.GetCurrentBackBufferIndex()];
             EB(bb, D3D12_RESOURCE_STATES.PRESENT, D3D12_RESOURCE_STATES.COPY_DEST);
             efgList.CopyResource(bb, src);
             EB(bb, D3D12_RESOURCE_STATES.COPY_DEST, D3D12_RESOURCE_STATES.PRESENT);
-            if (gen) EB(efgGen, D3D12_RESOURCE_STATES.COPY_SOURCE, D3D12_RESOURCE_STATES.UNORDERED_ACCESS);
-            else EB(src, D3D12_RESOURCE_STATES.COPY_SOURCE, D3D12_RESOURCE_STATES.COMMON);
+            EB(src, D3D12_RESOURCE_STATES.COPY_SOURCE, rest);
             ulong v = EfgSubmit();
-            SetSlotDone(c, v);
-            if (gen) SetSlotDone(p, v);
+            if (!gen) SetSlotDone(c, v);
             return v;
         }
 
@@ -253,6 +276,38 @@ namespace ConsoleEnhancer.Motor
             return a[Math.Min(n - 1, (int)(n * 0.9))];
         }
 
+        // ---------------------------------------------------------------------------------------------- el vigilante
+        void EfgWatchLoop()
+        {
+            while (!Program.Quit)
+            {
+                EfgJob j = null;
+                lock (efgWatchQ) { if (efgWatchQ.Count > 0) j = efgWatchQ.Dequeue(); }
+                if (j == null) { efgWatchEv.WaitOne(100); continue; }
+                try
+                {
+                    if (fence.GetCompletedValue() < j.Fence)
+                    {
+                        fence.SetEventOnCompletion(j.Fence, efgWatchFenceEv.SafeWaitHandle.DangerousGetHandle());
+                        efgWatchFenceEv.WaitOne(1000);
+                    }
+                }
+                catch { }
+                j.ReadyAt = Clock.Now;
+                j.Ready.Set();
+            }
+        }
+
+        void EfgStamp(uint i) { efgList.EndQuery(efgQheap, D3D12_QUERY_TYPE.TIMESTAMP, i); }
+        void EfgStampsResolve() { efgList.ResolveQueryData(efgQheap, D3D12_QUERY_TYPE.TIMESTAMP, 0, 4, efgTsBuf, 0); }
+        // (con las listas acabadas) lo que tardaron en la grafica el flujo y la ultima inventada
+        void EfgStampsRead(bool flow, bool gen)
+        {
+            ulong* t = (ulong*)efgTsPtr;
+            if (flow && t[1] > t[0]) { double ms = (t[1] - t[0]) * 1000.0 / efgTsFreq; if (ms < 50) efgFlowGpu = efgFlowGpu * 0.9 + ms * 0.1; }
+            if (gen && t[3] > t[2]) { double ms = (t[3] - t[2]) * 1000.0 / efgTsFreq; if (ms < 50) efgGenGpu = efgGenGpu * 0.9 + ms * 0.1; }
+        }
+
         // ---------------------------------------------------------------------------------------------- el hilo
         void EfgLoop()
         {
@@ -278,18 +333,15 @@ namespace ConsoleEnhancer.Motor
 
         void EfgDoJob(EfgJob j, bool stale)
         {
-            // 1. la real en su ranura (la grafica del motor)
-            if (fence.GetCompletedValue() < j.Fence)
-            {
-                fence.SetEventOnCompletion(j.Fence, efgMainEv.SafeWaitHandle.DangerousGetHandle());
-                if (!efgMainEv.WaitOne(1000)) Log.Write("Enhanced FG: la grafica no acaba la real (1 s)");
-            }
-            long tReady = Clock.Now;
+            // 1. la real en su ranura: la hora a la que la grafica la acabo (el vigilante)
+            if (!j.Ready.WaitOne(1000)) Log.Write("Enhanced FG: la grafica no acaba la real (1 s)");
+            long tReady = j.ReadyAt != 0 ? j.ReadyAt : Clock.Now;
+            j.Ready.Close();
             if (efgQueue != null) efgQueue.Wait(fence, j.Fence);
             double readyMs = Clock.Ms(j.Arrival, tReady);
             efgReadyWin[efgReadyN % efgReadyWin.Length] = Math.Max(0, Math.Min(100, readyMs));
             efgReadyN++;
-            int c = j.W, p = (c + EfgSets - 1) % EfgSets;
+            int c = j.W;
             bool hasPrev = efgPrevSeq == j.Seq - 1;
             bool flow = hasPrev && !j.Reset;
             int k = j.K;
@@ -300,49 +352,58 @@ namespace ConsoleEnhancer.Motor
             if (efgHzAt == 0 || Clock.SinceMs(efgHzAt) > 2000) { efgHz = DisplayHz(); efgHzAt = Clock.Now; }
             bool vs = s.EfgVsync == 1 || (s.EfgVsync < 0 && (j.Sync > 0 || (k * 1000.0 / j.RealMs) > (efgHz > 20 ? efgHz : 60) * 0.9));
             uint sy = vs ? 1u : 0u, fl = vs ? 0u : j.Flags;
-            // 2. la hora de la primera (B) desde la llegada
-            double need0 = nReal > 0 ? efgFlowMs + efgGenMs : efgCopyMs;
+            // 2. la hora de la primera (B) desde la llegada: lo que tarda la real (p90) + lo que hace falta para la primera + el margen
+            double need0 = (nReal > 0 ? efgFlowGpu + efgGenGpu + 0.4 : 0) + efgCopyMs;
             double want = EfgReadyP90() + need0 + s.EfgMarginMs;
             if (efgLcur <= 0 || want > efgLcur) efgLcur = want; else efgLcur += (want - efgLcur) * 0.03;
             long B = EfgAt(j.Arrival, efgLcur);
-            long now = Clock.Now;
-            long early = EfgAt(now, need0 * 0.5);
+            long early = EfgAt(Clock.Now, need0);
             if (B < early) { B = early; efgLate++; }
             if (efgLastPresent != 0 && B < EfgAt(efgLastPresent, step * 0.5)) B = EfgAt(efgLastPresent, step * 0.5);
-            // 3. la piramide y el flujo (con la real primero si la real va delante: modo latencia)
-            ulong vFlow = 0;
-            bool flowSent = false;
-            if (nReal > 0) { vFlow = EfgSendFlow(c, flow); flowSent = true; }
+            if (stale) B = EfgAt(Clock.Now, efgCopyMs - nReal * step);   // (detras viene otra: esta real ya, sin inventadas)
+            // 3. por delante: con la real detras (calidad), el flujo y la primera inventada ya (la de cada siguiente, tras presentar la anterior)
+            bool flowSent = false, genReady = false;
+            if (nReal > 0)
+            {
+                EfgFlowList(c, flow); flowSent = true;
+                if (!stale) { EfgGenList(c, (float)(1.0 - nReal / (double)k), !flow, hasPrev, j.Reset); genReady = true; }
+            }
             for (int i = 0; i < k; i++)
             {
                 bool real = i == nReal;
-                if (!real && stale) { efgSkipped++; continue; }
-                lock (efgJobs) { if (!real && efgJobs.Count > 0 && i > nReal) { efgSkipped++; continue; } }   // (otra real esperando: lo de despues de esta real sobra)
-                long ti = EfgAt(B, i * step);
-                if (!real && Clock.SinceMs(ti) > step * 0.5) { efgSkipped++; continue; }   // (ya es tarde para esta)
                 float t = (float)(1.0 + (i - nReal) / (double)k);
                 bool dup = !flow;
-                double lead = (real ? efgCopyMs : efgGenMs) + 0.6;
-                EfgWaitUntil(EfgAt(ti, -lead));
-                long tSub = Clock.Now;
-                ulong v = real ? EfgFrameList(c, 1f, false, false, hasPrev, false) : EfgFrameList(c, t, true, dup, hasPrev, j.Reset);
-                bool ok = EfgWaitOwn(v, Math.Max(4, Clock.Ms(Clock.Now, ti) + 30));
-                double gms = Clock.SinceMs(tSub);
-                if (ok)
+                bool skip = !real && (stale || !genReady);
+                if (!skip && !real) { lock (efgJobs) { if (efgJobs.Count > 0 && i > nReal) skip = true; } }   // (otra real esperando: lo de despues de esta sobra)
+                long ti = EfgAt(B, i * step);
+                if (!skip && !real && Clock.SinceMs(ti) > step * 0.5) skip = true;   // (ya es tarde para esta)
+                if (skip) { efgSkipped++; genReady = false; }
+                else
                 {
-                    if (real) efgCopyMs = efgCopyMs * 0.9 + Math.Min(gms, 20) * 0.1;
-                    else efgGenMs = efgGenMs * 0.9 + Math.Min(gms, 30) * 0.1;
+                    EfgWaitUntil(EfgAt(ti, -(efgCopyMs + 0.5)));
+                    long tSub = Clock.Now;
+                    ulong v = EfgCopyList(c, !real);
+                    bool ok = EfgWaitOwn(v, Math.Max(4, Clock.Ms(Clock.Now, ti) + 30));
+                    if (ok) efgCopyMs = efgCopyMs * 0.9 + Math.Min(Clock.SinceMs(tSub), 10) * 0.1;
+                    if (!real) EfgStampsRead(i == 0 && nReal > 0 && flow, !dup);
+                    EfgWaitUntil(ti);
+                    long call = Clock.Now;
+                    int hr = swap.Present(sy, (DXGI_PRESENT)fl);
+                    efgLastPresent = Clock.Now;
+                    if (hr < 0) { Log.Write("Enhanced FG: Present: " + Hr.Format(hr)); if (Hr.IsDeviceLost(hr)) { efgHr = hr; return; } }
+                    if (real) efgReals++; else if (dup) efgDups++; else efgGens++;
+                    EfgCsvRow(j, i, real ? 'r' : dup ? 'd' : 'g', t, call, readyMs);
+                    genReady = false;
                 }
-                EfgWaitUntil(ti);
-                long call = Clock.Now;
-                int hr = swap.Present(sy, (DXGI_PRESENT)fl);
-                efgLastPresent = Clock.Now;
-                if (hr < 0) { Log.Write("Enhanced FG: Present: " + Hr.Format(hr)); if (Hr.IsDeviceLost(hr)) { efgHr = hr; return; } }
-                if (real) efgReals++; else if (dup) efgDups++; else efgGens++;
-                EfgCsvRow(j, i, real ? 'r' : dup ? 'd' : 'g', t, call, readyMs);
-                if (!flowSent) { vFlow = EfgSendFlow(c, flow); flowSent = true; }   // (modo latencia: la real ya va; el flujo, para las de delante)
+                // lo de la siguiente: el flujo (modo latencia: tras la real) y su inventada, mientras esta se ve
+                if (!flowSent) { EfgFlowList(c, flow); flowSent = true; }
+                if (i + 1 < k && i + 1 != nReal && !stale)
+                {
+                    EfgGenList(c, (float)(1.0 + (i + 1 - nReal) / (double)k), !flow, hasPrev, j.Reset);
+                    genReady = true;
+                }
             }
-            if (!flowSent) vFlow = EfgSendFlow(c, flow);
+            if (!flowSent) EfgFlowList(c, flow);
             efgPrevSeq = j.Seq;
             EfgTick(j, k, nReal, vs);
         }
