@@ -170,7 +170,7 @@ namespace ConsoleEnhancer
         string GenDetail(string t, bool engine)
         {
             if (cfg.Mode120) return "120 fps (esports) · sin generacion · baja latencia"; // 20-11 (HZ120): a 120 no hay generacion
-            string fps = (cfg.CapMode ? "30" : "60") + " → " + ((cfg.CapMode ? 30 : 60) * 2) + " fps";
+            string fps = (cfg.CapMode ? "30" : "60") + " → " + ((cfg.CapMode ? 30 : 60) * (t == "fsr3" ? cfg.FsrMultNow : 2)) + " fps";   // (1.2.4 ronda 6, FGMULTI: FSR 3 FG x3 / x4)
             if (engine) return fps + " · motor propio";
             if (cfg.Dlss5Off) return fps + " · sin DLSS 5";
             return fps + " · DLSS 5 " + Dlss5PassText();

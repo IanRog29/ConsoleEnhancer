@@ -11906,6 +11906,9 @@ namespace ConsoleEnhancer
             // (1.2.4 ronda 6, QUITAFG: sin DLSS-G, fg=1 solo con la cadena de XeSS FG o FSR 3 FG; con la de siempre el motor iria sin generacion
             // -Smooth Motion va con fg=0 y sm=N-. Asi el motor de delante no enciende nada que no sea lo suyo)
             if (fg && (chain >= 0 ? chain : cfg.EngineFgChain) <= 0) fg = false;
+            // (1.2.4 ronda 6, FGMULTI: con la cadena de FSR 3 FG x3 / x4, fg=0 al motor y fsrfg_multi=N; MultiFsr.cs)
+            bool fsrMulCadena = Config.FsrMulChain(chain >= 0 ? chain : cfg.EngineFgChain), fsrMulOn = fg && fsrMulCadena;
+            if (fsrMulCadena) fg = false;
             return "fg=" + (fg ? "1" : "0") + " mode=" + (cfg.Mode120 && !cfg.HomeNative ? "120" : cfg.CapMode && !cfg.HomeNative ? "30" : "60") +
                    " preset=" + cfg.EnginePresetNow + " upscaler=" + Ce.EngineUpscaler(cfg) +
                    " sharp=" + EngineSharpen(cfg).ToString("0.00", CultureInfo.InvariantCulture) +
@@ -11915,7 +11918,7 @@ namespace ConsoleEnhancer
                    // Repetidas fuera con generacion (o en el modo 30), como el filtro de mpv: tambien al encenderla o apagarla en marcha
                    " dedupe=" + (DedupeOn(cfg, !cfg.FgOff) ? "1" : "0") +
                    // 16-11 noche: la captura reducida antes de DLSS (motor_entrada_<modo>_<captura>=WxH; 0 = tal cual)
-                   " entrada=" + cfg.EngineInNow + EngineDlss5Args(cfg);
+                   " entrada=" + cfg.EngineInNow + EngineDlss5Args(cfg) + (fsrMulCadena ? cfg.FsrMulLiveArgs(fsrMulOn) : "");
         }
 
         // 20-11 (DLSS 5 EN EL MOTOR): nivel, estilo, modelo, mascara e interfaz de DLSS 5 para el motor (EngineDlss5.cs); dlss5=0 si no toca
@@ -13116,6 +13119,7 @@ namespace ConsoleEnhancer
                     else if (line.Contains("\"client-message\"") && CierresEvent(line)) { } // (20-11, CIERRES: switch2-gpu del motor)
                     else if (line.Contains("\"client-message\"") && FpsEvent(line)) { } // (21-11: switch2-fps del motor, src\Lanzador\FpsBajo.cs)
                     else if (line.Contains("\"client-message\"") && MotorDlss5Evento(line)) { }
+                    else if (line.Contains("\"client-message\"") && FsrMulEvento(line)) { } // (1.2.4 ronda 6, FGMULTI: switch2-fsrmulti rota, MultiFsr.cs)
                     else if (line.Contains("\"client-message\"") && MotorFgEvento(line)) { } // (1.2.4 MOTORFG: switch2-fgmult no, MotorFg.cs) // (22-11, 1.2.3 MOTOR5: switch2-dlss5 roto del motor, MotorDlss5.cs)
                     else if (line.Contains("\"client-message\"") && AjPruebaEvento(line)) { } // (22-11, 1.2.2: pruebas del menu de ajustes, AjustesGuia.cs)
                     else if (line.Contains("\"client-message\"") && line.Contains("\"args\":[\"switch2-pad\""))
@@ -14278,6 +14282,7 @@ namespace ConsoleEnhancer
                 if (!userExit && Config.EngineActive && p.ExitCode != 0 && p.ExitCode != MpvConst.PowerOffExitCode && !File.Exists(Paths.FlagFile))
                 {
                     engineCrashes++;
+                    FsrMulCaida(p, p.ExitCode);     // (1.2.4 ronda 6, FGMULTI: con FSR 3 FG x3 / x4, x2 el resto de la sesion; MultiFsr.cs)
                     MotorGenCaida(p, p.ExitCode);   // (1.2.4 ronda 5, XEFGM: con XeSS FG / la generacion propia en el, esa generacion por Magpie el resto de la sesion; XefgMotor.cs)
                     Log.Write("El motor propio se ha cerrado solo (codigo " + p.ExitCode + ", vez " + engineCrashes + "; ver data\\logs\\engine.log): " +
                               (engineCrashes >= 3 ? "el resto de la sesion mpv + Magpie" : "se vuelve a abrir"));
