@@ -42,6 +42,7 @@ namespace ConsoleEnhancer.Motor
         public double FgCabMinG = 4;                // fg_cabeza_giro: px de la entrada que tiene que moverse la camara para clasificar
         public double FgCabNear = 0.5, FgCabFar = 0.99;   // fg_cabeza_cerca / _lejos (profundidad normal: 0 cerca, 1 lejos)
         public bool FgCabModel = true;              // fg_cabeza_modelo=1: el fondo con traslacion + acercamiento + giro (0 = solo el vector de la camara)
+        public int FgCabEdge = 18;                  // fg_cabeza_borde: en la frontera (5x5 bloques), casi quieto solo si su 3x3 casa (< esto x ruido, suma de 9); 0 = 3x3 sin limite
 
         bool ApplyFgCabeza(string k, string val)
         {
@@ -56,6 +57,7 @@ namespace ConsoleEnhancer.Motor
                 case "fg_cabeza_cerca": FgCabNear = Math.Max(0, Math.Min(1, Dv(val))); return true;
                 case "fg_cabeza_lejos": FgCabFar = Math.Max(0, Math.Min(1, Dv(val))); return true;
                 case "fg_cabeza_modelo": FgCabModel = Bv(val); return true;
+                case "fg_cabeza_borde": FgCabEdge = Math.Max(0, Math.Min(200, Iv(val))); return true;
             }
             return false;
         }
@@ -184,7 +186,7 @@ namespace ConsoleEnhancer.Motor
             c[0] = (uint)inW; c[1] = (uint)inH; c[2] = (uint)cabBx; c[3] = (uint)cabBy;
             c[4] = F(sx / 8f); c[5] = F(sy / 8f); c[6] = F(noise); c[7] = F((float)s.FgCabMinG);
             c[8] = F((float)s.FgCabNear); c[9] = F((float)s.FgCabFar); c[10] = F((float)(s.FgQuietTex / 255.0)); c[11] = F((float)(s.FgQuietStill / 255.0));
-            c[12] = s.FgQuiet ? 1u : 0u; c[13] = F((float)s.FgQuietRel); c[14] = F(cx); c[15] = F(cy);
+            c[12] = (s.FgQuiet ? 1u : 0u) | ((uint)Math.Max(0, Math.Min(200, s.FgCabEdge)) << 8); c[13] = F((float)s.FgQuietRel); c[14] = F(cx); c[15] = F(cy);
             BindCompute(psoCabC, TRCabC + cur, c, 16);
             list.Dispatch(Groups(inW, 16), Groups(inH, 8), 1);
             Barrier(mvecFg, D3D12_RESOURCE_STATES.UNORDERED_ACCESS, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE);
@@ -534,6 +536,16 @@ void main(uint3 id : SV_DispatchThreadID, uint3 gt : SV_GroupThreadID, uint3 gid
         }
     // el vector de lo casi quieto: la media de los bloques casi quietos de alrededor (sin saltos de bloque en el personaje)
     float2 vL = nL > 0 ? sL / nL : own.xy;
+    float edgeMax = (float)(Quiet >> 8) * Noise;
+    if (edgeMax > 0)
+    {
+        // frontera mas ancha (5x5 bloques): el fondo que destapa el personaje (y el de los rincones entre cabeza y hombros) cae en bloques
+        // casi quietos; ahi cada punto se mira por su cuenta
+        [unroll] for (int j5 = -2; j5 <= 2; j5++)
+            [unroll] for (int i5 = -2; i5 <= 2; i5 += 4) { float z5 = CB(b + int2(i5, j5)).z; mn = min(mn, z5); mxc = max(mxc, z5); }
+        [unroll] for (int i6 = -1; i6 <= 1; i6++)
+            [unroll] for (int j6 = -2; j6 <= 2; j6 += 4) { float z6 = CB(b + int2(i6, j6)).z; mn = min(mn, z6); mxc = max(mxc, z6); }
+    }
     bool near;
     if (mxc - mn < 0.5) near = own.z > 0.5;
     else
@@ -552,15 +564,18 @@ void main(uint3 id : SV_DispatchThreadID, uint3 gt : SV_GroupThreadID, uint3 gid
         int2 f0 = int2(floor(c0));
         float2 fr = c0 - float2(f0);
         float cs = lerp(lerp(CB(f0).z, CB(f0 + int2(1, 0)).z, fr.x), lerp(CB(f0 + int2(0, 1)).z, CB(f0 + int2(1, 1)).z, fr.x), fr.y);
-        if (eL + 9.0 * Noise < eC) near = true;
+        // (con fg_cabeza_borde, ademas tiene que casar de verdad: el fondo recien destapado no casa con ninguno de los dos y va lejos, con
+        // el vector de la camara: la generacion ve por la profundidad que antes lo tapaba el personaje)
+        bool fits = edgeMax <= 0 || eL < edgeMax;
+        if (eL + 9.0 * Noise < eC) near = fits;
         else if (eC + 9.0 * Noise < eL) near = false;
-        else near = cs > 0.5;
+        else near = cs > 0.5 && fits;
     }
     float2 v = near ? vL : g;
     // lo casi quieto que se mueve mucho (mas de 2 px y de media camara: un acercamiento, no el personaje) lleva su vector pero va LEJOS
     bool lejos = near && dot(vL, vL) > max(4.0, 0.25 * dot(g, g));
     if (lejos) near = false;
-    if (!near && !lejos && Quiet != 0 && haveG)
+    if (!near && !lejos && (Quiet & 1) != 0 && haveG)
     {
         // lo quieto con textura dentro de lo que va con la camara (letras de la interfaz): a 0 y delante, como fg_quieto
         float s0 = 0, sgs = 0, lo = 1, hi = 0;
