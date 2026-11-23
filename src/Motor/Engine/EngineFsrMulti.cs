@@ -32,7 +32,6 @@ namespace ConsoleEnhancer.Motor
         public string FsrMultiDll = "";
         public bool FsrMultiScQueue = true;  // fsrfg_multi_cola_cadena=0|1: la cadena (y las copias a ella) en una cola de presentacion propia
         public int FsrMultiQueue = 1;     // fsrfg_multi_cola=0|1|2: cola de calculo de prioridad normal / alta (de serie) / la de la imagen (sin asincrono)
-        public bool FsrMultiCopyQ = false;  // fsrfg_multi_copia=0|1: la copia a la cadena en una cola de COPIA (el motor de copia va aparte de la grafica)
         public bool FsrMultiHalf = false;   // fsrfg_multi_mitad=0|1: la profundidad y los vectores a FSR a la mitad (sus pasadas "de render" a 1/4 de pixeles)
         public bool FsrMultiSteps = true;   // fsrfg_multi_una=1|0: cada inventada en su lista (la 1a se enseña en cuanto esta)
         public string FsrMultiCsv = "";   // fsrfg_multi_csv=<fichero> (pruebas): cada Present del hilo (real / inventada, llegada de la real, hora del Present)
@@ -48,7 +47,6 @@ namespace ConsoleEnhancer.Motor
                 case "fsrfg_multi_csv": FsrMultiCsv = val.Trim(); return true;
                 case "fsrfg_multi_una": FsrMultiSteps = B(val); return true;
                 case "fsrfg_multi_mitad": FsrMultiHalf = B(val); return true;
-                case "fsrfg_multi_copia": FsrMultiCopyQ = B(val); return true;
                 case "fsrfg_multi_cola": FsrMultiQueue = Math.Max(0, Math.Min(2, I(val))); return true;
                 case "fsrfg_multi_cola_cadena": FsrMultiScQueue = B(val); return true;
             }

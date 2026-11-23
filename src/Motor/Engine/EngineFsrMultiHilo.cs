@@ -33,8 +33,10 @@ namespace ConsoleEnhancer.Motor
         long fmhPrevReal;
         double fmhHz; long fmhHzAt;
         long fmhSqueezed, fmhSqueezedSaid, fmGensSaid;
+        long fmhLag;   // (ticks) de la llegada de la ultima real con inventadas a su Present
 
-        ID3D12CommandQueue fmhCq;   // (fsrfg_multi_copia=1: la cola de copia de la cadena)
+        // (23-11: la copia a la cadena en una cola de COPIA aparte -para que no esperara a la grafica- hacia perder la grafica igual que
+        // escribirla desde la cola de la imagen, DXGI_ERROR_DEVICE_REMOVED nada mas empezar: la cadena solo se escribe desde su cola)
 
         void FmhEnsure()
         {
@@ -42,17 +44,6 @@ namespace ConsoleEnhancer.Motor
             object o;
             Guid iid;
             D3D12_COMMAND_LIST_TYPE lt = D3D12_COMMAND_LIST_TYPE.DIRECT;
-            if (s.FsrMultiCopyQ && scQueue != null)
-            {
-                D3D12_COMMAND_QUEUE_DESC qd = new D3D12_COMMAND_QUEUE_DESC();
-                qd.Type = D3D12_COMMAND_LIST_TYPE.COPY;
-                qd.Priority = 100;
-                iid = typeof(ID3D12CommandQueue).GUID;
-                Hr.Check(dev.CreateCommandQueue(ref qd, ref iid, out o), "CreateCommandQueue (FSR FG, copia a la cadena)");
-                fmhCq = (ID3D12CommandQueue)o;
-                lt = D3D12_COMMAND_LIST_TYPE.COPY;
-                Log.Write("FSR FG: la copia a la cadena en una cola de copia (fsrfg_multi_copia=1)");
-            }
             iid = typeof(ID3D12CommandAllocator).GUID;
             for (int i = 0; i < fmhAlloc.Length; i++)
             {
@@ -171,10 +162,11 @@ namespace ConsoleEnhancer.Motor
                         long hi = fmhPrevReal + (long)((realMs + 4) / Clock.TickMs);
                         if (R > hi) { R = Math.Max(hi, g + (long)(0.75 * full / Clock.TickMs)); fmhSqueezed++; }
                     }
-                    // sin inventadas (corte de escena, la 1a, con aviso) pero con la generacion puesta: la real a su cadencia (la anterior + un
-                    // intervalo real) y no al momento: si no, sale pegada a la anterior (medido: dos reales a 0,6 ms y luego 33 ms sin nada)
-                    if (!gen && k > 1 && fmhPrevReal != 0 && Clock.Ms(fmhPrevReal, g) < 2 * realMs)
-                        R = Math.Max(R, fmhPrevReal + (long)((realMs - 1) / Clock.TickMs));
+                    // sin inventadas (corte de escena, la 1a, con aviso) pero con la generacion puesta: la real con el MISMO retraso desde su
+                    // llegada que las de antes (asi sigue la cadencia sin mover las siguientes); al momento salia pegada a la anterior (medido:
+                    // dos reales a 0,6 ms y luego 33 ms sin nada) y a la anterior + un intervalo se retrasaba todo lo de despues (+3 ms)
+                    if (!gen && k > 1 && fmhLag > 0 && job.Arrival > 0 && fmhPrevReal != 0 && Clock.Ms(fmhPrevReal, g) < 2 * realMs)
+                        R = Math.Max(R, job.Arrival + fmhLag);
                     double s2 = gen && k > 1 ? Math.Min(step, Math.Max(0, Clock.Ms(g, R)) / (k - 1)) : 0;
                     int hr = 0;
                     if (gen)
@@ -196,6 +188,7 @@ namespace ConsoleEnhancer.Motor
                         FmWaitUntil(R);
                         hr = FmhCopyPresent(fmReal[b], gen ? job.Sy : job.SyReal, gen ? job.Fl : job.FlReal, b, job.Arrival, 0, job.MainFence);
                         fmhPrevReal = R;
+                        if (gen && job.Arrival > 0) fmhLag = R - job.Arrival;
                     }
                     if (hr < 0) fmhHr = hr;
                 }
@@ -224,13 +217,12 @@ namespace ConsoleEnhancer.Motor
             fmhList.ResourceBarrier(1, ref b);
             Hr.Check(fmhList.Close(), "Close (presentacion de FSR FG)");
             IntPtr lp = Com.BorrowPtr(fmhList, typeof(ID3D12CommandList));
-            ID3D12CommandQueue q = fmhCq ?? ScQ;
+            ID3D12CommandQueue q = ScQ;
             if (scQueue != null) q.Wait(fence, mainFence);   // (la real la copio la cola de la imagen; las inventadas, la de calculo: ya hechas)
             q.ExecuteCommandLists(1, ref lp);
             fmhFenceValue++;
             q.Signal(fmhFence, fmhFenceValue);
             fmhAllocFence[fmhAi] = fmhFenceValue;
-            if (fmhCq != null) scQueue.Wait(fmhFence, fmhFenceValue);   // (el Present, en la cola de la cadena, tras la copia)
             if (freeSet >= 0) fmhFree[freeSet].Set();
             long tp = Clock.Now;
             int hr = swap.Present(sy, (DXGI_PRESENT)fl);
