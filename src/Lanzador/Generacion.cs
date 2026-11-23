@@ -29,7 +29,9 @@ namespace ConsoleEnhancer
         // El nombre del tipo (selector, menu de ajustes, bandeja). (1.2.4 ronda 7, TEXTOS: sin multiplicador: Enhanced FG decia "Enhanced FG x4 ·
         // baja latencia" -lo guardado- en la fila del tipo con la fila "Multiplicador" en x2 al lado, y el " · " partia el titulo del aviso de
         // L3. Lo que va de verdad, con su multiplicador: Config.AvisoGen, Avisos.cs)
-        public static string GenLabel(string t, bool engine) { return Config.GenNombre(t); }
+        // (1.2.4 ronda 7, FGREAL: Enhanced FG y FSR 3 FG, opciones experimentales avisadas: en el menu, el selector y la bandeja con
+        // " (experimental)"; en los avisos de lo que va, el nombre solo -Config.GenNombre-)
+        public static string GenLabel(string t, bool engine) { return Config.GenNombre(t) + (t == "efg" || t == "fsr3" ? " (experimental)" : ""); }
 
         // Los tipos del modo de ahora que funcionan aqui ("no" el primero)
         List<string> GenOptions() { return GenOptionsFor(cfg.CapMode, cfg.VideoSize); }
