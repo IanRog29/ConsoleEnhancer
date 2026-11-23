@@ -26,6 +26,31 @@ namespace ConsoleEnhancer
 {
     partial class Config
     {
+        // (1.2.4 ronda 6, QUITAFG) las claves de lo que ya no existe (DLSS FG, los multiplicadores x3 / x4, la generacion propia del motor,
+        // dlssg_sm86): un ini de antes las trae; se aceptan sin hacer nada (ni "clave desconocida" en el log). La puesta al dia del ini
+        // (Ce.ActualizarIni, ClavesQuitadas) las quita
+        public static readonly string[] ClavesRetiradas = {
+            "fg_dlss_flujo_4k", "fg_dlss_flujo_calidad_4k", "fg_dlss_flujo_4k_multi", "fg_dlss_vectores", "fg_dlss_flujo_calidad_60",
+            "fg_flujo_30", "fg_flujo_60", "fg_flujo_calidad", "fg_flujo_calidad_60", "dlss_fg_preset", "magpie_dlssfg_ritmo_vsync", "magpie_dlssfg_lite",
+            "magpie_vrr_60_fg", "magpie_sigue_fuente_60_fg", "dxgi_30_fg", "dxgi_30_vfg",
+            "motor_generacion_60", "motor_generacion_30", "generacion_60", "modo30_generacion", "generacion_multiplicador", "dlssg_solo_magpie",
+            "xess_fg_x4", "xess_fg_multi_cabe", "xess_fg_fijo", "xess_fg_multi_uso", "escala_coste_xess_compat", "generacion_dlss5_minimo",
+            "escala_coste_dlss_fg", "escala_coste_dlss_fg_mas", "escala_credito_fijo_dlss",
+            "motor_fg_propia", "motor_xefg_propia", "motor_propia_dlss5", "prueba_multiplicador_hz", "motor_dlss5_pasadas",
+            // (fase 2, sin Magpie: las de Magpie que ya no lee nadie; dlss5_sin_telon_puente se queda: deja el relevo entre motores)
+            "magpie_actualizar", "magpie_arranque_max_s", "magpie_captura", "magpie_origen", "magpie_repetidas", "magpie_ritmo_ntsc", "magpie_cola_cpu",
+            "magpie_sm_vaciar_auto", "magpie_sm_vaciar_log", "magpie_sm_vaciar_ms", "magpie_sm_vaciar_objetivo", "magpie_sm_vaciar_partido",
+            "magpie_sm_vaciar_real", "magpie_sm_vaciar_real_alto", "magpie_sm_vaciar_real_ganancia", "magpie_sm_vaciar_real_objetivo",
+            "magpie_sm_vaciar_tras_ms", "magpie_sm_vaciar_umbral", "pasadas_vigilancia", "pasadas_vigilancia_imagen", "pasadas_vigilancia_imagen_pct",
+            "pasadas_vigilancia_imagen_umbral", "pasadas_vigilancia_prueba", "pasadas_vigilancia_reinicios", "puente_ligero",
+            "telon_esperar_magpie_max_ms", "rtx_hdr_metodo" };
+        // (fase 2) y todas las magpie_* (ritmo, VRR, cola, nitidez... de Magpie: ninguna la lee ya nadie)
+        public static bool ClaveRetirada(string key)
+        {
+            string k = (key ?? "").Trim().ToLowerInvariant();
+            return k.StartsWith("magpie_") || Array.IndexOf(ClavesRetiradas, k) >= 0;
+        }
+
         public static readonly string[] TiposGen = { "smooth", "xess", "fsr3" };
         public static bool TipoGen(string t) { return t == "smooth" || t == "xess" || t == "fsr3"; }
 
@@ -43,7 +68,7 @@ namespace ConsoleEnhancer
             {
                 case "xess_fg_1080": XessFg1080 = val.Trim() != "0"; return true;
             }
-            return CeParseProte(key, val) || CeParseMultiFsr(key, val);   // (1.2.4, XEFG: proteccion*, src\Lanzador\Proteccion.cs) (1.2.4 ronda 6, FGMULTI: motor_fsr_multi*, MultiFsr.cs)
+            return CeParseXefgm(key, val) || CeParseMultiFsr(key, val);   // (1.2.4 ronda 6, FGMULTI: motor_fsr_multi*, MultiFsr.cs)   // (motor_xefg_dlss5: XefgMotor.cs. 1.2.4 ronda 6: proteccion* -Proteccion.cs, la de Magpie- fuera, ClavesRetiradas)
         }
 
         static bool XessDll() { return Paths.HayLib("libxess_fg.dll"); }
@@ -55,7 +80,7 @@ namespace ConsoleEnhancer
             switch (t ?? "")
             {
                 case "smooth": return !Ce.NoNvidia && !NvProfiles.SmoothBroken && !NvProfiles.EngineSmoothBroken && !Pantalla.Is119;
-                case "xess": return XessDll() && !XessNo1080(videoSize) && !XessCaido;   // (1.2.4 ronda 6: y no si la grafica se perdio con el en esta sesion)
+                case "xess": return XessDll() && MotorFgSabe("xess") && !XessNo1080(videoSize) && !XessCaido;   // (1.2.4 ronda 6: y no si la grafica se perdio con el en esta sesion ni si el motor dijo que no arranca -switch2-fgfallo-)
                 case "fsr3": return FsrFgDll();
             }
             return false;
@@ -158,6 +183,8 @@ namespace ConsoleEnhancer
         {
             if (t == "xess" && !Paths.HayLib("libxess_fg.dll")) return Tx.T("falta libxess_fg.dll en xess\\", "libxess_fg.dll is missing in xess\\");
             if (t == "xess" && Config.XessNo1080(capSel)) return Tx.T("no va con la captura de 1080p", "doesn't run with the 1080p capture");
+            if (t == "xess" && (Config.XessCaido || !Config.MotorFgSabe("xess")))
+                return Tx.T("el motor no ha podido con él en esta sesión", "the engine couldn't run it this session");   // (1.2.4 ronda 6: sin Magpie)
             if (t == "fsr3" && !Paths.HayLib("amd_fidelityfx_framegeneration_dx12.dll")) return Tx.T("falta su DLL en fsr\\", "its DLL is missing in fsr\\");
             if (t == "smooth" && Ce.NoNvidia) return Tx.T("solo en NVIDIA RTX 40 / 50", "NVIDIA RTX 40 / 50 only");
             if (t == "smooth" && Pantalla.Is119) return Tx.T("no con la tele a 119,88 Hz", "not with the TV at 119.88 Hz");

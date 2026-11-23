@@ -28,7 +28,6 @@ namespace ConsoleEnhancer
     partial class Config
     {
         public int StandbyOpenMs = 0;   // motor_en_espera_al_abrir_ms: ms tras lanzar mpv al abrir la app (0 = a la vez; -1 = como antes)
-        public bool MagpieDlssSrOnlyChain = true;   // magpie_dlss_sr_solo_cadena: 0 = nvngx_dlss.dll siempre en magpie\ (como antes)
 
         public bool ParseTiempos(string key, string val)
         {
@@ -40,71 +39,9 @@ namespace ConsoleEnhancer
                         StandbyOpenMs = int.TryParse(val.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out v) ? Math.Max(-1, Math.Min(10000, v)) : 0;
                         return true;
                     }
-                case "magpie_dlss_sr_solo_cadena":
-                    {
-                        string v = val.Trim().ToLowerInvariant();
-                        MagpieDlssSrOnlyChain = !(v == "0" || v == "no" || v == "false" || v == "off");
-                        return true;
-                    }
+                case "magpie_dlss_sr_solo_cadena": return true;   // (1.2.2: el nvngx_dlss.dll de Magpie; 1.2.4 ronda 6: sin Magpie, no hace nada)
             }
             return false;
-        }
-    }
-
-    // El nvngx_dlss.dll de la carpeta de Magpie, apartado o en su sitio
-    static class DllDlssSr
-    {
-        public const string Nombre = "nvngx_dlss.dll", Aparte = "nvngx_dlss.dll.ce-sin-uso";
-        static string estado = "";   // lo ultimo apuntado en el log
-
-        // lleva: la cadena de Magpie lleva DLSS SR (o no se quiere apartar). Nunca con Magpie abierto (lo podria tener cargado)
-        public static void Poner(bool lleva, string porque)
-        {
-            try
-            {
-                string a = Path.Combine(Paths.MagpieDir, Nombre), b = Path.Combine(Paths.MagpieDir, Aparte);
-                if (lleva)
-                {
-                    if (File.Exists(a) || !File.Exists(b)) return;
-                    File.Move(b, a);
-                    Apuntar("Magpie: " + Nombre + " otra vez en su sitio (" + porque + ")");
-                    return;
-                }
-                if (!File.Exists(a)) return;
-                if (MagpieLive.Running) return;
-                // (una carpeta de Magpie que es una union -bin\magpie -> terceros\magpie al compilar- es de todos: no se toca)
-                if ((File.GetAttributes(Paths.MagpieDir) & FileAttributes.ReparsePoint) != 0) { Apuntar("Magpie: " + Nombre + " no se aparta (la carpeta de Magpie es una union a otra: compartida)"); return; }
-                if (File.Exists(b)) File.Delete(b);
-                File.Move(a, b);
-                Apuntar("Magpie: " + Nombre + " apartado (" + porque + "): su cadena no lleva DLSS SR y NGX no lo carga al preparar (~1-2 s menos)");
-            }
-            catch (Exception ex) { Apuntar("Aviso: Magpie: " + Nombre + " sin " + (lleva ? "devolver" : "apartar") + " (" + ex.Message + ")"); }
-        }
-
-        static void Apuntar(string s) { if (s == estado) return; estado = s; Log.Write(s); }
-    }
-
-    partial class TrayApp
-    {
-        // Antes de abrir Magpie, con su config ya escrita (cfg con lo de ahora): DLSS SR en la cadena -> nvngx_dlss.dll en su sitio; sin el, aparte
-        void MagpieDlssSrSegunCadena()
-        {
-            bool lleva = true;
-            try
-            {
-                if (cfg.MagpieDlssSrOnlyChain)
-                {
-                    lleva = false;
-                    foreach (object o in MagpieConfig.Chain(cfg, double.NaN))
-                    {
-                        Dictionary<string, object> d = o as Dictionary<string, object>;
-                        object n;
-                        if (d != null && d.TryGetValue("name", out n) && string.Equals(n as string, "DLSS\\DLSS_SR", StringComparison.OrdinalIgnoreCase)) { lleva = true; break; }
-                    }
-                }
-            }
-            catch (Exception ex) { lleva = true; Log.Error("Magpie: mirando si su cadena lleva DLSS SR", ex); }
-            DllDlssSr.Poner(lleva, lleva ? (cfg.MagpieDlssSrOnlyChain ? "la cadena lleva DLSS SR" : "magpie_dlss_sr_solo_cadena=0") : "captura " + SizeName(cfg.VideoSize) + ", escalador " + cfg.ScalerNow);
         }
     }
 

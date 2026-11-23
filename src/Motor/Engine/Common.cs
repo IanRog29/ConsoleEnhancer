@@ -94,7 +94,7 @@ namespace ConsoleEnhancer.Motor
         public bool NrBlendDirect = true;           // 20-11 (LATENCIA7) dlss5_mezcla_directa=0: la mezcla a una textura aparte y su copia a inColor (como antes)
         public int NrStyle = 2, NrPreset = 2;
         public bool NrMask = true, NrUi = true;
-        public string NrDir = "";   // ConsoleEnhancer: la carpeta magpie de la app (el lanzador la pasa con dlss5_dir)
+        public string NrDir = "";   // ConsoleEnhancer: la carpeta de nvngx_dlssnr.dll (extras de la app; el lanzador la pasa con dlss5_dir)
         public int Reflex = 1;                      // 0 off, 1 baja latencia, 2 + boost
         public int Mode = 60;                       // 60 | 30 | 120 (30: solo imagenes nuevas; 120: esports, captura a 120, sin generacion, minimo proceso)
         public bool Is120 { get { return Mode >= 120; } }   // 20-11 (HZ120): modo 120 fps de baja latencia

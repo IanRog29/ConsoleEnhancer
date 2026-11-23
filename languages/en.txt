@@ -1,5 +1,4 @@
 # Textos de pantalla en ingles: "espanol<TAB>english". Frase entera primero; si no, trozos (los mas largos antes). Ver src\Lanzador\ConsoleEnhancerApp.cs (Idioma)
-Escalar ahora (atajo de Magpie)	Scale now (Magpie hotkey)
 Abrir config	Open settings
 Asistente de configuración	Setup wizard
 Salir	Exit
@@ -37,7 +36,6 @@ Ajustando la ventana	Adjusting the window
 Cargando	Loading
 Modo 30 fps	30 fps mode
 Modo 60 fps	60 fps mode
-Magpie no está escalando · mira el log	Magpie is not scaling · check the log
  Hz · la generación necesita 120 Hz (Configuración > Pantalla)	 Hz · frame generation needs 120 Hz (Settings > Display)
 La tele está a 	The TV is at 
  · se aplicará al activarlo	 · will apply when turned on

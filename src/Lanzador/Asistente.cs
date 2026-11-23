@@ -354,7 +354,7 @@ namespace ConsoleEnhancer
                     else
                     {
                         if (!Extras.Anadir(this)) return;
-                        Ce.PrepararExtras();   // (a magpie\: Magpie no esta abierto durante el asistente)
+                        Ce.PrepararExtras();   // (1.2.4 ronda 6: ya no copia a magpie\; quita la copia vieja de dlssg_sm86 si la puso la app)
                     }
                     Extras.Redetectar(hw);
                     Ir(paso);
@@ -380,8 +380,8 @@ namespace ConsoleEnhancer
             bool bien;
             string est = Extras.EstadoComponentes(out bien);
             if (est == null) return "";
-            return Tx.T("Componentes (reescalado y generación de mpv + Magpie; NVIDIA Streamline / DLSS / Reflex ya vienen en el zip):\r\n",
-                        "Components (mpv + Magpie upscaling and frame generation; NVIDIA Streamline / DLSS / Reflex ship in the zip):\r\n") + est +
+            return Tx.T("Componentes (mpv, y XeSS de Intel y FSR de AMD para el motor; NVIDIA Streamline / DLSS / Reflex ya vienen en el zip):\r\n",
+                        "Components (mpv, and Intel XeSS and AMD FSR for the engine; NVIDIA Streamline / DLSS / Reflex ship in the zip):\r\n") + est +
                    (bien ? "" : "  ! " + Tx.T("Falta algo: bandeja > Componentes: comprobar / volver a descargar\r\n", "Something is missing: tray > Components: check / download again\r\n")) +
                    Tx.T("  (Si algo falla más tarde: icono de la bandeja > Componentes: comprobar / volver a descargar)\r\n\r\n",
                         "  (If something breaks later: tray icon > Components: check / download again)\r\n\r\n");

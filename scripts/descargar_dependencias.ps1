@@ -3,21 +3,21 @@
 #
 #   terceros\mpv\          mpv (mpv-player/mpv, build oficial x86_64-w64-mingw32 "full": FFmpeg con dshow dentro) + su
 #                          portable_config\mpv.conf (resources\mpv.conf: asi el mpv.conf del usuario, si tiene, no cambia nada)
-#   terceros\magpie\       Magpie Experimental (fork SAOG0721/Magpie, GPL-3.0). SIN nvngx_dlssnr.dll ni runtimes\dlssg_sm86
-#                          (vienen en su zip pero no son oficiales: DLL de NVIDIA modificada y runtime autofirmado; ver extras\)
+#   terceros\xess\         Intel XeSS SDK (intel/xess): libxess.dll, libxess_fg.dll, libxell.dll y su licencia (XeSS y XeSS FG del motor)
+#   terceros\fsr\          AMD FSR SDK (GPUOpen FidelityFX-SDK): las amd_fidelityfx_*_dx12.dll firmadas (FSR 3.1 / 4 y FSR 3 FG del motor)
+#                          (1.2.4 ronda 6: sin Magpie, que antes traia estas DLL)
 #   terceros\streamline\   NVIDIA Streamline SDK (NVIDIA-RTX/Streamline): solo bin\x64\ (las DLL de produccion) y las licencias
 #
-# Versiones, URL, SHA-256 y que se coge de cada zip: scripts\components.json (la misma tabla que usa la app para bajar mpv y Magpie
+# Versiones, URL, SHA-256 y que se coge de cada zip: scripts\components.json (la misma tabla que usa la app para bajar mpv, XeSS y FSR
 # la primera vez que se abre). Las descargas se guardan en terceros\_descargas (si ya estan y el hash cuadra, no se bajan otra vez).
 # Nada de esto va al repositorio (.gitignore). Solo PowerShell 5.1 de Windows, nada que instalar.
 #
-# Uso: powershell -ExecutionPolicy Bypass -File scripts\descargar_dependencias.ps1 [-Solo mpv,magpie,streamline] [-Forzar]
+# Uso: powershell -ExecutionPolicy Bypass -File scripts\descargar_dependencias.ps1 [-Solo mpv,xess,fsr,streamline] [-Forzar]
 #        [-Destino <carpeta>] [-Cache <carpeta>] [-ConservarNoOficial]
 #  -Forzar               rehace las carpetas aunque ya esten en la version buena
-#  -ConservarNoOficial   deja nvngx_dlssnr.dll y runtimes\dlssg_sm86 en terceros\magpie (solo para uso propio: empaquetar.ps1 nunca
-#                        los mete en el paquete)
+#  -ConservarNoOficial   (de antes, con Magpie: ya no hace nada)
 param(
-    [string[]]$Solo = @('mpv', 'magpie', 'streamline'),
+    [string[]]$Solo = @('mpv', 'xess', 'fsr', 'streamline'),
     [string]$Raiz = (Split-Path -Parent $PSScriptRoot),
     [string]$Destino = '',
     [string]$Cache = '',
@@ -99,7 +99,7 @@ function Preparar([string]$nombre) {
     Write-Host "$nombre $($d.version):"
     $zip = Bajar $d
     if (Test-Path $dir) {
-        # (puede ser el destino de una union bin\mpv o bin\magpie: se vacia por dentro, la carpeta se queda)
+        # (puede ser el destino de una union bin\mpv, bin\xess o bin\fsr: se vacia por dentro, la carpeta se queda)
         Get-ChildItem -LiteralPath $dir -Force | Remove-Item -Recurse -Force
     }
     New-Item -ItemType Directory -Force $dir | Out-Null

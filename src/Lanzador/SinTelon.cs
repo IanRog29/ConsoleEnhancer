@@ -159,19 +159,20 @@ namespace ConsoleEnhancer
             try
             {
                 if (p == null || p.HasExited) no = "sin imagen en marcha";
+                else if (toMagpie) no = "a mpv sin el motor";   // (1.2.4 ronda 6, QUITAFG: sin Magpie no hay relevo del motor a el)
                 else if (!toEngine && !toMagpie) no = "no cambia de motor";
                 else if (relevo != null) no = "ya hay un relevo en marcha";
                 else if (InHome || homeBusy) no = "HOME";
                 else if (!StandbyOn()) no = "sin motor en espera (motor_en_espera=0 o un ConsoleEnhancerEngine.exe que no lo sabe hacer)";
                 else if (!EngineKnowsSinTelon()) no = "el ConsoleEnhancerEngine.exe no sabe ponerse detras ni encima (switch2-delante, switch2-encima)";
-                else if (toEngine && !MagpieLive.IsScaling()) no = "Magpie no esta escalando";
+
                 else if (toEngine && !signalOn) no = "mpv sin imagen";
                 else if (toMagpie && (!ipcUp || !videoSignal)) no = "el motor sin imagen";
                 else if (toMagpie && !(cfg.UpscaleOn || !cfg.Dlss5Off || !cfg.FgOff)) no = "nada que hacer para Magpie";
             }
             catch (Exception ex) { no = ex.GetType().Name + ": " + ex.Message; }
             if (no != null) { Log.Write(title + ": sin telon no se puede (" + no + "): con el telon de siempre"); return false; }
-            return toEngine ? StartRelevoToEngine(title, subtitle, p) : StartRelevoToMagpie(title, subtitle, p);
+            return StartRelevoToEngine(title, subtitle, p);
         }
 
         // ¿El ConsoleEnhancerEngine.exe sabe ponerse detras / delante / encima? (uno de antes no: se pondria delante al despertar). Una vez por version
@@ -219,7 +220,7 @@ namespace ConsoleEnhancer
             lock (cmdQueue) cmdQueue.RemoveAll(delegate (string c) { return c.StartsWith("{\"command\":[\"set\",\"glsl-shaders\"", StringComparison.Ordinal); });
             if (pad && pill != null) Osd(pill); // (en la imagen de ahora: Magpie la escala)
             // (16-11, velocidad: tambien desde el HOME a 4K, sin Magpie: la imagen de mpv tal cual)
-            bool withMagpie = MagpieLive.Running;
+            bool withMagpie = false;   // (1.2.4 ronda 6, QUITAFG: sin Magpie)
             Log.Write(title + ": sin telon (" + (r.OldEngine ? "del motor propio a otro motor propio" : "de mpv" + (withMagpie ? " + Magpie" : " (HOME a 4K)") + " al motor propio") + "): " +
                       (withMagpie ? "Magpie sigue a la vista con DLSS 5" : r.OldEngine ? "el motor de ahora sigue a la vista" : "la imagen de la consola sigue a la vista") + "; el motor despierta detras y se pone delante en cuanto da imagen");
             Thread t = new Thread(delegate () { RelevoToEngine(r, title, subtitle, pill, pad); });
@@ -311,7 +312,7 @@ namespace ConsoleEnhancer
                     ForceForeground(h);
                     fg = GetForegroundWindow() == h;
                 }
-                KillMagpieNow("sin telon: el motor ya da imagen", false);
+
                 r.Send(JsonCmd("script-message", "switch2-delante"));
                 lock (relevoSync)
                 {
@@ -338,7 +339,7 @@ namespace ConsoleEnhancer
         {
             Log.Write("Sin telon: " + why + " (" + r.Since.ElapsedMilliseconds + " ms del boton): telon como antes");
             ShowFastCurtain(pad ? subtitle : null, pad ? title : null, false);
-            KillMagpieNow("sin telon fallido: telon como antes", false);
+
             Process e = r.Engine;
             bool alive = false;
             try { alive = e != null && !e.HasExited && r.WakeSent; } catch { }
@@ -358,17 +359,7 @@ namespace ConsoleEnhancer
             QuitOldMpv(r);
         }
 
-        // El boton de captura del mando (Win derecha + Impr Pant: la app inyecta otra tecla) con Magpie aun vivo en el relevo al motor: Magpie
-        // se caia (c0000005) ~0,5-0,7 s despues si seguia vivo. Fuera ya, con el telon negro de siempre hasta el corte (RunMpv lo quita)
-        void RelevoCaptureButton()
-        {
-            Relevo r = relevo;
-            if (r == null || !r.ToEngine || r.Cut || !MagpieLive.Running) return;
-            lock (relevoSync) { if (r.Cut) return; r.Curtain = true; }
-            ShowFastCurtain(null, null, false);
-            KillMagpieNow("boton de captura durante el relevo al motor", false);
-            Log.Write("Sin telon: boton de captura con Magpie aun vivo (" + r.Since.ElapsedMilliseconds + " ms del boton A): Magpie fuera ya y telon negro hasta la imagen del motor");
-        }
+        // (1.2.4 ronda 6, QUITAFG, fase 2: RelevoCaptureButton era de Magpie; fuera)
 
         // El mpv que se va: por su tuberia (MpvLinkLoop, solo ese mpv); si no se ha ido en 3 s, a la fuerza
         void QuitOldMpv(Relevo r)
@@ -460,7 +451,7 @@ namespace ConsoleEnhancer
                 ProcessStartInfo psi = new ProcessStartInfo(cfg.EnginePath, EngineArgs(cfg, ipc) + " standby=1");
                 psi.UseShellExecute = false;
                 psi.WorkingDirectory = Path.GetDirectoryName(cfg.EnginePath);
-                Log.Write("Sin telon: no hay motor en espera: se arranca uno escondido (Magpie sigue a la vista): " + psi.FileName + " " + psi.Arguments);
+                Log.Write("Sin telon: no hay motor en espera: se arranca uno escondido: " + psi.FileName + " " + psi.Arguments);
                 Process e = Process.Start(psi);
                 standbyPrestarted = true;
                 SetStandby(e, ipc, false);
@@ -480,181 +471,15 @@ namespace ConsoleEnhancer
             finally { StandbyLaunchEnd(); }
         }
 
-        // ================================================================================== DLSS 5 encendido: del motor a mpv + Magpie
-        bool StartRelevoToMagpie(string title, string subtitle, Process e)
-        {
-            Relevo r = new Relevo(false);
-            r.Engine = e;
-            r.Ipc = curIpc;
-            r.Smooth = Config.EngineSmoothRunning;   // (18-11, PASADAS: el motor que hace la imagen pasa a la espera con el suyo)
-            if (!r.Connect(1000)) { Log.Write(title + ": sin telon no se puede (sin tuberia aparte con el motor): con el telon de siempre"); return false; }
-            bool pad = PadRecent;
-            if (pad) { padRestart = true; padRestartAt = DateTime.Now; }
-            lock (relevoSync) relevo = r;
-            lsReady = false;          // (nada del mando ni del HOME hasta que Magpie presenta)
-            relaunchEngine = true;
-            int mode = cfg.Dlss5SeamlessOnTop;
-            // Encima de todo YA (antes de que salga la ventana de mpv) y sin coger el foco: mpv lo necesita para que Magpie escale
-            r.Send(JsonCmd("script-message", "switch2-encima", mode.ToString(CultureInfo.InvariantCulture)));
-            // 17-11 17:00 (puente_ligero): mientras Magpie arranca DLSS 5 (~6-7 s) el motor sigue con E, lo mas ligero: con L la grafica se
-            // repartia con el arranque de Magpie y se notaban tirones (el usuario: "al activar DLSS 5 me ha ido lagueado por unos segundos")
-            if (cfg.BridgeLight) r.Send(JsonCmd("engine", "set" + BridgeLightSet()));   // (17:15: tambien sin generacion: memoria de la grafica)
-            // El aviso en el motor mientras Magpie prepara (se va con el; luego, en la imagen de Magpie, lo puesto: FinishLsStart)
-            if (pad && title != null) r.Send(OsdCmd(PillText(title, "preparando DLSS 5…" + (string.IsNullOrEmpty(subtitle) ? "" : " · " + subtitle)), "30000", false));
-            // Si la app muriera, el motor no se queda abierto (como uno en espera)
-            standbyAtExit = e;
-            EngineJob.Hold(e, true);
-            relevoAside = e;          // (RunMpv lo deja aparte y abre mpv + Magpie)
-            ThreadPool.QueueUserWorkItem(delegate { PrestartMagpie(); });
-            Thread w = new Thread(delegate () { WatchRelevoToMagpie(r); });
-            w.IsBackground = true;
-            w.Name = "Sin telon (a Magpie)";
-            w.Start();
-            Log.Write(title + ": sin telon (del motor propio a mpv + Magpie): el motor sigue jugando encima de todo (" + (mode >= 2 ? "reafirmado" : "una vez") +
-                      ") mientras se abren mpv y Magpie" + (cfg.Dlss5SeamlessFocus ? "; el foco vuelve al motor mientras Magpie prepara" : "; sin el foco (mpv delante para Magpie)"));
-            return true;
-        }
+        // (1.2.4 ronda 6, QUITAFG, fase 2: StartRelevoToMagpie era de Magpie; fuera)
 
-        // Mientras el motor juega encima: si se cierra (fallo, consola apagada), el telon de siempre hasta que Magpie presente; tope de 60 s
-        void WatchRelevoToMagpie(Relevo r)
-        {
-            try
-            {
-                while (relevo == r && !r.Cut && !userExit)
-                {
-                    Thread.Sleep(50);
-                    bool dead;
-                    try { dead = r.Engine.HasExited; } catch { dead = true; }
-                    if (dead)
-                    {
-                        lock (relevoSync)
-                        {
-                            if (r.Cut) return;
-                            r.Cut = true;
-                            r.Curtain = true;
-                            if (relevo == r) relevo = null;
-                        }
-                        if (relevoAside == r.Engine) relevoAside = null;
-                        if (standbyAtExit == r.Engine) standbyAtExit = null;
-                        r.Close();
-                        Log.Write("Sin telon: el motor que jugaba encima se ha cerrado (" + r.Since.ElapsedMilliseconds + " ms del boton): telon como antes hasta que Magpie presente");
-                        ShowCurtain();
-                        return;
-                    }
-                    if (r.Since.ElapsedMilliseconds > 60000)
-                    {
-                        ShowCurtain();
-                        FinishRelevoToMagpie("60 s sin que Magpie presente");
-                        return;
-                    }
-                }
-            }
-            catch (Exception ex) { Log.Error("Sin telon (vigilando el motor)", ex); }
-        }
+        // (1.2.4 ronda 6, QUITAFG, fase 2: WatchRelevoToMagpie era de Magpie; fuera)
 
-        // ¿El motor sigue jugando encima esperando a Magpie?
-        bool RelevoToMagpieActive()
-        {
-            Relevo r = relevo;
-            return r != null && !r.ToEngine && !r.Cut;
-        }
+        // (1.2.4 ronda 6, QUITAFG, fase 2: RelevoToMagpieActive era de Magpie; fuera)
 
-        // WaitForScaling (Magpie ya prepara: su escalado empezo con mpv delante): con dlss5_sin_telon_foco=1 el foco vuelve al motor, que
-        // sigue encima (su generacion vuelve; Magpie sigue preparando)
-        void RelevoFocusToEngine()
-        {
-            if (!cfg.Dlss5SeamlessFocus) return;
-            Relevo r = relevo;
-            if (r == null || r.ToEngine || r.Cut) return;
-            IntPtr h = WindowOf(r.Engine);
-            if (h == IntPtr.Zero) return;
-            ForceForeground(h);
-            Log.Write("Sin telon: el foco vuelve al motor mientras Magpie prepara (" + r.Since.ElapsedMilliseconds + " ms del boton): " +
-                      (GetForegroundWindow() == h ? "lo tiene" : "NO lo ha cogido (delante: " + FgOwner() + ")"));
-        }
+        // (1.2.4 ronda 6, QUITAFG, fase 2: RelevoFocusToEngine era de Magpie; fuera)
 
-        // Magpie ya presenta (FinishLsStart) o se deja de esperar: el motor que jugaba encima se va al fondo (lo de Magpie ya se ve; su imagen
-        // negra de la espera, debajo) y a la espera. Con dlss5_sin_telon_foco el foco vuelve antes a mpv (Magpie solo va siempre encima con
-        // mpv delante)
-        void FinishRelevoToMagpie(string why)
-        {
-            Relevo r = relevo;
-            if (r == null || r.ToEngine) return;
-            lock (relevoSync)
-            {
-                if (r.Cut) return;
-                r.Cut = true;
-            }
-            if (relevoAside == r.Engine) relevoAside = null;
-            long ms = r.Since.ElapsedMilliseconds;
-            if (cfg.Dlss5SeamlessFocus)
-            {
-                try
-                {
-                    Process m = mpv;
-                    if (m != null && m != r.Engine && !m.HasExited)
-                    {
-                        m.Refresh();
-                        IntPtr mh = m.MainWindowHandle;
-                        if (mh != IntPtr.Zero && GetForegroundWindow() != mh) ForceForeground(mh);
-                    }
-                }
-                catch { }
-            }
-            r.Send(JsonCmd("script-message", "switch2-encima", "0"));
-            r.Send(JsonCmd("script-message", "switch2-standby"));
-            Log.Write("Sin telon (a Magpie): " + why + " a los " + ms + " ms del boton: el motor al fondo y a la espera");
-            Thread t = new Thread(delegate ()
-            {
-                Stopwatch sw = Stopwatch.StartNew();
-                bool dead = false;
-                while (!r.StandbyOk && sw.ElapsedMilliseconds < 1500)
-                {
-                    try { dead = r.Engine.HasExited; } catch { dead = true; }
-                    if (dead) break;
-                    Thread.Sleep(10);
-                }
-                lock (relevoSync) { if (relevo == r) relevo = null; }
-                r.Close();
-                // (con el foco en el motor mientras Magpie preparaba: mpv tiene que acabar delante, si no Magpie no va siempre encima y el mando
-                // no responde)
-                if (cfg.Dlss5SeamlessFocus && !userExit)
-                {
-                    try
-                    {
-                        Process m = mpv;
-                        if (m != null && m != r.Engine && !m.HasExited)
-                        {
-                            m.Refresh();
-                            IntPtr mh = m.MainWindowHandle;
-                            if (mh != IntPtr.Zero && GetForegroundWindow() != mh)
-                            {
-                                string was = FgOwner();
-                                ForceForeground(mh);
-                                Log.Write("Sin telon: el primer plano no estaba en mpv tras el relevo (delante: " + was + "): devuelto");
-                            }
-                        }
-                    }
-                    catch { }
-                }
-                if (r.StandbyOk && !dead && !userExit)
-                {
-                    SetStandby(r.Engine, r.Ipc, true);
-                    if (r.Smooth >= 0) standbySmooth = r.Smooth;   // (18-11, PASADAS: el Smooth Motion de este motor, ver Relevo.Smooth)
-                    Log.Write("Motor en espera: listo (" + sw.ElapsedMilliseconds + " ms tras pedirlo): capturadora soltada, sigue abierto y escondido (pid " + r.Engine.Id +
-                              (standbySmooth > 0 ? ", con Smooth Motion " + standbySmooth : standbySmooth == 0 ? ", sin Smooth Motion" : "") + ")");
-                }
-                else
-                {
-                    if (standbyAtExit == r.Engine) standbyAtExit = null;
-                    try { if (!r.Engine.HasExited) r.Engine.Kill(); } catch { }
-                    Log.Write("Sin telon: el motor no ha pasado a la espera en 1,5 s" + (dead || userExit ? "" : ": se cierra") + "; el proximo motor sera nuevo");
-                }
-            });
-            t.IsBackground = true;
-            t.Name = "Sin telon (motor a la espera)";
-            t.Start();
-        }
+        // (1.2.4 ronda 6, QUITAFG, fase 2: FinishRelevoToMagpie era de Magpie; fuera)
 
         // ================================================================================== 16-11 (velocidad): el puente
         // dlss5_sin_telon_puente: cada vez que Magpie se (re)abre con mpv en marcha (nivel, pasadas, modo, generacion, R3... con el mando, los
@@ -666,116 +491,9 @@ namespace ConsoleEnhancer
         bool CaptureButtonRecent { get { return (DateTime.Now - lastShotKey).TotalMilliseconds < 1500; } }
         volatile bool bridgePrestarting;    // arrancando un motor en espera para el proximo puente
 
-        // El motor en espera despierto detras de todo con la captura y los ajustes de ahora (cfg ya con lo nuevo). null = no se puede
-        Relevo BridgeWake(string title, string subtitle, string why)
-        {
-            if (!cfg.Dlss5Seamless || !cfg.MagpieBridge || cfg.BenchSecs > 0) return null;
-            string no = null;
-            Process e = standbyEngine;
-            try
-            {
-                if (relevo != null) no = "ya hay un relevo en marcha";
-                else if (!StandbyOn()) no = "sin motor en espera (motor_en_espera=0 o un ConsoleEnhancerEngine.exe que no lo sabe hacer)";
-                else if (!EngineKnowsSinTelon()) no = "el ConsoleEnhancerEngine.exe no sabe ponerse detras ni encima";
-                else if (e == null) no = "no hay motor en espera";
-                else if (!standbyReady) no = "el motor en espera aun no esta listo";
-                else if (e.HasExited) no = "el motor en espera se ha cerrado";
-                else if (cfg.HomeNative) no = "HOME a 4K";
-            }
-            catch (Exception ex) { no = ex.GetType().Name + ": " + ex.Message; }
-            if (no != null)
-            {
-                Log.Write("Puente (" + why + "): no (" + no + "): con el telon de siempre");
-                // Sin motor en espera (la sesion empezo jugando, sin pasar por el HOME, o se cerro): uno ya, para la proxima. Su arranque
-                // (~3 s de Streamline) cae debajo del telon de esta reapertura
-                if (e == null && relevo == null && !bridgePrestarting && !Config.EngineActive && StandbyOn() && EngineKnowsSinTelon())
-                {
-                    bridgePrestarting = true;
-                    Thread t = new Thread(delegate () { try { PrestartStandby(); } finally { bridgePrestarting = false; } });
-                    t.IsBackground = true;
-                    t.Name = "Motor en espera (para el puente)";
-                    t.Start();
-                }
-                return null;
-            }
-            string ipc = standbyIpc;
-            int sm = standbySmooth;   // (18-11, PASADAS: el Smooth Motion con el que se abrio este motor)
-            // Fuera de la espera, como al despertarlo para el relevo; en el job (se cierra si la app muere) hasta que vuelva a la espera
-            standbyEngine = null;
-            standbyReady = false;
-            CloseStandbyPipe();
-            standbyAtExit = e;
-            EngineJob.Hold(e, true);
-            Relevo r = new Relevo(false);
-            r.Engine = e;
-            r.Ipc = ipc;
-            r.Bridge = true;
-            r.Why = why;
-            r.Smooth = sm;
-            if (!r.Connect(1000))
-            {
-                SetStandby(e, ipc, true);
-                standbySmooth = sm;
-                Log.Write("Puente (" + why + "): sin tuberia con el motor en espera: con el telon de siempre");
-                return null;
-            }
-            lock (relevoSync) relevo = r;
-            bool pad = PadRecent;
-            if (pad) { padRestart = true; padRestartAt = DateTime.Now; }
-            PrepareCfg();
-            // 17-11 17:00: mientras Magpie se reabre el motor juega con E (lo mas ligero): con L la grafica se repartia con el arranque de
-            // Magpie y DLSS 5 y se notaban tirones esos segundos (el usuario: "lagueado por unos segundos"). Al volver a despertarlo, lo suyo
-            // (17:15: y sin la generacion: con ella el motor guardaba sus recursos ~2 GB mientras Magpie arrancaba 2-3 pasadas de DLSS 5 y la grafica
-            // se quedaba sin memoria: imagen rota y reinicio de la grafica, 17:08:21)
-            string set = EngineSessionSet(cfg, standbySmooth > 0) + (cfg.BridgeLight ? BridgeLightSet() : "");
-            r.Send(JsonCmd("engine", "set " + set));
-            DateTime nowL = DateTime.Now;
-            double lr = (launchUntil - nowL).TotalSeconds;
-            if (lr > 0.5) r.Send(JsonCmd("script-message", "switch2-launch", Ms(Math.Ceiling(lr))));
-            double pr = powerMenuAt == DateTime.MinValue ? 0 : PowerMenuSecs - (nowL - powerMenuAt).TotalSeconds;
-            if (pr > 0.5) r.Send(JsonCmd("script-message", "switch2-powermenu", Ms(Math.Ceiling(pr))));
-            // El aviso del mando en el motor mientras Magpie prepara (se va con el; luego, en la imagen de Magpie, lo puesto: FinishLsStart)
-            if (pad && title != null) r.Send(OsdCmd(PillText(title, (string.IsNullOrEmpty(subtitle) ? "" : subtitle + " · ") + "preparando…"), "30000", false));
-            r.WakeMs = r.Since.ElapsedMilliseconds;
-            r.WakeSent = r.Send(JsonCmd("script-message", "switch2-wake", "detras"));
-            Log.Write("Puente (" + why + "): motor (pid " + e.Id + ") despertado detras: " + set);
-            return r;
-        }
+        // (1.2.4 ronda 6, QUITAFG, fase 2: BridgeWake era de Magpie; fuera)
 
-        // Con su imagen (aviso de imagen + ritmo), el motor encima de todo (sin el foco: mpv lo necesita para que Magpie empiece; lo devuelve
-        // RelevoFocusToEngine al verlo preparar). hideCurtain: y el telon fuera (se ve el motor). false = sin imagen a tiempo (el motor vuelve
-        // a la espera) o el relevo ya terminado
-        bool BridgeUp(Relevo r, int waitMs, bool hideCurtain)
-        {
-            Stopwatch sw = Stopwatch.StartNew();
-            bool dead = false;
-            bool needPaint = EngineKnowsPainted();   // (1.2.4 arreglos, RELEVO: con su primera imagen pintada, ver RelevoToEngine)
-            while (!userExit && !r.Cut && !(r.Signal && r.Rate > 0 && (r.Painted || !needPaint)) && sw.ElapsedMilliseconds < waitMs + (r.Signal && needPaint ? 2000 : 0))
-            {
-                try { dead = r.Engine.HasExited; } catch { dead = true; }
-                if (dead) break;
-                Thread.Sleep(4);
-            }
-            if (r.Cut || userExit) return false;
-            if (dead || !(r.Signal && r.Rate > 0))
-            {
-                FinishRelevoToMagpie(dead ? "el motor del puente se ha cerrado" : "el motor del puente no da imagen en " + sw.ElapsedMilliseconds + " ms");
-                return false;
-            }
-            r.Send(JsonCmd("script-message", "switch2-encima", cfg.Dlss5SeamlessOnTop.ToString(CultureInfo.InvariantCulture)));
-            r.CutMs = r.Since.ElapsedMilliseconds;
-            if (hideCurtain) HideCurtain(150);
-            // Con Magpie ya preparando (lo empezo mpv delante), el foco ya al motor: su generacion
-            MagpieLive.Phase ph = MagpieLive.ScalingPhase();
-            if (ph == MagpieLive.Phase.Starting) RelevoFocusToEngine();
-            Thread w = new Thread(delegate () { WatchRelevoToMagpie(r); });
-            w.IsBackground = true;
-            w.Name = "Puente (vigilando el motor)";
-            w.Start();
-            Log.Write("Puente (" + r.Why + "): el motor juega encima a los " + r.CutMs + " ms (imagen a los " + r.SignalMs + " ms, despertado a los " + r.WakeMs + ")" +
-                      (hideCurtain ? "; telon fuera" : ""));
-            return true;
-        }
+        // (1.2.4 ronda 6, QUITAFG, fase 2: BridgeUp era de Magpie; fuera)
 
         // (dlss5_sin_telon_entrada) ¿Hay un motor en espera listo para entrar en un juego sin telon? Solo lo que se mira sin tocar nada
         bool BridgeEntryReady()
@@ -786,28 +504,9 @@ namespace ConsoleEnhancer
             catch { return false; }
         }
 
-        // Igual, en otro hilo (la entrada en un juego: Magpie se abre a la vez)
-        void BridgeUpAsync(Relevo r, int waitMs)
-        {
-            Thread t = new Thread(delegate () { try { BridgeUp(r, waitMs, true); } catch (Exception ex) { Log.Error("Puente", ex); } });
-            t.IsBackground = true;
-            t.Name = "Puente (esperando la imagen del motor)";
-            t.Start();
-        }
+        // (1.2.4 ronda 6, QUITAFG, fase 2: BridgeUpAsync era de Magpie; fuera)
 
-        // ================================================================================== 21-11 (1.2.1)
-        // puente_ligero: el motor del puente y del relevo a Magpie, lo mas ligero mientras Magpie crea sus modelos de NVIDIA. Log del usuario
-        // 19:12:35: DLSS 5 encendido en Rocket League (1440p, modo 120): el motor jugando encima con E a 120 imagenes/s y Magpie tardo 18,7 s
-        // en presentar (7-9 s de siempre). DLSS E a 4K son ~4,8 ms por imagen (a 120, mas de la mitad de una 4060 Ti) y FSR 1 ~0,8 ms.
-        // 1 (de serie): E y, en el modo 120, FSR 1; 2: FSR 1 siempre. Al despertarlo otra vez, sus ajustes de siempre (EngineSessionSet)
-        string BridgeLightSet()
-        {
-            bool fsr = cfg.BridgeLightLevel >= 2 || cfg.Mode120;
-            // (22-11, 1.2.3 MOTOR5: y sin DLSS 5 -lo hacia el motor con PrismaNr.dll, src\Lanzador\MotorDlss5.cs-: sus DLSSNR fuera mientras
-            // Magpie crea las suyas en la misma grafica de 8 GB; al despertarlo otra vez, lo suyo)
-            // (1.2.3 REVISION3: y con "DLSS 5 por: Magpie" recien elegido -cfg.EngineDlss5 ya en false- el motor aun lo tiene: con PrismaNr.dll, siempre)
-            return " fg=0 preset=E" + (fsr ? " upscaler=fsr1" : "") + (cfg.EngineDlss5 || cfg.MotorDlss5Disponible ? " dlss5=0" : "");
-        }
+        // (1.2.4 ronda 6, QUITAFG, fase 2: BridgeLightSet era de Magpie; fuera)
 
         // El cambio (entrada en un juego, reapertura de Magpie o de mpv + Magpie) ya ha terminado: el puente tardio no se pone
         sealed class Bandera { public volatile bool Hecho; }
@@ -815,66 +514,9 @@ namespace ConsoleEnhancer
         bool StandbyListoYa() { Process e = standbyEngine; try { return e != null && standbyReady && !e.HasExited; } catch { return false; } }
         bool StandbyEnCamino() { return standbyLaunchBusy || bridgePrestarting || (standbyEngine != null && !standbyReady); }
 
-        // El puente tardio. Log del usuario: 19:09:26 y 19:09:49 "Puente (entrada en ...): no (no hay motor en espera)" con uno arrancandose
-        // (7,8 y 8,6 s en negro). Si al entrar en un juego / reabrir Magpie el motor en espera aun no esta listo pero viene (se esta arrancando),
-        // se le espera aparte mientras Magpie prepara; en cuanto esta listo y si Magpie aun no escala, el puente de siempre (encima, telon
-        // fuera). Si Magpie ya presenta, nada; si presenta justo despues, lo termina FinishLsStart (o aqui, si el cambio ya habia acabado)
-        void PuenteTardio(string title, string subtitle, string why, Process p, Bandera fin)
-        {
-            if (!cfg.Dlss5Seamless || !cfg.MagpieBridge || cfg.BenchSecs > 0 || relevo != null || Config.EngineActive || p == null) return;
-            if (!StandbyOn() || !EngineKnowsSinTelon()) return;
-            if (!StandbyEnCamino() && !StandbyListoYa()) return;
-            Thread t = new Thread(delegate ()
-            {
-                try
-                {
-                    Stopwatch sw = Stopwatch.StartNew();
-                    Func<bool> sigue = delegate
-                    {
-                        try { return !fin.Hecho && !userExit && mpv == p && !p.HasExited && relevo == null && !MagpieLive.IsScaling() && !cfg.HomeNative && !Config.EngineActive; }
-                        catch { return false; }
-                    };
-                    while (sigue() && !StandbyListoYa() && sw.ElapsedMilliseconds < 15000)
-                    {
-                        if (!StandbyEnCamino()) return;   // (se cerro al arrancar: nada que esperar)
-                        Thread.Sleep(50);
-                    }
-                    if (!sigue() || !StandbyListoYa()) return;
-                    Log.Write("Puente tardio (" + why + "): el motor en espera ya esta listo a los " + sw.ElapsedMilliseconds + " ms: encima mientras Magpie prepara");
-                    Relevo r = BridgeWake(title, subtitle, why + ", tardio");
-                    if (r == null) return;
-                    if (fin.Hecho || MagpieLive.IsScaling()) { FinishRelevoToMagpie("Magpie ya escala: el puente tardio no hace falta"); return; }
-                    BridgeUp(r, cfg.Dlss5SeamlessWaitMs, true);
-                    if (fin.Hecho) FinishRelevoToMagpie("el cambio ya habia terminado (puente tardio)");
-                }
-                catch (Exception ex) { Log.Error("Puente tardio", ex); }
-            });
-            t.IsBackground = true;
-            t.Name = "Puente tardio";
-            t.Start();
-        }
+        // (1.2.4 ronda 6, QUITAFG, fase 2: PuenteTardio era de Magpie; fuera)
 
-        // RunMpv, con mpv ya dando imagen tras reabrirse con Magpie (otra captura con otra ventana, el menu de ajustes, un cambio de motor
-        // con el telon...): el puente tambien aqui (log del usuario 19:10:06, captura a 1440p desde el menu de ajustes: 10,5 s en negro). Listo
-        // ya: al momento; si viene, el tardio
-        // true = el puente ya va (el motor despierta ahora); false = no hay (o vendra el tardio): el que llama pone el telon en vivo
-        bool PuenteAlReabrir(Process p, Bandera fin)
-        {
-            try
-            {
-                if (!cfg.Dlss5Seamless || !cfg.MagpieBridge || cfg.BenchSecs > 0 || relevo != null || Config.EngineActive || cfg.HomeNative) return false;
-                string title = PadRecent ? curGame : null;
-                if (StandbyListoYa())
-                {
-                    Relevo r = BridgeWake(title, null, "mpv y Magpie reabiertos");
-                    if (r != null) { BridgeUpAsync(r, cfg.Dlss5SeamlessWaitMs); return true; }
-                    return false;
-                }
-                PuenteTardio(title, null, "mpv y Magpie reabiertos", p, fin);
-            }
-            catch (Exception ex) { Log.Error("Puente al reabrir", ex); }
-            return false;
-        }
+        // (1.2.4 ronda 6, QUITAFG, fase 2: PuenteAlReabrir era de Magpie; fuera)
 
         // Al salir de la app (o un fallo): el motor del relevo, si lo hay, fuera
         void KillRelevo(string why)
