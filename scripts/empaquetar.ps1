@@ -51,8 +51,8 @@ if (-not (Test-Path "$Streamline\bin\x64\sl.interposer.dll")) {
 }
 foreach ($need in @("$Raiz\bin\ConsoleEnhancer.exe", "$Raiz\bin\engine\ConsoleEnhancerEngine.exe")) { if (-not (Test-Path $need)) { throw "Falta $need (compila con build.bat y build_motor.bat, o preparar.bat)" } }
 # (1.2.4) las piezas propias del motor (C++, Visual Studio; PrismaNr con las cabeceras de NGX de scripts\descargar_cabeceras_ngx.ps1)
-$propias = @('PrismaNr.dll')
-foreach ($d in $propias) { if (-not (Test-Path "$Raiz\bin\engine\$d")) { throw "Falta $Raiz\bin\engine\$d (scripts\descargar_cabeceras_ngx.ps1 y build_prismanr.bat)" } }
+$propias = @('PrismaNr.dll', 'CeFsrFg.dll')   # (1.2.4 ronda 6, FGMULTI: + CeFsrFg.dll, la FSR FG x3 / x4: codigo MIT de AMD compilado aqui, build_fsrfg.bat)
+foreach ($d in $propias) { if (-not (Test-Path "$Raiz\bin\engine\$d")) { throw "Falta $Raiz\bin\engine\$d (scripts\descargar_cabeceras_ngx.ps1, build_prismanr.bat y build_fsrfg.bat)" } }
 # (1.2.3, DEFENDER) la version que llevan los exe en sus propiedades (src\Version.cs) = la del paquete: que no salga una version con los
 # exe de otra, ni sin version
 $verCs = [regex]::Match((Get-Content -LiteralPath "$Raiz\src\Version.cs" -Raw -Encoding UTF8), 'const string Texto = "([^"]+)"').Groups[1].Value
@@ -112,6 +112,26 @@ $lic = "$Destino\licenses"
 Poner "$Raiz\LICENSE" "$lic\ConsoleEnhancer-LICENSE.txt"
 Poner "$Raiz\LICENSE-EXCEPTION.txt" "$lic\ConsoleEnhancer-LICENSE-EXCEPTION.txt"
 Poner "$Raiz\THIRD-PARTY.md" "$lic\THIRD-PARTY.md"
+# (1.2.4 ronda 6, FGMULTI) engine\CeFsrFg.dll lleva codigo de AMD FidelityFX SDK 1.1.4 (MIT): su aviso de copyright y su licencia
+Texto "$lic\AMD-FidelityFX-SDK-1.1.4-LICENSE.txt" @(
+    'engine\CeFsrFg.dll: AMD FidelityFX SDK v1.1.4 (frame interpolation + optical flow, DX12 backend), modified by ConsoleEnhancer',
+    '(parches\fidelityfx-fi-multi.patch: frames at any time between two real frames). https://github.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK',
+    '', 'Copyright (C) 2024 Advanced Micro Devices, Inc.', '',
+    'Permission is hereby granted, free of charge, to any person obtaining a copy',
+    'of this software and associated documentation files(the "Software"), to deal',
+    'in the Software without restriction, including without limitation the rights',
+    'to use, copy, modify, merge, publish, distribute, sublicense, and /or sell',
+    'copies of the Software, and to permit persons to whom the Software is',
+    'furnished to do so, subject to the following conditions :', '',
+    'The above copyright notice and this permission notice shall be included in',
+    'all copies or substantial portions of the Software.', '',
+    'THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR',
+    'IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,',
+    'FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE',
+    'AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER',
+    'LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,',
+    'OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN',
+    'THE SOFTWARE.')
 foreach ($f in @('license.txt', '3rd-party-licenses.md', 'nvngx_dlss.license.txt', 'reflex.license.txt')) {
     if (-not (Test-Path "$Streamline\$f")) { throw "Falta la licencia $Streamline\$f (scripts\descargar_dependencias.ps1 -Solo streamline -Forzar)" }
     Poner "$Streamline\$f" "$lic\streamline\$f"
@@ -236,7 +256,7 @@ foreach ($f in Get-ChildItem -LiteralPath $Destino -Recurse -File | Where-Object
 $personal = @($env:USERNAME, $env:COMPUTERNAME, $env:USERPROFILE)
 if (Test-Path "$Raiz\scripts\privado.txt") { $personal += @(Get-Content -LiteralPath "$Raiz\scripts\privado.txt" -Encoding UTF8 | Where-Object { $_ -and -not $_.StartsWith('#') } | ForEach-Object { $_.Trim() }) }
 $personal = @($personal | Where-Object { $_ -and $_.Length -ge 3 } | Select-Object -Unique)
-$mirar = @("$Destino\ConsoleEnhancer.exe", "$Destino\engine\ConsoleEnhancerEngine.exe", "$Destino\engine\PrismaNr.dll") + @(Get-ChildItem -LiteralPath $Destino -Recurse -File | Where-Object { $_.Extension -in @('.txt', '.ini', '.lua', '.glsl', '.conf', '.config', '.md', '.json') -and $_.FullName -notlike "$lic\streamline\*" } | ForEach-Object { $_.FullName })
+$mirar = @("$Destino\ConsoleEnhancer.exe", "$Destino\engine\ConsoleEnhancerEngine.exe", "$Destino\engine\PrismaNr.dll", "$Destino\engine\CeFsrFg.dll") + @(Get-ChildItem -LiteralPath $Destino -Recurse -File | Where-Object { $_.Extension -in @('.txt', '.ini', '.lua', '.glsl', '.conf', '.config', '.md', '.json') -and $_.FullName -notlike "$lic\streamline\*" } | ForEach-Object { $_.FullName })
 $avisos = 0
 foreach ($e in $mirar) {
     $b = [IO.File]::ReadAllBytes($e)

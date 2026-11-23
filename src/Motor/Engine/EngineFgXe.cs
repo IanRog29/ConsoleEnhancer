@@ -165,10 +165,10 @@ namespace ConsoleEnhancer.Motor
         // Las imagenes en la tele por cada real con XeSS FG puesta (para el ritmo y VRR)
         int XeFgMultNow { get { return xeFgOn && xeFgEnabledNow ? xeFgInterp + 1 : 1; } }
         // FSR 3 FG o XeSS FG (las dos sin Streamline, con los vectores de la generacion del motor)
-        bool ExtFgOn { get { return ffxFgOn || (xeFgOn && xeFgEnabledNow); } }
+        bool ExtFgOn { get { return ffxFgOn || (xeFgOn && xeFgEnabledNow) || FmVecOn; } }   // (23-11, FGMULTI: y FSR FG x2 / x3 / x4, EngineFsrMulti.cs)
         // Imagenes en la tele por cada real con la generacion del motor puesta (para el ritmo y VRR; antes en EngineFgMulti.cs, con DLSS-G
         // y x3 / x4: 1.2.4 ronda 6, QUITAFG, siempre x2)
-        int FgFactor { get { return ffxFgOn ? 2 : xeFgOn ? XeFgMultNow : 1; } }
+        int FgFactor { get { return ffxFgOn ? 2 : xeFgOn ? XeFgMultNow : FmWanted() ? FmK : 1; } }   // (FGMULTI: FSR FG x2 / x3 / x4)
 
         static void XeLogStatic(IntPtr msg, int level, IntPtr user) { }
 
@@ -409,12 +409,15 @@ namespace ConsoleEnhancer.Motor
         }
         uint ScIndex()
         {
+            FmhDrain();   // (23-11, FGMULTI: el hilo de presentacion de FSR FG x2 / x3 / x4, si va, acaba antes; EngineFsrMultiHilo.cs)
             if (!XeRawNow) return swap.GetCurrentBackBufferIndex();
             if (scIndex == null) scIndex = (ScIndexFn)Slot(xeProxySc, 36, typeof(ScIndexFn));
             return scIndex(xeProxySc);
         }
         int ScPresent(uint sync, uint flags)
         {
+            FmhDrain();   // (23-11, FGMULTI)
+            FmScWait();   // (con la cola de presentacion de FSR FG: tras la lista de la imagen)
             if (slProxyPresent != null) return slProxyPresent(slProxySc, sync, flags);   // (1.2.4 ronda 5, INTEGRA5: Streamline ve el Present, EngineSlProxy.cs)
             if (!XeRawNow) return swap.Present(sync, (DXGI_PRESENT)flags);
             if (scPresent == null) scPresent = (ScPresentFn)Slot(xeProxySc, 8, typeof(ScPresentFn));

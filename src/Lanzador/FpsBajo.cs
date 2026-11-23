@@ -72,7 +72,15 @@ namespace ConsoleEnhancer
             string hecho = null, hechoEn = null;
             string cap = cfg.VideoSize;
             string menos = cap == "2560x1440" ? "1920x1080" : cap == "1920x1080" ? "1280x720" : null;
-            if (dlss5Shown && !cfg.Dlss5Off && cfg.Dlss5FitsNow && cfg.Dlss5PassesNow > 1)
+            if (!cfg.FgOff && !cfg.Mode120 && cfg.FgTypeNow == "fsr3" && cfg.FsrMultNow > 2)
+            {
+                // (1.2.4 ronda 6, FGMULTI: FSR 3 FG x4 -> x3 -> x2 lo primero: es lo que mas grafica pide; MultiFsr.cs)
+                int n = cfg.FsrMultNow - 1;
+                Config.FsrMultSet(n);
+                hecho = Config.FsrMulLabel(n); hechoEn = Config.FsrMulLabel(n);
+                RestartLs(Config.FsrMulLabel(n), Tx.T("Un momento…", "One moment…"));
+            }
+            else if (dlss5Shown && !cfg.Dlss5Off && cfg.Dlss5FitsNow && cfg.Dlss5PassesNow > 1)
             {
                 int n = cfg.Dlss5PassesNow - 1;
                 SetPasses(n);

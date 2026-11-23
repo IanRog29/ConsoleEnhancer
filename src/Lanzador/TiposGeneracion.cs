@@ -68,7 +68,7 @@ namespace ConsoleEnhancer
             {
                 case "xess_fg_1080": XessFg1080 = val.Trim() != "0"; return true;
             }
-            return CeParseXefgm(key, val);   // (motor_xefg_dlss5: XefgMotor.cs. 1.2.4 ronda 6: proteccion* -Proteccion.cs, la de Magpie- fuera, ClavesRetiradas)
+            return CeParseXefgm(key, val) || CeParseMultiFsr(key, val);   // (1.2.4 ronda 6, FGMULTI: motor_fsr_multi*, MultiFsr.cs)   // (motor_xefg_dlss5: XefgMotor.cs. 1.2.4 ronda 6: proteccion* -Proteccion.cs, la de Magpie- fuera, ClavesRetiradas)
         }
 
         static bool XessDll() { return Paths.HayLib("libxess_fg.dll"); }

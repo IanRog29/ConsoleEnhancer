@@ -1,0 +1,253 @@
+diff --git a/sdk/include/FidelityFX/gpu/frameinterpolation/ffx_frameinterpolation.h b/sdk/include/FidelityFX/gpu/frameinterpolation/ffx_frameinterpolation.h
+index ccf2e23..2552985 100644
+--- a/sdk/include/FidelityFX/gpu/frameinterpolation/ffx_frameinterpolation.h
++++ b/sdk/include/FidelityFX/gpu/frameinterpolation/ffx_frameinterpolation.h
+@@ -99,11 +99,11 @@ void computeInterpolatedColor(FfxUInt32x2 iPxPos, out FfxFloat32x3 fInterpolated
+     // Binarize disucclusion factor
+     FfxFloat32x2 fDisocclusionFactor = FfxFloat32x2(FFX_EQUAL(ffxSaturate(SampleDisocclusionMask(fLrUvInInterpolationRect).xy), FfxFloat32x2(1.0, 1.0)));
+ 
+-    InterpolationSourceColor fPrevColorGame = SampleTextureBilinear(false, fUvInScreenSpace, +gameMv.fMotionVector * fUvLetterBoxScale, DisplaySize()); // Get in previous frame buffer, the color of interpolated pixel
+-    InterpolationSourceColor fCurrColorGame = SampleTextureBilinear(true, fUvInScreenSpace, -gameMv.fMotionVector * fUvLetterBoxScale, DisplaySize()); // Get color in current framebuffer, of color of interpolated pixel
++    InterpolationSourceColor fPrevColorGame = SampleTextureBilinear(false, fUvInScreenSpace, +gameMv.fMotionVector * PrevFactor() * fUvLetterBoxScale, DisplaySize()); // Get in previous frame buffer, the color of interpolated pixel
++    InterpolationSourceColor fCurrColorGame = SampleTextureBilinear(true, fUvInScreenSpace, -gameMv.fMotionVector * CurrFactor() * fUvLetterBoxScale, DisplaySize()); // Get color in current framebuffer, of color of interpolated pixel
+ 
+-    InterpolationSourceColor fPrevColorOF = SampleTextureBilinear(false, fUvInScreenSpace, +ofMv.fMotionVector * fUvLetterBoxScale, DisplaySize());
+-    InterpolationSourceColor fCurrColorOF = SampleTextureBilinear(true, fUvInScreenSpace, -ofMv.fMotionVector * fUvLetterBoxScale, DisplaySize());
++    InterpolationSourceColor fPrevColorOF = SampleTextureBilinear(false, fUvInScreenSpace, +ofMv.fMotionVector * PrevFactor() * fUvLetterBoxScale, DisplaySize());
++    InterpolationSourceColor fCurrColorOF = SampleTextureBilinear(true, fUvInScreenSpace, -ofMv.fMotionVector * CurrFactor() * fUvLetterBoxScale, DisplaySize());
+ 
+     FfxFloat32 fDisoccludedFactor = 0.0f;
+ 
+@@ -115,9 +115,11 @@ void computeInterpolatedColor(FfxUInt32x2 iPxPos, out FfxFloat32x3 fInterpolated
+         // Inpaint in bi-directional disocclusion areas
+         updateInPaintingWeight(fInPaintingWeight, FfxFloat32(length(fDisocclusionFactor) <= FFX_FRAMEINTERPOLATION_EPSILON));
+ 
+-        FfxFloat32 t = 0.5f;
+-        t += 0.5f * (1 - (fDisocclusionFactor.x));
+-        t -= 0.5f * (1 - (fDisocclusionFactor.y));
++        // ConsoleEnhancer (FGMULTI): mezcla en el instante t (AMD: 0.5); lo destapado sigue yendo entero a la imagen que lo ve
++        const FfxFloat32 fT = InterpolationT();
++        FfxFloat32 t = fT;
++        t += (1.0f - fT) * (1 - (fDisocclusionFactor.x));
++        t -= fT * (1 - (fDisocclusionFactor.y));
+         // Say if fDisocclusionFactor.x is 1 and fDisocclusionFactor.y = 0, then t will be 0. fInterpolatedColor will be entirely from fPrevColorGame 
+         fInterpolatedColor = ffxLerp(fPrevColorGame.fRaw, fCurrColorGame.fRaw, ffxSaturate(t));
+         fDisoccludedFactor = ffxSaturate(1 - ffxMin(fDisocclusionFactor.x, fDisocclusionFactor.y));
+@@ -138,11 +140,11 @@ void computeInterpolatedColor(FfxUInt32x2 iPxPos, out FfxFloat32x3 fInterpolated
+ 
+     {
+ 
+-        FfxFloat32 ofT = 0.5f;
++        FfxFloat32 ofT = InterpolationT();   // ConsoleEnhancer (FGMULTI): instante t (AMD: 0.5)
+ 
+         if (fPrevColorOF.fBilinearWeightSum > 0 && fCurrColorOF.fBilinearWeightSum > 0)
+         {
+-            ofT = 0.5f;
++            ofT = InterpolationT();
+         }
+         else if (fPrevColorOF.fBilinearWeightSum > 0)
+         {
+diff --git a/sdk/include/FidelityFX/gpu/frameinterpolation/ffx_frameinterpolation_callbacks_hlsl.h b/sdk/include/FidelityFX/gpu/frameinterpolation/ffx_frameinterpolation_callbacks_hlsl.h
+index a58743d..c6eb887 100644
+--- a/sdk/include/FidelityFX/gpu/frameinterpolation/ffx_frameinterpolation_callbacks_hlsl.h
++++ b/sdk/include/FidelityFX/gpu/frameinterpolation/ffx_frameinterpolation_callbacks_hlsl.h
+@@ -77,7 +77,7 @@
+ 
+         FfxFloat32x2    minMaxLuminance;
+         FfxFloat32      fTanHalfFOV;
+-        FfxInt32        _pad1;
++        FfxFloat32      fInterpolationT;   // ConsoleEnhancer (FGMULTI): instante de la inventada, 0 = anterior, 1 = actual (0 o fuera de (0,1) = 0.5, como AMD)
+ 
+         FfxFloat32x2    fJitter;
+         FfxFloat32x2    fMotionVectorScale;
+@@ -175,6 +175,23 @@
+         return debugBarColor;
+     }
+ 
++    // ConsoleEnhancer (FGMULTI, x3 / x4): los campos de vectores guardan media vector (como AMD, para t = 0.5); para otro instante t la
++    // anterior esta a 2t veces ese medio vector y la actual a 2(1-t) veces (con t = 0.5 las dos son 1: lo de AMD sin cambios)
++    FfxFloat32 InterpolationT()
++    {
++        return (fInterpolationT > 0.0f && fInterpolationT < 1.0f) ? fInterpolationT : 0.5f;
++    }
++
++    FfxFloat32 PrevFactor()
++    {
++        return 2.0f * InterpolationT();
++    }
++
++    FfxFloat32 CurrFactor()
++    {
++        return 2.0f * (1.0f - InterpolationT());
++    }
++
+     FfxFloat32 TanHalfFoV()
+     {
+         return fTanHalfFOV;
+diff --git a/sdk/include/FidelityFX/gpu/frameinterpolation/ffx_frameinterpolation_common.h b/sdk/include/FidelityFX/gpu/frameinterpolation/ffx_frameinterpolation_common.h
+index 8206bf4..9eba46e 100644
+--- a/sdk/include/FidelityFX/gpu/frameinterpolation/ffx_frameinterpolation_common.h
++++ b/sdk/include/FidelityFX/gpu/frameinterpolation/ffx_frameinterpolation_common.h
+@@ -362,8 +362,8 @@ void LoadInpaintedGameFieldMv(FfxFloat32x2 fUv, out VectorFieldEntry vfElement)
+         vfElement.bInPainted            = true;
+     }
+ 
+-    vfElement.bNegOutside = !IsUvInside(fUv - vfElement.fMotionVector);
+-    vfElement.bPosOutside = !IsUvInside(fUv + vfElement.fMotionVector);
++    vfElement.bNegOutside = !IsUvInside(fUv - vfElement.fMotionVector * CurrFactor());   // ConsoleEnhancer (FGMULTI): instante t
++    vfElement.bPosOutside = !IsUvInside(fUv + vfElement.fMotionVector * PrevFactor());
+     vfElement.fVelocity   = length(vfElement.fMotionVector);
+ }
+ #endif
+@@ -409,8 +409,8 @@ void SampleOpticalFlowMotionVectorField(FfxFloat32x2 fUv, out VectorFieldEntry v
+         vfElement.uLowPriorityFactor /= fWeightSum;
+     }
+ 
+-    vfElement.bNegOutside = !IsUvInside(fUv - vfElement.fMotionVector);
+-    vfElement.bPosOutside = !IsUvInside(fUv + vfElement.fMotionVector);
++    vfElement.bNegOutside = !IsUvInside(fUv - vfElement.fMotionVector * CurrFactor());   // ConsoleEnhancer (FGMULTI): instante t
++    vfElement.bPosOutside = !IsUvInside(fUv + vfElement.fMotionVector * PrevFactor());
+     vfElement.fVelocity   = length(vfElement.fMotionVector);
+ }
+ #endif
+diff --git a/sdk/include/FidelityFX/gpu/frameinterpolation/ffx_frameinterpolation_disocclusion_mask.h b/sdk/include/FidelityFX/gpu/frameinterpolation/ffx_frameinterpolation_disocclusion_mask.h
+index 03adc96..a81f243 100644
+--- a/sdk/include/FidelityFX/gpu/frameinterpolation/ffx_frameinterpolation_disocclusion_mask.h
++++ b/sdk/include/FidelityFX/gpu/frameinterpolation/ffx_frameinterpolation_disocclusion_mask.h
+@@ -125,18 +125,19 @@ void computeDisocclusionMask(FfxInt32x2 iPxPos)
+     VectorFieldEntry gameMv;
+     LoadInpaintedGameFieldMv(fDepthUv, gameMv);
+ 
+-    const FfxFloat32 fDepthClipInterpolatedToPrevious   = 1.0f - ComputeDepthClip(0, fDepthUv + gameMv.fMotionVector, fDilatedDepth);
+-    const FfxFloat32 fDepthClipInterpolatedToCurrent    = 1.0f - ComputeDepthClip(1, fDepthUv - gameMv.fMotionVector, fDilatedDepth);
++    // ConsoleEnhancer (FGMULTI): desde el instante t a la anterior (2t medios vectores) y a la actual (2(1-t))
++    const FfxFloat32 fDepthClipInterpolatedToPrevious   = 1.0f - ComputeDepthClip(0, fDepthUv + gameMv.fMotionVector * PrevFactor(), fDilatedDepth);
++    const FfxFloat32 fDepthClipInterpolatedToCurrent    = 1.0f - ComputeDepthClip(1, fDepthUv - gameMv.fMotionVector * CurrFactor(), fDilatedDepth);
+     FfxFloat32x2 fDisocclusionMask = FfxFloat32x2(fDepthClipInterpolatedToPrevious, fDepthClipInterpolatedToCurrent);
+ 
+     fDisocclusionMask = FfxFloat32x2(FFX_GREATER_THAN_EQUAL(fDisocclusionMask, ffxBroadcast2(FFX_FRAMEINTERPOLATION_EPSILON)));
+ 
+     // Avoid false disocclusion if primary game vector pointer outside screen area
+     const FfxFloat32x2 fSrcMotionVector   = gameMv.fMotionVector * 2.0f;
+-    const FfxInt32x2   iSamplePosPrevious = FfxInt32x2((fDepthUv + fSrcMotionVector) * RenderSize());
++    const FfxInt32x2   iSamplePosPrevious = FfxInt32x2((fDepthUv + fSrcMotionVector * PrevFactor()) * RenderSize());
+     fDisocclusionMask.x = ffxSaturate(fDisocclusionMask.x + FfxFloat32(!IsOnScreen(iSamplePosPrevious, RenderSize())));
+ 
+-    const FfxInt32x2 iSamplePosCurrent = FfxInt32x2((fDepthUv - fSrcMotionVector) * RenderSize());
++    const FfxInt32x2 iSamplePosCurrent = FfxInt32x2((fDepthUv - fSrcMotionVector * CurrFactor()) * RenderSize());
+     fDisocclusionMask.y = ffxSaturate(fDisocclusionMask.y + FfxFloat32(!IsOnScreen(iSamplePosCurrent, RenderSize())));
+ 
+     StoreDisocclusionMask(iPxPos, fDisocclusionMask);
+diff --git a/sdk/include/FidelityFX/gpu/frameinterpolation/ffx_frameinterpolation_game_motion_vector_field.h b/sdk/include/FidelityFX/gpu/frameinterpolation/ffx_frameinterpolation_game_motion_vector_field.h
+index 574e3df..4ad583e 100644
+--- a/sdk/include/FidelityFX/gpu/frameinterpolation/ffx_frameinterpolation_game_motion_vector_field.h
++++ b/sdk/include/FidelityFX/gpu/frameinterpolation/ffx_frameinterpolation_game_motion_vector_field.h
+@@ -46,7 +46,7 @@ void computeGameFieldMvs(FfxInt32x2 iPxPos)
+     const FfxFloat32 fDepthSample = LoadDilatedDepth(iPxPos + iDistortionPixelOffset);
+     const FfxFloat32x2 fGameMotionVector = LoadDilatedMotionVector(iPxPos + iDistortionPixelOffset);
+     const FfxFloat32x2 fMotionVectorHalf = fGameMotionVector * 0.5f;
+-    const FfxFloat32x2 fInterpolatedLocationUv = fUvInScreenSpace + fMotionVectorHalf;
++    const FfxFloat32x2 fInterpolatedLocationUv = fUvInScreenSpace + fMotionVectorHalf * CurrFactor();   // ConsoleEnhancer (FGMULTI): el punto en el instante t
+ 
+     const FfxFloat32 fViewSpaceDepth = ConvertFromDeviceDepthToViewSpace(fDepthSample);
+     const FfxUInt32 uHighPriorityFactorPrimary = getPriorityFactorFromViewSpaceDepth(fViewSpaceDepth);
+@@ -86,7 +86,7 @@ void computeGameFieldMvs(FfxInt32x2 iPxPos)
+         FfxUInt32 uNumPrimaryHits = 0;
+         const FfxFloat32 fSecondaryStepScale = length(1.0f / RenderSize());
+         const FfxFloat32x2 fStepMv = normalize(fGameMotionVector);
+-        const FfxFloat32 fBreakDist = ffxMin(length(fMotionVectorHalf), length(FfxFloat32x2(0.5f, 0.5f)));
++        const FfxFloat32 fBreakDist = ffxMin(length(fMotionVectorHalf * CurrFactor()), length(FfxFloat32x2(0.5f, 0.5f)));   // ConsoleEnhancer (FGMULTI): hasta el punto de la actual
+ 
+         for (FfxFloat32 fMvScale = fSecondaryStepScale; fMvScale <= fBreakDist && bWriteSecondary; fMvScale += fSecondaryStepScale)
+         {
+diff --git a/sdk/include/FidelityFX/gpu/frameinterpolation/ffx_frameinterpolation_optical_flow_vector_field.h b/sdk/include/FidelityFX/gpu/frameinterpolation/ffx_frameinterpolation_optical_flow_vector_field.h
+index 8432132..1b59fb0 100644
+--- a/sdk/include/FidelityFX/gpu/frameinterpolation/ffx_frameinterpolation_optical_flow_vector_field.h
++++ b/sdk/include/FidelityFX/gpu/frameinterpolation/ffx_frameinterpolation_optical_flow_vector_field.h
+@@ -49,7 +49,7 @@ void computeOpticalFlowFieldMvs(FfxUInt32x2 dtID, FfxFloat32x2 fOpticalFlowVecto
+ 
+         const FfxUInt32x2 packedVectorPrimary = PackVectorFieldEntries(true, uHighPriorityFactor, uLowPriorityFactor, fMotionVectorHalf);
+ 
+-        BilinearSamplingData bilinearInfo = GetBilinearSamplingData(fUv + fMotionVectorHalf, GetOpticalFlowSize2());
++        BilinearSamplingData bilinearInfo = GetBilinearSamplingData(fUv + fMotionVectorHalf * CurrFactor(), GetOpticalFlowSize2());   // ConsoleEnhancer (FGMULTI): instante t
+         for (FfxInt32 iSampleIndex = 0; iSampleIndex < 4; iSampleIndex++)
+         {
+             const FfxInt32x2 iOffset = bilinearInfo.iOffsets[iSampleIndex];
+diff --git a/sdk/include/FidelityFX/gpu/frameinterpolation/ffx_frameinterpolation_reconstruct_previous_depth.h b/sdk/include/FidelityFX/gpu/frameinterpolation/ffx_frameinterpolation_reconstruct_previous_depth.h
+index d85f673..87a1a30 100644
+--- a/sdk/include/FidelityFX/gpu/frameinterpolation/ffx_frameinterpolation_reconstruct_previous_depth.h
++++ b/sdk/include/FidelityFX/gpu/frameinterpolation/ffx_frameinterpolation_reconstruct_previous_depth.h
+@@ -57,7 +57,7 @@ void reconstructPreviousDepth(FfxInt32x2 iPxPos)
+     FfxFloat32x2 fMotionVector = LoadDilatedMotionVector(iPxPos + iDistortionPixelOffset);
+     FfxFloat32   fDilatedDepth = LoadDilatedDepth(iPxPos + iDistortionPixelOffset);
+ 
+-    ReconstructPrevDepth(iPxPos, 1, fDilatedDepth, fMotionVector * 0.5f, RenderSize());
++    ReconstructPrevDepth(iPxPos, 1, fDilatedDepth, fMotionVector * (1.0f - InterpolationT()), RenderSize());   // ConsoleEnhancer (FGMULTI): la profundidad en el instante t (AMD: 0.5)
+ }
+ 
+ #endif // FFX_FRAMEINTERPOLATION_RECONSTRUCT_PREVIOUS_DEPTH_H
+diff --git a/sdk/include/FidelityFX/host/ffx_frameinterpolation.h b/sdk/include/FidelityFX/host/ffx_frameinterpolation.h
+index 2340d04..2559b51 100644
+--- a/sdk/include/FidelityFX/host/ffx_frameinterpolation.h
++++ b/sdk/include/FidelityFX/host/ffx_frameinterpolation.h
+@@ -279,6 +279,10 @@ typedef struct FfxFrameInterpolationDispatchDescription {
+     FfxResource                         reconstructedPrevDepth;             ///< The reconstructed depth buffer data
+ 
+     FfxResource                         distortionField;                    ///< A resource containing distortion offset data used when distortion post effects are enabled.
++
++    // ConsoleEnhancer (FGMULTI, x3 / x4): several generated frames per real frame, all from the same optical flow and prepared data.
++    float                               interpolationT;                     ///< Time of the generated frame between the previous (0) and the current (1) frame; 0 = 0.5 (as AMD).
++    bool                                keepPreviousSource;                 ///< true = do not store the current frame as the next "previous" (more frames at other times follow for this pair).
+ } FfxFrameInterpolationDispatchDescription;
+ 
+ FFX_API FfxErrorCode ffxFrameInterpolationDispatch(FfxFrameInterpolationContext* context, const FfxFrameInterpolationDispatchDescription* params);
+diff --git a/sdk/src/backends/dx12/ffx_dx12.cpp b/sdk/src/backends/dx12/ffx_dx12.cpp
+index 786f979..df32a2c 100644
+--- a/sdk/src/backends/dx12/ffx_dx12.cpp
++++ b/sdk/src/backends/dx12/ffx_dx12.cpp
+@@ -34,7 +34,10 @@
+ #include <limits> // std::numeric_limits
+ 
+ // Disable this to remove the dll load of PIX and PIX tracing
++// ConsoleEnhancer (FGMULTI): built with CE_NO_PIX (no PIX headers or DLL in the engine)
++#if !defined(CE_NO_PIX)
+ #define ENABLE_PIX_CAPTURES 1
++#endif
+ 
+ #if defined(ENABLE_PIX_CAPTURES)
+ // PIX instrumentation is only enabled if one of the preprocessor symbols USE_PIX, DBG, _DEBUG, PROFILE, or PROFILE_BUILD is defined.
+diff --git a/sdk/src/components/frameinterpolation/ffx_frameinterpolation.cpp b/sdk/src/components/frameinterpolation/ffx_frameinterpolation.cpp
+index a60ff6a..4f012ee 100644
+--- a/sdk/src/components/frameinterpolation/ffx_frameinterpolation.cpp
++++ b/sdk/src/components/frameinterpolation/ffx_frameinterpolation.cpp
+@@ -974,6 +974,7 @@ FFX_API FfxErrorCode ffxFrameInterpolationDispatch(FfxFrameInterpolationContext*
+     contextPrivate->constants.backBufferTransferFunction = params->backBufferTransferFunction;
+     contextPrivate->constants.minMaxLuminance[0]         = params->minMaxLuminance[0];
+     contextPrivate->constants.minMaxLuminance[1]         = params->minMaxLuminance[1];
++    contextPrivate->constants.interpolationT             = (params->interpolationT > 0.0f && params->interpolationT < 1.0f) ? params->interpolationT : 0.5f;   // ConsoleEnhancer (FGMULTI)
+ 
+     const float aspectRatio                             = (float)params->renderSize.width / (float)params->renderSize.height;
+     const float cameraAngleHorizontal                   = atan(tan(params->cameraFovAngleVertical / 2) * aspectRatio) * 2;
+@@ -1195,7 +1196,8 @@ FFX_API FfxErrorCode ffxFrameInterpolationDispatch(FfxFrameInterpolationContext*
+             scheduleDispatch(contextPrivate, &contextPrivate->pipelineDebugView, displayDispatchSizeX, displayDispatchSizeY);
+         }
+ 
+-        // store current buffer
++        // store current buffer (ConsoleEnhancer, FGMULTI: only after the last generated frame of this pair)
++        if (!params->keepPreviousSource)
+         {
+             FfxGpuJobDescription copyJobs[] = { {FFX_GPU_JOB_COPY} };
+             FfxResourceInternal  copySources[_countof(copyJobs)] = { contextPrivate->srvResources[FFX_FRAMEINTERPOLATION_RESOURCE_IDENTIFIER_CURRENT_INTERPOLATION_SOURCE] };
+diff --git a/sdk/src/components/frameinterpolation/ffx_frameinterpolation_private.h b/sdk/src/components/frameinterpolation/ffx_frameinterpolation_private.h
+index e4c67e8..7b7e668 100644
+--- a/sdk/src/components/frameinterpolation/ffx_frameinterpolation_private.h
++++ b/sdk/src/components/frameinterpolation/ffx_frameinterpolation_private.h
+@@ -76,7 +76,7 @@ typedef struct FrameInterpolationConstants
+ 
+     float    minMaxLuminance[2];
+     float    fTanHalfFOV;
+-    float   _pad1;
++    float   interpolationT;   // ConsoleEnhancer (FGMULTI): instante de la inventada (era _pad1)
+ 
+     float   jitter[2];
+     float   motionVectorScale[2];

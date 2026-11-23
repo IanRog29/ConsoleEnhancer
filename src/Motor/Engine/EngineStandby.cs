@@ -128,6 +128,7 @@ namespace ConsoleEnhancer.Motor
                 // misma grafica de 8 GB (al despertar ya se creaban otra vez: inColor es otro)
                 ReleaseDlss5("en espera");
                 ReleaseDvc("en espera");   // 22-11 (1.2.4, DLSS5LEGAL: EngineDvc.cs)
+                FmRelease("en espera");    // 23-11 (1.2.4 ronda 6, FGMULTI: FSR FG x2 / x3 / x4, ~0,4 GB a 4K; EngineFsrMulti.cs)
             }
             catch (Exception ex) { Log.Error("En espera: imagen negra", ex); }
             bool hidden = Program.HideWindow();
@@ -301,11 +302,15 @@ namespace ConsoleEnhancer.Motor
             BindCompute(psoCas, TCasIn, c, 8);
             list.Dispatch(Groups(outW, 16), Groups(outH, 8), 1);
             Barrier(final, D3D12_RESOURCE_STATES.UNORDERED_ACCESS, D3D12_RESOURCE_STATES.COPY_SOURCE);
-            uint bi = ScIndex();
-            ID3D12Resource bb = backbuf[bi];
-            Barrier(bb, D3D12_RESOURCE_STATES.PRESENT, D3D12_RESOURCE_STATES.COPY_DEST);
-            list.CopyResource(bb, final);
-            Barrier(bb, D3D12_RESOURCE_STATES.COPY_DEST, D3D12_RESOURCE_STATES.PRESENT);
+            bool viaFm = scQueue != null;   // (1.2.4 ronda 6, FGMULTI: con la cola de presentacion de FSR FG la copia a la cadena va en ella, FmScBlank)
+            if (!viaFm)
+            {
+                uint bi = ScIndex();
+                ID3D12Resource bb = backbuf[bi];
+                Barrier(bb, D3D12_RESOURCE_STATES.PRESENT, D3D12_RESOURCE_STATES.COPY_DEST);
+                list.CopyResource(bb, final);
+                Barrier(bb, D3D12_RESOURCE_STATES.COPY_DEST, D3D12_RESOURCE_STATES.PRESENT);
+            }
             list.EndQuery(qheap, D3D12_QUERY_TYPE.TIMESTAMP, (uint)(fi * 2 + 1));
             list.ResolveQueryData(qheap, D3D12_QUERY_TYPE.TIMESTAMP, (uint)(fi * 2), 2, tsReadback, (ulong)(fi * 16));
             Hr.Check(list.Close(), "Close");
@@ -317,7 +322,8 @@ namespace ConsoleEnhancer.Motor
 
             if (pclOk && token != IntPtr.Zero) { Sl.PCLSetMarker(SlPCLMarker.eRenderSubmitEnd, token); Sl.PCLSetMarker(SlPCLMarker.ePresentStart, token); }
             XeFgBlank();   // (1.2.4 MOTORFG, EngineFgXe.cs)
-            int hr = ScPresent(s.Vsync ? 1u : 0u, 0);
+            int hr;
+            if (!(viaFm && FmScBlank(final, s.Vsync ? 1u : 0u, out hr))) hr = ScPresent(s.Vsync ? 1u : 0u, 0);
             if (pclOk && token != IntPtr.Zero) Sl.PCLSetMarker(SlPCLMarker.ePresentEnd, token);
             if (hr < 0) Log.Write("En espera: Present de la imagen negra: " + Hr.Format(hr));
             fi = (fi + 1) % FramesInFlight;

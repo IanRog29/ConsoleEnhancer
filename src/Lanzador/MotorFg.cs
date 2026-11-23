@@ -50,12 +50,12 @@ namespace ConsoleEnhancer
             {
                 motorFgFab = (GpuVendor ?? "").Trim().ToLowerInvariant();
                 if (FgOff || HomeNative || Mode120) return 0;
-                if (EngineFfxWanted) return 1;
+                if (EngineFfxWanted) return FsrMultNow > 2 ? FsrMulChainId : 1;   // (1.2.4 ronda 6, FGMULTI: FSR 3 FG x3 / x4, la nuestra de varios instantes; MultiFsr.cs)
                 if (FgTypeNow == "xess" && MotorFgSabe("xess") && !MotorGenAMagpie("xess")) return 20 + (Ce.EngineUpscaler(this) == "dlss" ? 1 : 0);   // (1.2.4 ronda 5, XEFGM: salvo si va por Magpie, XefgMotor.cs)
                 return 0;
             }
         }
-        public static bool ChainXess(int chain) { return chain >= 20; }
+        public static bool ChainXess(int chain) { return chain >= 20 && chain < 30; }   // (1.2.4 ronda 6, FGMULTI: 50 Enhanced FG, 60 FSR 3 FG x3 / x4 no son XeSS FG)
 
         // Lo que se añade a los argumentos del motor al abrirlo (EngineArgs)
         public string MotorFgArgs(int chain)
