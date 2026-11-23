@@ -76,8 +76,9 @@ Engine settings go at the end of the `motor_extra=` line of `consoleenhancer.ini
 
 #### Known issues
 - Enhanced FG: the **picture quality of the generated frames barely changes** in this version. Measured against the true in-between
-  frames of real gameplay video, nothing tried gave a clear gain (the new test options `efg_nitido`, `efg_sel_vecinos`, `efg_sel_local`
-  are off by default).
+  frames of real gameplay video, nothing tried gave a clear gain (finer motion blocks, a memory for animated HUD elements, sharper
+  sampling; the new test options `efg_nitido`, `efg_sel_vecinos`, `efg_sel_local` are off by default). The graphics card's hardware
+  optical flow (NVIDIA RTX) lowered the error by 2.5-5.5 % in tests and is being looked at for a later version.
 - Enhanced FG **low latency still has errors when turning the camera**, fewer at ×4 (without DLSS 5): most come from predicting the next
   camera move, and they grow with how far ahead the last generated frame is. For ×3 / ×4 with DLSS 5, the quality mode looks better.
 - Enhanced FG ×4 low latency + DLSS 5 at 4K capture doesn't fit on an RTX 4060 Ti even at 25 %: after ~16 s it goes ×2 for the session
@@ -158,8 +159,10 @@ Las claves del motor van al final de la línea `motor_extra=` de `consoleenhance
 
 #### Problemas conocidos
 - Enhanced FG: la **calidad de imagen de las inventadas casi no cambia** en esta versión. Medido contra las imágenes de en medio de
-  verdad de vídeo real de juego, nada de lo probado dio una mejora clara (las opciones nuevas de prueba `efg_nitido`, `efg_sel_vecinos`,
-  `efg_sel_local` van apagadas de serie).
+  verdad de vídeo real de juego, nada de lo probado dio una mejora clara (bloques de movimiento más finos, una memoria para la interfaz
+  animada, un muestreo más nítido; las opciones nuevas de prueba `efg_nitido`, `efg_sel_vecinos`, `efg_sel_local` van apagadas de serie).
+  El flujo óptico por hardware de la gráfica (NVIDIA RTX) bajó el error un 2,5-5,5 % en las pruebas y se estudia para una versión
+  posterior.
 - Enhanced FG **baja latencia sigue teniendo errores al girar la cámara**, menos en ×4 (sin DLSS 5): casi todos vienen de adivinar el
   siguiente movimiento de la cámara y crecen con lo lejos que va la última inventada. Para ×3 / ×4 con DLSS 5 se ve mejor el modo calidad.
 - Enhanced FG ×4 baja latencia + DLSS 5 con captura 4K no cabe en una RTX 4060 Ti ni al 25 %: a los ~16 s pasa a ×2 esa sesión con un
