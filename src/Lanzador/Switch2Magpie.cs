@@ -2195,7 +2195,7 @@ namespace ConsoleEnhancer
         const int NvProfileNotFound = -163;
         const int NvExecutableNotFound = -166;
 
-        public static readonly string[] Exes = { "mpv.exe" };   // (1.2.4 ronda 6, QUITAFG: sin Magpie.exe; el motor lleva su perfil aparte: SetEngineSmooth / SetEngineFixed)
+        public static readonly string[] Exes = { };   // (1.2.4 ronda 6, QUITAFG: sin Magpie.exe; el motor lleva su perfil aparte: SetEngineSmooth / SetEngineFixed) (23-11, SINMPV: y sin mpv.exe: ya no se abre y no se toca su perfil)
 
         public const int Unchanged = 0, Changed = 1, Failed = -1;
 
