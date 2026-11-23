@@ -752,6 +752,7 @@ namespace ConsoleEnhancer
         {
             FilaAjuste antes = f;
             int altasAntes = AjAltas(ajFilas);
+            SmoothX4Tocada(f);   // (1.2.4 ronda 7, FGREAL: lo elegido en la fila x2 / x4 de Smooth Motion, SmoothX4.cs)
             AjustesDepende(false);
             // (si una fila deja de ser navegable, el foco sigue en la misma)
             List<FilaAjuste> nav = AjNavegables();
