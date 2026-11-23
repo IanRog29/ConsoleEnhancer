@@ -6436,7 +6436,7 @@ namespace ConsoleEnhancer
                         return;
                     }
                 }
-                Log.Write((applying ? "Perfil" : "Mando") + ": captura a " + SizeName(size) + " (se reabre la capturadora sin cerrar mpv)");
+                Log.Write((applying ? "Perfil" : "Mando") + ": captura a " + SizeName(size) + " (se reabre la capturadora sin cerrar el motor)");
                 cfg.VideoSize = size;
                 relaunchSize = size; // si mpv se cerrase a medias, se vuelve a abrir ya con la nueva
                 SaveCurProfile();
@@ -6508,9 +6508,9 @@ namespace ConsoleEnhancer
             switchUntil = DateTime.Now.AddSeconds(1); // margen para que vuelva el ritmo
             Stopwatch cs = captureSw;
             captureSw = null;
-            Log.Write("Captura a " + SizeName(cfg.VideoSize) + " lista sin cerrar mpv (" + what + "): " +
+            Log.Write("Captura a " + SizeName(cfg.VideoSize) + " lista sin cerrar el motor (" + what + "): " +
                       (cs != null ? cs.ElapsedMilliseconds + " ms desde que se pidio" : "") +
-                      " (Magpie sigue escalando la misma ventana; el enfoque de esta captura va en la proxima reapertura)");
+                      " (el enfoque de esta captura va en la proxima reapertura)");
         }
 
         // No se pudo sin cerrar mpv: se reabre (relaunchSize ya es la captura nueva; la ventana es la misma)
@@ -10433,7 +10433,7 @@ namespace ConsoleEnhancer
                 CloseAudio();
 
                 bool flag = File.Exists(Paths.FlagFile);
-                Log.Write("mpv terminado, codigo " + exitCode + ", flag de apagado: " + (flag ? "si" : "no") +
+                Log.Write("La imagen (el motor) terminada, codigo " + exitCode + ", flag de apagado: " + (flag ? "si" : "no") +
                           (PowerOffClock != null ? " (" + PowerOffClock.ElapsedMilliseconds + " ms desde que se vio la consola apagada)" : ""));
 
                 if (userExit) return;
@@ -11387,7 +11387,7 @@ namespace ConsoleEnhancer
                 // hasta 0,2 s tarde)
                 Thread.Sleep(fast ? 40 : waitAsked ? 1000 : 50);
             }
-            Log.Write("mpv ya muestra imagen (consola o pantalla No Signal)");
+            Log.Write("El motor ya muestra imagen (consola o pantalla No Signal)");
             PaintWait(p);   // (1.2.4 arreglos, RELEVO: el motor, hasta su primera imagen pintada: el telon no se quita sobre negro)
             if (cfg.PerformanceBoost) Perf.GpuHigh(p, "mpv");
             // 16-11 (revision): waitAsked no se quitaba nunca: tras una espera larga (la app abierta con la consola apagada), cada espera
