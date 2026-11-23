@@ -33,7 +33,7 @@ namespace ConsoleEnhancer
                 Splash(Path.Combine(dir, "carga_enciende.png"), 4.0, 0.35, Consolas.TextoEnciende, "Pulsa Esc para cancelar", 1920, 1080);
                 Curtain(Path.Combine(dir, "telon_oscuro.png"), "DLSS 5 activado", "Nivel 3 · 2 pasadas", null, false, 1920, 1080);
                 Curtain(Path.Combine(dir, "telon_gpu.png"), "La tarjeta gráfica se ha reiniciado", "Recuperando la imagen…", null, true, 1920, 1080);
-                Curtain(Path.Combine(dir, "telon_imagen.png"), "Generación de fotogramas activada", "DLSS FG x2 · imágenes intercaladas entre las reales", frame, false, 1920, 1080);
+                Curtain(Path.Combine(dir, "telon_imagen.png"), "Generación de fotogramas activada", "Smooth Motion · imágenes intercaladas entre las reales", frame, false, 1920, 1080);
                 Curtain(Path.Combine(dir, "telon_imagen_4k.png"), "Captura 1080p", "Un momento…", frame, false, 3840, 2160);
                 Notices(Path.Combine(dir, "avisos.png"), frame, 1920, 1080);
                 Menu(Path.Combine(dir, "menu.png"));
@@ -109,7 +109,7 @@ namespace ConsoleEnhancer
                 g.InterpolationMode = InterpolationMode.HighQualityBilinear;
                 g.DrawImage(frame, new Rectangle(0, 0, w, h));
                 float u = h / 1080f;
-                string[] texts = { "DLSS 5 · Nivel 3 de 4 · ya activo", "Captura 1440p", "Zelda · 1440p · 60 → 120 fps (DLSS FG) · DLSS 5 nivel 3 · 2 pasadas" };
+                string[] texts = { "DLSS 5 · Nivel 3 de 4 · ya activo", "Captura 1440p", "Zelda · 1440p · 60 → 120 fps (Smooth Motion) · DLSS 5 nivel 3 · 2 pasadas" };
                 float y = 0.035f * h + 18 * u * 0.7f;
                 foreach (string s in texts)
                 {
@@ -267,10 +267,10 @@ namespace ConsoleEnhancer
                     Grab(dir, "6_cerrado", 1, 0);
 
                     // 4) mpv se cierra con el telon puesto: el oscuro, con la pastilla en el centro y la linea
-                    CoverForm d = new CoverForm("Generación de fotogramas activada", "DLSS FG x2 · imágenes intercaladas entre las reales",
+                    CoverForm d = new CoverForm("Generación de fotogramas activada", "Smooth Motion · imágenes intercaladas entre las reales",
                                                 PrismaUi.Accent, false, null, 0.15, src);
                     d.Note = R;
-                    d.TopPillText = "Generación de fotogramas activada · DLSS FG x2 · imágenes intercaladas entre las reales";
+                    d.TopPillText = "Generación de fotogramas activada · Smooth Motion · imágenes intercaladas entre las reales";
                     ch = d.Handle;
                     d.Show();
                     d.ShowNow();     // (como TrayApp: al momento, ya opaco)

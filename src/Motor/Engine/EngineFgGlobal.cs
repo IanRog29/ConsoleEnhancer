@@ -54,9 +54,6 @@ namespace ConsoleEnhancer.Motor
                 case "fg_global_ratio": FgGlobalRatio = Math.Max(0.1, Math.Min(1, Dv(val))); return true;
                 case "fg_global_corte": FgGlobalTrunc = Math.Max(0.01, Math.Min(1, Dv(val))); return true;
                 case "fg_quieto": FgQuiet = Bv(val); return true;
-                case "fgui_crecer": FgUiGrow = Iv(val); return true;
-                case "fgui_ver": FgUiShow = Bv(val); return true;   // 1.2.4 (DLSSFG, EngineFgHud.cs)
-                case "fgui_pegada": FgUiSticky = Bv(val); return true;   // 1.2.4 ronda 5 (FGCAL, EngineFgHud.cs)
                 case "fg_quieto_prof": FgQuietDepth = Bv(val); return true;
                 case "fg_quieto_textura": FgQuietTex = Math.Max(0, Dv(val)); return true;
                 case "fg_quieto_quieto": FgQuietStill = Math.Max(0, Dv(val)); return true;
@@ -88,7 +85,7 @@ namespace ConsoleEnhancer.Motor
         // 22-11 (1.2.1): la generacion es la unica que usa los vectores y le basta el de la camara (EngineMotion.cs RecordMotion, sin bloques);
         // las pruebas y mascaras que leen los bloques (mvmask, fgui, fg_borde, completos, mvverdad, mvlog) los siguen pidiendo. (1.2.4,
         // integracion: fgui -de serie 4 en el modo 30- solo cuenta con DLSS-G: XeSS FG / FSR 3 FG del motor no usan su mascara)
-        bool FgOnlyCamNow { get { return s.FgCamOnly && FgGlobalNow && (fgApplied || FfxFgVecNow) && s.MvMask == 0 && (s.FgUi == 0 || !fgApplied) && !s.FgGuard && !FgVecFullNow && s.MvTruth == 0 && !s.MvLog; } }
+        bool FgOnlyCamNow { get { return s.FgCamOnly && FgGlobalNow && (fgApplied || FfxFgVecNow) && s.MvMask == 0 && !s.FgGuard && !FgVecFullNow && s.MvTruth == 0 && !s.MvLog; } }
         // (la profundidad por capas sustituye a la de los bordes de fg_profundidad: EngineRejas.cs RecordFgDepth)
         bool FgLayerDepthNow { get { return s.FgQuiet && s.FgQuietDepth && s.FgDepth > 0 && FgGlobalNow && fgApplied; } }
 

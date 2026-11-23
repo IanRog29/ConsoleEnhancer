@@ -36,16 +36,14 @@ namespace ConsoleEnhancer
         // Lo que se guarda: nombre, donde va en la app, donde se guarda, si es carpeta, tamaño minimo de la DLL
         sealed class Cosa
         {
-            public string Nombre, EnApp, Guardado; public bool Carpeta; public long Minimo;
+            public string Nombre, EnApp, Guardado; public long Minimo;
         }
         static Cosa Dlss5 { get { return new Cosa { Nombre = Integrado.Dlss5Dll, EnApp = Extras.Dll, Guardado = Path.Combine(Dir, Integrado.Dlss5Dll), Minimo = 8L << 20 }; } }
-        static Cosa Sm86 { get { return new Cosa { Nombre = "dlssg_sm86", EnApp = Extras.Sm86, Guardado = Path.Combine(Dir, @"runtimes\dlssg_sm86"), Carpeta = true }; } }
         static Cosa Prisma { get { return new Cosa { Nombre = "PrismaNr.dll", EnApp = Extras.PrismaNr, Guardado = Path.Combine(Dir, @"engine\PrismaNr.dll"), Minimo = 16L << 10 }; } }
-        // (1.2.4: engine\PrismaFg.dll, la otra pieza propia del motor; ya no se guarda: ver Todas)
-        static Cosa PrismaFg { get { return new Cosa { Nombre = "PrismaFg.dll", EnApp = Extras.PrismaFg, Guardado = Path.Combine(Dir, @"engine\PrismaFg.dll"), Minimo = 16L << 10 }; } }
-        // (1.2.4, ultima decision: PrismaNr.dll y PrismaFg.dll vienen ya en el zip -engine\-: no se guardan ni se recogen, para que una
-        // version nueva no coja una copia vieja. Solo lo que pone el usuario: su nvngx_dlssnr.dll y su dlssg_sm86)
-        static Cosa[] Todas { get { return new[] { Dlss5, Sm86 }; } }
+        // (1.2.4, ultima decision: PrismaNr.dll viene ya en el zip -engine\-: no se guarda ni se recoge, para que una version nueva no coja
+        // una copia vieja. Solo lo que pone el usuario: su nvngx_dlssnr.dll. 1.2.4 ronda 6, QUITAFG: y ya no su dlssg_sm86 -era para el DLSS FG
+        // de Magpie, que ya no esta-; lo guardado de antes en runtimes\dlssg_sm86 de esta carpeta se queda donde esta)
+        static Cosa[] Todas { get { return new[] { Dlss5 }; } }
 
         // (como Integrado.CopiaSeguridad: nada en pruebas con otra carpeta de datos o simulando, ni en la espera y sus ayudantes)
         static bool Toca()
@@ -79,7 +77,7 @@ namespace ConsoleEnhancer
             }
         }
 
-        // ---- al añadirlo ("Añadir DLSS 5": la DLL, su dlssg_sm86 y PrismaNr.dll si estaban al lado) ----
+        // ---- al añadirlo ("Añadir DLSS 5": la DLL y PrismaNr.dll si estaba al lado) ----
         public static void Guardar(string porque)
         {
             if (!Toca()) return;
@@ -100,25 +98,23 @@ namespace ConsoleEnhancer
             lock (sync)
             {
                 Dictionary<string, string> m = Leer();
-                foreach (Cosa c in new[] { Dlss5, Sm86 })
+                foreach (Cosa c in new[] { Dlss5 })
                 {
                     try
                     {
-                        if (c.Carpeta) { if (Directory.Exists(c.Guardado)) Directory.Delete(c.Guardado, true); }
-                        else if (File.Exists(c.Guardado)) File.Delete(c.Guardado);
+                        if (File.Exists(c.Guardado)) File.Delete(c.Guardado);
                         m.Remove("tam|" + c.Nombre);
                     }
                     catch (Exception ex) { Log.Error("Extras guardados: quitando " + c.Nombre, ex); }
                 }
                 Escribir(m);
-                Log.Write("Extras guardados: " + Integrado.Dlss5Dll + " y dlssg_sm86 quitados tambien de " + Dir + " (una version nueva ya no los recoge)");
+                Log.Write("Extras guardados: " + Integrado.Dlss5Dll + " quitada tambien de " + Dir + " (una version nueva ya no la recoge)");
             }
         }
 
         static bool Esta(Cosa c)
         {
-            if (!c.Carpeta) return File.Exists(c.EnApp);
-            return Directory.Exists(Extras.Sm86) || Directory.Exists(Extras.Sm86Viejo);
+            return File.Exists(c.EnApp);
         }
 
         // La marca de "esta carpeta de la app (y este exe) ya lo tenia": si falta, lo ha quitado el usuario
@@ -129,22 +125,10 @@ namespace ConsoleEnhancer
             return "visto|" + Path.GetFullPath(Paths.AppDir).TrimEnd('\\').ToLowerInvariant() + "|" + t.ToString(CultureInfo.InvariantCulture) + "|" + c.Nombre;
         }
 
-        // (solo lo que vale; y solo entonces "esta copia lo tuvo": lo que quita la propia app -un dlssg_sm86 de otra version- no cuenta
-        // como quitado por el usuario)
+        // (solo lo que vale; y solo entonces "esta copia lo tuvo")
         static void GuardarUna(Cosa c, Dictionary<string, string> m, string porque)
         {
             Stopwatch sw = Stopwatch.StartNew();
-            if (c.Carpeta)
-            {
-                string de = Directory.Exists(Extras.Sm86) ? Extras.Sm86 : Extras.Sm86Viejo;
-                // (lo mismo que ya se guardo -comprobado entonces-: sin volver a calcular sus ~28 MB de SHA-256 en cada arranque)
-                if (Sm86Iguales(de, c.Guardado)) { m[ClaveCopia(c)] = DateTime.Now.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture); return; }
-                if (!Componentes.Sm86Vale(de)) return;   // (a medias o de otra version: no vale)
-                m[ClaveCopia(c)] = DateTime.Now.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
-                int n = Componentes.CopiarSm86(de, c.Guardado);
-                Log.Write("Extras guardados: dlssg_sm86 (" + n + " ficheros) guardado en " + c.Guardado + " (" + porque + "; " + sw.ElapsedMilliseconds + " ms): una version nueva lo recoge sola");
-                return;
-            }
             string mal = Extras.MirarDll(c.EnApp);
             long tam = new FileInfo(c.EnApp).Length;
             if (mal != null || tam < c.Minimo) { Log.Write("Extras guardados: " + c.Nombre + " de la app no se guarda (" + (mal ?? tam + " bytes, muy pequeña") + ")"); return; }
@@ -168,7 +152,7 @@ namespace ConsoleEnhancer
             try
             {
                 string app = Path.GetFullPath(Paths.AppDir).TrimEnd('\\'), padre = Path.GetDirectoryName(app);
-                string rel = c.Carpeta ? @"extras\runtimes\dlssg_sm86" : c.Nombre.StartsWith("Prisma", StringComparison.OrdinalIgnoreCase) ? @"engine\" + c.Nombre : @"extras\" + c.Nombre;
+                string rel = c.Nombre.StartsWith("Prisma", StringComparison.OrdinalIgnoreCase) ? @"engine\" + c.Nombre : @"extras\" + c.Nombre;
                 if (!string.IsNullOrEmpty(padre) && Directory.Exists(padre))
                     foreach (string dir in Directory.GetDirectories(padre, "ConsoleEnhancer*"))
                         if (!string.Equals(dir.TrimEnd('\\'), app, StringComparison.OrdinalIgnoreCase)) de.Add(Path.Combine(dir, rel));
@@ -179,8 +163,8 @@ namespace ConsoleEnhancer
             foreach (string d in de)
             {
                 string no = NoVale(c, d, d == c.Guardado ? m : null);
-                if (no != null) { if (d == c.Guardado && (c.Carpeta ? Directory.Exists(d) : File.Exists(d))) porQue = no; continue; }
-                DateTime w = File.GetLastWriteTimeUtc(c.Carpeta ? Path.Combine(d, "version.dll") : d);
+                if (no != null) { if (d == c.Guardado && File.Exists(d)) porQue = no; continue; }
+                DateTime w = File.GetLastWriteTimeUtc(d);
                 if (d == c.Guardado) { mejor = d; break; }   // (lo guardado va primero)
                 if (mejor == null || w > cuando) { mejor = d; cuando = w; }
             }
@@ -190,28 +174,15 @@ namespace ConsoleEnhancer
                 return;
             }
             Stopwatch sw = Stopwatch.StartNew();
-            if (c.Carpeta)
-            {
-                int n = Componentes.CopiarSm86(mejor, c.EnApp);
-                Log.Write("Extras guardados: dlssg_sm86 que faltaba recogido de " + mejor + " (" + n + " ficheros, " + sw.ElapsedMilliseconds + " ms; de la comunidad, DLL autofirmadas, no oficial)");
-            }
-            else
-            {
-                CopiarDll(mejor, c.EnApp);
-                Log.Write("Extras guardados: " + c.Nombre + " que faltaba recogida de " + mejor + " (" + new FileInfo(c.EnApp).Length + " bytes, " + sw.ElapsedMilliseconds + " ms" +
-                          (c.Nombre.StartsWith("Prisma", StringComparison.OrdinalIgnoreCase) ? "; pieza propia del motor" : "; DLL de NVIDIA modificada por la comunidad, SIN FIRMA, no oficial") + ")");
-            }
+            CopiarDll(mejor, c.EnApp);
+            Log.Write("Extras guardados: " + c.Nombre + " que faltaba recogida de " + mejor + " (" + new FileInfo(c.EnApp).Length + " bytes, " + sw.ElapsedMilliseconds + " ms" +
+                      (c.Nombre.StartsWith("Prisma", StringComparison.OrdinalIgnoreCase) ? "; pieza propia del motor" : "; DLL de NVIDIA modificada por la comunidad, SIN FIRMA, no oficial") + ")");
             m[ClaveCopia(c)] = DateTime.Now.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
         }
 
         // null = vale; si no, por que (m: el tamaño apuntado al guardarla, solo para lo guardado)
         static string NoVale(Cosa c, string d, Dictionary<string, string> m)
         {
-            if (c.Carpeta)
-            {
-                if (!Directory.Exists(d)) return "no esta";
-                return Componentes.Sm86Vale(d) ? null : "incompleto o de otra version (no es el que pide Magpie)";
-            }
             if (!File.Exists(d)) return "no esta";
             string mal = Extras.MirarDll(d);
             if (mal != null) return mal;
@@ -222,12 +193,6 @@ namespace ConsoleEnhancer
             return null;
         }
 
-        static readonly string[] Sm86Ficheros = { "version.dll", @"dlssg_sm86\runtime\nvngx_dlssg.dll", @"dlssg_sm86\backend\sm86_backend.dll", @"dlssg_sm86\kernels\fg_kernels.dll" };
-        static bool Sm86Iguales(string a, string b)
-        {
-            foreach (string f in Sm86Ficheros) if (!Igual(Path.Combine(a, f), Path.Combine(b, f))) return false;
-            return true;
-        }
 
         static bool Igual(string a, string b)
         {

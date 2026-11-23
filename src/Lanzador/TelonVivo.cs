@@ -562,24 +562,7 @@ namespace ConsoleEnhancer
             return ok;
         }
 
-        // Magpie fuera YA (TerminateProcess), sin mirar antes si es el nuestro (eso, 0-350 ms, iba delante en MagpieLive.Close) y luego
-        // se espera a que no quede. El boton de captura del mando (Win derecha + Impr Pant) tumbaba a Magpie (c0000005, 15-11 19:18 y
-        // 19:19) si seguia vivo ~0,5 s despues; con la imagen copiada antes (1,65 s) siempre lo estaba. En el log, lo que pasa desde el
-        // boton (lastPadAction) hasta matarlo. wait: esperar a que no quede (como MagpieLive.Close)
-        void KillMagpieNow(string why, bool wait)
-        {
-            if (!MagpieLive.Running) return;
-            double sincePad = (DateTime.Now - lastPadAction).TotalMilliseconds;
-            Stopwatch sw = Stopwatch.StartNew();
-            MagpieLive.Kill();
-            long killMs = sw.ElapsedMilliseconds;
-            Log.Write("Magpie matado (" + why + ")" + (sincePad < 10000 ? " a los " + Math.Round(sincePad) + " ms del boton" : "") +
-                      " (" + curtainKind + "; matarlo " + killMs + " ms)");
-            if (!wait) return;
-            while (MagpieLive.Running && sw.ElapsedMilliseconds < 6000) Thread.Sleep(20);
-            Log.Write(MagpieLive.Running ? "Aviso: Magpie no se ha cerrado del todo (¿abierto como administrador?)"
-                                         : "Magpie cerrado en " + sw.ElapsedMilliseconds + " ms");
-        }
+        // (1.2.4 ronda 6, QUITAFG, fase 2: KillMagpieNow era de Magpie; fuera)
 
         // El primer plano al telon puesto, sin esperar. El rapido no lo toma al ponerse: se le da tras matar Magpie (el escalado
         // automatico del Magpie nuevo salta cuando WaitForScaling se lo devuelve a mpv)
@@ -610,7 +593,7 @@ namespace ConsoleEnhancer
             try
             {
                 Process p = mpv;
-                if (p == null || p.HasExited || Config.EngineActive || cfg.HomeNative || !signalOn || !consoleOn || MagpieLive.IsScaling()) return false;
+                if (p == null || p.HasExited || Config.EngineActive || cfg.HomeNative || !signalOn || !consoleOn) return false;
                 h = mpvWindow;
                 uint wp = 0;
                 if (h != IntPtr.Zero) GetWindowThreadProcessId(h, out wp);
@@ -644,7 +627,7 @@ namespace ConsoleEnhancer
                 });
             }
             catch (Exception ex) { no = ex.GetType().Name + ": " + ex.Message; }
-            Log.Write(ok ? "Telon en vivo (" + why + "): la imagen de la consola a la vista mientras Magpie prepara (" + (curtainSince != null ? curtainSince.ElapsedMilliseconds + " ms en negro" : "") + ")"
+            Log.Write(ok ? "Telon en vivo (" + why + "): la imagen de la consola a la vista mientras cambia (" + (curtainSince != null ? curtainSince.ElapsedMilliseconds + " ms en negro" : "") + ")"
                          : "Telon en vivo (" + why + "): no (" + no + "): sigue el negro");
             return ok;
         }
@@ -659,10 +642,10 @@ namespace ConsoleEnhancer
                 try
                 {
                     Stopwatch sw = Stopwatch.StartNew();
-                    while (sw.ElapsedMilliseconds < 2000 && !userExit && mpv == p && curtain != null && relevo == null && !MagpieLive.IsScaling() &&
+                    while (sw.ElapsedMilliseconds < 2000 && !userExit && mpv == p && curtain != null && relevo == null &&
                            !(consoleOn && signalOn))
                         Thread.Sleep(50);
-                    if (userExit || mpv != p || curtain == null || relevo != null || MagpieLive.IsScaling()) return;
+                    if (userExit || mpv != p || curtain == null || relevo != null) return;
                     SwapToLiveCurtain(why);
                 }
                 catch (Exception ex) { Log.Error("Telon en vivo (" + why + ")", ex); }

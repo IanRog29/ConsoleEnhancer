@@ -42,7 +42,6 @@ namespace ConsoleEnhancer
                 Log.Write("Fps: el motor no llega (" + m.Groups[1].Value + " de " + m.Groups[2].Value + "), pero algo esta cambiando: nada");
                 return true;
             }
-            if (ProteMotor(real, obj)) return true;   // (1.2.4, XEFG: con x3 / x4 en el motor, primero el multiplicador; Proteccion.cs)
             FpsLanza(real, obj, gpu, "el motor");
             return true;
         }
@@ -59,23 +58,8 @@ namespace ConsoleEnhancer
         }
 
         // (1.2.01) Cada 5 s, desde CheckLsPacing: Magpie no llega a las imagenes reales del modo con mpv dandoselas todas
-        int fpsMagpieWins;
         DateTime fpsMagpieLast = DateTime.MinValue;
-        void FpsMagpieVigila(double captured)
-        {
-            int modo = cfg.Mode120 ? 120 : cfg.CapMode ? 30 : 60;
-            // (1.2.1: las que da mpv tambien por su recuento de 20 s: a 120 el del script de 0,5 s se queda corto y esto no juzgaba nunca)
-            double fuente = FuenteFps();
-            bool juzgar = captured > 0 && !Config.EngineActive && !cfg.HomeNative && !InHome && !homeBusy && !passesBusy && relaunchSize == null &&
-                          !relaunchEngine && !userExit && MagpieLive.RunningFor() > 20 && fuente >= modo * 0.92 && (DateTime.Now - fpsMagpieLast).TotalSeconds >= 30;
-            double esperado = cfg.CapMode ? Math.Min(29.97, fuente) : Math.Min(modo, fuente);
-            bool bajo = juzgar && captured < esperado * 0.9;
-            fpsMagpieWins = bajo ? fpsMagpieWins + 1 : 0;
-            if (fpsMagpieWins < 2) return;
-            fpsMagpieWins = 0;
-            fpsMagpieLast = DateTime.Now;
-            FpsLanza(captured, esperado, 0, "Magpie");
-        }
+        // (1.2.01-1.2.4: FpsMagpieVigila -Magpie no llegaba a las reales del modo-; 1.2.4 ronda 6, QUITAFG: sin Magpie, fuera)
 
         void FpsBaja(double real, double obj, double gpu, string quien)
         {
@@ -96,7 +80,6 @@ namespace ConsoleEnhancer
             }
             else if (dlss5Shown && !cfg.Dlss5Off && cfg.Dlss5FitsNow)
             {
-                PasadasOnToggle(false);
                 SetDlss5State(false);
                 hecho = "DLSS 5 apagado"; hechoEn = "DLSS 5 off";
                 // (1.2.01: antes solo cambiaba el estado y la imagen seguia igual hasta otro cambio: como el boton, se reabre)

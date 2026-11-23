@@ -13,9 +13,9 @@ namespace ConsoleEnhancer
     // Teclado: Ctrl+G sobre la imagen de la consola (como L3). Mantener L3 ~0,8 s = el filtro de tramado nuevo / el de antes (lo que
     // hacia L3 hasta hoy). Lo elegido va por modo y por juego (columna 10 de games\profiles.txt) y en games\framegen_type.txt (lo de
     // ahora, para abrir la app ya jugando). Sin elegir nada, lo del ini (generacion_tipo_60/30, motor_generacion_60/30) como antes.
-    // Tipos: Sin generacion | Smooth Motion (driver) | DLSS FG (Magpie con DLSS 5; DLSS-G del motor propio sin el) | XeSS FG | FSR 3 FG
-    // (estos dos solo Magpie: con DLSS 5 apagado va mpv + Magpie sin DLSS 5). Los de cada modo: ini generacion_lista_60 / _30 (los que
-    // funcionan en este PC, medidos: ver LEEME). Los ajustes de cada tipo: claves con el tipo (Config.ModeKeyGen: tabla_dlss5_30_xess...)
+    // Tipos (1.2.4 ronda 6, QUITAFG: sin DLSS FG ni NVIDIA VFG ni x3 / x4): Sin generacion | Smooth Motion (driver; RTX 40 / 50) | XeSS FG |
+    // FSR 3 FG, siempre x2 (src\Lanzador\TiposGeneracion.cs). Los de cada modo: ini generacion_lista_60 / _30 (los que tiene este PC: el plan).
+    // Los ajustes de cada tipo: claves con el tipo (Config.ModeKeyGen: tabla_dlss5_30_xess...)
     partial class TrayApp
     {
         readonly object genSync = new object();
@@ -34,8 +34,7 @@ namespace ConsoleEnhancer
                 case "smooth": return "Smooth Motion";
                 case "fsr3": return "FSR 3 FG";
                 case "xess": return "XeSS FG";
-                case "vfg": return "NVIDIA VFG";
-                default: return "DLSS FG";   // (21-11, 1.0.8: igual en el motor y en Magpie; antes "DLSS-G" en el motor)
+                default: return t;   // (1.2.4 ronda 6: DLSS FG y NVIDIA VFG ya no existen)
             }
         }
 
@@ -51,14 +50,11 @@ namespace ConsoleEnhancer
             List<string> r = new List<string>();
             foreach (string t in cap30 ? cfg.GenList30 : cfg.GenList60)
             {
-                if (r.Contains(t)) continue;
-                if (t == "smooth" && (NvProfiles.SmoothBroken || Pantalla.Is119)) continue; // (ahi iria DLSS FG: repetido)
-                // (ConsoleEnhancer: la lista sale del plan de la grafica, generacion_lista_60/30; por si el ini es de antes, sin NVIDIA
-                // nada de NVIDIA, y con generacion_disponible=0 nada)
-                if (!cfg.FgAvailable || ((t == "smooth" || t == "dlss") && Ce.NoNvidia)) continue;
-                if (t == "dlss" && cfg.DlssFgPorMagpieSinRuntime) continue; // (1.0.10: RTX 30 sin el runtime; 1.1.2: con DLSS 5 por Magpie, sin el runtime)
-                if (t == "fsr3" && !File.Exists(Path.Combine(Paths.MagpieDir, "amd_fidelityfx_framegeneration_dx12.dll"))) continue;
-                if (t == "xess" && (!File.Exists(Path.Combine(Paths.MagpieDir, "libxess_fg.dll")) || Config.XessNo1080(videoSize))) continue; // (19-11: a 1080p no arrancaba; 1.2.2: xess_fg_1080, Multiplicador.cs)
+                if (r.Contains(t) || !Config.TipoGen(t)) continue;
+                // (ConsoleEnhancer: la lista sale del plan de la grafica, generacion_lista_60/30; con generacion_disponible=0 nada. Smooth
+                // Motion solo con NVIDIA, sin la tele a 119,88 Hz y si el driver deja; XeSS FG / FSR 3 FG con sus DLL; XeSS FG no a 1080p con
+                // xess_fg_1080=0: Config.GenPuedeIr, TiposGeneracion.cs)
+                if (!cfg.FgAvailable || !Config.GenPuedeIr(t, videoSize)) continue;
                 r.Add(t);
             }
             return r;
@@ -69,14 +65,7 @@ namespace ConsoleEnhancer
         {
             PrepareCfg();
             if (!fgWanted) return "no";
-            if (cfg.EngineNow && cfg.EngineFfxWanted) return "fsr3";   // 21-11 (1.0.9): FSR 3 FG en el motor
-            // (1.2.4 arreglos, RELEVO: desde la 1.2.4 el motor tambien hace XeSS FG -y la FG propia con x3 / x4 de XeSS-: antes aqui solo
-            // "smooth" o "dlss", y los avisos decian "Generación: DLSS FG" con XeSS FG puesto, y L3 tomaba DLSS FG por "ya puesto")
-            if (cfg.EngineNow)
-            {
-                if (cfg.EngineSmoothFor(cfg.CapMode) && !NvProfiles.EngineSmoothBroken) return "smooth";
-                return cfg.FgTypeNow == "xess" && Config.MotorFgMulti ? "xess" : "dlss";
-            }
+            // (1.2.4 ronda 6, QUITAFG: el motor y Magpie hacen el mismo tipo -Config.FgTypeFor-: Smooth Motion, XeSS FG o FSR 3 FG)
             return cfg.FgTypeNow;
         }
 
@@ -84,15 +73,8 @@ namespace ConsoleEnhancer
         {
             List<string> l = new List<string>();
             // (1.0.8: sin ▸ ◂, que la fuente del aviso del motor no tiene y salian como cuadros; « » si las tiene)
-            foreach (string t in opts) l.Add(t == sel ? "«" + GenLabel(t, engine) + GenMultSufijo(t) + "»" : GenLabel(t, engine) + GenMultSufijo(t));
+            foreach (string t in opts) l.Add(t == sel ? "«" + GenLabel(t, engine) + "»" : GenLabel(t, engine));
             return string.Join("  ", l.ToArray());
-        }
-
-        // (1.2.2, MULTI) " x4" detras de DLSS FG / XeSS FG en el selector si en este modo van con x3 / x4 (con x2, como siempre)
-        string GenMultSufijo(string t)
-        {
-            try { int m = Config.MultTipo(t) ? cfg.MultAhora(cfg.CapMode, t) : 2; return m > 2 ? " x" + m : ""; }
-            catch { return ""; }
         }
 
         // L3 (al soltarlo) o Ctrl+G
@@ -118,9 +100,9 @@ namespace ConsoleEnhancer
                     genSel = opts[(i + 1) % opts.Count];
                 }
                 genLastPress = DateTime.Now;
-                bool engine = cfg.EngineNow && genSel != "fsr3" && genSel != "xess" && genSel != "vfg";
+                bool engine = cfg.EngineNow;
                 // (1.0.8: el titulo es lo de antes del primer " · "; antes salia "Generación" solo y el tipo dos veces detras)
-                string head = "Generación: " + GenLabel(genSel, engine) + GenMultSufijo(genSel) + (genSel == cur ? " (actual)" : "");
+                string head = "Generación: " + GenLabel(genSel, engine) + (genSel == cur ? " (actual)" : "");
                 string list = (opts.Count > 1 ? GenListText(opts, genSel, engine) + " · L3: cambiar" : "la única disponible en este PC");
                 lock (osdQueue) osdQueue.Add(OsdCmd(head + " · " + list, GenOpenMs.ToString(CultureInfo.InvariantCulture), false));
                 int seq = ++genSeq;
@@ -174,10 +156,10 @@ namespace ConsoleEnhancer
                 PrepareCfg();
                 bool engine = cfg.EngineNow;
                 Log.Write("Mando: generacion " + GenLabel(t, engine) + " en el modo " + (cfg.CapMode ? "30" : "60") + " (antes " + GenLabel(cur, Config.EngineActive) + ")" +
-                          (engine != Config.EngineActive ? (engine ? ": al motor propio" : ": a mpv + Magpie (" + (cfg.Dlss5Off ? "sin DLSS 5: " : "") + "esta generacion la hace Magpie)") : ReopenNote) +
+                          (engine != Config.EngineActive ? (engine ? ": al motor propio" : ": a mpv sin el motor") : ReopenNote) +
                           " · " + cfg.ProfileText);
                 SaveCurProfile();
-                string title = t == "no" ? "Generación de fotogramas desactivada" : "Generación: " + GenLabel(t, engine) + GenMultSufijo(t);
+                string title = t == "no" ? "Generación de fotogramas desactivada" : "Generación: " + GenLabel(t, engine);
                 string sub = t == "no" ? "Solo las imágenes reales de la consola" : GenDetail(t, engine);
                 RestartLs(title, sub, false, true);
             }
@@ -188,8 +170,8 @@ namespace ConsoleEnhancer
         string GenDetail(string t, bool engine)
         {
             if (cfg.Mode120) return "120 fps (esports) · sin generacion · baja latencia"; // 20-11 (HZ120): a 120 no hay generacion
-            string fps = (cfg.CapMode ? "30" : "60") + " → " + ((cfg.CapMode ? 30 : 60) * cfg.FgMultNow) + " fps";
-            if (engine) return fps + " · motor propio" + (t == "dlss" ? " con Reflex" : "");
+            string fps = (cfg.CapMode ? "30" : "60") + " → " + ((cfg.CapMode ? 30 : 60) * 2) + " fps";
+            if (engine) return fps + " · motor propio";
             if (cfg.Dlss5Off) return fps + " · sin DLSS 5";
             return fps + " · DLSS 5 " + Dlss5PassText();
         }
@@ -204,14 +186,24 @@ namespace ConsoleEnhancer
 
         void LoadPicks()
         {
-            MultCargar(); // (1.2.2, MULTI: el multiplicador de cada modo, games\framegen_mult.txt)
+            // (1.2.2-1.2.4: tambien el multiplicador de cada modo, games\framegen_mult.txt: 1.2.4 ronda 6, QUITAFG, ya no se lee: sin x3 / x4)
             string s = LoadText(Paths.FgPickFile);
             if (string.IsNullOrEmpty(s)) return;
+            bool vieja = false;
             foreach (string raw in s.Split('\n'))
             {
                 string l = raw.Trim();
                 if (l.StartsWith("60=")) cfg.FgPick60 = Config.ParsePick(l.Substring(3));
                 else if (l.StartsWith("30=")) cfg.FgPick30 = Config.ParsePick(l.Substring(3));
+                else continue;
+                string v = l.Substring(3).Trim().ToLowerInvariant();
+                if (v == "dlss" || v == "vfg") vieja = true;
+            }
+            // (1.2.4 ronda 6, QUITAFG: lo elegido con DLSS FG / NVIDIA VFG pasa al mas parecido de este PC -Config.GenEnVezDeDlss- y se guarda asi)
+            if (vieja)
+            {
+                Log.Write("Generacion elegida: DLSS FG ya no existe, pasa a " + (Config.GenEnVezDeDlss.Length > 0 ? Config.GenEnVezDeDlss : "la de serie") + " (" + Paths.FgPickFile + ")");
+                SetPicks(cfg.FgPick60, cfg.FgPick30);
             }
             if (cfg.FgPick60.Length > 0 || cfg.FgPick30.Length > 0)
                 Log.Write("Generacion elegida con L3: modo 60 " + (cfg.FgPick60.Length > 0 ? cfg.FgPick60 : "la del ini") + ", modo 30 " + (cfg.FgPick30.Length > 0 ? cfg.FgPick30 : "la del ini"));

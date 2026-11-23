@@ -29,13 +29,19 @@ namespace ConsoleEnhancer.Motor
         [DllImport("kernel32.dll", CharSet = CharSet.Ansi, SetLastError = true)] public static extern IntPtr GetProcAddress(IntPtr m, string name);
         const uint LOAD_WITH_ALTERED_SEARCH_PATH = 0x8;
 
-        // La DLL en la carpeta pedida, junto al exe o en ..\magpie (la de la app). where = la ruta cargada
+        // La DLL en la carpeta pedida (dlls_sr=; 1.2.4 ronda 6, QUITAFG: varias separadas por ';' -<app>\xess y <app>\fsr, de las releases
+        // oficiales de Intel y AMD, sin Magpie-), junto al exe, en ..\xess / ..\fsr o, de una instalacion de antes, en ..\magpie. where = la
+        // ruta cargada
         public static IntPtr Load(string dir, string name, out string where)
         {
             where = null;
             List<string> c = new List<string>();
-            if (!string.IsNullOrEmpty(dir)) c.Add(Path.Combine(dir, name));
+            if (!string.IsNullOrEmpty(dir))
+                foreach (string d in dir.Split(';'))
+                    if (d.Trim().Length > 0) c.Add(Path.Combine(d.Trim(), name));
             c.Add(Path.Combine(Program.Dir, name));
+            c.Add(Path.GetFullPath(Path.Combine(Program.Dir, @"..\xess\" + name)));
+            c.Add(Path.GetFullPath(Path.Combine(Program.Dir, @"..\fsr\" + name)));
             c.Add(Path.GetFullPath(Path.Combine(Program.Dir, @"..\magpie\" + name)));
             foreach (string p in c)
             {

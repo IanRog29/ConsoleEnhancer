@@ -283,9 +283,9 @@ namespace ConsoleEnhancer
             // (1.2.1) la escala de DLSS 5 por Magpie: automatica por la cadena entera (EscalaAuto.cs) o las tablas de aqui
             // (1.2.3 REVISION3: con lo elegido, no con Dlss5AutoAhora, que es falso mientras DLSS 5 lo hace el motor -y la linea decia "las tablas
             // (dlss5_escala_auto=0)"-; y los dos presupuestos de MULTI2: el 95 % es el del hilo de Magpie, no de la grafica)
-            Log.Write("Escala de DLSS 5 por Magpie: " + (cfg.Dlss5AutoOn && cfg.Dlss5InputPct == 0 ? "automatica por la cadena (dlss5_escala_auto=1, " + EscalaAuto.Fichero + "; hilo de Magpie " +
-                      Math.Round(EscalaAuto.Uso * 100) + " %, grafica " + Math.Round(EscalaAuto.UsoGrafica * 100) + " %)" : cfg.Dlss5InputPct != 0 ? "fija (dlss5_entrada)" : "las tablas tabla_dlss5_* (dlss5_escala_auto=0)") +
-                      (cfg.MotorDlss5Pedido ? "; ahora DLSS 5 lo hace el motor propio (engine\\PrismaNr.dll)" : ""));
+            // (1.2.4 ronda 6, QUITAFG, fase 2: sin Magpie, DLSS 5 siempre por el motor, que ajusta su escala solo -data\scales_engine.txt-; la linea
+            // de la escala de Magpie ya no tiene sentido)
+            Log.Write("Escala de DLSS 5: la del motor propio (engine\\PrismaNr.dll; " + (cfg.Dlss5InputPct != 0 ? "fija, dlss5_entrada" : "la ajusta en marcha") + ")");
             if (!cfg.CeEscalas) return;
             Cargar();
             string g = GpuClave + "|";
@@ -355,22 +355,6 @@ namespace ConsoleEnhancer
 
     partial class TrayApp
     {
-        // CheckLsPacing (cada 5 s con Magpie): con DLSS 5 por Magpie, si llega a ritmo
-        void CeEscalasMagpie(LsStats st)
-        {
-            if (cfg.Dlss5AutoAhora) return;   // (1.2.1: con la escala automatica lo aprende y lo cambia EscalaAuto.cs, tambien en caliente)
-            try
-            {
-                bool juzgar = st.Captured > 0 && cfg.D5Tuned && !Config.EngineActive && !cfg.HomeNative && MagpieLive.RunningFor() > 20 &&
-                              (cfg.CapMode ? vfFps >= 29 : vfFps >= 59) && !passesBusy && relaunchSize == null;
-                double esperado = cfg.CapMode ? Math.Min(29.97, vfFps) : vfFps;
-                bool justo = st.Captured < esperado - (cfg.CapMode ? 1.0 : 2.0);
-                bool cabe = !justo && st.Captured >= esperado - 0.2 && st.Gaps == 0;
-                bool cambiado;
-                string aviso = Escalas.Muestra(cfg, juzgar, cabe, justo, out cambiado);
-                if (aviso.Length > 0) Osd(aviso);
-            }
-            catch (Exception ex) { Log.Error("Escalas (Magpie)", ex); }
-        }
+        // (20-11 a 1.2.4: CeEscalasMagpie, la escala de DLSS 5 por Magpie que cabe en este PC; 1.2.4 ronda 6, QUITAFG: sin Magpie, fuera)
     }
 }

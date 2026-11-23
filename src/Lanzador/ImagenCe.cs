@@ -63,7 +63,7 @@ namespace ConsoleEnhancer
             switch (key)
             {
                 case "rtx_hdr": CeRtxHdr = si; return true;
-                case "rtx_hdr_metodo": CeRtxHdrMetodo = v == "magpie" ? "magpie" : "driver"; return true;
+                case "rtx_hdr_metodo": CeRtxHdrMetodo = "driver"; return true;   // (1.2.4 ronda 6, QUITAFG: sin Magpie, "magpie" ya no; siempre el del driver)
                 case "rtx_hdr_calidad": CeRtxHdrCalidad = v == "media" || v == "sin_debanding" || v == "app" ? v : "alta"; return true;
                 case "rtx_hdr_nits":
                     {
@@ -98,16 +98,14 @@ namespace ConsoleEnhancer
             DateTime now = DateTime.UtcNow;
             if (ceFijoHz < 0 || (now - ceFijoHzAt).TotalSeconds > 2) { ceFijoHz = Pantalla.Hz(); ceFijoHzAt = now; }
             double hz = ceFijoHz, fps = CeFps(Framerate), tope = hz - hz * hz / 3600.0;
-            // (1.2.4 MOTORFG) la salida de verdad: las imagenes del juego (la mitad en el modo 30) x lo que multiplica el motor. DLSS FG x4 del
-            // motor en el modo 30 = 119,88/s, el mismo caso que el 60 con x2 (medido 22-11, RTX 4060 Ti, tele de 120 Hz: con VRR 29,0 reales/s
-            // y 50,6 ms de la llegada a verse; con el refresco fijo 30,0 y 40,7 ms, 1071 de 1073 a 1 refresco)
-            int fac = MotorFgFactorRefresco();
+            // (1.2.4 MOTORFG) la salida de verdad: las imagenes del juego (la mitad en el modo 30) x 2 (1.2.4 ronda 6, QUITAFG: sin x3 / x4)
+            int fac = 2;
             double sal = (CapMode ? fps / 2 : fps) * fac;
             bool si = EngineVrr > 0 && hz >= 100 && fps > 0 && tope < sal && hz > sal;
             string porque = (si ? "si" : "no") + " (" + (EngineVrr > 0 ? "VRR del motor" : "sin VRR en el motor") + ", pantalla " + ceFijoHz + " Hz: tope de Reflex con G-SYNC ~" +
                             tope.ToString("0", CultureInfo.InvariantCulture) + " frente a " + fac + " x " + (CapMode ? fps / 2 : fps).ToString("0.00", CultureInfo.InvariantCulture) +
                             (si ? ")" : hz > 0 && hz <= sal ? "; la pantalla no va mas rapida que la salida)" : ")");
-            if (porque != ceFijoDicho) { ceFijoDicho = porque; Log.Write("Refresco fijo del motor en el 60 con DLSS FG (motor_60fg_refresco_fijo=auto): " + porque); }
+            if (porque != ceFijoDicho) { ceFijoDicho = porque; Log.Write("Refresco fijo del motor en el 60 con generacion (motor_60fg_refresco_fijo=auto): " + porque); }
             return si;
         }
         static double CeFps(string fr)
@@ -158,8 +156,7 @@ namespace ConsoleEnhancer
                 if (cfg.EngineVrr > 0 && !vrrMotor) Log.Write("motor_vrr=1 del ini no cuenta: en ConsoleEnhancer lo decide vrr= (" + VrrPorque + ")");
                 cfg.EngineVrr = vrrMotor ? 1 : 0;
                 Log.Write("VRR " + (VrrAhora ? "encendido" : "apagado") + " (" + VrrPorque + "): motor vrr=" + (vrrMotor ? "1" + (cfg.EngineVrrFgVsync >= 0 ? " vrr_fg_vsync=" + cfg.EngineVrrFgVsync : "") : "0") +
-                          (VrrAhora && !vrrMotor ? " (la pantalla no dice tener VRR o DXGI no deja presentar sin sincronizar: el motor sin VRR, para no dar cortes)" : "") +
-                          ", Magpie en los modos con DLSS FG " + (VrrAhora ? "si" + (cfg.RitmoFijo30Dlss ? " (salvo el 30 con x2 a 120 Hz: refresco fijo cada 2 refrescos, como XeSS FG; magpie_fijo_30_dlss=0 = por VRR)" : "") : "no"));   // (1.2.3 RITMO2)
+                          (VrrAhora && !vrrMotor ? " (la pantalla no dice tener VRR o DXGI no deja presentar sin sincronizar: el motor sin VRR, para no dar cortes)" : ""));   // (1.2.4 ronda 6: sin Magpie)
                 // ---- HDR
                 bool hdrPant = pantalla != null && (pantalla.HdrPosible || pantalla.HdrActivo);
                 double nits = pantalla != null ? pantalla.NitsMax : 0;
@@ -420,7 +417,7 @@ namespace ConsoleEnhancer
                           "; RTX HDR " + (p.RtxHdrPosible ? "posible" : "no (" + p.RtxHdrMotivo + ")"));
             sb.AppendLine("#  VRR: " + (p.VrrPosible ? "posible" : "no") + (p.VrrMotivo.Length > 0 ? " (" + p.VrrMotivo + ")" : ""));
             sb.AppendLine("#  rtx_hdr_calidad: alta (el driver solo, sin la NVIDIA App; pico ~1000 nits) | media | sin_debanding | app (el overlay de la");
-            sb.AppendLine("#  NVIDIA App, con brillo / gris / contraste / saturacion de aqui). rtx_hdr_metodo=magpie: el efecto de Magpie (solo mpv + Magpie)");
+            sb.AppendLine("#  NVIDIA App, con brillo / gris / contraste / saturacion de aqui).");
             sb.AppendLine("rtx_hdr_posible=" + (p.RtxHdrPosible ? "1" : "0"));
             sb.AppendLine("vrr_posible=" + (p.VrrPosible ? "1" : "0"));
             sb.AppendLine("rtx_hdr=" + (o != null && o.RtxHdr && p.RtxHdrPosible ? "1" : "0"));

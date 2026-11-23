@@ -22,8 +22,8 @@ param(
 $ErrorActionPreference = 'Stop'
 if (-not $Pfx -and -not $Huella) { throw 'Falta -Pfx <fichero.pfx> o -Huella <sha1 del certificado>' }
 $exes = @("$Raiz\bin\ConsoleEnhancer.exe", "$Raiz\bin\ConsoleEnhancer Settings.exe", "$Raiz\bin\engine\ConsoleEnhancerEngine.exe")
-# (1.2.4) y las dos piezas propias del motor si estan compiladas (build_prismanr.bat / build_prismafg.bat)
-foreach ($d in @("$Raiz\bin\engine\PrismaNr.dll", "$Raiz\bin\engine\PrismaFg.dll")) { if (Test-Path $d) { $exes += $d } }
+# (1.2.4) y la pieza propia del motor si esta compilada (build_prismanr.bat)
+foreach ($d in @("$Raiz\bin\engine\PrismaNr.dll")) { if (Test-Path $d) { $exes += $d } }
 foreach ($e in $exes) { if (-not (Test-Path -LiteralPath $e)) { throw "Falta $e (compila antes con build.bat y build_motor.bat)" } }
 
 # signtool del Windows SDK (los runners windows-latest de GitHub lo traen); el mas nuevo

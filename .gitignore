@@ -30,9 +30,9 @@ DLSSNR-DLL-Options.zip
 NGX_OTA_Switch.bat
 extras/
 
-# PrismaNr y PrismaFg (las piezas propias del motor, C++): desde la 1.2.4 van en el repositorio y en el zip (src/PrismaNr, src/PrismaFg,
-# build_prismanr.bat, build_prismafg.bat). Lo que NUNCA va: las cabeceras de NGX con las que se compila PrismaNr (terceros/dlss_sdk,
-# scripts/descargar_cabeceras_ngx.ps1) y los binarios (*.dll, *.exe, arriba)
+# PrismaNr (la pieza propia del motor, C++): desde la 1.2.4 va en el repositorio y en el zip (src/PrismaNr, build_prismanr.bat). Lo que
+# NUNCA va: las cabeceras de NGX con las que se compila (terceros/dlss_sdk, scripts/descargar_cabeceras_ngx.ps1) y los binarios (*.dll,
+# *.exe, arriba). (1.2.4 ronda 6: PrismaFg -DLSS FG x3 / x4 con dlssg_sm86- ya no existe)
 
 # Las descargas de mpv y Magpie que hace la app la primera vez (src\Lanzador\Componentes.cs) y los ficheros a medias
 descargas/

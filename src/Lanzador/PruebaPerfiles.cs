@@ -300,6 +300,9 @@ namespace ConsoleEnhancer
             }
             // Sobre una copia de un profiles.txt como el del usuario (mismos ajustes), y con el bueno ya guardado: queda uno
             string tmp = Path.Combine(Path.GetTempPath(), "ce_prueba_perfiles_" + System.Diagnostics.Process.GetCurrentProcess().Id);
+            // (1.2.4 ronda 6, QUITAFG: la columna 10 con dlss -DLSS FG, que ya no esta- se guarda con el mas parecido; aqui fijo smooth, el de una RTX 40)
+            string envez = Config.GenEnVezDeDlss;
+            Config.GenEnVezDeDlss = "smooth";
             try
             {
                 Directory.CreateDirectory(tmp);
@@ -308,23 +311,23 @@ namespace ConsoleEnhancer
                                   "PS5: PLAYÑOOM|3840x2160|2|1|1|1|30|1|1|,dlss\r\nPS5: Rocket|2560x1440|2|1|1|1|120|1|1|,dlss\r\nPS5: Bloodborney|1920x1080|4|2|1|1|30|1|1|,dlss\r\n", new UTF8Encoding(false));
                 List<string> info = new List<string>();
                 List<string> fin = GameProfiles.PruebaFusiona(tmp, m, "Consola", info);
-                bool ok = fin.Contains("PS5: Bloodborne|1920x1080|4|2|1|1|30|1|1|,dlss") && !string.Join("\n", fin.ToArray()).Contains("Bloodborney") && fin.Count == 6;
+                bool ok = fin.Contains("PS5: Bloodborne|1920x1080|4|2|1|1|30|1|1|,smooth") && !string.Join("\n", fin.ToArray()).Contains("Bloodborney") && fin.Count == 6;
                 Mira(ok, "profiles.txt del usuario (copia): " + string.Join("; ", info.ToArray()));
                 // Con "PS5: Bloodborne" ya guardado (del 1.2.2 en otra sesion) y "PS5: Bloodborney" mas nuevo y el ultimo jugado: queda uno, con sus ajustes
                 File.WriteAllText(Path.Combine(tmp, "profiles.txt"), cab + "PS5: Bloodborne|3840x2160|2|1|1|1|30|1|1|,dlss\r\nPS5: Bloodborney|1920x1080|4|2|1|1|30|1|1|,dlss\r\n", new UTF8Encoding(false));
                 info.Clear();
                 Dictionary<string, string> m2 = new Dictionary<string, string>(); m2["PS5: Bloodborney"] = "PS5: Bloodborne";
                 fin = GameProfiles.PruebaFusiona(tmp, m2, "PS5: Bloodborney", info);
-                ok = fin.Count == 2 && fin.Contains("PS5: Bloodborne|1920x1080|4|2|1|1|30|1|1|,dlss");
+                ok = fin.Count == 2 && fin.Contains("PS5: Bloodborne|1920x1080|4|2|1|1|30|1|1|,smooth");
                 Mira(ok, "con el bueno ya guardado y el de basura el ultimo jugado: " + string.Join("; ", info.ToArray()));
                 File.WriteAllText(Path.Combine(tmp, "profiles.txt"), cab + "PS5: Bloodborney|1920x1080|4|2|1|1|30|1|1|,dlss\r\nPS5: Bloodborne|3840x2160|2|1|1|1|30|1|1|,dlss\r\n", new UTF8Encoding(false));
                 info.Clear();
                 fin = GameProfiles.PruebaFusiona(tmp, m2, "Consola", info);
-                ok = fin.Count == 2 && fin.Contains("PS5: Bloodborne|3840x2160|2|1|1|1|30|1|1|,dlss");
+                ok = fin.Count == 2 && fin.Contains("PS5: Bloodborne|3840x2160|2|1|1|1|30|1|1|,smooth");
                 Mira(ok, "con el bueno ya guardado y mas nuevo: " + string.Join("; ", info.ToArray()));
             }
             catch (Exception ex) { Mira(false, "migracion sobre una copia: " + ex.Message); }
-            finally { try { Directory.Delete(tmp, true); } catch { } }
+            finally { Config.GenEnVezDeDlss = envez; try { Directory.Delete(tmp, true); } catch { } }
         }
 
         // ---------------- Vuelta o arranque ----------------

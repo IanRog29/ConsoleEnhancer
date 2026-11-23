@@ -29,7 +29,6 @@ namespace ConsoleEnhancer.Deteccion
         public int TopeMs = 8000;
         // Extras no oficiales que solo se usan si el usuario los tiene (no van en el paquete)
         public string[] RutasDlssNr = new string[0];
-        public string[] RutasDlssgSm86 = new string[0];
 
         // Rutas de serie de los extras: junto a Magpie de la app y en la carpeta de datos
         public static string[] RutasExtra(string appDir, string archivo)
@@ -125,10 +124,9 @@ namespace ConsoleEnhancer.Deteccion
                 if (g.Software) continue;
                 GpuFunciones f = g.F;
                 sb.AppendLine("    DLSS SR: " + f.DlssSr + " | transformer: " + f.DlssTransformer.ToString());
-                sb.AppendLine("    DLSS-G: " + f.DlssG + " | x3/x4: " + f.DlssMfg);
                 sb.AppendLine("    Smooth Motion: " + f.SmoothMotion);
                 sb.AppendLine("    Reflex: " + f.Reflex + " | NVOF: " + f.Nvof);
-                sb.AppendLine("    DLSS 5 (DLSSNR): " + f.DlssNr + (f.DlssGComunidad.Si ? " | DLSS-G RTX 30: " + f.DlssGComunidad : ""));
+                sb.AppendLine("    DLSS 5 (DLSSNR): " + f.DlssNr);
                 sb.AppendLine("    RTX Video: " + f.RtxVideo + " | RTX HDR: " + f.RtxHdr);
                 sb.AppendLine("    FSR 1: " + f.Fsr1 + " | FSR 3 FG: " + f.Fsr3Fg + " | FSR 4: " + f.Fsr4);
                 sb.AppendLine("    XeSS: " + f.XessSr + " | XeSS FG: " + f.XessFg);

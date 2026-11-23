@@ -1023,15 +1023,14 @@ namespace ConsoleEnhancer
             GameProfile c = new GameProfile();
             c.Name = p.Name; c.NameSure = p.NameSure; c.Capture = p.Capture; c.Level = p.Level; c.Passes = p.Passes; c.Dlss5 = p.Dlss5; c.Scaler = p.Scaler;
             c.ScalerPick = p.ScalerPick; c.Cap = p.Cap; c.Mode120 = p.Mode120; c.Fg = p.Fg; c.Pick60 = p.Pick60; c.Pick30 = p.Pick30;
-            c.Mult60 = p.Mult60; c.Mult30 = p.Mult30;   // (1.2.2 REVISION: el multiplicador de MULTI; sin el, SaveSettings lo dejaba a 0)
+
             return c;
         }
 
         static bool MismosAjustes(GameProfile a, GameProfile b)
         {
             return a.Capture == b.Capture && a.Level == b.Level && a.Passes == b.Passes && a.Dlss5 == b.Dlss5 && a.Scaler == b.Scaler && a.ScalerPick == b.ScalerPick &&
-                   a.Cap == b.Cap && a.Mode120 == b.Mode120 && a.Fg == b.Fg && a.Pick60 == b.Pick60 && a.Pick30 == b.Pick30 &&
-                   a.Mult60 == b.Mult60 && a.Mult30 == b.Mult30;
+                   a.Cap == b.Cap && a.Mode120 == b.Mode120 && a.Fg == b.Fg && a.Pick60 == b.Pick60 && a.Pick30 == b.Pick30;
         }
 
         // Una captura fuera del menu con la comprobacion pendiente (MenuPs5Captura, tambien mientras Magpie prepara). portada = conocida en

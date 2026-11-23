@@ -183,8 +183,8 @@ namespace ConsoleEnhancer
             GpuInfo g = p.Gpu;
             sb.AppendLine(Tx.T("Gráfica: ", "GPU: ") + (g != null ? g.Nombre + " · " + Tx.Mb(g.Vram) + " · driver " + g.Driver : "?"));
             if (g != null && !g.Software)
-                sb.AppendLine("   DLSS " + Tx.SiNo(g.F.DlssSr.Si) + " · DLSS-G " + Tx.SiNo(g.F.DlssG.Si) + " · Smooth Motion " + Tx.SiNo(g.F.SmoothMotion.Si) + " · Reflex " + Tx.SiNo(g.F.Reflex.Si) +
-                              " · FSR 3 FG " + Tx.SiNo(g.F.Fsr3Fg.Si) + " · AFMF " + Tx.SiNo(g.F.Afmf.Si) + " · DLSS 5 " + (g.F.DlssNr.Si ? Tx.T("sí (no oficial)", "yes (unofficial)") : "no"));
+                sb.AppendLine("   DLSS " + Tx.SiNo(g.F.DlssSr.Si) + " · Smooth Motion " + Tx.SiNo(g.F.SmoothMotion.Si) + " · Reflex " + Tx.SiNo(g.F.Reflex.Si) +
+                              " · XeSS FG " + Tx.SiNo(g.F.XessFg.Si) + " · FSR 3 FG " + Tx.SiNo(g.F.Fsr3Fg.Si) + " · AFMF " + Tx.SiNo(g.F.Afmf.Si) + " · DLSS 5 " + (g.F.DlssNr.Si ? Tx.T("sí (no oficial)", "yes (unofficial)") : "no"));
             foreach (PantallaInfo pa in hw.Pantallas)
                 sb.AppendLine(Tx.T("Pantalla: ", "Display: ") + pa.Nombre + " · " + pa.Ancho + "x" + pa.Alto + " @ " + Tx.N(pa.HzExacto, "0.###") + " Hz" + (pa.HdrPosible ? " · HDR" : "") + (pa.VrrPosible ? " · VRR" : ""));
             int nc = 0;
@@ -354,7 +354,7 @@ namespace ConsoleEnhancer
                     else
                     {
                         if (!Extras.Anadir(this)) return;
-                        Ce.PrepararExtras();   // (a magpie\: Magpie no esta abierto durante el asistente)
+                        Ce.PrepararExtras();   // (1.2.4 ronda 6: ya no copia a magpie\; quita la copia vieja de dlssg_sm86 si la puso la app)
                     }
                     Extras.Redetectar(hw);
                     Ir(paso);
@@ -380,8 +380,8 @@ namespace ConsoleEnhancer
             bool bien;
             string est = Extras.EstadoComponentes(out bien);
             if (est == null) return "";
-            return Tx.T("Componentes (reescalado y generación de mpv + Magpie; NVIDIA Streamline / DLSS / Reflex ya vienen en el zip):\r\n",
-                        "Components (mpv + Magpie upscaling and frame generation; NVIDIA Streamline / DLSS / Reflex ship in the zip):\r\n") + est +
+            return Tx.T("Componentes (mpv, y XeSS de Intel y FSR de AMD para el motor; NVIDIA Streamline / DLSS / Reflex ya vienen en el zip):\r\n",
+                        "Components (mpv, and Intel XeSS and AMD FSR for the engine; NVIDIA Streamline / DLSS / Reflex ship in the zip):\r\n") + est +
                    (bien ? "" : "  ! " + Tx.T("Falta algo: bandeja > Componentes: comprobar / volver a descargar\r\n", "Something is missing: tray > Components: check / download again\r\n")) +
                    Tx.T("  (Si algo falla más tarde: icono de la bandeja > Componentes: comprobar / volver a descargar)\r\n\r\n",
                         "  (If something breaks later: tray icon > Components: check / download again)\r\n\r\n");
