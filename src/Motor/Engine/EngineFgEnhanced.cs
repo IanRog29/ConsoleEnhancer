@@ -69,7 +69,11 @@ namespace ConsoleEnhancer.Motor
         public float EfgTau = 0.08f, EfgKappa = 0.01f, EfgSigma = 0.012f, EfgZeroPen = 0.02f, EfgCutThr = 0.45f, EfgLambda = 0.002f, EfgBeta = 0.01f;
         public float EfgStillDiff = 3f / 255, EfgStillGrad = 0.05f;
         public int EfgStillN = 3, EfgRadius = 8;
-        public int EfgLevels = 5;               // (EFG2) niveles de la piramide del flujo (4-6; antes 4)
+        // (EFG2) niveles de la piramide del flujo (4-6; antes 4). (1.3.2, EFGGIRO) de serie 6: la busqueda por bloques del nivel mas grueso
+        // llega a +-256 puntos de L0 (+-512 de una salida de 4K, 13 % del ancho) en vez de +-128: con base 30 un giro rapido de mando se salia
+        // (con video real, Fallout 4 girando con el arma al doble de velocidad: error 22,4 -> 18,1, las peores 43-46 -> 27-28); donde el giro
+        // cabe, igual o algo mejor (-1 / -2 %). Junto con efg_giro (EngineFgEnhancedGiro.cs)
+        public int EfgLevels = 6;
         public bool EfgPropAll = true;          // (EFG2) la pasada de apoyo entre vecinos tambien en los niveles gruesos (antes solo en L0)
         public int EfgSearch = 1;               // (EFG2) busqueda alrededor del mejor en los niveles gruesos (+-N). De serie 1: con 2 el simulador
                                                 // daba -1 %, pero en la tele (otra sesion) salio algo peor y no pude repetirlo: queda para probar
@@ -129,7 +133,7 @@ namespace ConsoleEnhancer.Motor
                 case "efg_sel_local": EfgSelLocal = Math.Max(0, Math.Min(3, I(val))); return true;   // (1.3.1, EFGCAL)
                 case "efg_nitido": EfgNitido = Math.Max(-1, Math.Min(1, I(val))); return true;   // (1.3.1, EFGCAL)
             }
-            return ApplyEfgRitmo(key, val) || ApplyEfgLat(key, val);   // (1.3.1: EFGCAL efg_ritmo* / efg_colchon_ms, EngineFgEnhancedRitmo.cs; EFGLAT efg_lat*, EngineFgEnhancedLat.cs)
+            return ApplyEfgRitmo(key, val) || ApplyEfgLat(key, val) || ApplyEfgGiro(key, val);   // (1.3.1: EFGCAL efg_ritmo* / efg_colchon_ms, EngineFgEnhancedRitmo.cs; EFGLAT efg_lat*, EngineFgEnhancedLat.cs; 1.3.2: EFGGIRO efg_giro*, EngineFgEnhancedGiro.cs)
         }
     }
 
@@ -305,6 +309,7 @@ namespace ConsoleEnhancer.Motor
                 EfgSrv(c, EfgTabFin, 4, efgCut[c], DXGI_FORMAT.R32_FLOAT); EfgUav(c, EfgTabFin, 0, efgGen, ColorFmt);
             }
             EfgLatEnsure();   // (1.3.1, EFGLAT: el camino propio de la baja latencia, EngineFgEnhancedLat.cs)
+            EfgGiroEnsure();   // (1.3.2, EFGGIRO: el movimiento global de la camara, EngineFgEnhancedGiro.cs)
             iid = typeof(ID3D12Fence).GUID;
             Hr.Check(dev.CreateFence(0, D3D12_FENCE_FLAGS.NONE, ref iid, out o), "CreateFence (Enhanced FG)");
             efgFence = (ID3D12Fence)o;
@@ -330,6 +335,7 @@ namespace ConsoleEnhancer.Motor
             psoEfgLuma = Pso(cs[0]); psoEfgDown = Pso(cs[1]); psoEfgFlow = Pso(cs[2]); psoEfgProp = Pso(cs[3]);
             psoEfgStill = Pso(cs[4]); psoEfgCut = Pso(cs[5]); psoEfgSel = Pso(cs[6]); psoEfgFin = Pso(cs[7]);
             EfgLatPsos();   // (1.3.1, EFGLAT)
+            EfgGiroPsos();   // (1.3.2, EFGGIRO)
             Log.Write("Enhanced FG: shaders (" + Clock.SinceMs(t0).ToString("0", IC) + " ms)");
         }
 
@@ -354,6 +360,7 @@ namespace ConsoleEnhancer.Motor
                     for (int i = 0; i < nm.Length && !Program.Quit; i++)
                         if (!CsCached(nm[i], src[i])) { CompileCs(nm[i], src[i]); hechos++; }
                     if (!Program.Quit) hechos += EfgLatPrecompile();   // (1.3.1, EFGLAT)
+                    if (!Program.Quit) hechos += EfgGiroPrecompile();   // (1.3.2, EFGGIRO)
                     if (hechos > 0) Log.Write("Enhanced FG: " + hechos + " sombreadores a la cache de fondo (" + Clock.SinceMs(t0).ToString("0", IC) + " ms): elegirla luego no espera a compilarlos");
                 }
                 catch (Exception ex) { Log.Write("Enhanced FG: sombreadores de fondo: " + ex.Message); }

@@ -40,14 +40,15 @@ void main(uint3 id : SV_DispatchThreadID)
         // entera de +-R; en los demas el vector del bloque padre y de sus 4 vecinos (x2), el 0 y el de la pareja anterior (temporal, solo L0);
         // despues +-SR alrededor del mejor (EFG2: efg_busqueda en los niveles gruesos, de serie 1; +-1 en L0) y, en L0, medio y cuarto de punto. Coste = diferencia
         // media + Lambda x lo que se aparta del padre.
-        // Flags: 1 = hay padre, 2 = hay temporal, 8 = subpunto
+        // Flags: 1 = hay padre, 2 = hay temporal, 8 = subpunto. (1.3.2, EFGGIRO) GFlags: 1 = el movimiento global (u1) como candidato
         public const string Flow = @"
-cbuffer C : register(b0) { uint LW, LH, BX, BY; uint R, Flags, PBX, PBY; float Lambda, ZeroBias, TmpSign, Pad0; uint SR, Pad1, Pad2, Pad3; }
+cbuffer C : register(b0) { uint LW, LH, BX, BY; uint R, Flags, PBX, PBY; float Lambda, ZeroBias, TmpSign, GScale; uint SR, GFlags, Pad2, Pad3; }
 Texture2D<float> A : register(t0);
 Texture2D<float> B : register(t1);
 Texture2D<float4> Par : register(t2);
 Texture2D<float4> Tmp : register(t3);
 RWTexture2D<float4> Out : register(u0);
+RWTexture2D<float> Glob : register(u1);   // (1.3.2, EFGGIRO) el movimiento global de la camara (EfgGiroShaders.Global), con GFlags
 SamplerState Lin : register(s0);
 static float a[64];
 static float2 inv, o0, pred, bd;
@@ -109,6 +110,20 @@ void main(uint3 id : SV_DispatchThreadID)
                 Try(float2(dx, dy));
     }
     if (Flags & 2) Try(Tmp.Load(int3(id.xy, 0)).xy * TmpSign);
+    if (GFlags & 1)
+    {
+        // (1.3.2, EFGGIRO) el movimiento global como candidato: en el nivel mas grueso con +-2 alrededor (llega mas lejos que la busqueda
+        // de +-R: los giros rapidos con base 30), en los demas tal cual (el padre puede haberse equivocado)
+        float2 g = round(float2(Glob[uint2(0, 0)], Glob[uint2(1, 0)]) * GScale * TmpSign);
+        if (Glob[uint2(7, 0)] > 0.5)
+        {
+            if (Flags & 1) Try(g);
+            else
+                [loop] for (int gy = -2; gy <= 2; gy++)
+                    [loop] for (int gx = -2; gx <= 2; gx++)
+                        Try(g + float2(gx, gy));
+        }
+    }
     float2 c0 = round(bd);
     if (Flags & 1)
     {
@@ -236,10 +251,13 @@ Texture2D<float4> Fp1 : register(t5);   // los de L1 (bloques de 32 puntos de la
 Texture2D<float4> Fc1 : register(t6);
 Texture2D<float4> Fc3 : register(t7);   // y uno de L3 (128 puntos): casi el de la camara
 RWTexture2D<float4> Sel : register(u0);
+RWTexture2D<float> Glob : register(u1);  // (1.3.2, EFGGIRO) el movimiento global de la camara (EfgGiroShaders.Global), con Opts 512 / 1024 / 2048
 SamplerState Lin : register(s0);
 static float2 inv0, invB;
 static float bestS, bestW;
 static float2 bestM;
+static float pw;
+static float2 pm;
 float Lp1(float2 p) { return Lp.SampleLevel(Lin, p * inv0, 0); }
 float Lc1(float2 p) { return Lc.SampleLevel(Lin, p * inv0, 0); }
 bool StillAt(float2 p)
@@ -268,6 +286,7 @@ void Try(float2 x, float2 m)
     float s, w;
     if (S2 <= S1) { s = S2; w = T; } else { s = S1; w = Ec <= Ep ? 1 : 0; }
     if (Extrap != 0) w = 1;
+    s += pw * min(length(m - pm), 16);
     if (s < bestS) { bestS = s; bestM = m; bestW = w; }
 }
 [numthreads(16, 8, 1)]
@@ -279,6 +298,16 @@ void main(uint3 id : SV_DispatchThreadID)
     float2 x = float2(id.xy) * 2 + 1;
     int2 b0 = int2(floor((x - 4) / 8));
     bestS = 1e9; bestW = T; bestM = 0;
+    // (1.3.2, EFGGIRO) el movimiento global de la camara: candidato (512), liso = donde el bloque no tiene textura se tira hacia el (1024),
+    // suave = si nada casa ni por un lado, el global por los dos lados (2048). Solo al interpolar
+    bool gOk = Extrap == 0 && (Opts & 3584) != 0 && Glob[uint2(7, 0)] > 0.5;
+    float2 gm = gOk ? -float2(Glob[uint2(0, 0)], Glob[uint2(1, 0)]) : float2(0, 0);
+    pw = 0; pm = gm;
+    if (gOk && (Opts & 1024))
+    {
+        int2 bq = clamp(int2(floor(x / 8 - 0.5)), int2(0, 0), int2(BX - 1, BY - 1));
+        pw = Glob[uint2(4, 0)] * max(0, 1 - Fc.Load(int3(bq, 0)).w / max(Glob[uint2(5, 0)], 1e-4));
+    }
     if (Opts & 256)
     {
         // (EFGCAL) los 3x3 bloques alrededor (no solo los 2x2 mas cercanos): el vector bueno de un borde a veces es de un bloque mas alla
@@ -298,6 +327,7 @@ void main(uint3 id : SV_DispatchThreadID)
         Try(x, -Fc.Load(int3(b, 0)).xy);
     }
     Try(x, float2(0, 0));
+    if (gOk && (Opts & 512)) Try(x, gm);
     float2 u1 = x / (16.0 * float2(BX1, BY1));
     Try(x, Fp1.SampleLevel(Lin, u1, 0).xy * 2);
     Try(x, -Fc1.SampleLevel(Lin, u1, 0).xy * 2);
@@ -314,6 +344,7 @@ void main(uint3 id : SV_DispatchThreadID)
             [loop] for (int dx = -loc; dx <= loc; dx++)
                 if (dx != 0 || dy != 0) Try(x, c0 + float2(dx, dy));
     }
+    if (gOk && (Opts & 2048) && bestS > Glob[uint2(6, 0)]) { bestM = gm; bestW = T; }
     Sel[id.xy] = float4(bestM, bestW, bestS);
 }";
 

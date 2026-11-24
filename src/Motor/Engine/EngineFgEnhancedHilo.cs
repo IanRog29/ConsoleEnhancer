@@ -158,6 +158,7 @@ namespace ConsoleEnhancer.Motor
                 EfgZero(k); k[0] = (uint)efgLw[l]; k[1] = (uint)efgLh[l]; k[2] = (uint)efgLw[l - 1]; k[3] = (uint)efgLh[l - 1];
                 EfgRun(psoEfgDown, c, EfgTabDown(l), k, Groups(efgLw[l], 16), Groups(efgLh[l], 8), efgL[c, l]);
             }
+            EfgGiroFit(c, flow);   // (1.3.2, EFGGIRO: el movimiento global de la camara, EngineFgEnhancedGiro.cs)
             if (flow)
             {
                 bool tmp = efgFlowOk[p];
@@ -172,6 +173,7 @@ namespace ConsoleEnhancer.Motor
                         k[6] = l < top ? (uint)efgBx[l + 1] : 1u; k[7] = l < top ? (uint)efgBy[l + 1] : 1u;
                         k[8] = F(s.EfgLambda); k[9] = F(0.002f); k[10] = F(d == 0 ? 1f : -1f);
                         k[12] = l == 0 ? 1u : (uint)s.EfgSearch;
+                        k[11] = F(1f / (1 << l)); k[13] = EfgGiroFlowFlags();   // (1.3.2, EFGGIRO)
                         EfgRun(psoEfgFlow, c, EfgTabFlow(d, l), k, Groups(efgBx[l], 8), Groups(efgBy[l], 8), l == 0 ? efgFRaw[c, d] : efgPropAll ? efgFRawL[d, l] : efgF[c, d, l]);
                         if (efgPropAll && l > 0)
                         {
@@ -219,7 +221,7 @@ namespace ConsoleEnhancer.Motor
                 k[4] = F(t); k[5] = F(s.EfgKappa); k[6] = F(s.EfgTau); k[7] = F(s.EfgStillN);
                 k[8] = (uint)efgLw[0]; k[9] = (uint)efgLh[0]; k[10] = extrap ? 1u : 0u;
                 // (1.3.1, EFGCAL) solo al interpolar: los 3x3 bloques de alrededor y la busqueda local +-N en la eleccion (EfgShaders.Sel)
-                k[11] = extrap ? 0u : (uint)(Math.Max(0, Math.Min(3, s.EfgSelLocal)) | (s.EfgSelVecinos ? 256 : 0));
+                k[11] = extrap ? 0u : (uint)(Math.Max(0, Math.Min(3, s.EfgSelLocal)) | (s.EfgSelVecinos ? 256 : 0)) | EfgGiroSelOpts();   // (1.3.2, EFGGIRO: bits 9-11)
                 k[12] = (uint)efgBx[1]; k[13] = (uint)efgBy[1]; k[14] = (uint)efgBx[3]; k[15] = (uint)efgBy[3];
                 EfgRun(psoEfgSel, c, EfgTabSel, k, Groups(efgQw, 16), Groups(efgQh, 8), efgSel);
             }
