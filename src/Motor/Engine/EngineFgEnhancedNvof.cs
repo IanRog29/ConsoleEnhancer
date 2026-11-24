@@ -150,6 +150,7 @@ void main(uint3 id : SV_DispatchThreadID)
         int efgNvFw, efgNvFh;
         NvCu.FnList efgNvApi; NvCu.DCreate efgNvCreate; NvCu.DInit efgNvInit; NvCu.DCreateBuf efgNvCreateBuf; NvCu.DGetPtr efgNvGetPtr; NvCu.DStride efgNvStride; NvCu.DExec efgNvExec; NvCu.DLastErr efgNvLastErr;
         EfgNvSession efgNvFwd, efgNvBwd;
+        IntPtr efgNvCtx;
         bool efgNvHaveCur;
         // la grafica
         bool efgNvReady, efgNvPending;
@@ -378,7 +379,7 @@ void main(uint3 id : SV_DispatchThreadID)
                 byte* l = stackalloc byte[8]; uint mask;
                 if (NvCu.cuDeviceGetLuid(l, out mask, d) == 0 && *(long*)l == gpu.Luid) { dv = d; break; }
             }
-            IntPtr ctx; NvCk(NvCu.cuCtxCreate_v2(out ctx, 0, dv), "cuCtxCreate");
+            NvCk(NvCu.cuCtxCreate_v2(out efgNvCtx, 0, dv), "cuCtxCreate");
             efgNvApi = new NvCu.FnList();
             NvCk(NvCu.NvOFAPICreateInstanceCuda(0x20, ref efgNvApi), "NvOFAPICreateInstanceCuda");
             efgNvCreate = NvCu.Fn<NvCu.DCreate>(efgNvApi.nvCreateOpticalFlowCuda); efgNvInit = NvCu.Fn<NvCu.DInit>(efgNvApi.nvOFInit);
@@ -392,7 +393,7 @@ void main(uint3 id : SV_DispatchThreadID)
         EfgNvSession NvOpenSession(int w, int h)
         {
             EfgNvSession s2 = new EfgNvSession();
-            NvCk(efgNvCreate(IntPtr.Zero, out s2.h), "nvCreateOpticalFlowCuda");
+            NvCk(efgNvCreate(efgNvCtx, out s2.h), "nvCreateOpticalFlowCuda");
             NvCu.InitParams ip = new NvCu.InitParams { width = (uint)w, height = (uint)h, outGridSize = 4, mode = 1, perfLevel = s.EfgNvofPerf };
             int r = efgNvInit(s2.h, ref ip);
             if (r != 0) { byte[] e = new byte[256]; uint en = 256; try { efgNvLastErr(s2.h, e, ref en); } catch { } throw new Exception("nvOFInit = " + r + " " + System.Text.Encoding.ASCII.GetString(e, 0, (int)Math.Min(en, 256)).TrimEnd('\0')); }
