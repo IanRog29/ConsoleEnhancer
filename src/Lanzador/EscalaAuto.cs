@@ -993,8 +993,8 @@ namespace ConsoleEnhancer
             autoDentro++;
             try
             {
-                c.Modo = Mode120 ? 120 : CapMode ? 30 : 60;
-                c.Objetivo = Mode120 ? EscalaAuto.Fps(FramerateNow, 120) : CapMode ? 29.97 : 59.94;
+                c.Modo = ModoFps;
+                c.Objetivo = Mode120 ? EscalaAuto.Fps(FramerateNow, 120) : Mode40Now ? 39.96 : CapMode ? 29.97 : 59.94;   // (1.3.2, MODO40)
                 string[] cs = CaptureNow.Split('x'), ws = WindowFor(CaptureNow).Split('x');
                 int.TryParse(cs[0], out c.CapW); if (cs.Length > 1) int.TryParse(cs[1], out c.CapH);
                 int.TryParse(ws[0], out c.VenW); if (ws.Length > 1) int.TryParse(ws[1], out c.VenH);
@@ -1005,7 +1005,7 @@ namespace ConsoleEnhancer
                 c.Esc = ScalerNow;
                 c.Ligero = LightNow;
                 c.FlujoSr = DlssFlowNow > 0;
-                c.AfUna = c.Modo == 30 && Af30OnePass != 0;   // (1.2.2: el antiparpadeo de 1 pasada en el modo 30, src\Lanzador\Reescalado.cs)
+                c.AfUna = (c.Modo == 30 || c.Modo == 40) && Af30OnePass != 0;   // (1.3.2, MODO40: el 40 como el 30)   // (1.2.2: el antiparpadeo de 1 pasada en el modo 30, src\Lanzador\Reescalado.cs)
                 c.Hdr = RtxHdr; c.HdrAntes = RtxHdrBefore;
                 c.Intel = GpuVendor == "intel";
                 int f5 = Dlss5FlowNow;   // (1.2.3: el flujo de DLSS 5 -0 ninguno, 1 AMD, 2 NVIDIA- y su calidad: lo fijo de DLSS 5 en el hilo)

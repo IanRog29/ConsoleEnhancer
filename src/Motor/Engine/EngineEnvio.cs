@@ -90,7 +90,7 @@ namespace ConsoleEnhancer.Motor
             double n = s.FgQueueDropMs;
             if (n <= 0 || !fgApplied || fqSync == 0) { fqRun = 0; return false; }
             double pick = Clock.Ms(slotArrival[slot], latPickup);
-            double budget = (s.Mode == 30 ? 2000.0 : 1000.0) / 59.94;
+            double budget = s.Mode == 40 ? ModoPeriodoMs : (s.Mode == 30 ? 2000.0 : 1000.0) / 59.94;   // (1.3.2, MODO40)
             if (pick >= n && latSleepMs >= n && fqGpuEma > 0 && fqGpuEma < budget * 0.85) fqRun++; else fqRun = 0;
             if (fqRun < 20) return false;
             if (fqLastDrop != 0 && Clock.SinceMs(fqLastDrop) < 3000) return false;

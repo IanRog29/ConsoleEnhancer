@@ -122,7 +122,7 @@ namespace ConsoleEnhancer.Motor
         // no son de la grafica -23:59:24 del usuario: 9 de 192 en 2,1 s y x4 -> x2-) 4,5 s sin juzgar con Enhanced FG; 3 s sin el
         int EscCalmaInicioMs { get { return s.Efg >= 2 && EfgWanted() ? 4500 : 3000; } }
 
-        double EscObjetivo { get { return s.Mode == 30 ? 29.97 : s.Mode >= 100 ? 119.88 : 59.94; } }
+        double EscObjetivo { get { return s.Mode == 40 ? 39.96 : s.Mode == 30 ? 29.97 : s.Mode >= 100 ? 119.88 : 59.94; } }   // (1.3.2, MODO40: 39,96)
 
         // Desde SecondTick (cada vuelta del bucle): un cuarto cada 250 ms
         void EscCuarto()

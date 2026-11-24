@@ -88,7 +88,7 @@ namespace ConsoleEnhancer
             if (MotorD5Simple && !MotorFsrMultiDlss5) return Tx.T("x2 con DLSS 5 (la gráfica no da para x3 / x4)", "x2 with DLSS 5 (not enough GPU for x3 / x4)");
             return "";
         }
-        public bool MultiFsrPuede { get { return FsrMulNoPorQue(CapMode && !Mode120).Length == 0; } }
+        public bool MultiFsrPuede { get { return FsrMulNoPorQue(CapMode && !Mode120 && !Mode40).Length == 0; } }   // (1.3.2, MODO40: en el 40, x2)
 
         // El multiplicador que va de verdad con FSR 3 FG
         public int FsrMultNow { get { return MultiFsrPuede ? FsrMult : 2; } }

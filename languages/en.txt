@@ -114,7 +114,7 @@ RTX HDR (reabre la app)	RTX HDR (reopens the app)
 Automático (reabre la app)	Automatic (reopens the app)
 Encendido (reabre la app)	On (reopens the app)
 Apagado (reabre la app)	Off (reopens the app)
-Botones: Menú = modo 30/60, Vista = generación	Buttons: Menu = 30/60 mode, View = frame generation
+Botones: Menú = modo 30/40/60, Vista = generación	Buttons: Menu = 30/40/60 mode, View = frame generation
 Escalas que se adaptan solas (reabre la app)	Self-adjusting scales (reopens the app)
 Olvidar las escalas aprendidas (reabre la app)	Forget the learned scales (reopens the app)
 encendido ahora	on now

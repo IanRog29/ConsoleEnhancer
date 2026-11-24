@@ -96,7 +96,7 @@ namespace ConsoleEnhancer.Motor
         public bool NrMask = true, NrUi = true;
         public string NrDir = "";   // ConsoleEnhancer: la carpeta de nvngx_dlssnr.dll (extras de la app; el lanzador la pasa con dlss5_dir)
         public int Reflex = 1;                      // 0 off, 1 baja latencia, 2 + boost
-        public int Mode = 60;                       // 60 | 30 | 120 (30: solo imagenes nuevas; 120: esports, captura a 120, sin generacion, minimo proceso)
+        public int Mode = 60;                       // 60 | 30 | 40 (1.3.2, MODO40: EngineModo40.cs) | 120 (30: solo imagenes nuevas; 120: esports, captura a 120, sin generacion, minimo proceso)
         public bool Is120 { get { return Mode >= 120; } }   // 20-11 (HZ120): modo 120 fps de baja latencia
         public int Dedupe = -1;                     // -1 auto (modo 30 o con generacion), 0 no, 1 si
         public bool Motion = true;
@@ -478,7 +478,7 @@ namespace ConsoleEnhancer.Motor
                 case "vrr_fg_vsync": VrrFgVsync = I(val); break;
                 case "copia_hilos": Engine.CopyThreadsSet = Math.Max(0, Math.Min(16, I(val))); break;   // 20-11 (LATENCIA4)
                 case "refresco_fijo": RefreshFixed = B(val); break;   // 20-11 (LATENCIA5)
-                default: return ApplyEfg(key, val) || ApplyCierres(key.Trim().ToLowerInvariant(), val) || ApplyCe(key, val) || ApplyLatencia(key.Trim().ToLowerInvariant(), val) || ApplyEnvio(key.Trim().ToLowerInvariant(), val) || ApplyFgGlobal(key, val) || ApplyFgXe(key, val) || ApplyDvc(key, val) || ApplyFsrMulti(key, val) || ApplyArchivo(key.Trim().ToLowerInvariant(), val) || ApplyD5q(key, val);   // (1.2.4 ronda 6: ENHANCED efg*, EngineFgEnhanced.cs; FGMULTI fsrfg_multi*, EngineFsrMulti.cs) (1.2.4 arreglos, RELEVO: test_archivo_*, FileSource.cs; DLSS5Q: dlss5_*, EngineDlss5Q.cs)   // (1.2.4 MOTORFG: xefg_*, y las claves quitadas en la ronda 6: EngineFgXe.cs ApplyFgXe; LATENCIA: cola_tirar_fg, cpu_pasos: EngineEnvio.cs; DLSS5LEGAL: vibrancia*: EngineDvc.cs) 20-11 (CIERRES: EngineCuelgue.cs) (ConsoleEnhancer: adapta=...; false = desconocida) (21-11, 1.2.1: EngineLatencia.cs; fg_global, fg_quieto: EngineFgGlobal.cs)
+                default: return ApplyEfg(key, val) || ApplyCierres(key.Trim().ToLowerInvariant(), val) || ApplyCe(key, val) || ApplyLatencia(key.Trim().ToLowerInvariant(), val) || ApplyEnvio(key.Trim().ToLowerInvariant(), val) || ApplyFgGlobal(key, val) || ApplyFgXe(key, val) || ApplyDvc(key, val) || ApplyFsrMulti(key, val) || ApplyArchivo(key.Trim().ToLowerInvariant(), val) || ApplyD5q(key, val) || ApplyModo40(key, val);   // (1.2.4 ronda 6: ENHANCED efg*, EngineFgEnhanced.cs; FGMULTI fsrfg_multi*, EngineFsrMulti.cs) (1.2.4 arreglos, RELEVO: test_archivo_*, FileSource.cs; DLSS5Q: dlss5_*, EngineDlss5Q.cs)   // (1.2.4 MOTORFG: xefg_*, y las claves quitadas en la ronda 6: EngineFgXe.cs ApplyFgXe; LATENCIA: cola_tirar_fg, cpu_pasos: EngineEnvio.cs; DLSS5LEGAL: vibrancia*: EngineDvc.cs) 20-11 (CIERRES: EngineCuelgue.cs) (ConsoleEnhancer: adapta=...; false = desconocida) (21-11, 1.2.1: EngineLatencia.cs; fg_global, fg_quieto: EngineFgGlobal.cs)
             }
             return true;
         }

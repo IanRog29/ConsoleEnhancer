@@ -253,8 +253,8 @@ namespace ConsoleEnhancer
                 if (!preparando || (lsReady && !passesBusy && !homeBusy)) return false;
                 string v;
                 if (e.TryGetValue("cap", out v) && v != cfg.VideoSize) return false;
-                int modoAhora = cfg.Mode120 ? 120 : cfg.CapMode ? 30 : 60;
-                if (e.TryGetValue("modo", out v) && v != modoAhora.ToString(CultureInfo.InvariantCulture) && (v == "120" || modoAhora == 120)) return false;
+                int modoAhora = cfg.ModoFps;
+                if (e.TryGetValue("modo", out v) && v != modoAhora.ToString(CultureInfo.InvariantCulture) && (v == "120" || modoAhora == 120 || v == "40" || modoAhora == 40)) return false;   // (1.3.2, MODO40: el 40 a 1440p / 1080p captura a 120)
                 return true;
             }
             catch { return false; }
@@ -461,6 +461,8 @@ namespace ConsoleEnhancer
             caliente("Motor reabriendose, con otra captura", cal(a, cap), false);
             Dictionary<string, string> m120 = new Dictionary<string, string>(nivel); m120["modo"] = "120";
             caliente("Motor reabriendose, al modo 120", cal(a, m120), false);
+            Dictionary<string, string> m40 = new Dictionary<string, string>(nivel); m40["modo"] = "40";   // (1.3.2, MODO40: puede cambiar la velocidad de captura)
+            caliente("Motor reabriendose, al modo 40", cal(a, m40), false);
             Dictionary<string, string> m60 = new Dictionary<string, string>(nivel); m60["modo"] = "60";
             caliente("Motor reabriendose, al modo 60", cal(a, m60), true);
             a = jugando(); a.cfg.VideoSize = "3840x2160"; a.cfg.CapMode = true; a.homeBusy = true; a.homeSwitchToHome = false; a.lsReady = false;

@@ -45,7 +45,7 @@ namespace ConsoleEnhancer
         // Dlss5PassesNow 0). Ni el perfil ni lo elegido (dlss5Shown, dlss5_on.txt) cambian; vuelve al cambiar de juego, de captura, de modo o
         // de generacion, o al elegir DLSS 5 otra vez (D5NoLlegaOlvida)
         static string d5NoLlega = "";
-        string D5NoLlegaClave() { return (EscalaAuto.Juego ?? "") + "|" + (VideoSize ?? "") + "|" + (Mode120 ? 120 : CapMode ? 30 : 60) + "|" + (FgOff ? "-" : CapMode ? FgPick30 : FgPick60); }
+        string D5NoLlegaClave() { return (EscalaAuto.Juego ?? "") + "|" + (VideoSize ?? "") + "|" + ModoFps + "|" + (FgOff ? "-" : CapMode ? FgPick30 : FgPick60); }
         public static void D5NoLlegaAnota(Config c) { d5NoLlega = c.D5NoLlegaClave(); }
         public static void D5NoLlegaOlvida(string por) { if (d5NoLlega.Length == 0) return; d5NoLlega = ""; Log.Write("Fps: DLSS 5 otra vez (" + por + "): lo apagado esta sesion por no llegar se olvida"); }
         public bool D5NoLlegaAhora { get { return d5NoLlega.Length > 0 && d5NoLlega == D5NoLlegaClave(); } }
@@ -112,7 +112,7 @@ namespace ConsoleEnhancer
         // Lo que va (para los avisos de la escalera): "Smooth Motion x4", "Enhanced FG x3", "XeSS FG", "30 fps"...
         public static string EscaleraQuien(Config c)
         {
-            int modo = c.Mode120 ? 120 : c.CapMode ? 30 : 60;
+            int modo = c.ModoFps;
             if (c.FgOff || c.Mode120) return modo + " fps";
             string t = c.FgTypeNow;
             if (t == "smooth") return "Smooth Motion x" + (c.SmoothX4Now ? 4 : 2);
@@ -203,7 +203,7 @@ namespace ConsoleEnhancer
         void FpsBaja(double real, double obj, double gpu, string quien)
         {
             PrepareCfg();
-            int modo = cfg.Mode120 ? 120 : cfg.CapMode ? 30 : 60;
+            int modo = cfg.ModoFps;
             int salida = cfg.Mode120 || cfg.FgOff ? modo : modo * cfg.FgMultNow;
             string vista = Math.Round(fpsAgotado && fpsAgVistas > 0 ? fpsAgVistas : real * (cfg.Mode120 || cfg.FgOff ? 1 : cfg.FgMultNow)).ToString(CultureInfo.InvariantCulture);
             // (1.2.1: el aviso en el idioma elegido; antes solo en espanol)
@@ -296,7 +296,7 @@ namespace ConsoleEnhancer
             if (readerMpv != null && readerMpv != mpv) return;
             PrepareCfg();
             string quien = EscaleraQuien(cfg);
-            int modo = cfg.Mode120 ? 120 : cfg.CapMode ? 30 : 60;
+            int modo = cfg.ModoFps;   // (1.3.2, INTEGRA9: el modo 40 de MODO40)
             int salida = cfg.Mode120 || cfg.FgOff ? modo : modo * cfg.FgMultNow;
             double vistas = double.Parse(m.Groups[5].Value, CultureInfo.InvariantCulture), real = double.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture);
             if (vistas <= 0) vistas = real * (cfg.Mode120 || cfg.FgOff ? 1 : cfg.FgMultNow);

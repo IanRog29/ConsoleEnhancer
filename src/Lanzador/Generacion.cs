@@ -143,7 +143,7 @@ namespace ConsoleEnhancer
                 string cur = GenCurrent();
                 if (t == cur)
                 {
-                    Log.Write("Selector de generacion: " + t + " ya puesto (" + (cfg.CapMode ? "modo 30" : "modo 60") + ")");
+                    Log.Write("Selector de generacion: " + t + " ya puesto (" + "modo " + cfg.ModoFps + ")");
                     Osd(Deteccion.Tx.T("Generación", "Frame generation") + " · " + AvisoConfig().AvisoGen(true) + Deteccion.Tx.T(" · ya puesta", " · already on"));
                     return;
                 }
@@ -163,7 +163,7 @@ namespace ConsoleEnhancer
                 }
                 PrepareCfg();
                 bool engine = cfg.EngineNow;
-                Log.Write("Mando: generacion " + GenLabel(t, engine) + " en el modo " + (cfg.CapMode ? "30" : "60") + " (antes " + GenLabel(cur, Config.EngineActive) + ")" +
+                Log.Write("Mando: generacion " + GenLabel(t, engine) + " en el modo " + cfg.ModoFps + " (antes " + GenLabel(cur, Config.EngineActive) + ")" +
                           (engine != Config.EngineActive ? ": al motor propio" : ReopenNote) +
                           " · " + cfg.ProfileText);
                 SaveCurProfile();

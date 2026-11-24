@@ -64,9 +64,10 @@ namespace ConsoleEnhancer
             ToolStripMenuItem modo = new ToolStripMenuItem(Tx.T("Modo", "Mode"));
             modo.ShortcutKeyDisplayString = "Ctrl+M";
             ToolStripMenuItem m30 = ItemModo(30, Tx.T("30 fps", "30 fps"));
+            ToolStripMenuItem m40 = ItemModo(40, Tx.T("40 fps", "40 fps"));   // (1.3.2, MODO40)
             ToolStripMenuItem m60 = ItemModo(60, Tx.T("60 fps", "60 fps"));
             ToolStripMenuItem m120 = ItemModo(120, Tx.T("120 fps (esports, sin generación)", "120 fps (esports, no frame generation)"));
-            modo.DropDownItems.AddRange(new ToolStripItem[] { m30, m60, m120 });
+            modo.DropDownItems.AddRange(new ToolStripItem[] { m30, m40, m60, m120 });
 
             ToolStripMenuItem cap = new ToolStripMenuItem(Tx.T("Captura", "Capture"));
             string[] tams = { "1280x720", "1920x1080", "2560x1440", "3840x2160" };
@@ -133,8 +134,8 @@ namespace ConsoleEnhancer
                     fg.Enabled = vivo && cfg.FgAvailable && !cfg.Mode120;
                     tipo.Enabled = vivo && cfg.FgAvailable && !cfg.Mode120;
 
-                    int cur = cfg.Mode120 ? 120 : cfg.CapMode ? 30 : 60;
-                    m30.Checked = cur == 30; m60.Checked = cur == 60; m120.Checked = cur == 120;
+                    int cur = cfg.ModoFps;
+                    m30.Checked = cur == 30; m40.Checked = cur == 40; m60.Checked = cur == 60; m120.Checked = cur == 120;
                     m120.Visible = cur == 120 || Puede120();
                     foreach (ToolStripMenuItem it in caps) it.Checked = (string)it.Tag == cfg.VideoSize;
                     d5.Visible = Integrado.Dlss5Available;

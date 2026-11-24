@@ -46,6 +46,7 @@ namespace ConsoleEnhancer
             if (CeParseTipos(key, val)) return true;    // (xess_fg_1080, proteccion*, motor_xefg_dlss5: src\Lanzador\TiposGeneracion.cs)
             if (key == "motor_fg_multi") { MotorFgMulti = val.Trim() != "0"; return true; }   // (1.2.4 MOTORFG: XeSS FG en el motor; 0 = por Magpie. src\Lanzador\MotorFg.cs)
             if (CeParseReescalado(key, val)) return true; // (22-11, 1.2.2: magpie_nitidez_transformer..., src\Lanzador\Reescalado.cs)
+            if (CeParseModo40(key, val)) return true;     // (1.3.2, MODO40: modo40_captura_120, src\Lanzador\Modo40.cs)
             switch (key)
             {
                 case "device_path": DevicePath = val.Trim(); return true;

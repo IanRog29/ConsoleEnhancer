@@ -238,11 +238,12 @@ namespace ConsoleEnhancer
         static bool ModoGuardado(GameProfile p)
         {
             string m = LoadText(Paths.ModeFile);
-            if (p == null || (m != "30" && m != "60" && m != "120")) return false;
-            bool cap = m == "30", m120 = m == "120";
-            if (p.Cap == cap && p.Mode120 == m120) return false;
+            if (p == null || (m != "30" && m != "40" && m != "60" && m != "120")) return false;
+            bool cap = m == "30" || m == "40", m120 = m == "120", m40 = m == "40";   // (1.3.2, MODO40)
+            if (p.Cap == cap && p.Mode120 == m120 && p.Mode40 == m40) return false;
             p.Cap = cap;
             p.Mode120 = m120;
+            p.Mode40 = m40;
             return true;
         }
 

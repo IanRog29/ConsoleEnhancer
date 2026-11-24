@@ -125,7 +125,7 @@ namespace ConsoleEnhancer
             if (src != null)
             {
                 p.Capture = src.Capture; p.Level = src.Level; p.Passes = src.Passes; p.Dlss5 = src.Dlss5; p.Scaler = src.Scaler;
-                p.ScalerPick = src.ScalerPick; p.Cap = src.Cap; p.Mode120 = src.Mode120; p.Fg = src.Fg; p.Pick60 = src.Pick60; p.Pick30 = src.Pick30;
+                p.ScalerPick = src.ScalerPick; p.Cap = src.Cap; p.Mode120 = src.Mode120; p.Mode40 = src.Mode40; p.Fg = src.Fg; p.Pick60 = src.Pick60; p.Pick30 = src.Pick30;
             }
             else if (cfg != null) p.Level = cfg.Dlss5DefaultLevel;
             if (c != null) p.Capture = c.CapturaCercana(p.Capture);
@@ -156,7 +156,7 @@ namespace ConsoleEnhancer
         {
             relaunchSize = null;
             cfg.VideoSize = p.Capture; dlss5Level = p.Level; dlss5Passes = p.Passes; dlss5Shown = p.Dlss5; dlssScalerOn = p.Scaler;
-            scalerPick = p.ScalerPick; cfg.CapMode = p.Cap; cfg.Mode120 = p.Mode120; fgWanted = p.Fg; cfg.FgPick60 = p.Pick60; cfg.FgPick30 = p.Pick30;
+            scalerPick = p.ScalerPick; cfg.CapMode = p.Cap; cfg.Mode120 = p.Mode120; cfg.Mode40 = p.Mode40 && p.Cap; fgWanted = p.Fg; cfg.FgPick60 = p.Pick60; cfg.FgPick30 = p.Pick30;
         }
 
         // (pruebas: MismosAjustes esta en src\Lanzador\VueltaJuego.cs)
