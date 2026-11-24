@@ -72,7 +72,9 @@ void main(uint3 id : SV_DispatchThreadID)
     if (id.x >= WW || id.y >= WH) return;
     int2 p = int2(id.xy);
     float c = Ld(p), l = Ld(p + int2(-1, 0)), r = Ld(p + int2(1, 0)), u = Ld(p + int2(0, -1)), d = Ld(p + int2(0, 1));
-    float sm = 0.5 * c + 0.125 * (l + r + u + d);
+    // (suavizado de radio ~2: el grano de las texturas -grava, hierba- no es relieve; si no, oscurece un poco TODO lo texturado)
+    float sm = 0.25 * c + 0.125 * (l + r + u + d) + 0.0625 * (Ld(p + int2(-2, -2)) + Ld(p + int2(2, -2)) + Ld(p + int2(-2, 2)) + Ld(p + int2(2, 2)))
+             + 0.0625 * (Ld(p + int2(-2, 0)) + Ld(p + int2(2, 0)) + Ld(p + int2(0, -2)) + Ld(p + int2(0, 2)));
     float2 uv = (float2(p) + 0.5) * 0.25 * float2(ICW, ICH);
     float m = 0, wsum = 0;
     [unroll] for (int k = 0; k < 8; k++)
@@ -83,7 +85,9 @@ void main(uint3 id : SV_DispatchThreadID)
         wsum += 2;
     }
     m = (m + 2 * Lc.SampleLevel(L, uv, 0)) / (wsum + 2);
-    float h = clamp((sm - m) * G, -1, 1);
+    // (compresion suave: los saltos muy grandes -siluetas contra el cielo, texto- no dan un relieve enorme que oscurezca su borde)
+    float x = (sm - m) * G;
+    float h = x / (1 + abs(x));
     float e = max(max(abs(c - l), abs(c - r)), max(abs(c - u), abs(c - d)));
     Out[id.xy] = float2(h, e);
 }";
@@ -183,7 +187,7 @@ void main(uint3 id : SV_DispatchThreadID)
         // donde sube el horizonte es la luz que rebota hacia el punto. Sale rgb = luz rebotada (lineal), a = oclusion (0 = nada tapa).
         // c0: ancho y alto de trabajo, imagen, Dirs | c1: Steps, radio (px de trabajo), altura (px de trabajo por unidad de relieve), sesgo
         public const string Trace = @"
-cbuffer C : register(b0) { uint WW, WH, Frame, Dirs; uint Steps; float Rad, Hpx, Bias; uint4 P3; uint4 P4; }
+cbuffer C : register(b0) { uint WW, WH, Frame, Dirs; uint Steps; float Rad, Hpx, Bias; float Start, P5, P6, P7; uint4 P4; }
 Texture2D<float2> He : register(t0);
 Texture2D<float4> Col : register(t1);
 SamplerState L : register(s0);
@@ -201,6 +205,8 @@ void main(uint3 id : SV_DispatchThreadID)
     float2 isz = 1.0 / float2(WW, WH);
     float2 p = float2(id.xy) + 0.5;
     float h0 = He.Load(int3(id.xy, 0)).x * Hpx;
+    float3 c0 = Col.Load(int3(id.xy, 0)).rgb;
+    float y0 = max(dot(c0, float3(0.2126, 0.7152, 0.0722)), 0.03);
     // ruido de baja discrepancia: rejilla 4x4 fija (cuadrado latino) + paso aureo por imagen
     uint2 q = id.xy & 3;
     float n1 = frac(((q.x * 4 + ((q.y * 3 + q.x) & 3)) + 0.5) / 16.0 + Frame * 0.618034);
@@ -214,16 +220,20 @@ void main(uint3 id : SV_DispatchThreadID)
         for (uint s = 0; s < Steps; s++)
         {
             float t = (s + n2) / Steps;
-            float dist = 1.0 + (Rad - 1.0) * t * t;
+            float dist = Start + (Rad - Start) * t * t;   // (no desde el pixel de al lado: lo de al lado es textura, no algo que tape)
             float2 uv = (p + d * dist) * isz;
             if (uv.x < 0 || uv.y < 0 || uv.x > 1 || uv.y > 1) break;
             float dz = He.SampleLevel(L, uv, 0).x * Hpx - h0;
-            float sn = dz * rsqrt(dist * dist + dz * dz);
+            // grosor: un salto de relieve muy grande es otra cosa por delante / detras (silueta contra el cielo), no un relieve que tape
+            float fall = saturate((1.3 - dz / Hpx) * 2.0);
+            float sn = lerp(Bias, dz * rsqrt(dist * dist + dz * dz), fall);
             if (sn > maxS)
             {
                 float w = (sn - maxS) * (1.0 - t * t);
                 o += w;
-                g += w * Col.SampleLevel(L, uv, 0).rgb;
+                // luz rebotada RELATIVA a la de aqui (lo que tapa y es mas claro que este punto lo ilumina, con su color)
+                float3 cb = Col.SampleLevel(L, uv, 0).rgb;
+                g += w * min(cb / y0, 3.0);
                 maxS = sn;
             }
         }
@@ -298,9 +308,12 @@ void main(uint3 id : SV_DispatchThreadID)
 }";
 
         // 8. Filtro espacial que respeta los bordes (3x3 con paso 2-3 segun lo que lleva acumulado): peso por distancia, por parecido del
-        // relieve y de la luma. c0: ancho y alto de trabajo
+        // relieve y de la luma. Y aqui mismo (a la resolucion de trabajo, barato) el FACTOR final de la imagen: k = 1 - ao * oclusion + gi *
+        // luz rebotada (menos en lo muy oscuro: no aplasta los negros), con el HUD y los bordes muy fuertes protegidos; sale k^(1/2,2) (con
+        // gamma pura, (c^2,2 * k)^(1/2,2) = c * k^(1/2,2): la mezcla a 4K es una multiplicacion) y en a la luma de trabajo (para subir de
+        // resolucion respetando los bordes). c0: ancho y alto de trabajo, depuracion | c1: fuerza AO, fuerza GI, fuerza total, proteger HUD
         public const string Filter = @"
-cbuffer C : register(b0) { uint WW, WH, P0, P1; uint4 P2; uint4 P3; uint4 P4; }
+cbuffer C : register(b0) { uint WW, WH, Dbg, P0; float Ao, Gi, Str, HudOn; uint4 P3; uint4 P4; }
 Texture2D<float4> Hist : register(t0);
 Texture2D<float2> He : register(t1);
 Texture2D<float4> Col : register(t2);
@@ -311,7 +324,9 @@ void main(uint3 id : SV_DispatchThreadID)
 {
     if (id.x >= WW || id.y >= WH) return;
     int2 p = int2(id.xy);
-    float h0 = He.Load(int3(p, 0)).x, l0 = Col.Load(int3(p, 0)).a;
+    float2 he0 = He.Load(int3(p, 0));
+    float4 c0 = Col.Load(int3(p, 0));
+    float h0 = he0.x, l0 = c0.a;
     float len = Hud.Load(int3(p, 0)).y;
     int st = len < 4 ? 3 : 2;
     float4 acc = 0; float ws = 0;
@@ -321,43 +336,54 @@ void main(uint3 id : SV_DispatchThreadID)
         float w = exp(-0.5 * (x * x + y * y)) * exp(-abs(He.Load(int3(q, 0)).x - h0) * 6.0) * exp(-abs(Col.Load(int3(q, 0)).a - l0) * 10.0);
         acc += Hist.Load(int3(q, 0)) * w; ws += w;
     }
-    Out[p] = acc / max(ws, 1e-4);
+    float4 f = acc / max(ws, 1e-4);
+    float hud = 0;
+    [unroll] for (int k = 0; k < 5; k++)
+    {
+        int2 o = k == 0 ? int2(0, 0) : int2(k & 1 ? 2 : -2, k & 2 ? 2 : -2);
+        hud = max(hud, Hud.Load(int3(clamp(p + o, int2(0, 0), int2(WW - 1, WH - 1)), 0)).x);
+    }
+    float prot = (1 - HudOn * smoothstep(0.25, 0.6, hud)) * (1 - 0.7 * smoothstep(0.22, 0.45, he0.y));
+    float yl = dot(c0.rgb, float3(0.2126, 0.7152, 0.0722));        // luma lineal de aqui
+    float aoK = Ao * (0.3 + 0.7 * smoothstep(0.002, 0.04, yl));      // lo muy oscuro: poca oclusion (no aplasta los negros)
+    float3 gi = f.rgb;                                                 // (ya relativa a la luz de cada punto)
+    float3 k3 = max(1 - aoK * f.a + Gi * gi, 0.05);
+    float3 kk = lerp(1, k3, saturate(Str * prot));
+    float3 r = pow(kk, 1.0 / 2.2);
+    if (Dbg == 1) r = (1 - f.a).xxx;
+    else if (Dbg == 2) r = pow(saturate(gi * 0.5), 1.0 / 2.2);
+    else if (Dbg == 3) r = (0.6 * (1 - prot)).xxx;
+    Out[p] = float4(r, l0);
 }";
 
-        // 9. Mezcla en la imagen (inColor, resolucion de entrada, en su sitio): luz lineal x (1 - ao * oclusion + gi * luz rebotada), menos
-        // en el HUD (mascara ensanchada) y en los bordes muy fuertes (texto). c0: ancho y alto de la entrada, depuracion | c1: 1/ancho,
-        // 1/alto de trabajo, fuerza AO, fuerza GI | c2: fuerza total, proteger HUD
+        // 9. Mezcla en la imagen (inColor, resolucion de entrada, en su sitio): color x el factor, subido de la resolucion de trabajo con las
+        // 4 muestras de alrededor pesadas por su parecido de luma con el pixel (sin halos: el efecto no cruza los bordes de los objetos).
+        // c0: ancho y alto de la entrada, depuracion | c1: ancho y alto de trabajo como float, factor
         public const string Comp = @"
-cbuffer C : register(b0) { uint FW, FH, Dbg, P0; float IWW, IWH, Ao, Gi; float Str, HudOn, P1, P2; uint4 P3; }
+cbuffer C : register(b0) { uint FW, FH, Dbg, P0; float WWf, WHf, Sf, P1; uint4 P3; uint4 P4; }
 Texture2D<float4> Filt : register(t0);
-Texture2D<float2> Hud : register(t1);
-Texture2D<float2> He : register(t2);
-SamplerState L : register(s0);
 RWTexture2D<unorm float4> Dst : register(u0);
 [numthreads(16, 8, 1)]
 void main(uint3 id : SV_DispatchThreadID)
 {
     if (id.x >= FW || id.y >= FH) return;
-    float2 uv = (float2(id.xy) + 0.5) / float2(FW, FH);
     float4 c = Dst[id.xy];
-    float4 f = Filt.SampleLevel(L, uv, 0);
-    float hud = 0;
-    [unroll] for (int k = 0; k < 5; k++)
-    {
-        float2 o = k == 0 ? float2(0, 0) : float2(k & 1 ? 2 : -2, k & 2 ? 2 : -2);
-        hud = max(hud, Hud.SampleLevel(L, uv + o * float2(IWW, IWH), 0).x);
-    }
-    float e = He.SampleLevel(L, uv, 0).y;
-    float prot = (1 - HudOn * smoothstep(0.25, 0.6, hud)) * (1 - 0.7 * smoothstep(0.22, 0.45, e));
-    float3 lin = pow(max(c.rgb, 0), 2.2);
-    float3 gi = f.rgb * 2.0;
-    float3 k3 = 1 - Ao * f.a + Gi * gi;
-    float3 o = lin * lerp(1, k3, saturate(Str * prot));
-    float3 r = pow(saturate(o), 1.0 / 2.2);
-    if (Dbg == 1) r = (1 - f.a).xxx;
-    else if (Dbg == 2) r = pow(saturate(gi), 1.0 / 2.2);
-    else if (Dbg == 3) r = lerp(c.rgb, float3(1, 0, 0), 0.6 * (1 - prot));
-    Dst[id.xy] = float4(r, c.a);
+    float2 w = (float2(id.xy) + 0.5) / Sf - 0.5;
+    int2 b = int2(floor(w));
+    float2 t = w - b;
+    int2 mx = int2(WWf - 1, WHf - 1);
+    float ly = dot(c.rgb, float3(0.2126, 0.7152, 0.0722));
+    float4 s00 = Filt.Load(int3(clamp(b, int2(0, 0), mx), 0)), s10 = Filt.Load(int3(clamp(b + int2(1, 0), int2(0, 0), mx), 0));
+    float4 s01 = Filt.Load(int3(clamp(b + int2(0, 1), int2(0, 0), mx), 0)), s11 = Filt.Load(int3(clamp(b + int2(1, 1), int2(0, 0), mx), 0));
+    float w00 = (1 - t.x) * (1 - t.y) * exp(-abs(s00.a - ly) * 14.0) + 1e-4;
+    float w10 = t.x * (1 - t.y) * exp(-abs(s10.a - ly) * 14.0) + 1e-4;
+    float w01 = (1 - t.x) * t.y * exp(-abs(s01.a - ly) * 14.0) + 1e-4;
+    float w11 = t.x * t.y * exp(-abs(s11.a - ly) * 14.0) + 1e-4;
+    float3 k = (s00.rgb * w00 + s10.rgb * w10 + s01.rgb * w01 + s11.rgb * w11) / (w00 + w10 + w01 + w11);
+    float3 r = c.rgb * k;
+    if (Dbg == 1 || Dbg == 2) r = k;
+    else if (Dbg == 3) r = lerp(c.rgb, float3(1, 0, 0), k.x);
+    Dst[id.xy] = float4(saturate(r), c.a);
 }";
     }
 }
