@@ -42,6 +42,11 @@ namespace ConsoleEnhancer.Motor
         public bool EfgLNuevo = true;           // efg_l_nuevo (1.3.2, EFGRITMO): L y la ventana de "lista" de nuevo tras un hueco / otro xN
         public bool EfgAtrasadaLista = true;    // efg_atrasada (1.3.2, EFGRITMO): la real se da por atrasada solo si la siguiente ya esta lista
         public bool EfgColaTele = true;         // efg_cola_tele (1.3.2, EFGRITMO): con sincronizacion, sin cola de la tele (EfgColaTele)
+        // efg_ritmo_x3 (1.3.2, EFGRITMO): el ritmo por el contenido tambien con x3 calidad SIN sincronizacion (x3 del modo 30 a 90/s con VRR).
+        // Con la cadencia irregular (cad1, video real de GTA V a 1440p + DLSS M, tele 120 VRR) lo que se ve fuera de su hora p95 6,3 -> 3,2 ms,
+        // > 4 ms 6,3 -> 0,2 %, 89,3 -> 88,1/s (INTEGRA8 en la ronda 8, igual: 5,84 -> 3,60). Con sincronizacion (x3 del modo 40, x4) no: alli se
+        // pierden inventadas (x4 calidad cad1 119 -> 116/s). En baja latencia x3 sin medir: como antes
+        public bool EfgRitmoX3 = true;
 
         bool ApplyEfgRitmo(string key, string val)
         {
@@ -55,6 +60,7 @@ namespace ConsoleEnhancer.Motor
                 case "efg_l_nuevo": EfgLNuevo = B(val); return true;   // (1.3.2, EFGRITMO)
                 case "efg_atrasada": EfgAtrasadaLista = B(val); return true;   // (1.3.2, EFGRITMO)
                 case "efg_cola_tele": EfgColaTele = B(val); return true;   // (1.3.2, EFGRITMO)
+                case "efg_ritmo_x3": EfgRitmoX3 = B(val); return true;   // (1.3.2, EFGRITMO)
             }
             return false;
         }
