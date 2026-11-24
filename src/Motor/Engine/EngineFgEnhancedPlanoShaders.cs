@@ -6,7 +6,8 @@ namespace ConsoleEnhancer.Motor
     // [8] peso de la eleccion (0 = no es un paneo plano), [9] gx, [10] gy = el global PRECISO (C2P: actual -> anterior, puntos de L0),
     // [11] la parte de los bloques con textura que lo llevan, [12] cuantos bloques con textura, [13] castigo del 0 en la inventada,
     // [14] 1 = la parte llega (antes del refinado), [15] radio (puntos de L0) de "cerca de la interfaz quieta" (ni candidato ni castigo del 0), [16] cuantas reales seguidas sin cambiar hacen falta para eso (en un mapa
-    // con grano un punto junto a un borde casa 3 seguidas por casualidad: con 10, no)
+    // con grano un punto junto a un borde casa 3 seguidas por casualidad: con 10, no); [17], [18] la aceleracion del paneo (puntos de L0, movimiento), [19] 1 = valida, [20] traslacion fiable
+    // (aunque sea 0). El coste usa [0]-[48] de su textura y [60]-[62] guardan el global de la pareja anterior
     static class EfgPlanoShaders
     {
         // ---- Un grupo: media recortada de los vectores de L0 (C2P, tras el apoyo) de los bloques con textura que casan, desde el global
@@ -50,6 +51,7 @@ void main(uint3 t : SV_GroupThreadID)
         float frac = ntot > 0 ? nin / ntot : 0;
         G[uint2(9, 0)] = m.x; G[uint2(10, 0)] = m.y; G[uint2(11, 0)] = frac; G[uint2(12, 0)] = ntot;
         G[uint2(14, 0)] = (G[uint2(7, 0)] > 0.5 && ntot > 16 && frac >= FracThr && dot(m, m) > 0.25) ? 1 : 0;
+        G[uint2(20, 0)] = (G[uint2(7, 0)] > 0.5 && ntot > 16 && frac >= FracThr) ? 1 : 0;   // (traslacion fiable, aunque sea 0: para la aceleracion)
         G[uint2(8, 0)] = 0; G[uint2(13, 0)] = 0;
     }
 }";
@@ -89,14 +91,22 @@ void main(uint3 gid : SV_GroupID, uint3 t : SV_GroupThreadID)
 
         // ---- Un hilo: el minimo de la rejilla de costes, parabola en x (su fila) y en y (su columna), y el peso de la eleccion y el castigo del 0
         public const string Fin = @"
-cbuffer C : register(b0) { uint N, P0, P1, P2; float Step, Mu, ZeroPen, Cerca; float CercaN, P6, P7, P8; uint4 P5; }
+cbuffer C : register(b0) { uint N, Acel, P1, P2; float Step, Mu, ZeroPen, Cerca; float CercaN, AcLim, P7, P8; uint4 P5; }
 RWTexture2D<float> G : register(u0);
 RWTexture2D<float> Cost : register(u1);
 float Cs(int x, int y) { return Cost[uint2(y * (int)N + x, 0)]; }
 [numthreads(1, 1, 1)]
 void main()
 {
-    if (G[uint2(14, 0)] < 0.5) { G[uint2(8, 0)] = 0; G[uint2(13, 0)] = 0; return; }
+    // (ronda 10b) la pareja anterior (global preciso y si era fiable) en Cost[60..62]: la aceleracion del paneo
+    float2 pg = float2(Cost[uint2(60, 0)], Cost[uint2(61, 0)]); bool pv = Cost[uint2(62, 0)] > 0.5;
+    G[uint2(19, 0)] = 0;
+    if (G[uint2(14, 0)] < 0.5)
+    {
+        G[uint2(8, 0)] = 0; G[uint2(13, 0)] = 0;
+        Cost[uint2(60, 0)] = G[uint2(9, 0)]; Cost[uint2(61, 0)] = G[uint2(10, 0)]; Cost[uint2(62, 0)] = G[uint2(20, 0)];
+        return;
+    }
     int n = (int)N, h = n / 2, bx = h, by = h;
     float bv = 1e9;
     for (int y = 0; y < n; y++) for (int x = 0; x < n; x++) { float c = Cs(x, y); if (c < bv) { bv = c; bx = x; by = y; } }
@@ -104,6 +114,15 @@ void main()
     if (bx > 0 && bx < n - 1) { float l = Cs(bx - 1, by), r = Cs(bx + 1, by), den = l - 2 * bv + r; if (den > 1e-9) ox += Step * clamp(0.5 * (l - r) / den, -0.5, 0.5); }
     if (by > 0 && by < n - 1) { float u = Cs(bx, by - 1), dd = Cs(bx, by + 1), den = u - 2 * bv + dd; if (den > 1e-9) oy += Step * clamp(0.5 * (u - dd) / den, -0.5, 0.5); }
     G[uint2(9, 0)] = G[uint2(9, 0)] + ox; G[uint2(10, 0)] = G[uint2(10, 0)] + oy;
+    float2 g = float2(G[uint2(9, 0)], G[uint2(10, 0)]);
+    if (Acel != 0 && pv)
+    {
+        // A = M2 - M1 (movimiento = -C2P), acotada a AcLim x (|M1| + |M2|): la inventada del instante T va a M T - A T (1 - T) / 2
+        float2 A = -(g - pg); float lim = AcLim * sqrt(dot(g, g) + dot(pg, pg)), al = length(A);
+        if (al > lim && al > 0) A *= lim / al;
+        G[uint2(17, 0)] = A.x; G[uint2(18, 0)] = A.y; G[uint2(19, 0)] = 1;
+    }
+    Cost[uint2(60, 0)] = g.x; Cost[uint2(61, 0)] = g.y; Cost[uint2(62, 0)] = 1;
     G[uint2(8, 0)] = Mu; G[uint2(13, 0)] = ZeroPen; G[uint2(15, 0)] = Cerca; G[uint2(16, 0)] = CercaN;
 }";
     }

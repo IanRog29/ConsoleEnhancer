@@ -26,6 +26,7 @@ namespace ConsoleEnhancer.Motor
     {
         public int EfgPlano = 1;
         public float EfgPlanoPeso = 0.01f, EfgPlanoCero = 0.1f, EfgPlanoParte = 0.5f, EfgPlanoCerca = 2f, EfgPlanoQuieto = 10f;
+        public bool EfgPlanoAcel = false;
 
         bool ApplyEfgPlano(string key, string val)
         {
@@ -36,6 +37,7 @@ namespace ConsoleEnhancer.Motor
                 case "efg_plano_cero": EfgPlanoCero = (float)Math.Max(0, Math.Min(1, D(val))); return true;
                 case "efg_plano_cerca": EfgPlanoCerca = (float)Math.Max(0, Math.Min(8, D(val))); return true;
                 case "efg_plano_quieto": EfgPlanoQuieto = (float)Math.Max(1, Math.Min(60, D(val))); return true;
+                case "efg_plano_acel": EfgPlanoAcel = B(val); return true;
                 case "efg_plano_parte": EfgPlanoParte = (float)Math.Max(0.2, Math.Min(0.95, D(val))); return true;
             }
             return false;
@@ -86,7 +88,7 @@ namespace ConsoleEnhancer.Motor
         {
             if (s.EfgPlano == 0 || psoEfgPlanoFin == null) return;
             const DXGI_FORMAT R = DXGI_FORMAT.R32_FLOAT;
-            if (efgPlanoCost == null) efgPlanoCost = Tex(R, EfgPlanoN * EfgPlanoN, 1, true, D3D12_RESOURCE_STATES.UNORDERED_ACCESS, "Enhanced FG: plano, coste");
+            if (efgPlanoCost == null) efgPlanoCost = Tex(R, 64, 1, true, D3D12_RESOURCE_STATES.UNORDERED_ACCESS, "Enhanced FG: plano, coste");
             EfgGiroSrv(c, EfgGiroTabPlanoFit, 0, efgF[c, 0, 0], DXGI_FORMAT.R16G16B16A16_FLOAT); EfgGiroUav(c, EfgGiroTabPlanoFit, 0, efgGiroG[c], R);
             EfgGiroSrv(c, EfgGiroTabPlanoCost, 0, efgL[c, 0], DXGI_FORMAT.R16_FLOAT); EfgGiroSrv(c, EfgGiroTabPlanoCost, 1, efgL[p, 0], DXGI_FORMAT.R16_FLOAT);
             EfgGiroUav(c, EfgGiroTabPlanoCost, 0, efgGiroG[c], R); EfgGiroUav(c, EfgGiroTabPlanoCost, 1, efgPlanoCost, R);
@@ -122,7 +124,7 @@ namespace ConsoleEnhancer.Motor
             efgList.Dispatch((uint)EfgPlanoN, (uint)EfgPlanoN, 1);
             EfgGiroUavBarrier(efgPlanoCost);
             EfgZero(k);
-            k[0] = (uint)EfgPlanoN; k[4] = F(0.125f); k[5] = F(s.EfgPlanoPeso); k[6] = F(s.EfgPlanoCero); k[7] = F(s.EfgPlanoCerca); k[8] = F(s.EfgPlanoQuieto);
+            k[0] = (uint)EfgPlanoN; k[1] = s.EfgPlanoAcel ? 1u : 0u; k[9] = F(0.6f); k[4] = F(0.125f); k[5] = F(s.EfgPlanoPeso); k[6] = F(s.EfgPlanoCero); k[7] = F(s.EfgPlanoCerca); k[8] = F(s.EfgPlanoQuieto);
             efgList.SetPipelineState(psoEfgPlanoFin);
             efgList.SetComputeRootDescriptorTable(1, EfgGiroGpu(c, EfgGiroTabPlanoFin));
             efgList.SetComputeRoot32BitConstants(0, 16, k, 0);
