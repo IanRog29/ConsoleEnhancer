@@ -53,10 +53,14 @@ namespace ConsoleEnhancer.Motor
         // fuera de su hora): de serie 0,25. x3 (90/s sin sincronizacion) 8,3 -> 26,6 ms y el ritmo peor (p95 0,35 -> 4,35 ms fuera de su hora,
         // 31 % de imagenes a dos refrescos): de serie -1 (todo hacia delante, como la 1.3). -1 (o 0) = como la 1.3; efg_retraso= manda sobre estas.
         // Con DLSS 5 no (efg_retraso_dlss5=0): x4 a 4K + DLSS 5 con la real una imagen despues el resto del grupo choca con la real siguiente
-        // (89 imagenes/s y 22 inventadas saltadas/s al 25 % frente a 109/s y 0 saltadas como la 1.3) y la escalera acabaria en x2
+        // (89 imagenes/s y 22 inventadas saltadas/s al 25 % frente a 109/s y 0 saltadas como la 1.3) y la escalera acabaria en x2.
+        // (1.3.2, INTEGRA9: con el hilo nuevo de EFGRITMO -efg_salto_fino=1- eso ya no pasa: x4 baja latencia + DLSS 5 al 65 % a 4K, tele a 120
+        // VRR, la real en la 1a 119,96/s, 100 % a un refresco, 30,0 / 38,0 ms; la real en la 2a 119,91/s, 100 %, 38,6 / 39,2 ms y 6 saltadas en
+        // 40 s: de serie tambien con DLSS 5 -efg_retraso_dlss5=1-, como sin el. x3 con la real en la 2a: el ritmo ya igual -90/s, fuera p95 3,9
+        // -> 3,2 ms- pero 15,8 -> 29,9 ms a 1440p + DLSS M: sigue -1)
         public double EfgPhaseLat4 = 0.25;      // efg_retraso_lat4
         public double EfgPhaseLat3 = -1;        // efg_retraso_lat3
-        public bool EfgPhaseLatD5 = false;      // efg_retraso_dlss5=1: tambien con DLSS 5
+        public bool EfgPhaseLatD5 = true;       // efg_retraso_dlss5 (1.3.2, INTEGRA9: de serie 1; 0 = con DLSS 5 todo hacia delante, como la 1.3.1)
         public bool EfgOwnQueue = true;
         // (1.2.4 ronda 7, EFGFIX) efg_prioridad=1 = la cola del motor en prioridad NORMAL con la propia de Enhanced FG en ALTA (lo de la ronda 6).
         // Con DLSS 5 eso colgaba la grafica (DXGI_ERROR_DEVICE_HUNG, nvlddmkm 153): la sesion del usuario del 23-11 a los 37 s de x2 a 4K,

@@ -41,10 +41,12 @@ namespace ConsoleEnhancer.Motor
         public bool EfgCopiaPronto = true;
         public bool EfgLNuevo = true;           // efg_l_nuevo (1.3.2, EFGRITMO): L y la ventana de "lista" de nuevo tras un hueco / otro xN
         public bool EfgAtrasadaLista = true;    // efg_atrasada (1.3.2, EFGRITMO): la real se da por atrasada solo si la siguiente ya esta lista
-        // efg_cola_tele (1.3.2, EFGRITMO): con sincronizacion y VRR, vaciar la cola de la tele (EfgColaTele). De serie 0: la cola se midio
-        // (PresentMon, 2-16 ms de la llamada a verse) pero el arreglo no se pudo medir en la tele a 120 Hz (en reposo a 60 Hz desde las 04:06):
-        // para probar con efg_cola_tele=1
-        public bool EfgColaTele = false;
+        // efg_cola_tele (1.3.2, EFGRITMO): con sincronizacion y VRR, vaciar la cola de la tele (EfgColaTele). (1.3.2, INTEGRA9: de serie 1;
+        // medido en la tele a 120 VRR con la rama junta, motor con el video real de GTA V, PresentMon, de la 1a captura a verse p50 / p95:
+        // x4 calidad 4K 53,5 / 66,6 ms sin -dos pasadas- -> 39,6 / 39,3 con; x4 calidad 1440p + DLSS M 69,1 / 75,2 -> 47,7 / 48,6; x4 baja
+        // latencia 4K 24,7 / 30,8 -> 22,5 / 23,4; el ritmo igual: 119,92-119,94/s frente a 119,99, 100 % a un refresco, fuera de su hora p95
+        // 0,06-0,20 -> 0,26-0,42 ms). efg_cola_tele=0 = como antes
+        public bool EfgColaTele = true;
         // efg_ritmo_x3 (1.3.2, EFGRITMO): el ritmo por el contenido tambien con x3 calidad SIN sincronizacion (x3 del modo 30 a 90/s con VRR).
         // Con la cadencia irregular (cad1, video real de GTA V a 1440p + DLSS M, tele 120 VRR) lo que se ve fuera de su hora p95 6,3 -> 3,2 ms,
         // > 4 ms 6,3 -> 0,2 %, 89,3 -> 88,1/s (INTEGRA8 en la ronda 8, igual: 5,84 -> 3,60). Con sincronizacion (x3 del modo 40, x4) no: alli se
