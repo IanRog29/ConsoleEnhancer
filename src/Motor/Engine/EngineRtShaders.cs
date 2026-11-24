@@ -237,7 +237,7 @@ void main(uint3 id : SV_DispatchThreadID)
         // lo que no cambia en su sitio con movimiento alrededor (y con detalle) sube la mascara; lo que cambia la baja; quieto todo, se queda.
         // c0: ancho y alto de trabajo, bloques finos x / y | c1: historia valida, largo maximo, -, - | c2: 1/ancho, 1/alto de trabajo
         public const string Accum = @"
-cbuffer C : register(b0) { uint WW, WH, FBW, FBH; uint Valid; float MaxLen, P0, P1; float IW, IH, P2, P3; uint4 P4; }
+cbuffer C : register(b0) { uint WW, WH, FBW, FBH; uint Valid; float MaxLen, Clip, P1; float IW, IH, P2, P3; uint4 P4; }
 Texture2D<float4> Noisy : register(t0);
 Texture2D<float4> HistP : register(t1);
 Texture2D<float4> Mv : register(t2);
@@ -291,7 +291,7 @@ void main(uint3 id : SV_DispatchThreadID)
     if (lr < lmin - 0.04 || lr > lmax + 0.04) ok = false;
     float len = ok ? min(HudP.SampleLevel(L, uvp, 0).y + 1, MaxLen) : 1;
     float4 h = HistP.SampleLevel(L, uvp, 0);
-    h = clamp(h, m1 - 1.25 * sd - 0.01, m1 + 1.25 * sd + 0.01);
+    h = clamp(h, m1 - Clip * sd - 0.01, m1 + Clip * sd + 0.01);
     float4 r = ok ? lerp(h, n, 1.0 / len) : n;
     Hist[p] = r;
     Hud[p] = float2(hud, len);

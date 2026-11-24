@@ -5,11 +5,11 @@
 // Enhanced RT: trazado de rayos en espacio de pantalla sobre la captura (oclusion de contacto + luz rebotada de un rebote), escrito desde
 // cero (los sombreadores y lo que hacen: EngineRtShaders.cs). Va en las imagenes NUEVAS, sobre inColor (la captura con bordes, tras DLSS 5 /
 // la vibrancia y despues de los vectores del motor), antes del reescalado y de la generacion: DLSS SR / XeSS / FSR y Enhanced FG / Smooth
-// Motion / FSR FG reciben ya la imagen con el efecto (estable en el tiempo: la generacion no ve parpadeo que inventar). Trabaja a la mitad
-// de la entrada por lado (rt_escala=2: 4K -> 1920x1080, 1440p -> 1280x720) con sus propios vectores (dos niveles de busqueda por bloques
+// Motion / FSR FG reciben ya la imagen con el efecto (estable en el tiempo: la generacion no ve parpadeo que inventar). Trabaja a ~720-800
+// lineas (rt_escala=0: 4K -> 1280x720, 1440p -> 1280x720, 1080p -> 960x540) con sus propios vectores (dos niveles de busqueda por bloques
 // sobre su luma reducida: no depende de que el motor calcule los suyos, que sin DLSS SR / generacion no se calculan).
 // Claves (motor; el lanzador manda rt=0|1 con enhanced_rt / el menu del mando):
-//   rt=0|1 (de serie 0; tambien enhanced_rt=), rt_fuerza=0..2 (1), rt_ao=0..1.5 (0,75), rt_gi=0..1.5 (0,45), rt_escala=1..4 (2),
+//   rt=0|1 (de serie 0; tambien enhanced_rt=), rt_fuerza=0..2 (1), rt_ao=0..1.5 (0,75), rt_gi=0..1.5 (0,45), rt_escala=0..4 (0 = auto: 4K / 3, 1440p y 1080p / 2, 720p / 1),
 //   rt_rayos=1..8 (4 direcciones), rt_pasos=2..16 (6), rt_radio (0,035 del alto de trabajo), rt_altura (1 = el radio por unidad de relieve),
 //   rt_relieve (ganancia luma -> relieve, 2,5), rt_historia (largo maximo de la acumulacion, 12), rt_hud=0|1 (1), rt_depuracion=0..3
 //   (1 oclusion, 2 luz rebotada, 3 la mascara de HUD / texto en rojo).
@@ -24,8 +24,9 @@ namespace ConsoleEnhancer.Motor
     {
         public bool Rt = false;
         public float RtStrength = 1f, RtAo = 0.75f, RtGi = 0.45f, RtRadius = 0.035f, RtHeight = 1f, RtRelief = 2.5f;
-        public int RtScale = 2, RtDirs = 4, RtSteps = 6, RtMaxLen = 12, RtDebug = 0;
+        public int RtScale = 0, RtDirs = 4, RtSteps = 6, RtMaxLen = 12, RtDebug = 0;
         public bool RtHud = true;
+        public float RtClip = 1.25f;   // rt_recorte: la historia, a la media +- N desviaciones de la vecindad de ahora
         static float Fr(string v, float lo, float hi) { return (float)Math.Max(lo, Math.Min(hi, double.Parse(v.Trim().Replace(',', '.'), CultureInfo.InvariantCulture))); }
         bool ApplyRt(string key, string val)
         {
@@ -38,11 +39,12 @@ namespace ConsoleEnhancer.Motor
                 case "rt_radio": RtRadius = Fr(val, 0.005f, 0.15f); return true;
                 case "rt_altura": RtHeight = Fr(val, 0.1f, 4); return true;
                 case "rt_relieve": RtRelief = Fr(val, 0.2f, 10); return true;
-                case "rt_escala": RtScale = Math.Max(1, Math.Min(4, I(val))); return true;
+                case "rt_escala": RtScale = Math.Max(0, Math.Min(4, I(val))); return true;
                 case "rt_rayos": RtDirs = Math.Max(1, Math.Min(8, I(val))); return true;
                 case "rt_pasos": RtSteps = Math.Max(2, Math.Min(16, I(val))); return true;
                 case "rt_historia": RtMaxLen = Math.Max(1, Math.Min(32, I(val))); return true;
                 case "rt_hud": RtHud = B(val); return true;
+                case "rt_recorte": RtClip = Fr(val, 0.5f, 4); return true;
                 case "rt_depuracion": RtDebug = Math.Max(0, Math.Min(3, I(val))); return true;
             }
             return false;
@@ -105,8 +107,12 @@ namespace ConsoleEnhancer.Motor
 
         bool RtEnsure()
         {
-            int sc = Math.Max(1, Math.Min(4, s.RtScale));
+            // (rt_escala=0, de serie: el trabajo a ~720-800 lineas -4K / 3, 1440p y 1080p / 2-: el efecto es de baja frecuencia y a 4K / 2 costaba
+            // ~3,5 ms con Enhanced FG x4 en la grafica)
+            int sc = s.RtScale > 0 ? Math.Min(4, s.RtScale) : Math.Max(1, Math.Min(4, (inH + 799) / 800));
             if (rtReady && rtInRef == inColor && rtFW == inW && rtFH == inH && rtS == sc) return true;
+            // (se reescriben las tablas de su monton: que ninguna imagen anterior siga en la grafica con ellas; pasa al encender o al cambiar de tamaño)
+            WaitIdle();
             if (rtReady) RtFree();
             RtPsos();
             const D3D12_RESOURCE_STATES NP = D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE;
@@ -268,7 +274,7 @@ namespace ConsoleEnhancer.Motor
             RtW(rtNoisy); RtBind(psoRtTrace, 5, c); list.Dispatch(Groups(rtW, 8), Groups(rtH, 8), 1); RtR(rtNoisy); RtMark(fi, 6);
             // 7. acumulacion
             for (int i = 0; i < 16; i++) c[i] = 0;
-            c[0] = (uint)rtW; c[1] = (uint)rtH; c[2] = (uint)rtFBW; c[3] = (uint)rtFBH; c[4] = valid; c[5] = F(s.RtMaxLen);
+            c[0] = (uint)rtW; c[1] = (uint)rtH; c[2] = (uint)rtFBW; c[3] = (uint)rtFBH; c[4] = valid; c[5] = F(s.RtMaxLen); c[6] = F(s.RtClip);
             c[8] = F(1f / rtW); c[9] = F(1f / rtH);
             RtW(rtHist[rtCur]); RtW(rtHud[rtCur]);
             RtBind(psoRtAccum, 6, c); list.Dispatch(Groups(rtW, 8), Groups(rtH, 8), 1);
