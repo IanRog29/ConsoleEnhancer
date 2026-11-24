@@ -569,7 +569,7 @@ namespace ConsoleEnhancer
 
             // (1.2.3 MOTOR5 tenia aqui la fila "DLSS 5 por: Motor / Magpie"; 1.2.4 SOLOMOTOR: fuera, no se elige: el motor siempre que sepa, SoloMotor.cs)
             FilaAjuste[] efgF = EfgFilas();   // (1.2.4 ronda 6, ENHANCED: multiplicador y baja latencia de Enhanced FG, EnhancedFg.cs)
-            ajFilas.AddRange(new[] { cap, mo, fg, tipo, efgF[0], efgF[1], FsrMulFila(), d5, d5no, niv, pas, esc });   // (1.3.2, FPS: sin la fila x2 / x4 de Smooth Motion -SmoothX4Fila-: x4 quitado)   // (FGMULTI: el multiplicador de FSR 3 FG, MultiFsr.cs; INTEGRA6: el de Smooth Motion, SmoothX4.cs)
+            ajFilas.AddRange(new[] { cap, mo, fg, tipo, efgF[0], efgF[1], FsrMulFila(), d5, d5no, niv, pas, esc, RtFila() });   // (1.3.3 RTX: Enhanced RT, EnhancedRt.cs)   // (1.3.2, FPS: sin la fila x2 / x4 de Smooth Motion -SmoothX4Fila-: x4 quitado)   // (FGMULTI: el multiplicador de FSR 3 FG, MultiFsr.cs; INTEGRA6: el de Smooth Motion, SmoothX4.cs)
             // (1.2.4 ronda 6, coordinador: las filas que enseña AjustesDepende segun el tipo elegido -multiplicadores de FSR 3 FG, Enhanced FG y
             // Smooth Motion, baja latencia de Enhanced FG- nacen escondidas: si se quitaban aqui no salian nunca; el dibujo ya salta las escondidas)
             ajFilas.RemoveAll(delegate(FilaAjuste f) { return !f.Visible && f.Id != "efgmul" && f.Id != "efglat" && f.Id != "fsrmul" && f.Id != "smx4"; });
@@ -796,6 +796,7 @@ namespace ConsoleEnhancer
             AjRecoge(out e, out cambiadas, out que);
             AjustesCerrar(null);
             Log.Write("Menu de ajustes: aplicar " + string.Join(", ", que.ToArray()));
+            if (RtSoloEsto(e, cambiadas)) return;   // (1.3.3 RTX: solo Enhanced RT: en marcha, sin reabrir la imagen; EnhancedRt.cs)
             ThreadPool.QueueUserWorkItem(delegate { try { AjustesPonerTodo(e, cambiadas); } catch (Exception ex) { Log.Error("Menu de ajustes: aplicando", ex); } });
         }
 
@@ -866,6 +867,7 @@ namespace ConsoleEnhancer
             FsrMulAplicar(e);   // (1.2.4 ronda 6, FGMULTI: MultiFsr.cs)
             EfgAplicar(e);   // (1.2.4 ronda 6, ENHANCED: EnhancedFg.cs)
             SmoothX4Aplicar(e);   // (1.2.4 ronda 6, INTEGRA6: SmoothX4.cs)
+            RtAplicar(e);   // (1.3.3 RTX: Enhanced RT, EnhancedRt.cs)
             if ((v = AjVal(e, "tram")) != null && (v == "1") != cfg.StrongDitherOn)
             {
                 cfg.StrongDitherOn = v == "1";

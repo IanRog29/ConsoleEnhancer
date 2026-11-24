@@ -1460,6 +1460,7 @@ namespace ConsoleEnhancer
                             if (c.ParseSonidoDoble(key, val)) break; // (21-11: sonido_doble, src\SonidoDoble.cs)
                             if (c.ParseCapturaSegura(key, val)) break; // (21-11, 1.2.1: captura_segura, src\Lanzador\CapturaSegura.cs)
                             if (key == "mpv_sin_marco") break; // (22-11, 1.2.1: la ventana de mpv sin marco para Magpie; 23-11, 1.2.4 SINMPV: sin mpv, no cuenta)
+                            if (c.ParseEnhancedRt(key, val)) break; // (1.3.3 RTX: enhanced_rt, src\Lanzador\EnhancedRt.cs)
                             if (c.ParseTiempos(key, val)) break; // (22-11, 1.2.2: motor_en_espera_al_abrir_ms, magpie_dlss_sr_solo_cadena; src\Lanzador\TiemposCarga.cs)
                             if (key.StartsWith("mando_") && PadOptions.Parse(key, val)) break; // (18-11, MANDOS: modo PC, src\Mandos.cs)
                             Log.Write("Aviso: clave desconocida en ini: " + key); break;
@@ -10558,7 +10559,8 @@ namespace ConsoleEnhancer
                    // Repetidas fuera con generacion (o en el modo 30), como el filtro de mpv: tambien al encenderla o apagarla en marcha
                    " dedupe=" + (DedupeOn(cfg, !cfg.FgOff) ? "1" : "0") +
                    // 16-11 noche: la captura reducida antes de DLSS (motor_entrada_<modo>_<captura>=WxH; 0 = tal cual)
-                   " entrada=" + cfg.EngineInNow + EngineDlss5Args(cfg) + (fsrMulCadena ? cfg.FsrMulLiveArgs(fsrMulOn) : "") + (efgCadena ? cfg.EfgLiveArgs(efgOn) : "");
+                   " entrada=" + cfg.EngineInNow + EngineDlss5Args(cfg) + (fsrMulCadena ? cfg.FsrMulLiveArgs(fsrMulOn) : "") + (efgCadena ? cfg.EfgLiveArgs(efgOn) : "") +
+                   cfg.EnhancedRtLiveArgs();   // (1.3.3 RTX: Enhanced RT, experimental; EnhancedRt.cs)
         }
 
         // 20-11 (DLSS 5 EN EL MOTOR): nivel, estilo, modelo, mascara e interfaz de DLSS 5 para el motor (EngineDlss5.cs); dlss5=0 si no toca
