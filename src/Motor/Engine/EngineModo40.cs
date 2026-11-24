@@ -61,7 +61,10 @@ namespace ConsoleEnhancer.Motor
         bool m40Unpassed;           // llego una nueva que no paso (su copia puede pasar)
         bool m40Forced;             // la ultima que paso era una copia sin nada nuevo (imagen quieta)
         long m40PacedPrev;          // la hora (M40Hora) de la ultima que paso
-        long m40Pass, m40Early, m40Spaced, m40Copies;   // (registro)
+        bool m40LateCopy;           // la ultima que paso era la copia tarde de una nueva que no paso
+        long m40Back = -1000;       // capN de la ultima vuelta a tiempo
+        long m40NewA = -1000, m40NewB = -1000;   // capN de las dos ultimas nuevas que pasaron (a 60 Hz)
+        long m40Pass, m40Early, m40Spaced, m40Copies, m40Backs;   // (registro)
         readonly double[] m40SlotDelay = new double[Slots];   // lo que M40Hora le sumo a la llegada de cada ranura (ms)
         double m40LastDelay;
 
@@ -80,16 +83,28 @@ namespace ConsoleEnhancer.Motor
             int par = c120 ? 6 : 3;        // dos reales en estas capturas como mucho (40 de media)
             int force = c120 ? 6 : 3;      // una copia a los 50 ms sin nada nuevo (imagen quieta)
             bool first = lastPassed < 0;
+            if (m40Back > capN) m40Back = -1000;   // (capN vuelve a 0 al despertar de la espera)
+            // la vuelta a tiempo: si la ultima que paso era la copia tarde de una nueva que no paso, la nueva siguiente pasa en cuanto llega
+            // (como el filtro del 30: si no, cada nueva llega a 1 captura de la ultima copia que paso, tampoco pasa, pasa su copia y asi
+            // SIEMPRE, todas 2 capturas tarde -medido: 16,7 ms de mas-). Como mucho una vez por segundo (un juego a 60 en el 40 no pasa de 40)
+            bool back = isNew && m40LateCopy && capN - m40Back > (c120 ? 120 : 60);
+            if (m40NewA > capN || m40NewB > capN) m40NewA = m40NewB = -1000;
+            // a 60 Hz: toda nueva pasa salvo que hayan pasado ya 2 nuevas en las 2 capturas de antes (40 de media como mucho); las copias no
+            // cuentan (con la regla de los huecos, si la primera que pasaba era una copia, la 2a nueva del 2-1 no pasaba nunca: pasaba tarde su copia)
+            int nuevas2 = (capN - m40NewA <= 2 ? 1 : 0) + (capN - m40NewB <= 2 ? 1 : 0);
             bool pass;
             if (first) pass = true;
-            else if (isNew) pass = since >= n || since + m40LastGap >= par || m40Forced;
+            else if (isNew) pass = c120 ? since >= n || since + m40LastGap >= par || m40Forced || back : nuevas2 < 2 || m40Forced;
             else pass = (m40Unpassed && since >= n) || since >= force;
             if (pass)
             {
                 if (!isNew && !first) m40Copies++;
+                if (back && !(since >= n || since + m40LastGap >= par || m40Forced)) { m40Back = capN; m40Backs++; }
+                m40LateCopy = !isNew && m40Unpassed && !first;
                 m40Forced = !isNew && !m40Unpassed && !first;
                 m40Unpassed = false;
                 m40LastGap = first ? n : since;
+                if (isNew) { m40NewB = m40NewA; m40NewA = capN; }
                 m40Pass++;
             }
             else if (isNew) m40Unpassed = true;
@@ -180,10 +195,10 @@ namespace ConsoleEnhancer.Motor
             double secs = Clock.SinceMs(m40LogAt) / 1000.0;
             m40LogAt = Clock.Now;
             Log.Write(string.Format(CultureInfo.InvariantCulture,
-                "Modo 40: captura {0:0.00} ms ({1}), pasan {2:0.0}/s ({3} copias), tempranas de la cadencia 2-1 {4}, separadas {5}; sin generacion: L {6:0.0} ms, esperas {7} ({8:0.0} ms de media), tarde {9} de {10}",
+                "Modo 40: captura {0:0.00} ms ({1}), pasan {2:0.0}/s ({3} copias, {11} vueltas a tiempo), tempranas de la cadencia 2-1 {4}, separadas {5}; sin generacion: L {6:0.0} ms, esperas {7} ({8:0.0} ms de media), tarde {9} de {10}",
                 m40CapMs, M40Cap120 ? "120 Hz" : "60 Hz", m40Pass / Math.Max(0.1, secs), m40Copies, m40Early, m40Spaced, m40L, m40Waits,
-                m40Waits > 0 ? m40WaitSum / m40Waits : 0, m40Late, m40Presents));
-            m40Pass = m40Copies = m40Early = m40Spaced = m40Waits = m40Late = m40Presents = 0; m40WaitSum = 0;
+                m40Waits > 0 ? m40WaitSum / m40Waits : 0, m40Late, m40Presents, m40Backs));
+            m40Pass = m40Copies = m40Early = m40Spaced = m40Waits = m40Late = m40Presents = m40Backs = 0; m40WaitSum = 0;
         }
     }
 }
