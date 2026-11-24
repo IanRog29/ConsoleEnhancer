@@ -81,7 +81,14 @@ namespace ConsoleEnhancer.Motor
         // empieza ese punto de cero en vez de mezclar una historia equivocada; donde casa (lo quieto, el HUD, un paneo limpio) sigue igual.
         // sr_sin_historia_mov=V: solo donde el vector es de V px o mas (0 = tambien con vector 0: lo que se mueve y la busqueda dejo a 0).
         // Solo con DLSS SR (XeSS / FSR sin medir). Mvec (DLSS 5, la generacion) no cambia.
-        public double SrNoHist = 0, SrNoHistMin = 1.5, SrNoHistMov = 0.5;
+        // DE SERIE sr_sin_historia=0.5, sr_sin_historia_min=1.5, sr_sin_historia_mov=0 (medido imagen a imagen, test_paso=1; notas\SRBLUR.md): carretera de GTA V
+        // con M, suelo nitidez 0,56 -> 0,81, banda media 0,56 -> 0,93, error 6,55 -> 3,46 (todo 5,33 -> 3,36); giro de Battlefront con K
+        // 0,76 -> 0,84, error 1,96 -> 1,26, hervido 0,32 -> 0,17; BF1 en marcha con M 0,77 -> 0,81; lo quieto igual (valle nevado: error 2,14 ->
+        // 2,15, hervido 0,15 -> 0,16); noche oscura con ruido (Dead by Daylight, quieto) casi igual (nitidez 0,751 -> 0,738). Con
+        // sr_sin_historia_mov=0.5 (solo lo que se mueve) el giro se quedaba a medias (0,81: lo que sigue al giro tiene el vector a 0) y con
+        // sr_sin_historia_min=3 la noche salia peor (0,70: puntos que saltan de con historia a sin ella). Coste: +0,3 ms a 1440p (la pasada de
+        // los vectores por punto). sr_sin_historia=0 = como antes
+        public double SrNoHist = 0.5, SrNoHistMin = 1.5, SrNoHistMov = 0;
 
         bool ApplySrVec(string key, string val)
         {
