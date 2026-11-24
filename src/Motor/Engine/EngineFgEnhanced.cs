@@ -71,7 +71,7 @@ namespace ConsoleEnhancer.Motor
         public int EfgStillN = 3, EfgRadius = 8;
         // (EFG2) niveles de la piramide del flujo (4-6; antes 4). (1.3.2, EFGGIRO) de serie 6: la busqueda por bloques del nivel mas grueso
         // llega a +-256 puntos de L0 (+-512 de una salida de 4K, 13 % del ancho) en vez de +-128: con base 30 un giro rapido de mando se salia
-        // (con video real, Fallout 4 girando con el arma al doble de velocidad: error 22,4 -> 18,1, las peores 43-46 -> 27-28); donde el giro
+        // (con video real, Fallout 4 girando con el arma al doble de velocidad: error 22,4 -> 18,1 con efg_giro, las peores 42-46 -> 20-27); donde el giro
         // cabe, igual o algo mejor (-1 / -2 %). Junto con efg_giro (EngineFgEnhancedGiro.cs)
         public int EfgLevels = 6;
         public bool EfgPropAll = true;          // (EFG2) la pasada de apoyo entre vecinos tambien en los niveles gruesos (antes solo en L0)

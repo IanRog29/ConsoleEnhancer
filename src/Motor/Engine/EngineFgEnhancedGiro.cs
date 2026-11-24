@@ -9,19 +9,18 @@ namespace ConsoleEnhancer.Motor
     // camara ... y en los mapas y cosas asi falla tambien", "hay fallos en modo 60 con el enhanced pero sobre todo al usar 30 de base son una
     // locura los fallos". Ver notas\EFGGIRO.md.
     // Por cada pareja de reales, antes del flujo por bloques: la traslacion de TODA la imagen (la camara) con una busqueda entera de +-25 %
-    // del ancho en el nivel mas grueso de la piramide (EfgGiroShaders.Cost, un hilo por traslacion) y su refinado en los dos niveles de debajo
-    // (EfgGiroShaders.Global, un grupo). Sirve:
-    //  - al flujo (efg_giro bit 1): candidato en todos los niveles, con +-2 alrededor en el mas grueso. La busqueda por bloques del nivel mas
-    //    grueso llega a +-8 puntos de ese nivel (+-128 de L0, +-256 de una salida de 4K): con base 30 un giro rapido mueve el doble que con
-    //    base 60 y se salia (vectores sueltos, la inventada casi una mezcla o un remiendo);
-    //  - a la eleccion de la inventada (bit 2): candidato por punto;
-    //  - (bit 4, "liso") donde el bloque no tiene textura (pared, cielo, asfalto, el fondo liso de un mapa) la eleccion tira hacia el global
-    //    (todos los vectores "casan" ahi y salian manchas);
-    //  - (bit 8, "suave") donde ningun candidato casa ni por un lado, el global por los dos lados (algo suave en su sitio en vez de un trozo
-    //    deformado).
-    // Coste: dos pasadas pequeñas por real (la busqueda: (2R+1)^2 grupos de 64 hilos sobre el nivel grueso; el refinado: un grupo).
-    // Claves (motor): efg_giro (bits, ver arriba; 0 = como la 1.3.1), efg_giro_radio=0.25 (alcance en fraccion del ancho), efg_giro_liso=0.003,
-    // efg_giro_liso_ref=0.02, efg_giro_suave=0.1.
+    // del ancho en el nivel mas grueso de la piramide (EfgGiroShaders.Cost, un grupo de 64 hilos por traslacion) y su refinado +-1 en el
+    // nivel de debajo (EfgGiroShaders.Global, un grupo; efg_giro_fino=1 tambien en el siguiente). Sirve:
+    //  - al flujo (efg_giro bit 1, DE SERIE): candidato en todos los niveles, con +-2 alrededor en el mas grueso. La busqueda por bloques
+    //    del nivel mas grueso llegaba a +-8 puntos de ese nivel (con 5 niveles +-128 de L0 = +-256 de una salida de 4K = 6,7 % del ancho por
+    //    imagen real): con base 30 un giro rapido mueve el doble por imagen real que con base 60 y se salia: la inventada salia como la
+    //    anterior en el sitio equivocado con remiendos. Con video real (simulador, Fallout 4 girando con el arma al doble de velocidad con
+    //    base 30), junto con los 6 niveles de serie (efg_niveles): error 22,4 -> 18,1, las peores 42-46 -> 20-27, bloques rotos 39 -> 32 %;
+    //    donde el giro cabe (GTA V, Fallout 4, CS2 con base 30; base 60) igual o -1 / -2 %. En el motor, sin coste de grafica medible.
+    //  - (en prueba, apagados: sin mejora clara medida) bit 2: candidato en la eleccion de cada punto; bit 4 ("liso"): donde el bloque no
+    //    tiene textura la eleccion tira hacia el global; bit 8 ("suave"): donde ningun candidato casa ni por un lado, el global por los dos.
+    // Claves (motor): efg_giro=1 (bits, ver arriba; 0 = como la 1.3.1), efg_giro_radio=0.25 (alcance en fraccion del ancho), efg_giro_fino=0,
+    // efg_giro_liso=0.003, efg_giro_liso_ref=0.02, efg_giro_suave=0.1. Volver a la 1.3.1 entera: efg_giro=0 efg_niveles=5.
     partial class Settings
     {
         public int EfgGiro = 1;
