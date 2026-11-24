@@ -399,6 +399,7 @@ namespace ConsoleEnhancer.Motor
             long tReady = j.ReadyAt != 0 ? j.ReadyAt : Clock.Now;
             if (efgQueue != null) efgQueue.Wait(fence, j.Fence);
             double readyMs = Clock.Ms(j.Arrival, tReady);
+            EfgRitmoNuevo(j);   // (1.3.2, EFGRITMO: tras un hueco o con otro xN, L y la ventana de "lista" de nuevo; EngineFgEnhancedRitmo.cs)
             efgReadyWin[efgReadyN % efgReadyWin.Length] = Math.Max(0, Math.Min(100, readyMs));
             efgReadyN++;
             int c = j.W;
@@ -454,7 +455,7 @@ namespace ConsoleEnhancer.Motor
                 bool real = i == nReal;
                 float t = (float)(1.0 + (i - nReal) / (double)k);
                 bool dup = !flow;
-                bool skip = !real && (stale || !genReady);
+                bool skip = !real && (stale || !genReady), cede = false;
                 long ti = EfgAt(B, i * step);
                 // (otra real esperando: lo de despues de esta sobra. 1.2.4 ronda 7, EFGFIX: solo si iria a la vez o despues de la primera de la
                 // siguiente -su llegada + L-: la siguiente entra en la cola en cuanto el motor la manda, mucho antes de estar; con la baja latencia
@@ -466,18 +467,17 @@ namespace ConsoleEnhancer.Motor
                         if (efgJobs.Count > 0)
                         {
                             EfgJob nx = efgJobs.Peek();
-                            if (nx.Show || !s.EfgSaltoFino || ti + (long)(step * 0.5 / Clock.TickMs) > EfgAt(nx.Arrival, efgLcur)) skip = true;
+                            if (nx.Show || !s.EfgSaltoFino) skip = true;
+                            else if (ti + (long)(step * 0.5 / Clock.TickMs) > EfgAt(nx.Arrival, efgLcur)) skip = cede = true;
                         }
                     }
                 if (!skip && !real && Clock.SinceMs(ti) > step * 0.5) skip = true;   // (ya es tarde para esta)
-                if (skip) { efgSkipped++; genReady = false; }
+                // (1.3.2, EFGRITMO) la que cede el sitio a la real siguiente (llega antes: la cadencia del juego) no es falta de grafica: no cuenta
+                // como saltada (lo que mira la escalera), sino como "dejada por la real siguiente"
+                if (skip) { if (cede) { efgRitmoSalta += k - i; break; } efgSkipped++; genReady = false; }   // (las de detras de una que cede, tambien: sin hacerlas)
                 else
                 {
-                    EfgWaitUntil(EfgAt(ti, -(efgCopyMs + 0.5)));
-                    long tSub = Clock.Now;
-                    ulong v = EfgCopyList(c, !real);
-                    bool ok = EfgWaitOwn(v, Math.Max(4, Clock.Ms(Clock.Now, ti) + 30));
-                    if (ok) efgCopyMs = efgCopyMs * 0.9 + Math.Min(Clock.SinceMs(tSub), 10) * 0.1;
+                    EfgCopyTimed(c, !real, ti);   // (1.3.2, EFGRITMO: la copia en cuanto se puede, EngineFgEnhancedRitmo.cs)
                     if (!real) EfgStampsRead(i == 0 && nReal > 0 && flow, !dup);
                     EfgWaitUntil(ti);
                     long call = Clock.Now;
