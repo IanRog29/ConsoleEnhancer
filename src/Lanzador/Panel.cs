@@ -43,6 +43,8 @@ namespace ConsoleEnhancer
         CheckBox cInicio, cNegro;
         ComboBox cbApagar;
         Button bReiniciar, bQuitarD5, bAnadirD5;
+        Label estadoSteam;
+        Button bSteam, bSteamQuitar;
         bool cargando, cambiado;
         static float k = 1f;   // pixeles por pixel de 96 ppp (la app es DPI-aware: a 4K al 300 %, 3)
         static int S(float px) { return (int)Math.Round(px * k); }
@@ -137,6 +139,16 @@ namespace ConsoleEnhancer
                 AbrirCarpeta(Extras.Dir);
             }));
             cuerpo.Controls.Add(fd);
+
+            // ---- Steam (1.3.3, VARIOS: "una opcion de añadir a steam para que aparezca en la app"; src\Lanzador\SteamAcceso.cs)
+            Seccion("Steam");
+            estadoSteam = Nota("");
+            cuerpo.Controls.Add(estadoSteam);
+            FlowLayoutPanel fs = Fila();
+            bSteam = Boton(Tx.T("Añadir a Steam", "Add to Steam"), false, delegate { SteamPoner(); });
+            bSteamQuitar = Boton(Tx.T("Quitar de Steam", "Remove from Steam"), false, delegate { SteamQuitar(); });
+            fs.Controls.Add(bSteam); fs.Controls.Add(bSteamQuitar);
+            cuerpo.Controls.Add(fs);
 
             // ---- mantenimiento
             Seccion(Tx.T("Mantenimiento", "Maintenance"));
@@ -239,9 +251,92 @@ namespace ConsoleEnhancer
                 // (1.2.02-1.2.4: aqui se decia que DLSS FG con DLSS 5 necesitaba dlssg_sm86. 1.2.4 ronda 6, QUITAFG: sin DLSS FG, fuera)
                 bAnadirD5.Text = hay ? Tx.T("Cambiar el archivo…", "Change the file…") : Tx.T("Añadir DLSS 5 (tu propio archivo)…", "Add DLSS 5 (your own file)…");
                 bQuitarD5.Visible = hay || Directory.Exists(Extras.Sm86);
+                RefrescarSteam();
             }
             finally { cargando = false; }
             RefrescarEstadoApp();
+        }
+
+        // ------------------------------------------------------------------ Steam (1.3.3, VARIOS)
+        void RefrescarSteam()
+        {
+            SteamAcceso.Estado st = SteamAcceso.Mira();
+            if (!st.HaySteam)
+            {
+                estadoSteam.Text = Tx.T("Steam no está instalado en este PC (o nadie ha entrado aún en Steam).", "Steam is not installed on this PC (or nobody has signed in to Steam yet).");
+                bSteam.Visible = bSteamQuitar.Visible = false;
+                return;
+            }
+            bSteam.Visible = true;
+            if (st.Error)
+                estadoSteam.Text = Tx.T("No se puede leer la lista de juegos ajenos de Steam: no se toca. ", "Steam's list of non-Steam games cannot be read: it is left alone. ") + st.Detalle;
+            else if (st.Puesto && !st.RutaVieja)
+                estadoSteam.Text = Tx.T("ConsoleEnhancer está en tu biblioteca de Steam (como juego ajeno a Steam).", "ConsoleEnhancer is in your Steam library (as a non-Steam game).");
+            else if (st.Puesto)
+                estadoSteam.Text = Tx.T("ConsoleEnhancer está en Steam, pero abre otra carpeta: ", "ConsoleEnhancer is in Steam, but it opens another folder: ") + st.RutaPuesta;
+            else
+                estadoSteam.Text = Tx.T("Pon ConsoleEnhancer en tu biblioteca de Steam (como juego ajeno a Steam) para abrirlo desde Steam o su modo Big Picture.",
+                                        "Put ConsoleEnhancer in your Steam library (as a non-Steam game) to open it from Steam or its Big Picture mode.");
+            bSteam.Text = st.Puesto && st.RutaVieja ? Tx.T("Actualizar en Steam", "Update in Steam") : Tx.T("Añadir a Steam", "Add to Steam");
+            bSteam.Enabled = !st.Error && !(st.Puesto && !st.RutaVieja);
+            bSteamQuitar.Visible = st.Puesto;
+        }
+
+        // Steam lee su lista al abrirse (y la puede reescribir al cerrarse): con Steam abierto, se cierra, se escribe y se vuelve a abrir
+        bool SteamCerrarAntes(SteamAcceso.Estado st, out bool reabrir)
+        {
+            reabrir = false;
+            if (!st.Abierto) return true;
+            DialogResult r = MessageBox.Show(this,
+                Tx.T("Steam está abierto. Para que vea el cambio hay que cerrarlo y volver a abrirlo.\n\nSí = cerrar Steam ahora, hacerlo y volver a abrirlo.\nNo = hacerlo igualmente (reinicia Steam tú después).",
+                     "Steam is open. To see the change it has to be closed and opened again.\n\nYes = close Steam now, do it and open Steam again.\nNo = do it anyway (restart Steam yourself afterwards)."),
+                PrismaUi.AppName, MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
+            if (r == DialogResult.Cancel) return false;
+            if (r == DialogResult.No) return true;
+            UseWaitCursor = true;
+            bool ok = SteamAcceso.Cerrar(st, 30000);
+            UseWaitCursor = false;
+            if (!ok)
+            {
+                MessageBox.Show(this, Tx.T("Steam no se ha cerrado. Ciérralo (Steam > Salir) y vuelve a pulsar.", "Steam did not close. Close it (Steam > Exit) and press again."), PrismaUi.AppName);
+                return false;
+            }
+            reabrir = true;
+            return true;
+        }
+
+        void SteamPoner()
+        {
+            SteamAcceso.Estado st = SteamAcceso.Mira();
+            bool reabrir;
+            if (!SteamCerrarAntes(st, out reabrir)) return;
+            string det;
+            bool ok = SteamAcceso.Poner(out det);
+            if (ok) Ce.IniPoner("steam_acceso", "1");
+            Log.Write("Panel de ajustes: anadir a Steam: " + (ok ? "si" : "no") + " (" + det + ")");
+            if (reabrir) SteamAcceso.Abrir(st);
+            if (!ok) MessageBox.Show(this, Tx.T("No se ha podido añadir a Steam: ", "Could not add it to Steam: ") + det, PrismaUi.AppName, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            else if (st.Abierto && !reabrir)
+                MessageBox.Show(this, Tx.T("Hecho. Reinicia Steam (Steam > Salir y ábrelo otra vez) para ver ConsoleEnhancer en tu biblioteca. Si no aparece, vuelve a pulsar con Steam cerrado.",
+                                           "Done. Restart Steam (Steam > Exit and open it again) to see ConsoleEnhancer in your library. If it does not appear, press again with Steam closed."), PrismaUi.AppName);
+            else
+                MessageBox.Show(this, Tx.T("Hecho: ConsoleEnhancer aparecerá en tu biblioteca de Steam" + (reabrir ? "." : " la próxima vez que abras Steam."),
+                                           "Done: ConsoleEnhancer will appear in your Steam library" + (reabrir ? "." : " the next time you open Steam.")), PrismaUi.AppName);
+            RefrescarSteam();
+        }
+
+        void SteamQuitar()
+        {
+            SteamAcceso.Estado st = SteamAcceso.Mira();
+            bool reabrir;
+            if (!SteamCerrarAntes(st, out reabrir)) return;
+            string det;
+            bool ok = SteamAcceso.Quitar(out det);
+            if (ok) Ce.IniPoner("steam_acceso", "0");
+            Log.Write("Panel de ajustes: quitar de Steam: " + (ok ? "si" : "no") + " (" + det + ")");
+            if (reabrir) SteamAcceso.Abrir(st);
+            if (!ok) MessageBox.Show(this, Tx.T("No se ha podido quitar de Steam: ", "Could not remove it from Steam: ") + det, PrismaUi.AppName, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            RefrescarSteam();
         }
 
         void Cambio(string que)
@@ -358,6 +453,7 @@ namespace ConsoleEnhancer
             Log.Write("Desinstalar: inicio con Windows quitado (" + det + ")");
             // (1.2.3: iniciar_con_windows=0 tambien, en los ajustes que se guardan: una copia nueva que los herede no se pone sola en el inicio)
             try { Ce.IniPoner("escritorio_negro", "0"); Ce.IniPoner("apagar_pc", "0"); Ce.IniPoner("iniciar_con_windows", "0"); } catch { }
+            SteamAlDesinstalar();   // (1.3.3, VARIOS)
             try { Escritorio.Cambiar(false); } catch (Exception ex) { Log.Error("Desinstalar: escritorio", ex); }
             CeEspera.PlanDeAntes("desinstalar");
             // (1.2.2: con "Sí", tambien la copia de seguridad. 1.2.3: el borrado lo hace este proceso al cerrarse el panel, Run, y dice como ha ido)
@@ -367,6 +463,23 @@ namespace ConsoleEnhancer
                 MessageBox.Show(this, Tx.T("No se pudieron borrar los archivos. Borra la carpeta a mano:\n", "Could not delete the files. Delete the folder yourself:\n") + app,
                                 PrismaUi.AppName, MessageBoxButtons.OK, MessageBoxIcon.Warning);
             Close();
+        }
+
+        // (1.3.3, VARIOS) el acceso de Steam fuera al desinstalar, solo con Steam cerrado (abierto podria volver a escribir su lista)
+        public static void SteamAlDesinstalar()
+        {
+            try
+            {
+                if (Ce.IniLeer("steam_acceso") != "1") return;
+                SteamAcceso.Estado st = SteamAcceso.Mira();
+                if (!st.Puesto) return;
+                if (st.Abierto) { Log.Write("Desinstalar: el acceso de Steam se queda (Steam abierto): " + st.Detalle); return; }
+                string det;
+                SteamAcceso.Quitar(out det);
+                Ce.IniPoner("steam_acceso", "0");
+                Log.Write("Desinstalar: acceso de Steam: " + det);
+            }
+            catch (Exception ex) { Log.Error("Desinstalar: Steam", ex); }
         }
 
         // ------------------------------------------------------------------ controles

@@ -32,6 +32,7 @@ namespace ConsoleEnhancer
             MigraNombresConsola();   // (1.2.2: nombres de juegos con basura del OCR a su nombre bueno, src\VueltaJuego.cs)
             Switch2AlAbrir();        // (23-11, SWITCH2: los juegos de la Switch 2 de la version de antes y los "Juego N" con nombre; src\Lanzador\Switch2Datos.cs)
             homeIni = cfg.HomeNativeEnabled;
+            ThreadPool.QueueUserWorkItem(delegate { SteamAcceso.AlAbrirApp(); });   // (1.3.3, VARIOS: el acceso de Steam a esta carpeta, src\Lanzador\SteamAcceso.cs)
             Log.Write(Consolas.Iniciar());
             Consolas.Cambiada -= OnConsolaCambiada;
             Consolas.Cambiada += OnConsolaCambiada;
@@ -229,13 +230,18 @@ namespace ConsoleEnhancer
             double lit;
             HomeLabel.Thumb(small, out lit);
             bool dark = lit < HdcpDarkLit && audioNow == "silent";
+            // 24-11 (1.3.3, VARIOS: "en gta 6 en una pantalla negra con algun hud quieto unos segundos se piensa que esta lo del hdcp"): el
+            // HDCP da negro LISO en todo el cuadro; un HUD quieto, un logo o un texto sobre negro no (el lit 0,001 de su log era el HUD).
+            // Ademas del umbral de la miniatura, la captura entera sin nada que se salga del fondo negro (src\Lanzador\NegroLiso.cs)
+            NegroLiso.Medida liso = new NegroLiso.Medida();
+            if (dark) { liso = NegroLiso.Mide(full); dark = liso.Liso; }
             if (!dark) { darkSince = DateTime.MinValue; hdcpSaid = false; return; }
             if (darkSince == DateTime.MinValue) { darkSince = now; return; }
             double secs = (now - darkSince).TotalSeconds;
             if (hdcpSaid || secs < cfg.HdcpWarnSecs) return;
             hdcpSaid = true;
-            Log.Write("Consola " + c.Corto + ": negro de verdad y en silencio " + (int)secs + " s seguidos (lit " +
-                      lit.ToString("0.###", CultureInfo.InvariantCulture) + ", umbral " + cfg.HdcpWarnSecs.ToString("0.#", CultureInfo.InvariantCulture) +
+            Log.Write("Consola " + c.Corto + ": negro liso y en silencio " + (int)secs + " s seguidos (lit " +
+                      lit.ToString("0.###", CultureInfo.InvariantCulture) + ", " + liso + ", umbral " + cfg.HdcpWarnSecs.ToString("0.#", CultureInfo.InvariantCulture) +
                       " s; captura " + cfg.CaptureNow + "): puede ser el HDCP (" + c.ConsejoHdcp + ")");
             OnUi(delegate { OsdWarn(c.ConsejoHdcp, "8000"); });
         }

@@ -12594,6 +12594,10 @@ namespace ConsoleEnhancer
                 if (arg == "--test-avisos" || arg.StartsWith("--test-avisos=")) return TrayApp.AvisosPrueba(arg.Length > 14 ? arg.Substring(14) : null);
                 // 24-11 (1.3.2, MODO40): el modo 40 (captura, motor, generacion, perfil, mando, aviso), sin abrir nada: --test-modo40[=<informe>] (Modo40.cs)
                 if (arg == "--test-modo40" || arg.StartsWith("--test-modo40=")) return TrayApp.Modo40Prueba(arg.Length > 14 ? arg.Substring(14) : null);
+                // 24-11 (1.3.3, VARIOS): el negro liso del aviso de HDCP (un HUD / logo / carga oscura no avisa): --test-negro-liso[=<informe>][;<carpeta de capturas>]
+                if (arg == "--test-negro-liso" || arg.StartsWith("--test-negro-liso=")) return NegroLiso.Prueba(arg.Length > 18 ? arg.Substring(18) : null);
+                // 24-11 (1.3.3, VARIOS): "Anadir a Steam" sobre una carpeta de Steam falsa (nunca la de verdad): --test-steam[=<informe>][;<carpeta>[;<shortcuts.vdf a copiar>]]
+                if (arg == "--test-steam" || arg.StartsWith("--test-steam=")) return SteamAcceso.Prueba(arg.Length > 13 ? arg.Substring(13) : null);
                 // 23-11 (1.3.1, AJUSTES): la carpeta de los ajustes en el PC, la migracion, versiones mas antiguas, portable.txt y lo que ya no existe,
                 // sobre copias: --test-ajustes[=<informe>][;<carpeta de trabajo>[;<data de una version>[;<%LOCALAPPDATA%\ConsoleEnhancer>]]] (AjustesPrueba.cs)
                 if (arg == "--test-ajustes" || arg.StartsWith("--test-ajustes=")) return AjustesPrueba.Run(arg.Length > 15 ? arg.Substring(15) : null);
