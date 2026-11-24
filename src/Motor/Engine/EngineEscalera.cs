@@ -50,6 +50,9 @@ namespace ConsoleEnhancer.Motor
         // (1.3.2, FPS; el usuario: "el dlss 5 a 1440p evita que sea menor que 33%") el suelo de DLSS 5 en pixeles de ancho: nunca por debajo
         // de 845 de ancho (el 33 % de 2560) ni del 25 %: 4K 25 % (960), 1440p 33 %, 1080p 44 %, 720p 66 %. 0 = el 25 % siempre (como la 1.3.1)
         public int NrSueloPx = 845;
+        // (1.3.2, FPS) smooth60_reflex=0: con Smooth Motion en el modo 60, sin el dormir de Reflex (su tope con VRR deja 58 reales de 59,94;
+        // ver SmReflexFuera). 1 = como la 1.3.1
+        public bool Sm60Reflex = true;
 
         bool ApplyEscalera(string key, string val)
         {
@@ -62,6 +65,7 @@ namespace ConsoleEnhancer.Motor
                 case "escalera_log": EscLog = val.Trim() == "1"; return true;
                 case "escalera_grafica_uso": EscGpuUso = val.Trim() != "0"; return true;   // (1.3.2, FPS)
                 case "escalera_grafica_llena": if (int.TryParse(val.Trim().TrimEnd('%'), NumberStyles.Integer, CultureInfo.InvariantCulture, out n)) EscGpuLlena = Math.Max(0, Math.Min(100, n)); return true;
+                case "smooth60_reflex": Sm60Reflex = val.Trim() != "0"; return true;   // (1.3.2, FPS)
                 case "dlss5_suelo_px": if (int.TryParse(val.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out n)) NrSueloPx = Math.Max(0, Math.Min(3840, n)); return true;   // (1.3.2, FPS)
                 case "escalera_perdidas": if (int.TryParse(val.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out n)) EscPerdidas = Math.Max(1, Math.Min(10, n)); return true;
                 case "escalera_subir_s": if (int.TryParse(val.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out n)) EscSubirS = Math.Max(5, Math.Min(600, n)); return true;
@@ -271,6 +275,11 @@ namespace ConsoleEnhancer.Motor
             Ev("switch2-fps", "ritmo", reales.ToString("0.0", IC), EscObjetivo.ToString("0.00", IC), p95.ToString("0.0", IC), Math.Max(0, max).ToString(IC), vistas.ToString("0.0", IC), causa);
             return true;
         }
+
+        // (1.3.2, FPS) Smooth Motion en el modo 60 (59,94 -> 119,88) y Reflex: con G-SYNC Reflex limita la salida a 116 (120 - 120^2/3600) y, con
+        // Smooth Motion doblando, el motor a 58: duerme ~10-14 ms por imagen con la de la captura ya llegada y la cola de la tele tira 2 por
+        // segundo (la sesion del usuario 01:26-01:27 con Ocarina, y en el HOME: "58.0 de 59.94"). smooth60_reflex=0: sin dormir en ese caso
+        bool SmReflexFuera { get { return !s.Sm60Reflex && s.SmoothMode > 0 && s.Mode == 60; } }
 
         // (1.3.2, FPS) el suelo del % de DLSS 5 con esta entrada (NrSueloPx: 4K 25 %, 1440p 33 %, 1080p 44 %, 720p 66 %)
         int NrSuelo { get { return NrSueloPara(inW > 0 ? inW : s.CapW); } }
