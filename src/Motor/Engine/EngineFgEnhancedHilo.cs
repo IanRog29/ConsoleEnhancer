@@ -158,6 +158,7 @@ namespace ConsoleEnhancer.Motor
                 EfgZero(k); k[0] = (uint)efgLw[l]; k[1] = (uint)efgLh[l]; k[2] = (uint)efgLw[l - 1]; k[3] = (uint)efgLh[l - 1];
                 EfgRun(psoEfgDown, c, EfgTabDown(l), k, Groups(efgLw[l], 16), Groups(efgLh[l], 8), efgL[c, l]);
             }
+            EfgNvKick(c, flow);   // (1.3.3, EFGCAL: el flujo de NVIDIA por hardware, en su hilo mientras la grafica hace el propio; EngineFgEnhancedNvof.cs)
             EfgGiroFit(c, flow);   // (1.3.2, EFGGIRO: el movimiento global de la camara, EngineFgEnhancedGiro.cs)
             if (flow)
             {
@@ -187,6 +188,7 @@ namespace ConsoleEnhancer.Motor
                     EfgZero(k); k[0] = (uint)efgLw[0]; k[1] = (uint)efgLh[0]; k[2] = (uint)efgBx[0]; k[3] = (uint)efgBy[0]; k[4] = F(s.EfgBeta);
                     EfgRun(psoEfgProp, c, EfgTabProp(d), k, Groups(efgBx[0], 8), Groups(efgBy[0], 8), efgF[c, d, 0]);
                 }
+                EfgNvInject(c);   // (1.3.3, EFGCAL: sus vectores a los bloques de L0, salvo en la interfaz quieta)
                 EfgPlanoFit(c, true);   // (1.3.3, EFGMAPA: el paneo plano, EngineFgEnhancedPlano.cs)
                 EfgZero(k); k[0] = (uint)efgBx[0]; k[1] = (uint)efgBy[0]; k[4] = F(0.06f); k[5] = F(0.02f);
                 EfgRun(psoEfgCut, c, EfgTabCut, k, 1, 1, efgCut[c]);
