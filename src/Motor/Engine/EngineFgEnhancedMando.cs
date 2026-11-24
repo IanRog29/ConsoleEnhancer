@@ -9,8 +9,8 @@
 //     ganancia x stick medio de la pareja (por eje, con olvido): el retraso que mejor casa y su r2;
 //   - efg_lat_mando=2 y r2 >= efg_lat_mando_r2 (0,6) en el eje: cada inventada corrige el global de lo que va con la camara con
 //     ganancia x (stick a la hora de la inventada - retraso  -  stick medio de la pareja - retraso), con tope. Si no casa, nada (como antes).
-//   - efg_lat_mando=1 (de serie): solo aprende y lo dice en el registro cada 10 s (para saber, con una partida, si el mando del PC es el de
-//     la consola); 0 = ni lee el mando.
+//   - efg_lat_mando=1: solo aprende y lo dice en el registro cada 10 s (para saber, con una partida, si el mando del PC es el de
+//     la consola); 0 (de serie, INTEGRA10) = ni lee el mando.
 using System;
 using System.Globalization;
 using System.Runtime.InteropServices;
@@ -20,7 +20,7 @@ namespace ConsoleEnhancer.Motor
 {
     partial class Settings
     {
-        public int EfgLatMando = 1;           // efg_lat_mando: 0 = no, 1 = solo aprender y registro, 2 = usarlo en la baja latencia
+        public int EfgLatMando = 0;           // efg_lat_mando (1.3.3: 0 de serie, la PS5 / Switch 2 se juegan con su mando): 0 = no, 1 = solo aprender y registro, 2 = usarlo en la baja latencia
         public float EfgLatMandoR2 = 0.6f;    // efg_lat_mando_r2: lo que tiene que casar (r2) para usarlo
 
         bool EfgMandoKey(string key, string val)

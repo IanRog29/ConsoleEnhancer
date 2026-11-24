@@ -274,7 +274,7 @@ with help a lot too.
   reflections. Off by default (`enhanced_rt=0`; the menu choice wins); about 0.7 ms of GPU per real frame (~1.1 ms at 4K with Enhanced
   FG ×4, ~1 ms more latency). It switches on / off without reopening the picture. Stronger: `motor_extra=rt_fuerza=1.5`.
 - **Flat pans** (1.3.3): when you scroll a map or a menu with the stick, Enhanced FG (quality mode) measures that single movement
-  precisely and follows it, also when the pan starts and stops, so roads and text no longer shake; the still HUD is left untouched
+  (and its zoom) precisely and follows it, also when the pan starts and stops, so roads and text no longer shake; the still HUD is left untouched
   (`efg_plano=0` = as 1.3.2). For maps, quality mode works better than low latency.
 - **Add to Steam** (1.3.3): in the settings panel (ConsoleEnhancer Settings.exe, "Steam" section), adds ConsoleEnhancer to your Steam
   library as a non-Steam game with its icon (the same as Steam's "Add a Non-Steam Game"), without duplicating it and with a backup of
@@ -918,7 +918,7 @@ y contar en qué PC y con qué consola lo usas.
   (~1,1 ms a 4K con Enhanced FG ×4, ~1 ms más de latencia). Se enciende / apaga sin reabrir la imagen. Más fuerte:
   `motor_extra=rt_fuerza=1.5`.
 - **Paneos planos** (1.3.3): al desplazar un mapa o un menú con el joystick, Enhanced FG (modo calidad) mide ese movimiento único con
-  precisión y lo sigue, también al arrancar y frenar, así que carreteras y textos ya no tiemblan; la interfaz quieta no se toca
+  precisión (y su zoom) y lo sigue, también al arrancar y frenar, así que carreteras y textos ya no tiemblan; la interfaz quieta no se toca
   (`efg_plano=0` = como la 1.3.2). Para mapas va mejor el modo calidad que la baja latencia.
 - **Añadir a Steam** (1.3.3): en el panel de ajustes (ConsoleEnhancer Settings.exe, sección "Steam"), pone ConsoleEnhancer en tu
   biblioteca de Steam como juego ajeno con su icono (lo mismo que "Añadir un juego ajeno" de Steam), sin duplicarlo y con una copia de
