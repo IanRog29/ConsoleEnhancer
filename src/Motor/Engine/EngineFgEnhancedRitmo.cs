@@ -40,6 +40,8 @@ namespace ConsoleEnhancer.Motor
         // inventada) y no justo antes de su hora (0 = lo de la 1.3.1: a su hora menos lo que tarda la copia)
         public bool EfgCopiaPronto = true;
         public bool EfgLNuevo = true;           // efg_l_nuevo (1.3.2, EFGRITMO): L y la ventana de "lista" de nuevo tras un hueco / otro xN
+        public bool EfgAtrasadaLista = true;    // efg_atrasada (1.3.2, EFGRITMO): la real se da por atrasada solo si la siguiente ya esta lista
+        public bool EfgColaTele = true;         // efg_cola_tele (1.3.2, EFGRITMO): con sincronizacion, sin cola de la tele (EfgColaTele)
 
         bool ApplyEfgRitmo(string key, string val)
         {
@@ -51,6 +53,8 @@ namespace ConsoleEnhancer.Motor
                 case "repetidas_30_efg": Pass30Efg = B(val); return true;
                 case "efg_copia_pronto": EfgCopiaPronto = B(val); return true;   // (1.3.2, EFGRITMO)
                 case "efg_l_nuevo": EfgLNuevo = B(val); return true;   // (1.3.2, EFGRITMO)
+                case "efg_atrasada": EfgAtrasadaLista = B(val); return true;   // (1.3.2, EFGRITMO)
+                case "efg_cola_tele": EfgColaTele = B(val); return true;   // (1.3.2, EFGRITMO)
             }
             return false;
         }
@@ -247,6 +251,7 @@ namespace ConsoleEnhancer.Motor
                 if (EfgNextRealFirst(ti, watchStep)) { efgRitmoSalta++; return true; }
             }
             EfgWaitUntil(ti);
+            if (!real && EfgColaTele(sy)) return true;   // (1.3.2, EFGRITMO: la tele va una imagen atrasada: esta no, para alcanzarla)
             long call = Clock.Now;
             int hr = swap.Present(sy, (DXGI_PRESENT)fl);
             efgLastPresent = Clock.Now; efgLastCall = call;
@@ -293,6 +298,68 @@ namespace ConsoleEnhancer.Motor
             efgUltJob = j.Arrival; efgUltK = j.K; efgUltFase = fase;
         }
 
+        // (1.3.2, ronda 9, EFGRITMO) ¿El hilo va atrasado? (con efgJobs cogido) Antes: si al coger una real ya habia otra en la cola, esta se
+        // presentaba ya y SIN inventadas. Pero la siguiente entra en la cola en cuanto el motor la manda, no cuando esta: con la real tardando
+        // mas que un intervalo en estar (modo 60 con DLSS 5 / DLSS SR pesado, o los primeros segundos con la grafica subiendo de reloj: "lista"
+        // 25-36 ms) la siguiente ya estaba en la cola SIEMPRE y no salia ni una inventada (x2 del modo 60 medido: 35-48 de cada 60 reales sin
+        // su inventada los 6 primeros segundos; la Switch 2 del usuario: "saltadas 493 de 503" al empezar). Ahora solo si la siguiente ya esta
+        // LISTA (o hay dos detras, o es una de enseñar); efg_atrasada=0 = como antes
+        bool EfgAtrasada()
+        {
+            if (efgJobs.Count == 0) return false;
+            if (!s.EfgAtrasadaLista || efgJobs.Count > 1) return true;
+            EfgJob nx = efgJobs.Peek();
+            if (nx.Show) return true;
+            try { return nx.Ready.WaitOne(0); } catch { return true; }
+        }
+
+        // (1.3.2, ronda 9, EFGRITMO) La cola de la tele con sincronizacion (x4 del 30, x2 del 60 con el refresco fijo, x3 del 40): la salida va
+        // a 119,88/s y la tele saca como mucho 120 (VRR en su tope) o 120 fijos: una imagen que llega tarde (o L que baja, o un salto de
+        // cadencia) deja otra esperando en la cola de la tele, y esa espera solo se va 0,01 ms por imagen (~8 s por imagen de cola). Medido con
+        // PresentMon (de la llamada a Present a verse): 2-3 ms sin cola y 8-16 ms con una o dos imagenes esperando, durante decenas de segundos
+        // (x4 calidad 1080p 15 ms los 25 s; x4 baja latencia 10 -> 3 ms en 20 s; x2 del 60 4-14 ms). Ahora, justo antes de presentar una
+        // inventada, si la anterior aun no se ha visto (DXGI: GetLastPresentCount - PresentCount de GetFrameStatistics >= 1: la tele va al menos
+        // una imagen atrasada), esa inventada no se presenta (como mucho una cada 250 ms): la tele se pone al dia y la latencia baja una imagen.
+        // efg_cola_tele=0 = como antes. Sin estadisticas de DXGI (Streamline, cambio de modo) no hace nada.
+        // Solo con VRR de verdad (NVAPI, como el "Ritmo:" del registro): con el refresco fijo (el modo 60 con generacion: G-SYNC apagado en el
+        // perfil del motor) la cola sube y baja una imagen cada 8,3 s por si sola (119,88 frente a 120,000: el latido) y quitar inventadas solo
+        // añadiria tirones. Se mira de fondo cada 3 s (la llamada a NVAPI no va en el hilo de presentacion)
+        long efgColaN, efgColaAtras, efgColaDrop, efgColaDropAt, efgColaVrrAt; int efgColaErr; volatile bool efgColaVrr, efgColaVrrBusy;
+        bool EfgColaTele(uint sy)
+        {
+            if (!s.EfgColaTele || sy == 0 || efgColaErr > 50) return false;
+            if (!efgColaVrrBusy && (efgColaVrrAt == 0 || Clock.SinceMs(efgColaVrrAt) > 3000))
+            {
+                efgColaVrrBusy = true; efgColaVrrAt = Clock.Now;
+                ThreadPool.QueueUserWorkItem(delegate (object o)
+                {
+                    try { efgColaVrr = !s.RefreshFixed && VrrDisplayState().StartsWith("VRR activo", StringComparison.Ordinal); }
+                    catch { efgColaVrr = false; }
+                    finally { efgColaVrrBusy = false; }
+                });
+            }
+            if (!efgColaVrr) return false;
+            uint pc; DXGI_FRAME_STATISTICS fs;
+            try
+            {
+                if (swap.GetLastPresentCount(out pc) < 0 || swap.GetFrameStatistics(out fs) < 0 || fs.PresentCount == 0) { efgColaErr++; return false; }
+            }
+            catch { efgColaErr++; return false; }
+            efgColaErr = 0;
+            efgColaN++;
+            int pend = (int)(pc - fs.PresentCount);
+            if (pend < 1 || pend > 8) return false;
+            efgColaAtras++;
+            if (efgColaDropAt != 0 && Clock.SinceMs(efgColaDropAt) < 250) return false;
+            efgColaDropAt = Clock.Now; efgColaDrop++;
+            return true;
+        }
+        string EfgColaTxt()
+        {
+            if (!s.EfgColaTele || (efgColaN == 0 && efgColaErr == 0)) return efgColaVrrAt != 0 && !efgColaVrr && s.EfgColaTele ? "; cola de la tele: sin VRR (no se toca)" : "";
+            return efgColaN == 0 ? "; cola de la tele: sin estadisticas de DXGI" : "; cola de la tele: " + efgColaAtras + " de " + efgColaN + " con la anterior sin ver, " + efgColaDrop + " inventadas sin presentar para alcanzarla";
+        }
+
         // Como EfgWaitUntil; con watchTi != 0 sale antes si la siguiente real ya puede ir (baja latencia)
         void EfgWaitUntilWatch(long at, long watchTi, double step)
         {
@@ -308,9 +375,9 @@ namespace ConsoleEnhancer.Motor
 
         string EfgRitmoTxt()
         {
-            if (s.EfgRitmo == 0 || efgRitmoN == 0) return efgRitmoSalta > 0 ? "; dejadas por la real siguiente " + efgRitmoSalta : "";   // (1.3.2, EFGRITMO: x3 / x4)
+            if (s.EfgRitmo == 0 || efgRitmoN == 0) return (efgRitmoSalta > 0 ? "; dejadas por la real siguiente " + efgRitmoSalta : "") + EfgColaTxt();   // (1.3.2, EFGRITMO: x3 / x4)
             return "; ritmo por el contenido: " + efgRitmoN + " reales, " + efgRitmoGap + " con hueco irregular (" + efgRitmoMas + " con mas inventadas, " + efgRitmoMenos +
-                   " con menos" + (efgRitmoSalta > 0 ? ", " + efgRitmoSalta + " dejadas por la real siguiente" : "") + ")";
+                   " con menos" + (efgRitmoSalta > 0 ? ", " + efgRitmoSalta + " dejadas por la real siguiente" : "") + ")" + EfgColaTxt();
         }
     }
 }

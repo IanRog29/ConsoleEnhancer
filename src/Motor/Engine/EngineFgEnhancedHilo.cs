@@ -356,7 +356,7 @@ namespace ConsoleEnhancer.Motor
                     bool stale = false;
                     lock (efgJobs)
                     {
-                        if (efgJobs.Count > 0) { j = efgJobs.Dequeue(); stale = efgJobs.Count > 0; }
+                        if (efgJobs.Count > 0) { j = efgJobs.Dequeue(); stale = EfgAtrasada(); }   // (1.3.2, EFGRITMO: solo si la siguiente ya esta lista)
                         else efgIdle.Set();
                     }
                     if (j == null) { efgJobEv.WaitOne(100); continue; }
@@ -480,6 +480,9 @@ namespace ConsoleEnhancer.Motor
                     EfgCopyTimed(c, !real, ti);   // (1.3.2, EFGRITMO: la copia en cuanto se puede, EngineFgEnhancedRitmo.cs)
                     if (!real) EfgStampsRead(i == 0 && nReal > 0 && flow, !dup);
                     EfgWaitUntil(ti);
+                    if (!real && EfgColaTele(sy)) genReady = false;   // (1.3.2, EFGRITMO: la tele va una imagen atrasada: esta no, para alcanzarla)
+                    else
+                    {
                     long call = Clock.Now;
                     int hr = swap.Present(sy, (DXGI_PRESENT)fl);
                     efgLastPresent = Clock.Now; efgLastCall = call;
@@ -487,6 +490,7 @@ namespace ConsoleEnhancer.Motor
                     if (real) { efgReals++; efgPrevRealAt = call; } else if (dup) efgDups++; else efgGens++;
                     EfgCsvRow(j, i, real ? 'r' : dup ? 'd' : 'g', t, call, readyMs);
                     genReady = false;
+                    }
                 }
                 // lo de la siguiente: el flujo (modo latencia: tras la real) y su inventada, mientras esta se ve
                 if (!flowSent) { EfgFlowList(c, flow); flowSent = true; }
