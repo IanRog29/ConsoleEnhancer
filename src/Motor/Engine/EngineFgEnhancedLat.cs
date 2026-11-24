@@ -58,6 +58,8 @@ namespace ConsoleEnhancer.Motor
         public bool EfgLatRev = true;
         // (1.3.3, EFGLAT r10) efg_lat_plano: en un paneo plano (mapa / menu; lo detecta efg_plano de EFGMAPA en la textura de efg_giro) el global
         // preciso es candidato y lo demas paga 0,01 por punto de diferencia (salvo la interfaz quieta)
+        // efg_lat_frena: en un paneo plano, si va mas lento que en la pareja anterior se supone que sigue frenando (necesita efg_lat_plano)
+        public bool EfgLatFrena = false;   // mapa sintetico: el global tiembla menos pero las baldosas no (0,77 -> 0,68 / 0,87 px segun la variante): no de serie
         public bool EfgLatPlano = false;   // medido en el mapa sintetico: temblor -1 a -4 %, HUD algo peor: no de serie
 
         bool ApplyEfgLat(string key, string val)
@@ -78,6 +80,7 @@ namespace ConsoleEnhancer.Motor
                 case "efg_lat_liso_local": EfgLatSmoothLocal = B(val); return true;
                 case "efg_lat_revisa": EfgLatRef = Math.Max(0, Math.Min(4, I(val))); return true;   // (1.3.3, EFGLAT r10)
                 case "efg_lat_plano": EfgLatPlano = B(val); return true;
+                case "efg_lat_frena": EfgLatFrena = B(val); return true;
                 case "efg_lat_destapado": EfgLatRev = B(val); return true;
                 case "efg_lat_revisa_peso": EfgLatRefLam = (float)Math.Max(0, Math.Min(0.1, D(val))); return true;
                 case "efg_lat_ganancia": EfgLatGain = (float)Math.Max(0, Math.Min(2, D(val))); return true;   // (1.3.2, EFGLAT r9)
@@ -238,7 +241,7 @@ namespace ConsoleEnhancer.Motor
             {
                 EfgZero(k);
                 k[0] = (uint)efgBx[0]; k[1] = (uint)efgBy[0]; k[2] = (uint)efgLw[0]; k[3] = (uint)efgLh[0];
-                k[4] = (uint)it; k[5] = (uint)s.EfgLatOrder; k[6] = flow ? 1u : 0u; k[7] = s.EfgLatPlano && efgGiroG[c] != null ? 1u : 0u;
+                k[4] = (uint)it; k[5] = (uint)s.EfgLatOrder; k[6] = flow ? 1u : 0u; k[7] = (s.EfgLatPlano || s.EfgLatFrena) && efgGiroG[c] != null ? 1u : 0u;
                 k[8] = F(1.5f); k[9] = F(0.05f); k[10] = F(8f);
                 EfgLatRun(psoEfgLatFit, c, EfgLatTabFit, k, 1, 1);
                 EfgLatUavBarrier(efgGm);
@@ -270,7 +273,7 @@ namespace ConsoleEnhancer.Motor
                 k[0] = (uint)efgQw; k[1] = (uint)efgQh; k[2] = (uint)efgBx[0]; k[3] = (uint)efgBy[0];
                 k[4] = F(t); k[5] = F(s.EfgKappa); k[6] = F(s.EfgTau); k[7] = F(s.EfgStillN);
                 k[8] = (uint)efgLw[0]; k[9] = (uint)efgLh[0];
-                k[10] = (s.EfgLatGlobal ? 1u : 0u) | (s.EfgLatBorder ? 2u : 0u) | (s.EfgLatZ == 1 ? 16u : 0u) | (s.EfgLatZ == 2 ? 32u : 0u) | (s.EfgLatSmoothLocal ? 64u : 0u) | (s.EfgLatRev ? 128u : 0u);
+                k[10] = (s.EfgLatGlobal ? 1u : 0u) | (s.EfgLatBorder ? 2u : 0u) | (s.EfgLatZ == 1 ? 16u : 0u) | (s.EfgLatZ == 2 ? 32u : 0u) | (s.EfgLatSmoothLocal ? 64u : 0u) | (s.EfgLatRev ? 128u : 0u) | (s.EfgLatFrena ? 256u : 0u) | (s.EfgLatPlano ? 512u : 0u);
                 k[11] = F(s.EfgLatZD);
                 k[12] = F(s.EfgLatZLam); k[13] = F(s.EfgLatZHole); k[14] = F(8f * efgLw[0] / 1920f); k[15] = F(s.EfgLatZP);
                 EB(efgSel, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.UNORDERED_ACCESS);

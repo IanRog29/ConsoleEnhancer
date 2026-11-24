@@ -156,7 +156,7 @@ static float G[12], Gp[12];
 static bool gOk, gpOk, useZ, useN;
 static float sc;
 static float2 plG;
-static bool plOn;
+static bool plOn, plPrev;
 #ifndef PlW
 #define PlW 0.01
 #endif
@@ -192,6 +192,7 @@ void LoadG()
     a = Gm[uint2(0, 1)]; b = Gm[uint2(1, 1)]; c = Gm[uint2(2, 1)]; d = Gm[uint2(3, 1)];
     Gp[0] = a.x; Gp[1] = a.y; Gp[2] = a.z; Gp[3] = a.w; Gp[4] = b.x; Gp[5] = b.y; Gp[6] = b.z; Gp[7] = b.w; Gp[8] = c.x; Gp[9] = c.y; Gp[10] = c.z; Gp[11] = c.w;
     gpOk = d.x > 0.5;
+    plPrev = any(d.zw != 0);   // (1.3.3, EFGLAT r10) la pareja anterior era un paneo plano (al frenar del todo la de ahora ya no lo es)
 }
 float Cost(float2 x, float2 m)
 {
@@ -253,7 +254,7 @@ float Cost(float2 x, float2 m)
             float pr = ZP * (1 - tw0) * min(length(m - pRef), 16);
             S2 += pr; S1 += pr;
         }
-        if (plOn && !StillAt(x))
+        if (plOn && (Flags & 512) != 0 && !StillAt(x))
         {
             // (1.3.3, EFGLAT r10) PANEO PLANO (mapa / menu que se desplaza entero): todo lo que no es la interfaz quieta paga por apartarse
             // del global preciso (sin baldosas sueltas que van y vienen)
@@ -294,7 +295,7 @@ void main(uint3 id : SV_DispatchThreadID)
         Try(x, -Fc.Load(int3(b, 0)).xy);
     }
     Try(x, float2(0, 0));
-    if (plOn) Try(x, plG);   // (1.3.3, EFGLAT r10) paneo plano: el global preciso como candidato
+    if (plOn && (Flags & 512) != 0) Try(x, plG);   // (1.3.3, EFGLAT r10) paneo plano: el global preciso como candidato
     float2 u1 = x / (16.0 * float2(b1));
     Try(x, Fp1.SampleLevel(Lin, u1, 0).xy * 2);
     Try(x, -Fc1.SampleLevel(Lin, u1, 0).xy * 2);
@@ -303,6 +304,18 @@ void main(uint3 id : SV_DispatchThreadID)
     Try(x, Fp.SampleLevel(Lin, (x - T * m0) * invB, 0).xy);
     Try(x, -Fc.SampleLevel(Lin, (x + (1 - T) * m0) * invB, 0).xy);
     if (gOk && (Flags & 1)) Try(x, EvalG(x - t * gX, false));
+    if ((plOn || plPrev) && gOk && gpOk && (Flags & 256) != 0)
+    {
+        // (1.3.3, EFGLAT r10) FRENADA en un paneo plano (mapa / menu): si el paneo va mas lento que en la pareja anterior, se supone que sigue
+        // frenando (v x v / v_anterior) en lo que va con el global: al soltar el stick la inventada ya no se pasa de largo
+        float2 gc = EvalG(x - t * gX, false);
+        if (length(bestM - gc) < 2 + 0.25 * length(gc))
+        {
+            float2 gp = EvalG(x - t * gX - gc, true);
+            float ln = length(gc), lp = length(gp);
+            if (lp > ln + 1) bestM += gc * (ln / lp - 1);
+        }
+    }
     Sel[id.xy] = float4(bestM, 1, bestS);
 }";
 
