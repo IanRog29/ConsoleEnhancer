@@ -28,6 +28,14 @@ namespace ConsoleEnhancer.Motor
     //  el error medio), efg_lat_delante_peso=0.01, efg_lat_hueco=0.005, efg_lat_anterior=0.25 (solo con delante=2), efg_lat_borde=1 (0 = no),
     //  efg_lat_estira=3 (0 o 1 = repetir el borde), efg_lat_fin=1 (0 = punto a punto como antes), efg_lat_global=0 (1 = el global tambien
     //  como candidato: sin efecto medible).
+    // (1.3.3, decima ronda, EFGLAT) Dos cambios en la ELECCION hacia delante, medidos con video real mirando los fallos LOCALES (la imagen
+    // llevada a la verdad con un modelo global antes de medir: lo que queda son remiendos, bordes rotos, manchas; el resto es adivinar el
+    // giro, que no se arregla aqui):
+    //  - efg_lat_destapado=1: lo que la actual tiene y la anterior no (recien destapado en la actual, lo animado) no tiene vector fiable;
+    //    antes contaba como un vector cualquiera y ganaba un remiendo del fondo liso de al lado; ahora se supone que va con la camara;
+    //  - efg_lat_revisa=2: dos vueltas de la eleccion REVISADA con los 9 vecinos (el mismo coste mas lo que se aparta de los de al lado): sin
+    //    los vectores sueltos que salen en lo liso y en el borde de lo de delante (manchas que cambian en cada inventada).
+    //  Volver a la 1.3.2: efg_lat_destapado=0 efg_lat_revisa=0.
     partial class Settings
     {
         public bool EfgLat = true;
@@ -42,6 +50,12 @@ namespace ConsoleEnhancer.Motor
         // frente a 11,75) y 1,25 apenas mejor en GTA V (11,29 frente a 11,43): el movimiento de la pareja anterior tal cual es lo mejor que se
         // puede adivinar (notas\EFGLAT.md, ronda 9)
         public float EfgLatGain = 1f;
+        // (1.3.3, decima ronda, EFGLAT) efg_lat_revisa: vueltas de la eleccion revisada con sus vecinos (EfgLatShaders.Ref; 0 = no);
+        // efg_lat_revisa_peso = lo que paga un vector por apartarse de los de al lado
+        public int EfgLatRef = 2;
+        public float EfgLatRefLam = 0.01f;
+        // (1.3.3, EFGLAT r10) efg_lat_destapado: lo que la actual tiene y la anterior no (recien destapado, animado) se mueve con la camara
+        public bool EfgLatRev = true;
 
         bool ApplyEfgLat(string key, string val)
         {
@@ -59,6 +73,9 @@ namespace ConsoleEnhancer.Motor
                 case "efg_lat_hueco": EfgLatZHole = (float)Math.Max(0, Math.Min(0.1, D(val))); return true;
                 case "efg_lat_fin": EfgLatFin = Math.Max(0, Math.Min(1, I(val))); return true;
                 case "efg_lat_liso_local": EfgLatSmoothLocal = B(val); return true;
+                case "efg_lat_revisa": EfgLatRef = Math.Max(0, Math.Min(4, I(val))); return true;   // (1.3.3, EFGLAT r10)
+                case "efg_lat_destapado": EfgLatRev = B(val); return true;
+                case "efg_lat_revisa_peso": EfgLatRefLam = (float)Math.Max(0, Math.Min(0.1, D(val))); return true;
                 case "efg_lat_ganancia": EfgLatGain = (float)Math.Max(0, Math.Min(2, D(val))); return true;   // (1.3.2, EFGLAT r9)
             }
             return false;
@@ -67,8 +84,9 @@ namespace ConsoleEnhancer.Motor
 
     unsafe partial class Engine
     {
-        const int EfgLatTabFit = 0, EfgLatTabSel = 1, EfgLatTabFin = 2, EfgLatTabs = 3;
-        ID3D12PipelineState psoEfgLatFit, psoEfgLatSel, psoEfgLatFin;
+        const int EfgLatTabFit = 0, EfgLatTabSel = 1, EfgLatTabFin = 2, EfgLatTabRef1 = 3, EfgLatTabRef2 = 4, EfgLatTabs = 5;
+        ID3D12PipelineState psoEfgLatFit, psoEfgLatSel, psoEfgLatFin, psoEfgLatRef;
+        ID3D12Resource efgLatSel2;            // (1.3.3, EFGLAT r10) la otra eleccion de la revision (efg_lat_revisa: Sel -> Sel2 -> Sel)
         ID3D12Resource efgGm;                 // el modelo global (4x2 float4): fila 0 = el de la ultima pareja, fila 1 = el de la de antes
         ID3D12DescriptorHeap efgLatHeap;
         IntPtr efgLatHeapPtr;
@@ -76,8 +94,8 @@ namespace ConsoleEnhancer.Motor
         D3D12_GPU_DESCRIPTOR_HANDLE efgLatGpu0;
         bool efgLatReady, efgLatBroken;
 
-        static readonly string[] EfgLatNames = { "efg_lat_ajuste", "efg_lat_eleccion", "efg_lat_inventada" };
-        static string[] EfgLatSources() { return new string[] { EfgLatShaders.Fit, EfgLatShaders.Sel, EfgLatShaders.Fin }; }
+        static readonly string[] EfgLatNames = { "efg_lat_ajuste", "efg_lat_eleccion", "efg_lat_inventada", "efg_lat_revisa" };
+        static string[] EfgLatSources() { return new string[] { EfgLatShaders.Fit, EfgLatShaders.Sel, EfgLatShaders.Fin, EfgLatShaders.Ref }; }
 
         // ¿el camino nuevo? (solo para las inventadas hacia delante)
         bool EfgLatOn() { return s.EfgLat && efgLatReady && !efgLatBroken; }
@@ -90,9 +108,9 @@ namespace ConsoleEnhancer.Motor
             {
                 long t0 = Clock.Now;
                 string[] src = EfgLatSources();
-                byte[][] cs = new byte[3][];
-                System.Threading.Tasks.Parallel.For(0, 3, delegate (int i) { cs[i] = CompileCs(EfgLatNames[i], src[i]); });
-                psoEfgLatFit = Pso(cs[0]); psoEfgLatSel = Pso(cs[1]); psoEfgLatFin = Pso(cs[2]);
+                byte[][] cs = new byte[4][];
+                System.Threading.Tasks.Parallel.For(0, 4, delegate (int i) { cs[i] = CompileCs(EfgLatNames[i], src[i]); });
+                psoEfgLatFit = Pso(cs[0]); psoEfgLatSel = Pso(cs[1]); psoEfgLatFin = Pso(cs[2]); psoEfgLatRef = Pso(cs[3]);
                 Log.Write("Enhanced FG baja latencia: shaders (" + Clock.SinceMs(t0).ToString("0", CultureInfo.InvariantCulture) + " ms)");
             }
             catch (Exception ex) { efgLatBroken = true; Log.Write("Enhanced FG baja latencia: sin el camino nuevo (" + ex.Message + "): la extrapolacion de antes"); }
@@ -117,6 +135,7 @@ namespace ConsoleEnhancer.Motor
                 EfgLatPsos();
                 if (efgLatBroken) return;
                 efgGm = Tex(DXGI_FORMAT.R32G32B32A32_FLOAT, 4, 2, true, D3D12_RESOURCE_STATES.UNORDERED_ACCESS, "Enhanced FG: modelo global");
+                efgLatSel2 = Tex(DXGI_FORMAT.R16G16B16A16_FLOAT, efgQw, efgQh, true, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, "Enhanced FG: eleccion revisada");
                 D3D12_DESCRIPTOR_HEAP_DESC hd = new D3D12_DESCRIPTOR_HEAP_DESC();
                 hd.Type = D3D12_DESCRIPTOR_HEAP_TYPE.CBV_SRV_UAV;
                 hd.NumDescriptors = (uint)(EfgSets * EfgLatTabs * Shaders.TableSize);
@@ -149,12 +168,22 @@ namespace ConsoleEnhancer.Motor
                     EfgLatSrv(c, EfgLatTabFin, 0, efgRing[p], ColorFmt); EfgLatSrv(c, EfgLatTabFin, 1, efgRing[c], ColorFmt);
                     EfgLatSrv(c, EfgLatTabFin, 2, efgSel, F4); EfgLatSrv(c, EfgLatTabFin, 3, efgSt[c], DXGI_FORMAT.R16G16_FLOAT);
                     EfgLatSrv(c, EfgLatTabFin, 4, efgCut[c], DXGI_FORMAT.R32_FLOAT); EfgLatUav(c, EfgLatTabFin, 0, efgGen, ColorFmt);
+                    // (1.3.3, EFGLAT r10) la revision: las tablas de Sel con la eleccion de entrada en t5 y la de salida en u0 (ida y vuelta)
+                    for (int r = 0; r < 2; r++)
+                    {
+                        int tb = r == 0 ? EfgLatTabRef1 : EfgLatTabRef2;
+                        EfgLatSrv(c, tb, 0, efgL[p, 0], DXGI_FORMAT.R16_FLOAT); EfgLatSrv(c, tb, 1, efgL[c, 0], DXGI_FORMAT.R16_FLOAT);
+                        EfgLatSrv(c, tb, 2, efgF[c, 1, 0], F4); EfgLatSrv(c, tb, 3, efgF[c, 0, 0], F4);
+                        EfgLatSrv(c, tb, 4, efgSt[c], DXGI_FORMAT.R16G16_FLOAT); EfgLatSrv(c, tb, 5, r == 0 ? efgSel : efgLatSel2, F4);
+                        EfgLatSrv(c, tb, 7, efgF[c, 0, 3], F4);
+                        EfgLatUav(c, tb, 0, r == 0 ? efgLatSel2 : efgSel, F4); EfgLatUav(c, tb, 1, efgGm, DXGI_FORMAT.R32G32B32A32_FLOAT);
+                    }
                 }
                 efgLatReady = true;
                 Log.Write("Enhanced FG baja latencia: camino propio (modelo global de grado " + s.EfgLatOrder + (s.EfgLatGlobal ? ", candidato global" : "") +
                           (s.EfgLatBorder ? ", bordes" : "") + ", estira " + s.EfgLatStretch.ToString("0.#", CultureInfo.InvariantCulture) +
                           ", delante " + s.EfgLatZ + " (" + s.EfgLatZLam.ToString("0.###", CultureInfo.InvariantCulture) + ", hueco " + s.EfgLatZHole.ToString("0.###", CultureInfo.InvariantCulture) +
-                          ", anterior " + s.EfgLatZD.ToString("0.##", CultureInfo.InvariantCulture) + ", liso " + s.EfgLatZP.ToString("0.###", CultureInfo.InvariantCulture) + "), inventada " + s.EfgLatFin + ")");
+                          ", anterior " + s.EfgLatZD.ToString("0.##", CultureInfo.InvariantCulture) + ", liso " + s.EfgLatZP.ToString("0.###", CultureInfo.InvariantCulture) + "), inventada " + s.EfgLatFin + ", destapado " + (s.EfgLatRev ? 1 : 0) + ", revisa " + s.EfgLatRef + " (" + s.EfgLatRefLam.ToString("0.###", CultureInfo.InvariantCulture) + "))");
             }
             catch (Exception ex) { efgLatBroken = true; Log.Write("Enhanced FG baja latencia: sin el camino nuevo (" + ex.Message + "): la extrapolacion de antes"); }
         }
@@ -231,13 +260,27 @@ namespace ConsoleEnhancer.Motor
                 k[0] = (uint)efgQw; k[1] = (uint)efgQh; k[2] = (uint)efgBx[0]; k[3] = (uint)efgBy[0];
                 k[4] = F(t); k[5] = F(s.EfgKappa); k[6] = F(s.EfgTau); k[7] = F(s.EfgStillN);
                 k[8] = (uint)efgLw[0]; k[9] = (uint)efgLh[0];
-                k[10] = (s.EfgLatGlobal ? 1u : 0u) | (s.EfgLatBorder ? 2u : 0u) | (s.EfgLatZ == 1 ? 16u : 0u) | (s.EfgLatZ == 2 ? 32u : 0u) | (s.EfgLatSmoothLocal ? 64u : 0u);
+                k[10] = (s.EfgLatGlobal ? 1u : 0u) | (s.EfgLatBorder ? 2u : 0u) | (s.EfgLatZ == 1 ? 16u : 0u) | (s.EfgLatZ == 2 ? 32u : 0u) | (s.EfgLatSmoothLocal ? 64u : 0u) | (s.EfgLatRev ? 128u : 0u);
                 k[11] = F(s.EfgLatZD);
                 k[12] = F(s.EfgLatZLam); k[13] = F(s.EfgLatZHole); k[14] = F(8f * efgLw[0] / 1920f); k[15] = F(s.EfgLatZP);
                 EB(efgSel, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.UNORDERED_ACCESS);
                 EfgLatUavBarrier(efgGm);
                 EfgLatRun(psoEfgLatSel, c, EfgLatTabSel, k, Groups(efgQw, 16), Groups(efgQh, 8));
                 EB(efgSel, D3D12_RESOURCE_STATES.UNORDERED_ACCESS, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE);
+                // (1.3.3, EFGLAT r10) la eleccion revisada con sus vecinos: Sel -> Sel2 -> Sel (ida y vuelta: las vueltas se redondean a par
+                // para que la inventada lea siempre Sel)
+                int nref = (s.EfgLatRef + 1) / 2 * 2;
+                if (nref > 0)
+                {
+                    k[10] &= ~32u; k[11] = F(s.EfgLatRefLam);
+                    for (int r = 0; r < nref; r++)
+                    {
+                        ID3D12Resource dst = (r & 1) == 0 ? efgLatSel2 : efgSel, src = (r & 1) == 0 ? efgSel : efgLatSel2;
+                        EB(dst, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.UNORDERED_ACCESS);
+                        EfgLatRun(psoEfgLatRef, c, (r & 1) == 0 ? EfgLatTabRef1 : EfgLatTabRef2, k, Groups(efgQw, 16), Groups(efgQh, 8));
+                        EB(dst, D3D12_RESOURCE_STATES.UNORDERED_ACCESS, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE);
+                    }
+                }
             }
             EfgZero(k);
             k[0] = (uint)outW; k[1] = (uint)outH; k[2] = (uint)efgQw; k[3] = (uint)efgQh;

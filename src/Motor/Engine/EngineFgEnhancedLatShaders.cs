@@ -152,6 +152,9 @@ static float2 bestM;
 static float G[12], Gp[12];
 static bool gOk, gpOk, useZ, useN;
 static float sc;
+#ifndef RevThr
+#define RevThr 0.04
+#endif
 float Lp1(float2 p) { return Lp.SampleLevel(Lin, p * inv0, 0); }
 float Lc1(float2 p) { return Lc.SampleLevel(Lin, p * inv0, 0); }
 bool StillAt(float2 p)
@@ -193,6 +196,19 @@ float Cost(float2 x, float2 m)
     float2 mp = Fp.SampleLevel(Lin, qp * invB, 0).xy;
     float2 mc = -Fc.SampleLevel(Lin, qc * invB, 0).xy;
     float Ep = length(mp - m), Ec = length(mc - m);
+    if ((Flags & 128) != 0 && gOk)
+    {
+        // (1.3.3, EFGLAT r10) DESTAPADO EN LA ACTUAL: si la muestra de la actual no casa con la anterior por su propio vector (lo recien
+        // destapado en la actual, lo animado), su movimiento no se sabe: se supone el de la camara en ese sitio (antes contaba como un
+        // vector cualquiera y en su sitio ganaba un remiendo del fondo liso de al lado)
+        float2 pp = qc - mc;
+        float rp = abs(Lc1(qc) - Lp1(pp));
+        rp += abs(Lc1(qc + float2(1.5, 0)) - Lp1(pp + float2(1.5, 0)));
+        rp += abs(Lc1(qc - float2(1.5, 0)) - Lp1(pp - float2(1.5, 0)));
+        rp += abs(Lc1(qc + float2(0, 1.5)) - Lp1(pp + float2(0, 1.5)));
+        rp += abs(Lc1(qc - float2(0, 1.5)) - Lp1(pp - float2(0, 1.5)));
+        if (rp * 0.2 > RevThr) Ec = min(Ec, length(EvalG(qc, false) - m));
+    }
     bool moving = dot(m, m) > 0.25;
     float2 lim = float2(W0, H0);
     bool free = (Flags & 2) != 0;
@@ -271,6 +287,46 @@ void main(uint3 id : SV_DispatchThreadID)
     Try(x, -Fc.SampleLevel(Lin, (x + (1 - T) * m0) * invB, 0).xy);
     if (gOk && (Flags & 1)) Try(x, EvalG(x - t * gX, false));
     Sel[id.xy] = float4(bestM, 1, bestS);
+}";
+
+        // ---- (1.3.3, decima ronda, EFGLAT) REF: la eleccion REVISADA con sus vecinos (dos vueltas, a un cuarto de resolucion). La eleccion
+        // (Sel) escoge en cada punto el vector que mejor casa ahi; en lo liso todos casan y en el borde de lo de delante casan dos: salian
+        // vectores sueltos distintos de los de al lado (remiendos que cambian en cada inventada, "dientes" en el borde del arma). Aqui cada
+        // punto vuelve a elegir entre los 9 ganadores de su 3x3 con el MISMO coste de la eleccion en su sitio mas lo que se aparta de los
+        // demas (RLam x media de min(|m - m_j|, 4)): un vector suelto solo se queda si casa claramente mejor. Mismo Cost que Sel (mismas
+        // tablas: t5 = la eleccion de entrada en vez de Fp1, u0 = la de salida). Medido con video real: notas\EFGLAT.md (ronda 10)
+        public static readonly string Ref = "#define RLAM ZD\n#define RCAP 4.0\n" + Sel.Substring(0, Sel.IndexOf("[numthreads(16, 8, 1)]"))
+            .Replace("Texture2D<float4> Fp1 : register(t5);", "Texture2D<float4> SelIn : register(t5);") + @"
+[numthreads(16, 8, 1)]
+void main(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= QW || id.y >= QH) return;
+    inv0 = 1.0 / float2(W0, H0);
+    invB = 1.0 / (8.0 * float2(BX, BY));
+    LoadG();
+    float2 x = float2(id.xy) * 2 + 1;
+    gX = gOk ? EvalG(x, false) : 0;
+    pRef = gX;
+    useZ = gOk && (Flags & 16) != 0;
+    useN = gOk && (Flags & 32) != 0;
+    sc = W0 / 1920.0;
+    float2 n[9];
+    [unroll] for (int i = 0; i < 9; i++)
+        n[i] = SelIn.Load(int3(clamp(int2(id.xy) + int2(i % 3 - 1, i / 3 - 1), int2(0, 0), int2(QW - 1, QH - 1)), 0)).xy;
+    float bT = 1e9, bS = 0;
+    float2 bM = n[4];
+    [loop] for (int k = 0; k < 9; k++)
+    {
+        bool dupv = false;
+        for (int j = 0; j < k; j++) if (all(n[j] == n[k])) dupv = true;
+        if (dupv) continue;
+        float c = Cost(x, n[k]);
+        float sm = 0;
+        [unroll] for (int j2 = 0; j2 < 9; j2++) sm += min(length(n[k] - n[j2]), RCAP);
+        float tot = c + RLAM * sm / 9;
+        if (tot < bT) { bT = tot; bS = c; bM = n[k]; }
+    }
+    Sel[id.xy] = float4(bM, 1, bS);
 }";
 
         // ---- La inventada hacia delante a la resolucion de salida: la de EfgShaders.Fin con Extrap fijo (todo de la actual, en x - t M) y, con
