@@ -20,7 +20,8 @@ namespace ConsoleEnhancer.Motor
     //  - en la inventada (EfgShaders.Fin, FOpts 2) el vector 0 paga efg_plano_cero de mas fuera de lo quieto (en un paneo el 0 solo vale en la
     //    interfaz).
     // Solo al interpolar (modo calidad; la baja latencia tiene su camino propio, EngineFgEnhancedLat.cs). Necesita efg_giro (su textura y su global grueso).
-    // Claves (motor): efg_plano (1 de serie; 0 = como la 1.3.2), efg_plano_peso=0.01, efg_plano_cero=0.1, efg_plano_parte=0.5.
+    // Claves (motor): efg_plano (1 de serie; 0 = como la 1.3.2), efg_plano_peso=0.01, efg_plano_cero=0.1, efg_plano_parte=0.5,
+    // efg_plano_cerca=2 y efg_plano_quieto=10 (la interfaz quieta que no se toca: radio en puntos de L0 y reales quietas).
     partial class Settings
     {
         public int EfgPlano = 1;
