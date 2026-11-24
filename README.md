@@ -23,6 +23,9 @@ possible, and turning the console back on brings the picture back by itself.
 - **Any console**: Nintendo Switch / Switch 2, PlayStation, Xbox... Console menus are recognised and shown at native 4K.
 - **Made for the living room**: starts with Windows on a black screen until the picture shows, with no windows or pop-ups in the way;
   switch modes (30 / 60 fps, frame generation on / off, capture resolution) with the controller buttons or the on-screen settings menu.
+- **New in 1.3.3**: **Enhanced RT** (experimental screen-space ray traced lighting, from the controller settings menu), maps and menus
+  that no longer shake with Enhanced FG while scrolling or zooming, fewer artifacts in low-latency mode, **Add to Steam** and no false
+  HDCP warning on dark scenes. See the [CHANGELOG](CHANGELOG.md).
 - **Free, open source (GPL-3.0), no ads, no telemetry.** The interface is in Spanish and English; code comments and logs are in Spanish.
 
 Created and maintained by **IanRog29** · [Source and downloads](https://github.com/IanRog29/ConsoleEnhancer)
@@ -664,6 +667,9 @@ imagen sola.
 - **Cualquier consola**: Nintendo Switch / Switch 2, PlayStation, Xbox... Reconoce el menú de la consola y lo enseña a 4K nativo.
 - **Pensada para el salón**: se abre al iniciar Windows con la pantalla en negro hasta que hay imagen, sin ventanas ni avisos por medio;
   cambias de modo (30 / 60 fps, generación sí / no, resolución de captura) con los botones del mando o el menú de ajustes en pantalla.
+- **Novedades de la 1.3.3**: **Enhanced RT** (iluminación con trazado de rayos en pantalla, experimental, desde el menú de ajustes del
+  mando), mapas y menús que ya no tiemblan con Enhanced FG al desplazarlos o hacer zoom, menos fallos en el modo baja latencia,
+  **Añadir a Steam** y sin falso aviso de HDCP en escenas oscuras. Más en el [CHANGELOG](CHANGELOG.md).
 - **Gratis, libre (GPL-3.0) y sin anuncios ni telemetría.** La interfaz está en español e inglés; los comentarios del código y los logs,
   en español.
 
