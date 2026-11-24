@@ -968,6 +968,7 @@ namespace ConsoleEnhancer.Motor
             D5qMeasure(slot >= 0, 0);   // 22-11 (1.2.4 DLSS5Q, dlss5_medida=: EngineDlss5Q.cs) el color antes de DLSS 5
             RecordDlss5(slot >= 0);   // 20-11 (DLSS 5 EN EL MOTOR, EngineDlss5.cs): DLSSNR sobre inColor antes de DLSS SR
             RecordDvc(slot >= 0, token);   // 22-11 (1.2.4, DLSS5LEGAL: EngineDvc.cs): Vibrancia RTX (oficial de NVIDIA) en el mismo sitio, si no va DLSS 5
+            RecordRt(slot >= 0);   // (1.3.3 RTX: Enhanced RT, experimental, EngineRt.cs) sobre la captura ya con DLSS 5 / vibrancia, antes del reescalado y la generacion
             D5qMeasure(slot >= 0, 1);   // (DLSS5Q) y despues
             CpuMark(2);
             PassMark(3);
