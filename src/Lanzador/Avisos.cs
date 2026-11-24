@@ -196,7 +196,8 @@ namespace ConsoleEnhancer
             if (!Integrado.Dlss5Available) { porque = Tx.T("no instalado", "not installed"); return false; }
             if (HomeNative && !EngineDlss5Home) { porque = Tx.T("en el menú de la consola va sin él", "off in the console menu"); return false; }
             if (EngineDlss5Now) return true;
-            porque = !Dlss5FitsNow ? Tx.T("no cabe en este modo", "doesn't fit in this mode") :
+            porque = D5NoLlegaAhora ? Tx.T("no llegaba a los fps: apagado esta sesión", "fps not reached: off this session") :   // (1.3.2, FPS: FpsBajo.cs)
+                     !Dlss5FitsNow ? Tx.T("no cabe en este modo", "doesn't fit in this mode") :
                      MotorDlss5Roto ? Tx.T("el motor no ha podido con él", "the engine couldn't run it") :
                      !MotorDlss5Disponible ? Tx.T("falta engine\\PrismaNr.dll", "engine\\PrismaNr.dll is missing") :
                      Tx.T("no puede ir ahora", "can't run now");
@@ -949,13 +950,15 @@ namespace ConsoleEnhancer
             sb.AppendLine("== lo elegido que no puede ir");
             // (1.2.4 ronda 7, EFGFIX: x4 con DLSS 5 ya se puede -"smx4_dlss5" ya no es "no puede ir"-; lo que no puede es x4 con DLSS 5 que no llego ni
             // al 25 % en esta sesion -switch2-x4d5 no-, de Smooth Motion y de Enhanced FG)
-            string[] casos = { "xess_caido", "efg_60hz", "fsrmul_caido", "smx4_sin_vrr", "smx4_dlss5_nollega", "efg_caido", "smx4_xess_caido", "efgx4_dlss5_nollega" };
+            // (1.3.2, FPS: Smooth Motion x4 quitado -smx4_*: ya no se puede pedir-; Enhanced FG x4 que no llego va x3 esta sesion -efgx4_*-, y x3 que
+            // no llego, x2 -efgx3_*-)
+            string[] casos = { "xess_caido", "efg_60hz", "fsrmul_caido", "efg_caido", "efgx4_dlss5_nollega", "efgx4_nollega_x3", "efgx3_nollega_x2" };
             foreach (string caso in casos)
                 foreach (string boton in new[] { "estado", "vista" })
                 {
                     n++;
                     object[] pa = caso.StartsWith("xess") ? new object[] { "2560x1440", "30", "xess", 2, true, "dlss:M", true } :
-                                  caso.StartsWith("efg") ? new object[] { "3840x2160", "30", "efg", 4, caso == "efgx4_dlss5_nollega", "dlss:auto", true } :
+                                  caso.StartsWith("efg") ? new object[] { "3840x2160", "30", "efg", caso.StartsWith("efgx3") ? 3 : 4, caso == "efgx4_dlss5_nollega", "dlss:auto", true } :
                                   caso.StartsWith("fsrmul") ? new object[] { "3840x2160", "30", "fsr3", 4, false, "dlss:auto", true } :
                                   new object[] { "3840x2160", "30", "smooth", 4, caso == "smx4_dlss5_nollega", "dlss:auto", true };
                     Pantalla.HzPrueba = caso == "efg_60hz" ? 60 : 120;
@@ -964,7 +967,9 @@ namespace ConsoleEnhancer
                     if (caso == "efg_caido") Config.MotorGenCaidaAnota("efg");
                     if (caso == "fsrmul_caido") Config.MotorGenCaidaAnota("fsrmul");
                     if (caso == "smx4_dlss5_nollega") Config.SmoothX4NoLlegaAnota(true, "3840x2160");   // (EFGFIX)
-                    if (caso == "efgx4_dlss5_nollega") Config.EfgNoLlegaAnota(true, "3840x2160");
+                    if (caso == "efgx4_dlss5_nollega") Config.EfgNoLlegaAnota(true, "3840x2160", 3);   // (1.3.2, FPS: x4 -> x3)
+                    if (caso == "efgx4_nollega_x3") Config.EfgNoLlegaAnota(false, "3840x2160", 3);
+                    if (caso == "efgx3_nollega_x2") Config.EfgNoLlegaAnota(false, "3840x2160", 2);
                     if (caso == "smx4_sin_vrr") t.cfg.EngineVrr = 0;
                     string tit, det;
                     if (boton == "vista")
@@ -995,7 +1000,7 @@ namespace ConsoleEnhancer
         {
             int fallos = 0;
             sb.AppendLine("== la escalera de fps (lo bajado por el motor; el multiplicador esta sesion)");
-            string[] quienes = { "Smooth Motion x4", "Smooth Motion x2", "Enhanced FG x4", "Enhanced FG x3", "Enhanced FG x2", "XeSS FG", "FSR 3 FG x4", "30 fps", "60 fps", "120 fps" };
+            string[] quienes = { "Smooth Motion x2", "Enhanced FG x4", "Enhanced FG x3", "Enhanced FG x2", "XeSS FG", "FSR 3 FG x4", "30 fps", "60 fps", "120 fps" };   // (1.3.2, FPS: sin Smooth Motion x4)
             int[] pcts = { -1, 25, 35, 100 };
             string[] srs = { "", "L", "K", "E", "F" };
             foreach (bool en in new[] { false, true })
@@ -1013,14 +1018,18 @@ namespace ConsoleEnhancer
                 foreach (int salida in new[] { 30, 60, 120 })
                     foreach (int p in pcts)
                         foreach (string sr in srs)
-                            foreach (string hecho in new[] { "Smooth Motion x2", "Enhanced FG x2", null, "DLSS 5 apagado|DLSS 5 off", "escalador FSR 1|FSR 1 upscaler", "captura a 1080p|capture at 1080p" })
+                            foreach (string hecho in new[] { "Enhanced FG x3", "Enhanced FG x2", null, "DLSS 5 apagado|DLSS 5 off", "escalador FSR 1|FSR 1 upscaler", "captura a 1080p|capture at 1080p", "modo 60 fps|60 fps mode" })
                             {
                                 string falta = Tx.T("No se llega a " + salida + " fps (" + (salida - 21) + ")", salida + " fps not reached (" + (salida - 21) + ")") + TrayApp.EscaleraNiCon(p, sr);
-                                bool sesion = hecho != null && hecho.EndsWith("x2", StringComparison.Ordinal);
+                                bool sesion = hecho != null;   // (1.3.2, FPS: lo que cambia la app sola, siempre solo esta sesion)
                                 string h = hecho, he = hecho;
                                 if (hecho != null && hecho.Contains("|")) { h = hecho.Split('|')[0]; he = hecho.Split('|')[1]; }
                                 textos.Add(TrayApp.FpsBajaTexto(falta, h, he, sesion));
                             }
+                // (1.3.2, FPS) no es la grafica: "Enhanced FG x4 · 108 de 120 fps: no es la gráfica (al 55 %), no se cambia nada"
+                foreach (string q in quienes)
+                    foreach (int uso in new[] { 0, 9, 55, 89 })
+                        textos.Add(TrayApp.FpsRitmoTexto(q, q.EndsWith("x4", StringComparison.Ordinal) ? 108 : q.EndsWith("x3", StringComparison.Ordinal) ? 84 : 116, q.EndsWith("x4", StringComparison.Ordinal) || q.EndsWith("x2", StringComparison.Ordinal) ? 120 : 90, uso));
                 foreach (string t in textos)
                 {
                     n++;
@@ -1085,6 +1094,8 @@ namespace ConsoleEnhancer
                         FilaAjuste fd5 = t.AjFila("d5");
                         if (pr != 0 && !Config.EfgMultiDlss5 && kv.StartsWith("efgmul=", StringComparison.Ordinal) && kv != "efgmul=2" && fd5 != null && fd5.Val == "1")
                         { sb.AppendLine("      " + hp[0] + ": " + kv + " con DLSS 5 tiene candado (Enhanced FG x2 con DLSS 5): bien"); continue; }
+                        // (1.3.2, FPS: Smooth Motion x4 quitado -la fila x2 / x4 ya no esta-: que no salga es lo bueno; el resto del paso sigue, x2)
+                        if (pr != 0 && kv.StartsWith("smx4=", StringComparison.Ordinal)) { sb.AppendLine("      " + hp[0] + ": " + kv + " ya no esta en el menu (Smooth Motion x4 quitado): bien"); continue; }
                         if (pr != 0) { r = "el menu no deja poner " + kv + " (" + pr + ")"; break; }
                     }
                     string aviso = "", antes = "";

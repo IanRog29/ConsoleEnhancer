@@ -242,8 +242,9 @@ void main(uint3 id : SV_DispatchThreadID) {
             // tamaño para la imagen 0,6-1,3 s (medido: 589 ms 2 pasadas, 1298 ms 3) y quitar pasadas no rehace nada (se quedan las que
             // estaban); por debajo del 50 % DLSS 5 pierde mucho detalle
             double fijoG = p * 0.3, variaG = p - fijoG, objG = limit * 0.92;
-            int needPct = 25;
-            for (int t = curPct - 5; t >= 25; t -= 5) { needPct = t; if (fijoG + variaG * (t * (double)t) / (curPct * (double)curPct) <= objG) break; }
+            int suelo = NrSuelo;   // (1.3.2, FPS: el suelo de DLSS 5 con esta entrada, EngineEscalera.cs)
+            int needPct = suelo;
+            for (int t = curPct - 5; t >= suelo; t -= 5) { needPct = t; if (fijoG + variaG * (t * (double)t) / (curPct * (double)curPct) <= objG) break; }
             bool pctFirst = s.NrSuave && nrPasses > 1 && curPct > 50 && needPct >= 50;
             if (nrPasses > 1 && !pctFirst)
             {
@@ -270,9 +271,9 @@ void main(uint3 id : SV_DispatchThreadID) {
                     // 75 y luego a 50: cada paso rehace DLSS 5 (paron y otro aspecto). Medido con poca grafica (tope 14,6 ms, 4K al 90 %):
                     // antes 90 -> 75 -> 65 -> 55 -> 45 en 33 s (4 paradas), ahora 90 -> 45
                     double fijo = p * 0.3, varia = p - fijo, obj = limit * 0.92;
-                    next = Math.Max(25, cur - 45);
-                    for (int t = cur - 10; t >= Math.Max(25, cur - 45); t -= 5) { next = t; if (fijo + varia * (t * (double)t) / (cur * (double)cur) <= obj) break; }
-                    next = Math.Min(next, cur > 75 ? 75 : Math.Max(25, cur - 10));
+                    next = Math.Max(suelo, cur - 45);
+                    for (int t = cur - 10; t >= Math.Max(suelo, cur - 45); t -= 5) { next = t; if (fijo + varia * (t * (double)t) / (cur * (double)cur) <= obj) break; }
+                    next = Math.Min(next, cur > 75 ? 75 : Math.Max(suelo, cur - 10));
                     if (pctFirst) next = Math.Max(50, next);
                 }
                 nrPctCap[key] = next;
@@ -321,7 +322,7 @@ void main(uint3 id : SV_DispatchThreadID) {
                 nrInited = true;
                 Log.Write("DLSS 5 (DLSSNR) iniciado desde " + s.NrDir);
             }
-            int pct = Math.Max(25, Math.Min(100, s.NrPct));
+            int pct = Math.Max(NrSuelo, Math.Min(100, s.NrPct));   // (1.3.2, FPS: antes el 25 % con cualquier entrada)
             int passes = Math.Max(1, Math.Min(3, s.NrPasses)), af = Math.Max(0, Math.Min(3, s.NrAntiFlicker));
             Dlss5Caps(ref passes, ref pct);   // 20-11 (CIERRES): lo que el guardian ha bajado aqui
             int w = pct >= 100 ? inW : Math.Max(64, (inW * pct / 100) & ~1), h = pct >= 100 ? inH : Math.Max(64, (inH * pct / 100) & ~1);

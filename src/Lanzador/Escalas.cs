@@ -34,7 +34,11 @@ namespace ConsoleEnhancer
         public string CeModeloMax = "auto";      // escalas_modelo_max
         // (1.2.2, UNIVERSAL) motor_uso_grafica: % del tiempo de una imagen que el motor deja usar a la grafica jugando (el tope de su p95,
         // menos la generacion de NVIDIA: src\Motor\Engine\EngineMargen.cs). 85 de serie; 93 ~ como antes de la 1.2.2
-        public double CeUsoGrafica = 90;   // (1.2.4, XEFG: antes 85)
+        // (1.3.2, FPS; el usuario: "Aumenta un poco el limite de grafica maximo para aplicar ajustes": 94, antes 90. Es el tope con que el
+        // motor baja DLSS 5 / el modelo al aplicar -EngineAdapta, AutoPresetTick, el guardian-. El 90 de un ini de la 1.2.4-1.3.1 era el de serie
+        // -base.ini, nadie lo elegia-: cuenta como 94 -CeUsoGraficaDeAntes-; para quedarse en 90, 90.5 o 89)
+        public double CeUsoGrafica = 94;   // (1.2.4, XEFG: antes 85; 1.3.2, FPS: antes 90)
+        public const double CeUsoGraficaDeAntes = 90, CeUsoGraficaSerie = 94;
 
         bool CeParseEscalas(string key, string val)
         {
@@ -47,6 +51,7 @@ namespace ConsoleEnhancer
                         double d;
                         if (double.TryParse(val.Trim().TrimEnd('%', ' ').Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out d) && d > 0)
                             CeUsoGrafica = Math.Max(50, Math.Min(98, d <= 1 ? d * 100 : d));
+                        if (CeUsoGrafica == CeUsoGraficaDeAntes) CeUsoGrafica = CeUsoGraficaSerie;   // (1.3.2, FPS: el de serie de antes -> el de ahora)
                         return true;
                     }
             }

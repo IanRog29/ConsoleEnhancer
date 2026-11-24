@@ -43,6 +43,13 @@ namespace ConsoleEnhancer.Motor
         public int EscPerdidas = 2;
         public int EscSubirS = 30;
         public bool EscLog = false;
+        // (1.3.2, FPS) solo con la grafica entera llena (NVML, EngineGpuUso.cs): escalera_grafica_uso=0 = sin mirarla (como la 1.3.1);
+        // escalera_grafica_llena = el % a partir del cual va llena (lo mas alto de las ultimas 2,5 s)
+        public bool EscGpuUso = true;
+        public int EscGpuLlena = 90;
+        // (1.3.2, FPS; el usuario: "el dlss 5 a 1440p evita que sea menor que 33%") el suelo de DLSS 5 en pixeles de ancho: nunca por debajo
+        // de 845 de ancho (el 33 % de 2560) ni del 25 %: 4K 25 % (960), 1440p 33 %, 1080p 44 %, 720p 66 %. 0 = el 25 % siempre (como la 1.3.1)
+        public int NrSueloPx = 845;
 
         bool ApplyEscalera(string key, string val)
         {
@@ -53,6 +60,9 @@ namespace ConsoleEnhancer.Motor
                 case "escalera_modelo": EscModelo = val.Trim() != "0"; return true;
                 case "escalera_fsr1": EscFsr1 = val.Trim() != "0"; return true;
                 case "escalera_log": EscLog = val.Trim() == "1"; return true;
+                case "escalera_grafica_uso": EscGpuUso = val.Trim() != "0"; return true;   // (1.3.2, FPS)
+                case "escalera_grafica_llena": if (int.TryParse(val.Trim().TrimEnd('%'), NumberStyles.Integer, CultureInfo.InvariantCulture, out n)) EscGpuLlena = Math.Max(0, Math.Min(100, n)); return true;
+                case "dlss5_suelo_px": if (int.TryParse(val.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out n)) NrSueloPx = Math.Max(0, Math.Min(3840, n)); return true;   // (1.3.2, FPS)
                 case "escalera_perdidas": if (int.TryParse(val.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out n)) EscPerdidas = Math.Max(1, Math.Min(10, n)); return true;
                 case "escalera_subir_s": if (int.TryParse(val.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out n)) EscSubirS = Math.Max(5, Math.Min(600, n)); return true;
                 case "escalera_pasos":
@@ -104,6 +114,10 @@ namespace ConsoleEnhancer.Motor
             if (hasta > escCalmaHasta) escCalmaHasta = hasta;
         }
 
+        // (1.3.2, FPS; EFGRITMO: con Enhanced FG el ritmo -L- tarda en asentarse 2-5 s tras arrancar / despertar / cambiar: 60-240 saltadas que
+        // no son de la grafica -23:59:24 del usuario: 9 de 192 en 2,1 s y x4 -> x2-) 4,5 s sin juzgar con Enhanced FG; 3 s sin el
+        int EscCalmaInicioMs { get { return s.Efg >= 2 && EfgWanted() ? 4500 : 3000; } }
+
         double EscObjetivo { get { return s.Mode == 30 ? 29.97 : s.Mode >= 100 ? 119.88 : 59.94; } }
 
         // Desde SecondTick (cada vuelta del bucle): un cuarto cada 250 ms
@@ -111,7 +125,7 @@ namespace ConsoleEnhancer.Motor
         {
             if (!EscActiva) return;
             long now = Clock.Now;
-            if (escCuartoAt == 0) { escCuartoAt = now; return; }
+            if (escCuartoAt == 0) { escCuartoAt = now; GpuUsoArranca(); return; }   // (1.3.2, FPS: la grafica entera, EngineGpuUso.cs)
             double dt = Clock.Ms(escCuartoAt, now);
             if (dt < 250) return;
             escCuartoAt = now;
@@ -120,6 +134,7 @@ namespace ConsoleEnhancer.Motor
             long sk = efgSkipped, gn = efgGens;
             int dSk = escSk0 < 0 || sk < escSk0 ? 0 : (int)(sk - escSk0), dGn = escGn0 < 0 || gn < escGn0 ? 0 : (int)(gn - escGn0);
             escSk0 = sk; escGn0 = gn;
+            escRxMs = escRxMs * 0.85 + latSleepMs * 0.15;   // (1.3.2, FPS: lo que duerme Reflex, para decir por que)
             try { EscJuzga(now, dt, cap - dup, pres, late, dSk, dGn); }
             catch (Exception ex) { Log.Error("Escalera", ex); s.Escalera = false; }
         }
@@ -129,7 +144,7 @@ namespace ConsoleEnhancer.Motor
             // ---- cuando no se juzga (y la calma de despues) ----
             bool espera = inStandby || noSignalScreen || nosigSilencio || lastCapture == 0 || Clock.SinceMs(lastCapture) > 1500;
             if (espera) { escEraEspera = true; escN = 0; if (inStandby) escPausa = false; return; }   // (el menu era del motor de antes del relevo)
-            if (escEraEspera) { escEraEspera = false; EscCalma(3000); escSk0 = escGn0 = -1; }   // (recien despierto / vuelve la imagen)
+            if (escEraEspera) { escEraEspera = false; EscCalma(EscCalmaInicioMs); escSk0 = escGn0 = -1; }   // (recien despierto / vuelve la imagen)
             bool foco = !Program.FocusHold && Program.HasFocus();
             if (!foco) { escEraFoco = false; escN = 0; return; }
             if (!escEraFoco) { escEraFoco = true; EscCalma(2500); }                               // (relevo: delante y con el foco)
@@ -142,7 +157,7 @@ namespace ConsoleEnhancer.Motor
                 // (escBajo: si se empieza por debajo de lo pedido -lo aprendido, x4d5_inicio-, tambien se dice cuando ya cabe)
                 escClave = clave; escPasosHechos = 0; escDicho = ""; escBajo = true; escBajadaAt = now; escLimpioDesde = now; escNrEspera = 0;
                 escD5Inutil = false; escUltPaso = ""; escUltMal = escUltP95 = 0;
-                EscCalma(3000);
+                EscCalma(EscCalmaInicioMs);
                 return;
             }
             if (escFsr1 && s.Upscaler != "fsr1") { escFsr1 = false; escFsr1VueltaAt = 0; }   // (el lanzador ha mandado otro escalador)
@@ -207,9 +222,62 @@ namespace ConsoleEnhancer.Motor
                 Log.Write(string.Format(CultureInfo.InvariantCulture, "Escalera: bajar DLSS 5 no ha ayudado (grafica del motor {0:0.0} -> {1:0.0} ms, perdidas {2:0.0} -> {3:0.0}/s): no se baja mas DLSS 5 con esta clave",
                     escUltP95, p95, escUltMal, malS));
             }
-            escUltMal = malS; escUltP95 = p95;
             escVistas = efg && v.Segs > 0 ? (v.Pres + v.Inv) / v.Segs : 0;   // (las que se ven: con Enhanced FG, reales + inventadas no saltadas)
+            // (1.3.2, FPS) solo si es la grafica: con la grafica entera sin llenarse (NVML) es el ritmo (Enhanced FG, la cola de la tele, el tope
+            // de Reflex) o la fuente, y bajar DLSS 5, el reescalado o el multiplicador no lo arregla: no se toca nada y se dice (EscNoEsGrafica)
+            if (EscNoEsGrafica(now, por, reales, v, efg)) return;
+            escUltMal = malS; escUltP95 = p95;
             EscBajar(por, reales);
+        }
+
+        // (1.3.2, FPS) La sesion del usuario del 24-11 con la 1.3.1: "no llega" con la grafica sobrada -Enhanced FG x4 a 1080p con la grafica del
+        // motor a 3,3 ms de 33 ("inventadas saltadas 10 de 135"), Smooth Motion x2 en el modo 60 con 58,0 de 59,94 reales a 4,3 ms de 16,7 (el
+        // tope de Reflex con VRR)- y la escalera bajo DLSS 5, el modelo, FSR 1, el x4 y hasta DLSS 5 entero (guardado). Ahora, antes de bajar
+        // nada: si la grafica ENTERA (EngineGpuUso.cs) no ha pasado de escalera_grafica_llena (90 %) en las ultimas 2,5 s y el motor cabe en su
+        // tope, no es la grafica: nada se baja, se apunta (una vez cada 30 s por clave) y el lanzador lo dice en pantalla una vez ("switch2-fps"
+        // "ritmo"). Sin NVML (otra grafica), como la 1.3.1
+        long escRitmoAt;
+        string escRitmoClave = "";
+        int escRitmoN;
+        double escRxMs;                                        // (Reflex: lo que duerme por imagen, media de los cuartos)
+        bool EscNoEsGrafica(long now, string por, double reales, EscVentana v, bool efg)
+        {
+            if (!s.EscGpuUso || s.EscGpuLlena <= 0) return false;
+            int max; double media;
+            GpuUsoVentana(2500, out max, out media);
+            double p95 = stats.LastGpuP95, tope = TopeGpu();
+            if (max < 0)
+            {
+                // (sin NVML -otra grafica-; EFGRITMO) con Enhanced FG, si lo unico son inventadas saltadas -ni una real tirada- y la grafica del
+                // motor mas la de Enhanced FG (flujo + las inventadas de una real) no llegan al 60 % del tiempo de una real, es su ritmo
+                double periodo = 1000.0 / EscObjetivo, propio = efgFlowGpu + efgGenGpu * Math.Max(1, s.Efg - 1);
+                if (!(efg && v.Falta <= 0 && v.Tarde == 0 && p95 > 0 && p95 + propio < periodo * 0.6)) return false;
+                max = -1;
+            }
+            else if (max >= s.EscGpuLlena) return false;                 // (llena: es la grafica)
+            if (p95 > 0 && p95 > tope) return false;                     // (el motor solo ya no cabe en su tope)
+            escN = 0;
+            EscCalma(2000);
+            escRitmoN++;
+            if (escRitmoClave == escClave && escRitmoAt != 0 && Clock.SinceMs(escRitmoAt) < 30000) return true;
+            // por que, para el aviso: las inventadas de Enhanced FG saltadas (su ritmo), Reflex durmiendo (su tope con VRR) o el motor tirando reales
+            string causa = efg && v.Salt > v.Falta ? "efg" : escRxMs >= 4 && s.SmoothMode > 0 ? "reflex" : "tarde";
+            double vistas = efg && v.Segs > 0 ? (v.Pres + v.Inv) / v.Segs : reales * (s.SmoothMode > 0 ? 2 : 1);
+            Log.Write(string.Format(CultureInfo.InvariantCulture, "Escalera: no se llega ({0}) pero la grafica entera no va llena ({1} en 2,5 s; llena = {2} %{3}): no se baja nada ({4}){5}",
+                por, GpuUsoTxt(2500), s.EscGpuLlena, s.SmoothMode > 0 ? ", Reflex duerme " + escRxMs.ToString("0.0", IC) + " ms por imagen" : "",
+                causa == "efg" ? "el ritmo de Enhanced FG" : causa == "reflex" ? "el tope de imagenes de Reflex con VRR" : "el ritmo de la presentacion o la fuente",
+                escRitmoN > 1 && escRitmoClave == escClave ? " [" + escRitmoN + " veces con esta clave]" : ""));
+            escRitmoClave = escClave; escRitmoAt = now;
+            Ev("switch2-fps", "ritmo", reales.ToString("0.0", IC), EscObjetivo.ToString("0.00", IC), p95.ToString("0.0", IC), Math.Max(0, max).ToString(IC), vistas.ToString("0.0", IC), causa);
+            return true;
+        }
+
+        // (1.3.2, FPS) el suelo del % de DLSS 5 con esta entrada (NrSueloPx: 4K 25 %, 1440p 33 %, 1080p 44 %, 720p 66 %)
+        int NrSuelo { get { return NrSueloPara(inW > 0 ? inW : s.CapW); } }
+        int NrSueloPara(int w)
+        {
+            if (s.NrSueloPx <= 0 || w <= 0) return 25;
+            return Math.Max(25, Math.Min(100, (int)Math.Round(100.0 * s.NrSueloPx / w)));
         }
         bool escD5Inutil;
         double escVistas;
@@ -253,7 +321,7 @@ namespace ConsoleEnhancer.Motor
             // (lo subido hace nada por adapta -AdaptaSubir- no cabe: de vuelta a lo de antes y ese valor de techo; no se baja nada mas ahora)
             if (s.Adapta && adTabla != null && adClave.Length > 0 && adSubida.Length > 0 && Clock.SinceMs(adSubidaAt) < 40000)
             {
-                if (adSubida == "pct" && AdNrActivo && adSubidaDe >= 25 && adSubidaDe < s.NrPct)
+                if (adSubida == "pct" && AdNrActivo && adSubidaDe >= NrSuelo && adSubidaDe < s.NrPct)
                 {
                     AdaptaTecho("pct", s.NrPct);
                     Log.Write("Escalera: lo subido no cabe (" + por + "): DLSS 5 al " + s.NrPct + " % -> " + adSubidaDe + " % (lo de antes)");
@@ -279,26 +347,27 @@ namespace ConsoleEnhancer.Motor
                 EscCalma(3000); escBajadaAt = now; escBajo = true; escDicho = "";
                 return;
             }
-            // (1) DLSS 5
-            if (AdNrActivo && (s.NrPct > 25 || s.NrPasses > 1) && !escD5Inutil)
+            // (1) DLSS 5 (1.3.2, FPS: hasta su suelo con esta entrada -NrSuelo: 25 % a 4K, 33 % a 1440p, 44 % a 1080p-, no siempre el 25 %)
+            int suelo = NrSuelo;
+            if (AdNrActivo && (s.NrPct > suelo || s.NrPasses > 1) && !escD5Inutil)
             {
                 escUltPaso = "d5";
-                if (s.NrPct > 25)
+                if (s.NrPct > suelo)
                 {
                     int antes = Math.Min(100, s.NrPct);
                     int paso = s.EscPasos[Math.Min(escPasosHechos, s.EscPasos.Length - 1)];
                     int sig = antes - paso;
                     sig = (int)(Math.Floor(sig / 5.0) * 5);
-                    if (sig < 35) sig = 25;                                 // (del 35 o menos, al suelo de una vez)
-                    sig = Math.Max(25, Math.Min(antes - 5, sig));
+                    if (sig < suelo + 10) sig = suelo;                      // (a 10 puntos del suelo o menos, al suelo de una vez)
+                    sig = Math.Max(suelo, Math.Min(antes - 5, sig));
                     escPasosHechos++;
                     s.NrPct = sig;
-                    Log.Write("Escalera: no se llega (" + por + "): DLSS 5 al " + antes + " % -> " + sig + " %");
+                    Log.Write("Escalera: no se llega (" + por + "): DLSS 5 al " + antes + " % -> " + sig + " %" + (sig == suelo && suelo > 25 ? " (su suelo con esta entrada)" : ""));
                 }
                 else
                 {
                     s.NrPasses--;
-                    Log.Write("Escalera: no se llega ni con DLSS 5 al 25 % (" + por + "): DLSS 5 con " + s.NrPasses + " pasada(s)");
+                    Log.Write("Escalera: no se llega ni con DLSS 5 al " + suelo + " % (" + por + "): DLSS 5 con " + s.NrPasses + " pasada(s)");
                 }
                 if (s.Adapta && adTabla != null && adClave.Length > 0) { adCambioAt = now; adSubida = ""; AdaptaGuardarFila(); }
                 overSecs = 0;
@@ -311,7 +380,7 @@ namespace ConsoleEnhancer.Motor
             {
                 escUltPaso = "sr";
                 string antes = s.Preset;
-                Log.Write("Escalera: no se llega (" + por + ")" + (AdNrActivo ? " con DLSS 5 en su suelo (25 %, " + s.NrPasses + " pasada)" : "") + ": DLSS " + antes + " -> " + sigP + " (mas ligero)");
+                Log.Write("Escalera: no se llega (" + por + ")" + (AdNrActivo ? " con DLSS 5 en su suelo (" + suelo + " %, " + s.NrPasses + " pasada)" : "") + ": DLSS " + antes + " -> " + sigP + " (mas ligero)");
                 s.Preset = sigP; presetCap[CapKey] = sigP; adVistoPreset = sigP;
                 if (s.Adapta && adTabla != null && adClave.Length > 0) { adCambioAt = now; adSubida = ""; AdaptaGuardarFila(); }
                 overSecs = 0;
@@ -323,7 +392,7 @@ namespace ConsoleEnhancer.Motor
             if (s.EscFsr1 && EscSrActivo && !escFsr1)
             {
                 escUltPaso = "fsr1";
-                Log.Write("Escalera: no se llega (" + por + ") ni con DLSS " + s.Preset + (AdNrActivo ? " y DLSS 5 al 25 %" : "") + ": FSR 1 en vez de DLSS esta sesion del motor (antes de bajar el multiplicador)");
+                Log.Write("Escalera: no se llega (" + por + ") ni con DLSS " + s.Preset + (AdNrActivo ? " y DLSS 5 al " + suelo + " %" : "") + ": FSR 1 en vez de DLSS esta sesion del motor (antes de bajar el multiplicador)");
                 escFsr1De = s.Upscaler; s.Upscaler = "fsr1"; escFsr1 = true; escFsr1At = now;
                 overSecs = 0;
                 EscCalma(3000); escBajadaAt = now; escBajo = true; escDicho = "";

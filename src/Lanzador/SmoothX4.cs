@@ -13,6 +13,11 @@
 // cadena de XeSS FG x2). Si algo no esta (otra grafica, sin VRR, sin libxess_fg.dll, XeSS FG roto en esta sesion...), Smooth Motion x2 como
 // siempre.
 // ini smooth_x4=0|1 (de serie 0: se elige; 1 = en el modo 30 con Smooth Motion, x4 cuando se pueda)
+// 24-11 (1.3.2, agente FPS; el usuario: "Quita el smooth motion 4x que xefg es una mierda"): Smooth Motion x4 QUITADO. SmoothX4 es siempre
+// false (lo que lo ponia -smooth_x4=1 del ini, la fila "Multiplicador" del menu con Smooth Motion, las pruebas- ya no cuenta): Smooth Motion va
+// siempre x2 y XeSS FG del motor no se abre debajo. Lo guardado (smooth_x4=1) pasa a Smooth Motion x2 (lo mas parecido: el mismo tipo) y se
+// dice una vez (AjustesPc.AlAbrir -> SmoothX4AlDia). smooth_x4 / smooth_x4_dlss5 van a las claves retiradas (Config.ClavesRetiradas). El codigo
+// del motor para sm=3 sigue (no se pide nunca).
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -25,7 +30,10 @@ namespace ConsoleEnhancer
 {
     partial class Config
     {
-        public bool SmoothX4 = false;   // smooth_x4
+        // (1.3.2, FPS: quitado; siempre false, lo que se le asigne no cuenta)
+        public bool SmoothX4 { get { return false; } set { } }
+        // (1.3.2, FPS) el ini traia smooth_x4=1 (Smooth Motion x4 elegido): se dice una vez y se pone a 0
+        public static volatile bool SmoothX4Retirado;
         // (1.2.4 ronda 7, FGREAL) x4 con DLSS 5: el motor ya reserva la grafica de XeSS FG + las dos inventadas del driver (EngineMargen.cs) y la
         // escala de DLSS 5 baja para que quepa, pero aun asi no llega: medido el 23-11 (4K, modo 30, DLSS 5 nivel 4, tele 120 VRR): DLSS 5 del
         // 65 al 55 %, el motor a 15,5 ms y 25-27 reales de 30 -el Present de XeSS FG espera a la grafica 31,6 ms (sin DLSS 5, 2,1)-, en la tele
@@ -45,9 +53,9 @@ namespace ConsoleEnhancer
 
         public bool CeParseSmoothX4(string key, string val)
         {
-            if (key == "smooth_x4_dlss5") { SmoothX4Dlss5 = val.Trim() != "0"; return true; }   // (1.2.4 ronda 7, EFGFIX: de serie 1)
+            if (key == "smooth_x4_dlss5") return true;   // (1.3.2, FPS: Smooth Motion x4 quitado)
             if (key != "smooth_x4") return false;
-            SmoothX4 = val.Trim() == "1";
+            SmoothX4Retirado = val.Trim() == "1";   // (1.3.2, FPS: quitado; lo elegido pasa a Smooth Motion x2 -SmoothX4AlDia-)
             return true;
         }
 
@@ -68,7 +76,7 @@ namespace ConsoleEnhancer
         {
             get
             {
-                if (!SmoothX4) return "smooth_x4=0";
+                if (!SmoothX4) return Tx.T("Smooth Motion x4 quitado", "Smooth Motion x4 removed");   // (1.3.2, FPS)
                 if (FgOff || HomeNative || Mode120 || !CapMode) return Tx.T("solo en el modo 30", "only in the 30 fps mode");
                 if (!EngineSmoothFor(true)) return Tx.T("la generación del modo 30 no es Smooth Motion", "the 30 fps mode generation is not Smooth Motion");
                 if (Ce.NoNvidia || NvProfiles.EngineSmoothBroken) return Tx.T("Smooth Motion no se puede poner en este PC", "Smooth Motion can't be set on this PC");
@@ -92,6 +100,7 @@ namespace ConsoleEnhancer
         // vez con DLSS 5 apagado -x4 sin candado-, se guardo x4 y fue x2 sin decirlo en pantalla; luego, con DLSS 5, el x4 "aparecio bloqueado")
         public string SmoothX4FaltaMenu(bool d5, string cap)
         {
+            if (!SmoothX4) return Tx.T("Smooth Motion x4 quitado", "Smooth Motion x4 removed");   // (1.3.2, FPS)
             if (Ce.NoNvidia || NvProfiles.EngineSmoothBroken) return Tx.T("Smooth Motion no se puede poner en este PC", "Smooth Motion can't be set on this PC");
             if (Pantalla.Hz() < 119) return Tx.T("La pantalla no va a 120 Hz", "The screen is not at 120 Hz");
             if (EngineVrr <= 0) return Tx.T("Sin VRR (G-SYNC) en la pantalla", "No VRR (G-SYNC) on the screen");
@@ -99,6 +108,16 @@ namespace ConsoleEnhancer
             if (!XessMotorPuede(string.IsNullOrEmpty(cap) ? VideoSize : cap)) return XessCaido ? Tx.T("XeSS FG se ha caído en el motor en esta sesión", "XeSS FG failed in the engine this session")
                                                                : Tx.T("Necesita XeSS FG en el motor (falta su DLL en xess\\)", "Needs XeSS FG in the engine (its DLL is missing in xess\\)");
             return "";
+        }
+
+        // (1.3.2, FPS; AjustesPc.AlAbrir) smooth_x4=1 en el ini: a Smooth Motion x2 (el mismo tipo; lo mas parecido), al log y una vez en pantalla
+        public static bool SmoothX4AlDia()
+        {
+            if (!SmoothX4Retirado) return false;
+            SmoothX4Retirado = false;
+            Log.Write("Ajustes al dia: Smooth Motion x4 (smooth_x4=1; ya no esta) -> Smooth Motion x2");
+            try { Ce.IniPoner("smooth_x4", "0"); } catch (Exception ex) { Log.Error("Ajustes al dia: smooth_x4", ex); }
+            return true;
         }
 
         // Para el log: una vez por cambio
@@ -125,6 +144,7 @@ namespace ConsoleEnhancer
             bool hz120 = Pantalla.Hz() >= 119;
             // caso: x4 pedido, nada falta | sin pedirlo | sin VRR | modo 60 | otro tipo en el 30 | a 120 | generacion apagada
             // (1.3.1, AJUSTES: "otro tipo en el 30" con Enhanced FG; XeSS FG ya no es un tipo elegible -elegido, va Smooth Motion-)
+            // (1.3.2, FPS: Smooth Motion x4 quitado: ningun caso da x4; "x4" -smooth_x4=1 y todo lo demas como para x4- va x2 como "sin_clave")
             string[] casos = { "x4", "sin_clave", "sin_vrr", "modo60", "efg30", "modo120", "fg_off" };
             foreach (string caso in casos)
             {
@@ -135,31 +155,28 @@ namespace ConsoleEnhancer
                 int sm = c.EngineSmoothMode, chain = c.EngineFgChain;
                 string args = c.MotorFgArgs(chain).Trim(), lv = live != null ? (string)live.Invoke(null, new object[] { c, sm > 0 }) : "?";
                 bool fg1 = lv.StartsWith("fg=1");
-                bool esperaX4 = caso == "x4" && hz120 && XessMotorPuede(c.VideoSize);
+                bool esperaX4 = false;   // (1.3.2, FPS: quitado)
                 bool ok = x4 == esperaX4;
-                if (esperaX4) ok = ok && sm == 3 && (chain == 20 || chain == 21) && args.Contains("fg_tipo=xess") && fg1;   // (1.2.4 ronda 6: sin fg_mult, XeSS FG siempre x2)
-                else if (caso == "sin_clave" || caso == "sin_vrr") ok = ok && sm == (hz120 ? 2 : 1) && chain == 0 && !fg1;   // (Smooth Motion x2 como siempre)
+                if (caso == "x4" || caso == "sin_clave" || caso == "sin_vrr") ok = ok && sm == (hz120 ? 2 : 1) && chain == 0 && !fg1;   // (Smooth Motion x2 como siempre)
                 else if (caso == "modo120" || caso == "fg_off") ok = ok && sm == 0;
                 else if (caso == "efg30") ok = ok && (sm == 0 || !EfgPuede());   // (si Enhanced FG no puede ir aqui -pantalla a menos de 100 Hz-, va Smooth Motion x2: bien)
                 if (!ok) fallos++;
                 sb.AppendLine((ok ? "bien  " : "FALLO ") + caso + ": x4=" + x4 + " (" + (c.SmoothX4Falta.Length > 0 ? c.SmoothX4Falta : "nada falta") + ") sm=" + sm + " cadena=" + chain +
                               " motor: '" + args + "' " + (lv.Length > 40 ? lv.Substring(0, 40) : lv));
             }
-            // (1.2.4 ronda 7, FGREAL) el candado del menu con lo ELEGIDO en el menu: DLSS 5 si -> x4 bloqueado con el motivo real (de serie,
-            // smooth_x4_dlss5=0); DLSS 5 no -> nada (si nada mas falta); y FpsBajo: x4 que no llego con esta captura y DLSS 5 -> bloqueado esta sesion
+            // (1.2.4 ronda 7, FGREAL) el candado del menu con lo ELEGIDO en el menu. (1.3.2, FPS: Smooth Motion x4 quitado: siempre con el motivo
+            // "quitado", con y sin DLSS 5; smooth_x4=1 del ini no lo pone -lo apunta para SmoothX4AlDia-; y la fila ya no esta en el menu)
             {
                 c.SmoothX4 = true; c.EngineVrr = 1; c.CapMode = true; c.Mode120 = false; c.FgOff = false; c.Dlss5Off = true; c.FgPick30 = "smooth";
-                bool base4 = hz120 && XessMotorPuede("3840x2160");
                 string m5 = c.SmoothX4FaltaMenu(true, "3840x2160"), m0 = c.SmoothX4FaltaMenu(false, "3840x2160");
-                bool ok = (SmoothX4Dlss5 || m5.Length > 0) && (!base4 || m0.Length == 0);
+                bool ok = m5.Length > 0 && m0.Length > 0 && !c.SmoothX4 && !c.SmoothX4Now;
                 if (!ok) fallos++;
-                sb.AppendLine((ok ? "bien  " : "FALLO ") + "menu: con DLSS 5 elegido '" + m5 + "' | sin DLSS 5 '" + m0 + "'");
-                SmoothX4NoLlegaAnota(false, "3840x2160");
-                string mn = c.SmoothX4FaltaMenu(false, "3840x2160"), m1440 = c.SmoothX4FaltaMenu(false, "2560x1440");
-                ok = mn.Length > 0 && (!base4 || m1440.Length == 0) && !c.SmoothX4Now;
+                sb.AppendLine((ok ? "bien  " : "FALLO ") + "menu: con DLSS 5 elegido '" + m5 + "' | sin DLSS 5 '" + m0 + "' | x4 " + c.SmoothX4Now);
+                bool antes = SmoothX4Retirado;
+                ok = c.CeParseSmoothX4("smooth_x4", "1") && SmoothX4Retirado && !c.SmoothX4 && c.CeParseSmoothX4("smooth_x4_dlss5", "1") && ClaveRetirada("smooth_x4");
+                SmoothX4Retirado = antes;
                 if (!ok) fallos++;
-                sb.AppendLine((ok ? "bien  " : "FALLO ") + "no llego a 4K sin DLSS 5: 4K '" + mn + "' | 1440p '" + m1440 + "' | x4 ahora " + c.SmoothX4Now);
-                smx4NoLlega = "";
+                sb.AppendLine((ok ? "bien  " : "FALLO ") + "smooth_x4=1 del ini: apuntado para pasar a x2, x4 no; claves retiradas");
             }
             sb.AppendLine(fallos == 0 ? "Todo bien" : fallos + " fallo(s)");
             string txt = sb.ToString();
@@ -211,6 +228,7 @@ namespace ConsoleEnhancer
                 mul.Sel = Math.Max(0, mul.Vals.IndexOf(smx4Quiere));
                 mul.Orig = mul.Vals.IndexOf(guardado);
             }
+            on = false;   // (1.3.2, FPS: Smooth Motion x4 quitado; la fila ya no se añade al menu -MenuAjustes.cs-)
             mul.Visible = on;
             mul.Activa = on && fgSi;
             mul.Nota = !on ? "" : !fgSi ? Tx.T("Con la generación encendida", "With frame generation on") :

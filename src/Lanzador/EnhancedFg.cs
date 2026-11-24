@@ -66,21 +66,44 @@ namespace ConsoleEnhancer
         // al 80 %. Si con DLSS 5 no llega, el motor baja DLSS 5 -EngineX4D5.cs- y, si ni asi, x2 esta sesion -EfgNoLlegaAnota-, diciendolo.
         // efg_multi_dlss5=0 = como antes: x2 con DLSS 5)
         public static volatile bool EfgMultiDlss5 = true;
-        public int EfgMultNow { get { return CapMode && !Mode120 && EfgMultFalta(MotorD5Simple, VideoSize).Length == 0 ? EfgMult : 2; } }
-        // (EFGFIX) x3 / x4 que no llego a las reales ni con DLSS 5 al 25 % (switch2-x4d5 no) o por FpsBajo: x2 esta sesion con esa captura y DLSS 5
+        // (1.3.2, FPS) el elegido, sin pasar del tope de esta sesion (x4 que no llego -> x3; x3 que no llego -> x2)
+        public int EfgMultNow { get { return CapMode && !Mode120 ? Math.Min(EfgMult, EfgMultTope(MotorD5Simple, VideoSize)) : 2; } }
+        // (EFGFIX) x3 / x4 que no llego a las reales ni con DLSS 5 en su suelo (switch2-x4d5 no) o por FpsBajo: menos esta sesion con esa captura y
+        // DLSS 5. (1.3.2, FPS; el usuario: "Cuando no llega al 4x deberias dejar bajar al 3x no 2x": el tope de la sesion -efgNoLlegaMax-, x3 si
+        // x4 no llego y x2 si x3 tampoco; antes cualquier "no llega" era x2)
         static string efgNoLlega = "";
-        public static void EfgNoLlegaAnota(bool d5, string cap) { efgNoLlega = (cap ?? "") + "|" + (d5 ? "d5" : "-"); }
-        // (pruebas) sin lo de "no llego" de Smooth Motion x4 ni de Enhanced FG x3 / x4
-        public static void X4NoLlegaOlvida() { efgNoLlega = ""; smx4NoLlega = ""; }
-        // Por que x3 / x4 no ("" = pueden ir), con DLSS 5 encendido o no (en el menu, el elegido en el menu) y la captura (null = la de ahora)
-        public string EfgMultFalta(bool d5, string cap = null)
+        static int efgNoLlegaMax = 4;
+        public static void EfgNoLlegaAnota(bool d5, string cap) { EfgNoLlegaAnota(d5, cap, 2); }
+        public static void EfgNoLlegaAnota(bool d5, string cap, int max)
         {
+            string k = (cap ?? "") + "|" + (d5 ? "d5" : "-");
+            max = Math.Max(2, Math.Min(4, max));
+            if (k == efgNoLlega) max = Math.Min(max, efgNoLlegaMax);
+            efgNoLlega = k; efgNoLlegaMax = max;
+        }
+        // (pruebas) sin lo de "no llego" de Smooth Motion x4 ni de Enhanced FG x3 / x4
+        public static void X4NoLlegaOlvida() { efgNoLlega = ""; efgNoLlegaMax = 4; smx4NoLlega = ""; }
+        // El multiplicador mas alto que puede ir ahora con DLSS 5 si / no y la captura (null = la de ahora)
+        public int EfgMultTope(bool d5, string cap = null)
+        {
+            if (d5 && !EfgMultiDlss5) return 2;
+            string c = string.IsNullOrEmpty(cap) ? VideoSize : cap;
+            if (efgNoLlega.Length > 0 && efgNoLlega == (c ?? "") + "|" + (d5 ? "d5" : "-")) return efgNoLlegaMax;
+            return 4;
+        }
+        // Por que x3 / x4 no ("" = pueden ir), con DLSS 5 encendido o no (en el menu, el elegido en el menu) y la captura (null = la de ahora).
+        // (1.3.2, FPS) n = el multiplicador del que se pregunta (4: x4; 3: x3 -y x4-); sin n, el elegido
+        public string EfgMultFalta(bool d5, string cap = null) { return EfgMultFaltaN(EfgMult, d5, cap); }
+        public string EfgMultFaltaN(int n, bool d5, string cap = null)
+        {
+            if (n <= 2) return "";
             if (d5 && !EfgMultiDlss5) return Tx.T("con DLSS 5 va x2: la gráfica no llega (sin DLSS 5, x3 / x4)", "with DLSS 5 it runs x2: the GPU can't keep up (x3 / x4 without DLSS 5)");
             string c = string.IsNullOrEmpty(cap) ? VideoSize : cap;
-            if (efgNoLlega.Length > 0 && efgNoLlega == (c ?? "") + "|" + (d5 ? "d5" : "-"))
-                return d5 ? Tx.T("con DLSS 5 a " + Smx4Cap(c) + " no llegó a 30 ni al 25 %: x2 esta sesión", "with DLSS 5 at " + Smx4Cap(c) + " it couldn't keep 30 fps even at 25 %: x2 this session")
-                          : Tx.T("a " + Smx4Cap(c) + " no llegó a 30: x2 esta sesión", "at " + Smx4Cap(c) + " it couldn't keep 30 fps: x2 this session");
-            return "";
+            int tope = EfgMultTope(d5, c);
+            if (n <= tope) return "";
+            string va = "x" + tope.ToString(CultureInfo.InvariantCulture);
+            return d5 ? Tx.T("con DLSS 5 a " + Smx4Cap(c) + " no llegó a 30: " + va + " esta sesión", "with DLSS 5 at " + Smx4Cap(c) + " it couldn't keep 30 fps: " + va + " this session")
+                      : Tx.T("a " + Smx4Cap(c) + " no llegó a 30: " + va + " esta sesión", "at " + Smx4Cap(c) + " it couldn't keep 30 fps: " + va + " this session");
         }
 
         public static bool EfgCaido { get { return motorGenCaida.Contains(" efg"); } }
@@ -153,11 +176,17 @@ namespace ConsoleEnhancer
             // cambio: lo guardado se queda y vuelve solo sin DLSS 5. Como Smooth Motion x4, SmoothX4.cs)
             bool d5Sel = d5 != null && d5.Visible ? d5.Val == "1" : cfg.MotorD5Simple;
             FilaAjuste capF = AjFila("cap");
-            string no = cfg.EfgMultFalta(d5Sel && Integrado.Dlss5Available, capF != null ? capF.Val : cfg.VideoSize);
+            string capV = capF != null ? capF.Val : cfg.VideoSize;
+            bool d5V = d5Sel && Integrado.Dlss5Available;
+            // (1.3.2, FPS: x3 y x4 cada uno con su candado -x4 que no llego esta sesion deja x3-; la fila enseña lo que va a ir)
+            string no3 = cfg.EfgMultFaltaN(3, d5V, capV), no4 = cfg.EfgMultFaltaN(4, d5V, capV);
             string guardado = Config.EfgMult.ToString(CultureInfo.InvariantCulture);
             if (efgQuiere == null) efgQuiere = guardado;
-            mul.Bloq = new List<string> { "", no, no };
-            if (no.Length > 0) { mul.Sel = 0; mul.Orig = 0; }
+            mul.Bloq = new List<string> { "", no3, no4 };
+            int tope = no3.Length > 0 ? 2 : no4.Length > 0 ? 3 : 4, quiere = 2;
+            int.TryParse(efgQuiere, NumberStyles.Integer, CultureInfo.InvariantCulture, out quiere);
+            string no = quiere > tope ? (quiere >= 4 && no4.Length > 0 ? no4 : no3) : "";
+            if (quiere > tope) { int v = Math.Max(0, mul.Vals.IndexOf(tope.ToString(CultureInfo.InvariantCulture))); mul.Sel = v; mul.Orig = v; }
             else { mul.Sel = Math.Max(0, mul.Vals.IndexOf(efgQuiere)); mul.Orig = Math.Max(0, mul.Vals.IndexOf(guardado)); }
             mul.Nota = !on ? "" : modoSel != "30" ? Tx.T("x2 en el modo 60", "x2 in 60 fps mode") : !fgSi ? Tx.T("Con la generación encendida", "With frame generation on") :
                        no.Length > 0 ? (efgQuiere != "2" ? Tx.T("x" + efgQuiere + " vuelve cuando se pueda · ", "x" + efgQuiere + " comes back when possible · ") : "") + no.Substring(0, 1).ToUpperInvariant() + no.Substring(1) :

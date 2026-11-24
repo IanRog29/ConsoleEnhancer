@@ -437,6 +437,7 @@ namespace ConsoleEnhancer
             get
             {
                 int want = Math.Max(1, Math.Min(3, Passes30));
+                if (D5NoLlegaAhora) return 0;   // (1.3.2, FPS: apagado esta sesion por no llegar, sin tocar lo elegido ni el perfil; FpsBajo.cs)
                 if (Dlss5AutoAhora) return AutoPasadas(want);   // 21-11 (1.2.1): la escala automatica, por la cadena entera (src\Lanzador\EscalaAuto.cs)
                 int[] p;
                 if (Dlss5InputPct != 0 || !Dlss5PctTable.TryGetValue(PctKey, out p)) return want;
@@ -6628,6 +6629,7 @@ namespace ConsoleEnhancer
         // DLSS 5 si/no: DLSSNR en la cadena de Magpie o no
         void SetDlss5State(bool on)
         {
+            if (on) Config.D5NoLlegaOlvida("encendido");   // (1.3.2, FPS)
             dlss5Shown = on;
             cfg.Dlss5Off = !on;
             SaveText(Paths.Dlss5OnFile, on ? "1" : "0");
@@ -9002,6 +9004,7 @@ namespace ConsoleEnhancer
             p.Mode120 = cfg.Mode120; // 20-11 (HZ120)
             p.Fg = fgWanted;
             p.Pick60 = cfg.FgPick60; p.Pick30 = cfg.FgPick30; // (19-11, GENERACION)
+            FpsSesionPerfil(p);   // (1.3.2, FPS: lo que la app bajo sola esta sesion no va al perfil; FpsBajo.cs)
             return p;
         }
 

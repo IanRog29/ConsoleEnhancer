@@ -21,6 +21,15 @@
 // con Smooth Motion x4 / Enhanced FG x3-x4, x2 SOLO esta sesion (lo elegido se queda en el perfil) diciendo lo que ya bajo el motor; sin
 // multiplicador que bajar, lo de siempre (sin la pasada menos: ya la quito el motor). "switch2-escalera": lo bajado ya cabe -> aviso corto
 // (EscaleraTexto, que cubre --test-avisos). Con el menu de ajustes abierto el motor no juzga (switch2-vigila 0 / 1, MenuAjustes.cs).
+// 24-11 (1.3.2, agente FPS; el usuario tras jugar con la 1.3.1: "Cuando no llega al 4x deberias dejar bajar al 3x no 2x", "no va el modo 4x
+// de ninguna manera", "el enhanced fg no me llega a 120 fps ni con dlss 5 off", "Bug no llega a 120 fps 60x2 a 1440p con dlss 5 y smooth"):
+//  - Enhanced FG x4 -> x3 -> x2 (antes x4 -> x2 de golpe), solo esta sesion con esa captura y DLSS 5 si / no (EfgNoLlegaAnota con el tope).
+//  - El motor ya no avisa "bajo" si la grafica entera no va llena (EngineGpuUso.cs): avisa "ritmo" y aqui solo se dice, una vez por estado, que
+//    no es la grafica ("Enhanced FG x4 · 108 de 120 fps: no es la gráfica (al 55 %), no se cambia nada"). Nada se baja.
+//  - Lo que la app cambia sola NUNCA va al perfil del juego: DLSS 5 apagado (antes "guardado en el perfil del juego") pasa a ser de esta
+//    sesion (D5NoLlegaAnota: como si no cupiera, con esta captura, modo y generacion; lo elegido sigue), FSR 1 ya lo hace el motor (esta
+//    sesion), y el modo / la captura que se bajen tampoco se guardan (FpsSesion*: el perfil se escribe con lo elegido).
+//  - Smooth Motion x4 ya no existe (el usuario: "Quita el smooth motion 4x que xefg es una mierda"; SmoothX4.cs).
 // C# 5.
 using System;
 using System.Globalization;
@@ -30,6 +39,18 @@ using ConsoleEnhancer.Deteccion;
 
 namespace ConsoleEnhancer
 {
+    partial class Config
+    {
+        // (1.3.2, FPS) DLSS 5 apagado por la escalera SOLO esta sesion: con este juego, captura, modo y generacion elegida (como si no cupiera:
+        // Dlss5PassesNow 0). Ni el perfil ni lo elegido (dlss5Shown, dlss5_on.txt) cambian; vuelve al cambiar de juego, de captura, de modo o
+        // de generacion, o al elegir DLSS 5 otra vez (D5NoLlegaOlvida)
+        static string d5NoLlega = "";
+        string D5NoLlegaClave() { return (EscalaAuto.Juego ?? "") + "|" + (VideoSize ?? "") + "|" + (Mode120 ? 120 : CapMode ? 30 : 60) + "|" + (FgOff ? "-" : CapMode ? FgPick30 : FgPick60); }
+        public static void D5NoLlegaAnota(Config c) { d5NoLlega = c.D5NoLlegaClave(); }
+        public static void D5NoLlegaOlvida(string por) { if (d5NoLlega.Length == 0) return; d5NoLlega = ""; Log.Write("Fps: DLSS 5 otra vez (" + por + "): lo apagado esta sesion por no llegar se olvida"); }
+        public bool D5NoLlegaAhora { get { return d5NoLlega.Length > 0 && d5NoLlega == D5NoLlegaClave(); } }
+    }
+
     partial class TrayApp
     {
         int fpsBusy;
@@ -38,6 +59,7 @@ namespace ConsoleEnhancer
         bool FpsEvent(string line)
         {
             if (!line.Contains("\"args\":[\"switch2-fps\"")) return false;
+            if (line.Contains("\"switch2-fps\",\"ritmo\"")) { FpsRitmo(line); return true; }   // (1.3.2, FPS: no es la grafica)
             Match m = Regex.Match(line, "\"switch2-fps\",\"bajo\",\"([0-9.]+)\",\"([0-9.]+)\",\"([0-9.]+)\"(?:,\"agotado\",\"([0-9]+|-)\",\"([A-Z]|-)\"(?:,\"([0-9.]+)\")?)?");
             if (!m.Success) return true;
             if (readerMpv != null && readerMpv != mpv) return true;   // (de un motor que ya no es el de ahora)
@@ -130,9 +152,9 @@ namespace ConsoleEnhancer
             if (!m.Success) return true;
             if (readerMpv != null && readerMpv != mpv) return true;   // (de un motor que ya no es el de ahora)
             PrepareCfg();
-            bool smx4 = cfg.FgTypeNow == "smooth" && cfg.SmoothX4Now, efg = cfg.FgTypeNow == "efg" && cfg.EfgMultNow > 2;
+            bool smx4 = false, efg = cfg.FgTypeNow == "efg" && cfg.EfgMultNow > 2;   // (1.3.2, FPS: Smooth Motion x4 ya no existe)
             if (!smx4 && !efg) return true;
-            string quien = smx4 ? "Smooth Motion x4" : "Enhanced FG x" + cfg.EfgMultNow.ToString(CultureInfo.InvariantCulture);
+            string quien = "Enhanced FG x" + cfg.EfgMultNow.ToString(CultureInfo.InvariantCulture);
             int pct = int.Parse(m.Groups[2].Value, CultureInfo.InvariantCulture);
             if (m.Groups[1].Value == "ok")
             {
@@ -148,11 +170,13 @@ namespace ConsoleEnhancer
             {
                 try
                 {
-                    if (smx4) Config.SmoothX4NoLlegaAnota(cfg.MotorD5Simple, cfg.VideoSize); else Config.EfgNoLlegaAnota(cfg.MotorD5Simple, cfg.VideoSize);
-                    string va = smx4 ? "Smooth Motion x2" : "Enhanced FG x2";
-                    Log.Write("x4 con DLSS 5: " + quien + " no llega a las 30 reales ni con DLSS 5 al 25 %: " + va + " esta sesion (con esta captura y DLSS 5; lo elegido se queda)");
+                    // (1.3.2, FPS: x4 -> x3 -> x2, no x4 -> x2)
+                    int n = cfg.EfgMultNow - 1;
+                    Config.EfgNoLlegaAnota(cfg.MotorD5Simple, cfg.VideoSize, n);
+                    string va = "Enhanced FG x" + n.ToString(CultureInfo.InvariantCulture);
+                    Log.Write("x4 con DLSS 5: " + quien + " no llega a las 30 reales ni con DLSS 5 al " + pct + " %: " + va + " esta sesion (con esta captura y DLSS 5; lo elegido se queda)");
                     RestartLs(null, null);
-                    string t = Tx.T(quien + " con DLSS 5 no llega a 30 ni al 25 % · " + va + " esta sesión", quien + " with DLSS 5 can't keep 30 fps even at 25 % · " + va + " this session");
+                    string t = Tx.T(quien + " con DLSS 5 no llega a 30 ni al " + pct + " % · " + va + " esta sesión", quien + " with DLSS 5 can't keep 30 fps even at " + pct + " % · " + va + " this session");
                     OnUi(delegate { OsdWarn(t, "7000"); });
                 }
                 catch (Exception ex) { Log.Error("x4 con DLSS 5", ex); }
@@ -195,18 +219,12 @@ namespace ConsoleEnhancer
             string menos = cap == "2560x1440" ? "1920x1080" : cap == "1920x1080" ? "1280x720" : null;
             if (!cfg.FgOff && !cfg.Mode120 && cfg.FgTypeNow == "efg" && cfg.EfgMultNow > 2)
             {
-                // (1.2.4 ronda 7, EFGFIX: Enhanced FG x3 / x4 -> x2 lo primero, como Smooth Motion x4; esta sesion con esta captura y DLSS 5 si / no)
-                Config.EfgNoLlegaAnota(cfg.MotorD5Simple, cfg.VideoSize);
-                hecho = "Enhanced FG x2"; hechoEn = "Enhanced FG x2"; sesion = true;
+                // (1.2.4 ronda 7, EFGFIX: Enhanced FG x3 / x4 -> x2 lo primero; esta sesion con esta captura y DLSS 5 si / no). (1.3.2, FPS; el
+                // usuario: "Cuando no llega al 4x deberias dejar bajar al 3x no 2x": de uno en uno, x4 -> x3 y, si x3 tampoco llega, x3 -> x2)
+                int n = cfg.EfgMultNow - 1;
+                Config.EfgNoLlegaAnota(cfg.MotorD5Simple, cfg.VideoSize, n);
+                hecho = "Enhanced FG x" + n.ToString(CultureInfo.InvariantCulture); hechoEn = hecho; sesion = true;
                 RestartLs(null, null);   // (sin aviso propio: habla el OsdWarn de abajo)
-            }
-            else if (!cfg.FgOff && !cfg.Mode120 && cfg.FgTypeNow == "smooth" && cfg.SmoothX4Now)
-            {
-                // (1.2.4 ronda 7, FGREAL: Smooth Motion x4 -> x2 lo primero -XeSS FG del motor + dos inventadas del driver por real-. Solo en esta
-                // sesion y con esta captura y DLSS 5 si / no: lo elegido -x4- sigue guardado y la fila del menu dice por que va x2; SmoothX4.cs)
-                Config.SmoothX4NoLlegaAnota(cfg.MotorD5Simple, cfg.VideoSize);
-                hecho = "Smooth Motion x2"; hechoEn = "Smooth Motion x2"; sesion = true;
-                RestartLs(null, null);   // (sin aviso propio: habla el OsdWarn de abajo; TEXTOS)
             }
             else if (!cfg.FgOff && !cfg.Mode120 && cfg.FgTypeNow == "fsr3" && cfg.FsrMultNow > 2)
             {
@@ -218,46 +236,129 @@ namespace ConsoleEnhancer
             }
             else if (dlss5Shown && !cfg.Dlss5Off && cfg.Dlss5FitsNow && cfg.Dlss5PassesNow > 1 && !agotado)
             {
+                // (sin la escalera del motor -escalera=0-: una pasada menos; el perfil se queda con las elegidas, FpsSesion*)
                 int n = cfg.Dlss5PassesNow - 1;
-                SetPasses(n);
-                hecho = "DLSS 5 con " + Pasadas(n); hechoEn = "DLSS 5 with " + n + (n > 1 ? " passes" : " pass");
+                FpsSesionAntes();
+                try { SetPasses(n); } finally { FpsSesionDespues(); }
+                hecho = "DLSS 5 con " + Pasadas(n); hechoEn = "DLSS 5 with " + n + (n > 1 ? " passes" : " pass"); sesion = true;
             }
             else if (dlss5Shown && !cfg.Dlss5Off && cfg.Dlss5FitsNow)
             {
-                SetDlss5State(false);
-                hecho = "DLSS 5 apagado"; hechoEn = "DLSS 5 off";
-                // (1.2.01: antes solo cambiaba el estado y la imagen seguia igual hasta otro cambio: como el boton, se reabre)
-                SaveCurProfile();
+                // (1.3.2, FPS; el coordinador, de la sesion del usuario 01:26:55: "se pasa a DLSS 5 apagado (guardado en el perfil)" con la grafica
+                // sobrada) DLSS 5 fuera SOLO esta sesion, con esta captura, modo y generacion (como si no cupiera: Dlss5PassesNow 0): ni el perfil
+                // ni lo elegido cambian (antes SetDlss5State + SaveCurProfile). Elegir DLSS 5 otra vez, otro juego u otra captura lo devuelve
+                Config.D5NoLlegaAnota(cfg);
+                hecho = "DLSS 5 apagado"; hechoEn = "DLSS 5 off"; sesion = true;
                 RestartLs(null, null, false, true);   // (INTEGRA7: sin aviso propio: el OsdWarn)
             }
-            else if (cfg.UpscaleOn && cfg.ScalerNow != "fsr" && cfg.ScalerNow != "ninguno")
+            else if (!agotado && cfg.UpscaleOn && cfg.ScalerNow != "fsr" && cfg.ScalerNow != "ninguno")
             {
-                SetScalerChoice(true, "fsr");
-                hecho = "escalador FSR 1"; hechoEn = "FSR 1 upscaler";
-                SaveCurProfile();
+                // (1.3.2, FPS: con la escalera del motor -agotado- FSR 1 ya lo puso el motor esta sesion -escalera_fsr1- o no tocaba; sin ella, FSR 1
+                // sin guardarlo en el perfil)
+                FpsSesionAntes();
+                try { SetScalerChoice(true, "fsr"); } finally { FpsSesionDespues(); }
+                hecho = "escalador FSR 1"; hechoEn = "FSR 1 upscaler"; sesion = true;
                 RestartLs(null, null);   // (INTEGRA7: sin aviso propio: el OsdWarn)
             }
             else if (modo == 120)
             {
-                SetModeN(60);
-                hecho = "modo 60 fps"; hechoEn = "60 fps mode";
+                FpsSesionAntes();
+                try { SetModeN(60); } finally { FpsSesionDespues(); }
+                hecho = "modo 60 fps"; hechoEn = "60 fps mode"; sesion = true;
             }
             else if (menos != null && !CapturaSinSentido(menos))
             {
-                RequestCapture(menos);
-                hecho = "captura a " + SizeName(menos); hechoEn = "capture at " + SizeName(menos);
+                FpsSesionAntes();
+                try { RequestCapture(menos); } finally { FpsSesionDespues(); }
+                hecho = "captura a " + SizeName(menos); hechoEn = "capture at " + SizeName(menos); sesion = true;
             }
             else if (modo == 60 && !cfg.FgOff)
             {
-                SetModeN(30);
-                hecho = "modo 30 fps con generación (30 → " + (30 * cfg.FgMultNow) + ")"; hechoEn = "30 fps mode with frame generation (30 -> " + (30 * cfg.FgMultNow) + ")";
+                FpsSesionAntes();
+                try { SetModeN(30); } finally { FpsSesionDespues(); }
+                hecho = "modo 30 fps con generación (30 → " + (30 * cfg.FgMultNow) + ")"; hechoEn = "30 fps mode with frame generation (30 -> " + (30 * cfg.FgMultNow) + ")"; sesion = true;
             }
             Log.Write("Fps: " + quien + " no llega al modo " + modo + " (" + real.ToString("0.0", CultureInfo.InvariantCulture) + " de " +
                       obj.ToString("0.00", CultureInfo.InvariantCulture) + " imagenes reales/s, grafica p95 " + gpu.ToString("0.0", CultureInfo.InvariantCulture) +
                       " ms" + (agotado ? "; el motor ya bajo lo suyo: DLSS 5 " + (fpsAgD5 > 0 ? "al " + fpsAgD5 + " %" : "no") + ", " + (fpsAgSr == "F" ? "FSR 1 en vez de DLSS" : "DLSS SR " + (fpsAgSr.Length > 0 ? fpsAgSr : "no")) : "") + "): " +
-                      (hecho != null ? "se pasa a " + hecho + (sesion ? " (solo esta sesion: lo elegido sigue en el perfil del juego)" : " (guardado en el perfil del juego)") : "ya no queda nada que bajar, solo el aviso"));
+                      (hecho != null ? "se pasa a " + hecho + (sesion ? " (solo esta sesion: lo elegido sigue en el perfil del juego)" : " (guardado en el perfil del juego)") : "ya no queda nada que bajar, solo el aviso"));   // (1.3.2, FPS: ya siempre "solo esta sesion")
             string texto = FpsBajaTexto(falta, hecho, hechoEn, sesion);
             OnUi(delegate { OsdWarn(texto, "7000"); });
+        }
+
+        // (1.3.2, FPS) "switch2-fps" "ritmo" <reales> <objetivo> <p95> <uso de la grafica %> <vistas> <efg|reflex|tarde>: no se llega pero la
+        // grafica entera no va llena (EngineEscalera.cs EscNoEsGrafica): el motor no ha bajado nada y aqui tampoco; se dice una vez por estado
+        string ritmoDicho = "";
+        void FpsRitmo(string line)
+        {
+            Match m = Regex.Match(line, "\"switch2-fps\",\"ritmo\",\"([0-9.]+)\",\"([0-9.]+)\",\"([0-9.]+)\",\"([0-9]+)\",\"([0-9.]+)\",\"([a-z]+)\"");
+            if (!m.Success) return;
+            if (readerMpv != null && readerMpv != mpv) return;
+            PrepareCfg();
+            string quien = EscaleraQuien(cfg);
+            int modo = cfg.Mode120 ? 120 : cfg.CapMode ? 30 : 60;
+            int salida = cfg.Mode120 || cfg.FgOff ? modo : modo * cfg.FgMultNow;
+            double vistas = double.Parse(m.Groups[5].Value, CultureInfo.InvariantCulture), real = double.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture);
+            if (vistas <= 0) vistas = real * (cfg.Mode120 || cfg.FgOff ? 1 : cfg.FgMultNow);
+            int uso = int.Parse(m.Groups[4].Value, CultureInfo.InvariantCulture);
+            string causa = m.Groups[6].Value;
+            Log.Write("Fps: el motor no llega (" + m.Groups[1].Value + " de " + m.Groups[2].Value + " reales/s, " + vistas.ToString("0", CultureInfo.InvariantCulture) + " de " + salida +
+                      " en la tele) con la grafica entera al " + uso + " % como mucho: no es la grafica (" + (causa == "efg" ? "el ritmo de Enhanced FG" : causa == "reflex" ? "el tope de Reflex con VRR" : "el ritmo de la presentacion o la fuente") +
+                      "): no se cambia nada" + (InHome || homeBusy || passesBusy || relaunchSize != null || relaunchEngine || userExit || ajustesAbierto ? " (algo esta cambiando: sin aviso)" : ""));
+            if (InHome || homeBusy || passesBusy || relaunchSize != null || relaunchEngine || userExit || ajustesAbierto) return;
+            string clave = quien + "|" + cfg.VideoSize + "|" + (cfg.MotorD5Simple ? "d5" : "-");
+            if (clave == ritmoDicho) return;
+            ritmoDicho = clave;
+            string t = FpsRitmoTexto(quien, (int)Math.Round(vistas), salida, uso);
+            OnUi(delegate { Osd(t); });
+        }
+
+        // (1.3.2, FPS) "Enhanced FG x4 · 108 de 120 fps: no es la gráfica (al 55 %), no se cambia nada" (lo cubre --test-avisos)
+        public static string FpsRitmoTexto(string quien, int vistas, int salida, int uso)
+        {
+            // (uso 0 = no se sabe -sin NVML-: sin el %)
+            return Tx.T(quien + " · " + vistas + " de " + salida + " fps: no es la gráfica" + (uso > 0 ? " (al " + uso + " %)" : "") + ", no se cambia nada",
+                        quien + " · " + vistas + " of " + salida + " fps: not the GPU" + (uso > 0 ? " (" + uso + " % busy)" : "") + ", nothing changed");
+        }
+
+        // (1.3.2, FPS) Lo que la escalera del lanzador cambia sola (modo, captura, pasadas, FSR 1 sin la escalera del motor) es de esta sesion:
+        // el perfil del juego se escribe con lo elegido. SaveCurProfile (dentro de SetModeN / RequestCapture / SetPasses / SetScalerChoice y
+        // despues, con cualquier cambio del mando o del menu) usa CurrentProfile, que pasa por FpsSesionPerfil: mientras el valor siga siendo el
+        // que puso la app (el usuario no lo ha cambiado), va el de antes. Al cambiar de juego, el perfil del otro manda (y el de este sigue igual)
+        string fpsSesJuego;
+        GameProfile fpsSesAntes, fpsSesAuto;
+        bool fpsSesCambiando;
+        void FpsSesionAntes()
+        {
+            lock (profileSync)
+            {
+                string g = curGame;
+                if (fpsSesJuego != g || fpsSesAntes == null) { fpsSesJuego = g; fpsSesAntes = null; fpsSesAntes = CurrentProfile(g); fpsSesAuto = null; }
+                fpsSesCambiando = true;
+            }
+        }
+        void FpsSesionDespues()
+        {
+            lock (profileSync)
+            {
+                fpsSesCambiando = false;
+                GameProfile a = fpsSesAntes;
+                fpsSesAntes = null;
+                GameProfile ahora = CurrentProfile(fpsSesJuego);
+                fpsSesAntes = a;
+                fpsSesAuto = ahora;
+            }
+        }
+        // (desde CurrentProfile) lo puesto por la app, cambiado por lo elegido de antes
+        void FpsSesionPerfil(GameProfile p)
+        {
+            GameProfile a = fpsSesAntes, au = fpsSesAuto;
+            if (a == null || p == null || (p.Name != null && p.Name != fpsSesJuego)) return;
+            bool todo = fpsSesCambiando || au == null;
+            if (todo || p.Capture == au.Capture) p.Capture = a.Capture;
+            if (todo || (p.Cap == au.Cap && p.Mode120 == au.Mode120)) { p.Cap = a.Cap; p.Mode120 = a.Mode120; }
+            if (todo || p.Passes == au.Passes) p.Passes = a.Passes;
+            if (todo || (p.Scaler == au.Scaler && p.ScalerPick == au.ScalerPick)) { p.Scaler = a.Scaler; p.ScalerPick = a.ScalerPick; }
         }
 
         // (1.3.1, FPS) el aviso rojo de FpsBaja; el multiplicador bajado lo dice "esta sesión" (lo cubre --test-avisos)

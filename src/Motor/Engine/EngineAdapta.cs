@@ -211,6 +211,7 @@ namespace ConsoleEnhancer.Motor
             AdaptaFila f;
             if (!adTabla.TryGetValue(k, out f))
             {
+                AdNrAlSuelo(null);   // (1.3.2, FPS: lo pedido, nunca por debajo del suelo de DLSS 5 con esta entrada)
                 if (nueva) Log.Write("Adapta: clave nueva " + k + " (se empieza por lo pedido: " + s.Preset + (s.Nr ? ", DLSS 5 al " + s.NrPct + " %" : "") + ")");
                 // (1.2.4 ronda 7, EFGFIX: Smooth Motion x4 + DLSS 5 la primera vez, de x4d5_inicio; EngineX4D5.cs). (1.3.1, FPS: tambien con la misma
                 // clave -el motor en espera que se despierta con lo de antes: recibia lo pedido, 65 %, y no el 35 % de x4d5_inicio-, y queda guardado)
@@ -227,6 +228,7 @@ namespace ConsoleEnhancer.Motor
             }
             if (s.Nr && f.Pct >= 25 && f.Pct != s.NrPct) { hecho.Add("DLSS 5 " + s.NrPct + " -> " + f.Pct + " %"); s.NrPct = f.Pct; }
             if (s.Nr && f.Pasadas >= 1 && f.Pasadas < s.NrPasses) { hecho.Add("pasadas " + s.NrPasses + " -> " + f.Pasadas); s.NrPasses = f.Pasadas; }
+            AdNrAlSuelo(hecho);   // (1.3.2, FPS: lo aprendido de antes -el 25 % a 1440p de la 1.3.1-, al suelo de ahora)
             if (hecho.Count > 0) { adCambioAt = Clock.Now; Log.Write("Adapta: " + k + ": lo que cupo la ultima vez (" + f.Fecha + "): " + string.Join(", ", hecho.ToArray())); }
         }
 
@@ -261,18 +263,33 @@ namespace ConsoleEnhancer.Motor
             return AdRango(f.Preset) < AdRango(f.Pedido) && AdRango(f.Pedido) <= AdRango(pedido);
         }
 
+        // (1.3.2, FPS; el usuario: "el dlss 5 a 1440p evita que sea menor que 33%") el % de DLSS 5 pedido o aprendido, nunca por debajo del
+        // suelo con la entrada que va a haber (NrSueloPara, EngineEscalera.cs: 4K 25 %, 1440p 33 %, 1080p 44 %)
+        void AdNrAlSuelo(List<string> hecho)
+        {
+            if (!s.Nr) return;
+            int iw, ih;
+            AdaptaEntradaPrevista(out iw, out ih);
+            int su = NrSueloPara(iw);
+            if (s.NrPct >= su) return;
+            if (hecho != null) hecho.Add("DLSS 5 " + s.NrPct + " -> " + su + " % (su suelo con " + iw + "x" + ih + ")");
+            else Log.Write("Adapta: DLSS 5 al " + s.NrPct + " % pedido, por debajo de su suelo con " + iw + "x" + ih + ": al " + su + " %");
+            s.NrPct = su;
+        }
+
         bool AdaptaBajar(double p95, double tope)
         {
-            if (AdNrActivo && (s.NrPct > 25 || s.NrPasses > 1))
+            int suelo = NrSuelo;   // (1.3.2, FPS)
+            if (AdNrActivo && (s.NrPct > suelo || s.NrPasses > 1))
             {
-                if (adSubida == "pct" && Clock.SinceMs(adSubidaAt) < 40000 && adSubidaDe >= 25 && adSubidaDe < s.NrPct)
+                if (adSubida == "pct" && Clock.SinceMs(adSubidaAt) < 40000 && adSubidaDe >= suelo && adSubidaDe < s.NrPct)
                 {
                     // la subida de hace nada no cupo: techo y de vuelta a lo de antes (que si cabia)
                     AdaptaTecho("pct", s.NrPct);
                     Log.Write(string.Format(CultureInfo.InvariantCulture, "Adapta: DLSS 5 al {0} % -> {1} % (p95 {2:0.0} ms, tope {3:0.0})", s.NrPct, adSubidaDe, p95, tope));
                     s.NrPct = adSubidaDe;
                 }
-                else if (s.NrPct > 25)
+                else if (s.NrPct > suelo)
                 {
                     int antes = s.NrPct;
                     // 22-11 (1.2.4 DLSS5Q): de una vez hasta lo que cabe (como la subida), no -10 cada 2 s: cada cambio rehace DLSS 5 (paron de
@@ -281,14 +298,14 @@ namespace ConsoleEnhancer.Motor
                     double fijo = p95 * 0.3, varia = p95 - fijo, obj = tope * 0.92;
                     int sig = antes - 10;
                     if (s.NrSuave)   // (dlss5_suave=0: -10 como en la 1.2.4)
-                    for (int t = antes - 10; t >= Math.Max(25, antes - 40); t -= 5) { sig = t; if (fijo + varia * (t * (double)t) / (antes * (double)antes) <= obj) break; }
-                    s.NrPct = Math.Max(25, sig);
+                    for (int t = antes - 10; t >= Math.Max(suelo, antes - 40); t -= 5) { sig = t; if (fijo + varia * (t * (double)t) / (antes * (double)antes) <= obj) break; }
+                    s.NrPct = Math.Max(suelo, sig);
                     Log.Write(string.Format(CultureInfo.InvariantCulture, "Adapta: no cabe (grafica p95 {0:0.0} ms, tope {1:0.0}): DLSS 5 al {2} % -> {3} %", p95, tope, antes, s.NrPct));
                 }
                 else
                 {
                     s.NrPasses--;
-                    Log.Write(string.Format(CultureInfo.InvariantCulture, "Adapta: no cabe ni al 25 % (p95 {0:0.0} ms, tope {1:0.0}): DLSS 5 con {2} pasada(s)", p95, tope, s.NrPasses));
+                    Log.Write(string.Format(CultureInfo.InvariantCulture, "Adapta: no cabe ni al {3} % (p95 {0:0.0} ms, tope {1:0.0}): DLSS 5 con {2} pasada(s)", p95, tope, s.NrPasses, suelo));
                 }
                 adSubida = ""; adCambioAt = Clock.Now;
                 AdaptaGuardarFila();
@@ -378,7 +395,7 @@ namespace ConsoleEnhancer.Motor
                 AdaptaMirarClave(false);
                 int c, pasAntes = s.NrPasses, pctAntes = Math.Max(25, Math.Min(100, s.NrPct));
                 if (nrPassCap.TryGetValue(capKey, out c)) { nrPassCap.Remove(capKey); if (c < s.NrPasses) s.NrPasses = Math.Max(1, c); }
-                if (nrPctCap.TryGetValue(capKey, out c)) { nrPctCap.Remove(capKey); if (c < pctAntes) s.NrPct = Math.Max(25, c); }
+                if (nrPctCap.TryGetValue(capKey, out c)) { nrPctCap.Remove(capKey); if (c < pctAntes) s.NrPct = Math.Max(NrSuelo, c); }
                 AdaptaFila f = Fila();
                 if (s.NrPct < pctAntes && (f.NoPct == 0 || pctAntes < f.NoPct)) f.NoPct = pctAntes;
                 adMal = adBien = 0; adSubida = ""; adCambioAt = Clock.Now; overSecs = 0;
