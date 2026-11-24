@@ -28,7 +28,7 @@ namespace ConsoleEnhancer.Motor
     {
         public int EfgPlano = 1;
         public float EfgPlanoPeso = 0.01f, EfgPlanoCero = 0.1f, EfgPlanoParte = 0.5f, EfgPlanoCerca = 2f, EfgPlanoQuieto = 10f;
-        public int EfgPlanoZoom = 0;   // (ronda 10d) 1 = semejanza (zoom + paneo) en vez de traslacion; 2 = tambien giro
+        public int EfgPlanoZoom = 1;   // (ronda 10d, de serie: mide mejor con zoom suave y a tirones, igual en paneo puro y video real) 1 = semejanza (zoom + paneo) en vez de traslacion; 2 = tambien giro
         public bool EfgPlanoAcel = true;   // (ronda 10c) con la hora del contenido de las dos parejas: mide mejor con llegadas regulares e irregulares
 
         bool ApplyEfgPlano(string key, string val)
@@ -136,7 +136,7 @@ namespace ConsoleEnhancer.Motor
             efgList.SetDescriptorHeaps(1, ref efgGiroHeapPtr);
             EfgGiroUavBarrier(efgGiroG[c]);
             EfgZero(k);
-            k[0] = (uint)efgBx[0]; k[1] = (uint)efgBy[0]; k[2] = (uint)Math.Max(0, Math.Min(2, s.EfgPlanoZoom)); k[8] = F(efgLw[0] * 0.5f); k[9] = F(efgLh[0] * 0.5f); k[4] = F(0.02f); k[5] = F(0.06f); k[6] = F(12f); k[7] = F(s.EfgPlanoParte);
+            k[0] = (uint)efgBx[0]; k[1] = (uint)efgBy[0]; k[2] = (uint)Math.Max(0, Math.Min(2, s.EfgPlanoZoom)); k[8] = F(efgLw[0] * 0.5f); k[9] = F(efgLh[0] * 0.5f); k[4] = F(0.02f); k[5] = F(0.06f); k[6] = F(s.EfgPlanoZoom > 0 ? 40f : 12f); k[7] = F(s.EfgPlanoParte);   // (con zoom la primera vuelta con 40 puntos: los golpes de zoom mueven mucho las esquinas)
             efgList.SetPipelineState(psoEfgPlanoFit);
             efgList.SetComputeRootDescriptorTable(1, EfgGiroGpu(c, EfgGiroTabPlanoFit));
             efgList.SetComputeRoot32BitConstants(0, 16, k, 0);
