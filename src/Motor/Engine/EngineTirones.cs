@@ -161,7 +161,7 @@ namespace ConsoleEnhancer.Motor
             // 20-11 (LATENCIA4): con la tele en VRR (NVAPI, EngineLatencia.cs) no hay latido: cada imagen sale al llegar (antes se decia
             // "latido" tambien con VRR: era solo la cuenta)
             string vrr = s.RefreshFixed ? "" : VrrDisplayState();   // (20-11 LATENCIA5: refresco_fijo=1, G-SYNC apagado para el motor)
-            if (s.RefreshFixed) Log.Write("Ritmo: refresco fijo para el motor (G-SYNC apagado en su perfil, refresco_fijo=1: sin el tope de 116 de Reflex)");
+            if (s.RefreshFixed) Log.Write("Ritmo: refresco fijo para el motor (G-SYNC apagado en su perfil, refresco_fijo=1: sin el tope de 116 de Reflex" + (s.SmoothMode > 0 ? "; con Smooth Motion, Present(1) a cada refresco" : "") + ")");
             if (vrr.StartsWith("VRR activo", StringComparison.Ordinal))
                 Log.Write(string.Format(IC, "Ritmo: tele a {0:0.000} Hz con {1} y {2:0.000} imagenes/s: cada una se ve al llegar, sin latido{3}", hz, vrr, rate,
                     s.Vrr > 0 ? " (vrr=1)" : " (vrr=0: el VRR lo pone Streamline)"));

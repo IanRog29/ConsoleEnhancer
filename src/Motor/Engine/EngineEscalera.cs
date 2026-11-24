@@ -271,7 +271,7 @@ namespace ConsoleEnhancer.Motor
             // por que, para el aviso: las inventadas de Enhanced FG saltadas (su ritmo), Reflex durmiendo (su tope con VRR) o el motor tirando reales
             // (Smooth Motion en el modo 60 con VRR: la tele no pasa de 116 -120 - 120^2/3600-, con o sin el dormir de Reflex: medido 24-11 03:30,
             // 1440p + DLSS 5, 58,0 reales y 116,1/s en la tele las dos veces; sin dormir, la latencia mediana 26 ms en vez de 12)
-            string causa = efg && v.Salt > v.Falta ? "efg" : s.SmoothMode > 0 && (s.Mode == 60 || escRxMs >= 4) ? "reflex" : "tarde";
+            string causa = efg && v.Salt > v.Falta ? "efg" : s.SmoothMode > 0 && !s.RefreshFixed && (s.Mode == 60 || escRxMs >= 4) ? "reflex" : "tarde";
             double vistas = efg && v.Segs > 0 ? (v.Pres + v.Inv) / v.Segs : reales * (s.SmoothMode > 0 ? 2 : 1);
             Log.Write(string.Format(CultureInfo.InvariantCulture, "Escalera: no se llega ({0}) pero la grafica entera no va llena ({1} en 2,5 s; llena = {2} %{3}): no se baja nada ({4}){5}",
                 por, GpuUsoTxt(2500), s.EscGpuLlena, s.SmoothMode > 0 ? ", Reflex duerme " + escRxMs.ToString("0.0", IC) + " ms por imagen" : "",

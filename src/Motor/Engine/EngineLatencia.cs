@@ -453,7 +453,11 @@ namespace ConsoleEnhancer.Motor
             bool gen = fgApplied || (xeFgOn && xeFgEnabledNow);   // (1.2.4 MOTORFG: XeSS FG como DLSS-G)
             bool vs = gen ? s.VsyncFg : s.Vsync;
             flags = 0;
-            if (s.Vrr > 0 && vrrTearing)
+            // (1.3.2, FPS) Smooth Motion con el refresco fijo (el lanzador con motor_60sm_refresco_fijo=1 manda refresco_fijo=1 + sm=1: G-SYNC
+            // apagado en el perfil del motor): sin cortes y a cada refresco, como la sincronizacion forzada de Smooth Motion en su perfil (con
+            // VRR iba Present(0, ALLOW_TEARING) y el driver la forzaba igual)
+            if (s.RefreshFixed && s.SmoothMode > 0) vs = true;
+            else if (s.Vrr > 0 && vrrTearing)
             {
                 if (gen)
                 {
