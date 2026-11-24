@@ -50,8 +50,8 @@ COMO SE USA
     internet-, es/en, sin red; 20-11 CE-UI: esa ventana ya se ajusta al contenido y no corta el texto).
 
 CADENA SEGUN LA GRAFICA (src\Deteccion\Plan.cs)
-  (1.2.4 ronda 6: todo por el motor, sin DLSS-G.) RTX 40 / 50: DLSS SR + Reflex + Smooth Motion x2 (XeSS FG x2 a 119,88 Hz; Smooth
-  Motion x4 opcional = XeSS FG x2 del motor + Smooth Motion, smooth_x4). RTX 20/30: DLSS SR + Reflex, XeSS FG / FSR 3 FG opcionales.
+  (1.2.4 ronda 6: todo por el motor, sin DLSS-G.) RTX 40 / 50: DLSS SR + Reflex + Smooth Motion x2 (XeSS FG x2 a 119,88 Hz; el Smooth
+  Motion x4 de antes -XeSS FG x2 del motor + Smooth Motion, smooth_x4- quitado en la 1.3.2: un smooth_x4=1 pasa a x2). RTX 20/30: DLSS SR + Reflex, XeSS FG / FSR 3 FG opcionales.
   GTX/AMD/Intel: XeSS o FSR 4 / 3.1 / FSR 1 (EASU + RCAS) en el motor; AMD: AFMF del driver (se explica) o FSR 3 FG del motor; Intel
   Arc: XeSS FG del motor. En cualquiera: FSR 3 FG x2 / x3 / x4 (x3 / x4 con engine\CeFsrFg.dll, modo 30) y Enhanced FG (generacion
   propia x2-x4, opcion extra, nunca de serie). Con la pantalla a 60 Hz no hay generacion en el modo 60. Poca VRAM: sin motor en

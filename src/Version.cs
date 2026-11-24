@@ -19,7 +19,7 @@ using System.Reflection;
 static class CeVersion
 {
     // La version de la app (la de la etiqueta de git sin la v)
-    public const string Texto = "1.3.1";
-    // La de Windows: cuatro numeros (1.3.1: "1.3.1" + ".0"; con dos, como "1.3", seria Texto + ".0.0")
+    public const string Texto = "1.3.2";
+    // La de Windows: cuatro numeros (1.3.2: "1.3.2" + ".0"; con dos, como "1.3", seria Texto + ".0.0")
     public const string Numero = Texto + ".0";
 }

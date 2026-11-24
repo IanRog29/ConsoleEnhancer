@@ -5,6 +5,253 @@ publicada es una etiqueta `vX.Y.Z` de git; GitHub Actions monta su zip y copia a
 
 ## [Sin publicar]
 
+## [1.3.2] - 2026-11-24
+
+**Enhanced FG reaches its frame rate and holds together on fast camera turns at a 30 fps base, the frame-rate ladder only lowers
+things when the GPU is really full (and never into the game profile), DLSS sharper in motion, a new 40 fps mode and the Switch 2 back
+to HOME.** Measured without the console on an RTX 4060 Ti with a 4K 120 Hz VRR TV, with real gameplay video played through the engine
+like the capture card and the settings of the person who tests it with the console. Compared with 1.3.1. *En castellano, más abajo.*
+
+### English
+
+#### Added
+- **40 fps mode**, next to 30 and 60 (settings menu > *Mode*, the controller's Menu / Options / + button now goes 30 → 40 → 60 → 120
+  when it fits, the tray menu, and the game profile remembers it). For the 40 fps modes of console games (the "balanced" modes of PS5 /
+  Xbox Series, which only exist with the console outputting 120 Hz: on the PS5, *Settings > Screen and Video > Video Output > 120 Hz
+  Output: Automatic* and 1440p or 1080p). With a 1440p or 1080p capture it captures at 120 Hz and keeps one new frame of every 3; at 4K
+  (the capture card can't do 4K at 120) it captures at 60 and evens out the 2-1 cadence. Without frame generation each frame stays
+  exactly 25 ms on screen (3 refreshes at 120 Hz); with Enhanced FG ×3 it becomes 120 fps (×3 is the default in this mode, its multiplier
+  is kept apart from the other modes), ×2 gives 80 fps with VRR, Smooth Motion ×2 80 fps; no ×4 (160 > 120). The type of frame generation
+  is the one of the 30 fps mode. DLSS 5 starts a bit lower than in the 30 fps mode (25 ms per frame instead of 33) and the frame-rate
+  ladder aims at 40. The notice tells you what to set on the console ("PS5: 120 Hz output and the game's 40 fps mode"). The console menu
+  still goes to native 4K at 60 as always. Measured in the whole app with real gameplay video at a 40 fps cadence (1440p, TV at 120 Hz
+  VRR): Enhanced FG ×3 119.95 frames/s with every frame for one refresh, ×2 80.0, Smooth Motion ×2 79.9, no frame generation 40.07 with
+  every frame for 3 refreshes.
+
+#### Changed
+- **Missing the target frame rate only lowers settings when the GPU is really full.** Before lowering anything (DLSS 5, the DLSS model,
+  FSR 1, the multiplier) the engine now checks how busy the whole GPU is (NVIDIA's own counter, the one nvidia-smi shows): if it hasn't
+  gone over 90 %, the frame rate is missed for another reason (Enhanced FG pacing, the frame cap with VRR, the source) and nothing is
+  changed; a short notice says so once ("Enhanced FG x4 · 113 of 120 fps: not the GPU (41 % busy), nothing changed"). Before, Enhanced FG
+  ×4 dropped to ×2 and DLSS 5 was lowered or switched off with the GPU at 40-67 %. With Enhanced FG, generated frames still being
+  skipped while each real frame takes long to be ready (the engine's GPU time over 40 % of a real frame, as with DLSS 5) still lower
+  DLSS 5 / the model, which shortens it. Enhanced FG is not judged in its first 4.5 s after a change.
+- **Enhanced FG ×4 that doesn't fit goes to ×3, not ×2** (and ×3 to ×2), for this session only.
+- **What the app lowers on its own is never saved in the game profile**: DLSS 5 switched off because it didn't fit is for this session
+  only (before it was saved), and the same for passes, mode, capture or FSR 1.
+- **DLSS 5 never goes below 33 % at 1440p** (845 pixels wide: 44 % at 1080p, 25 % at 4K as before).
+- **A bit more GPU before settings are lowered when applying them**: the engine's GPU limit is 94 % of a frame (was 90 %; a 90 kept
+  from an older ini counts as 94).
+- **Smooth Motion ×4 removed** (Smooth Motion ×2 only, also in the menu, L3, the controller and the lists); a saved Smooth Motion ×4
+  becomes Smooth Motion ×2 and the app says so once.
+- **Enhanced FG ×4 (and ×3 of the 40 fps mode) with less latency on a 120 Hz VRR screen**: when a frame shown a bit late leaves another
+  one waiting in the TV's queue (which then stays there for tens of seconds), the next generated frame is not presented so the TV
+  catches up (one every 250 ms at most). Measured on the TV at 120 Hz VRR with real gameplay video, from the console frame to the screen:
+  ×4 quality at 4K 53-67 → 39 ms, at 1440p + DLSS M 69 → 48 ms, ×4 low latency 25 → 23 ms, with the same pacing (every frame for one
+  refresh, 119.9 frames/s).
+- **Enhanced FG ×4 low latency with DLSS 5 also shows the real frame one output frame later**, as it does without DLSS 5 since 1.3.1: the
+  first generated frame of each group is interpolated and the others are predicted less far ahead (fewer glitches when turning the
+  camera). It was left out in 1.3.1 because it made generated frames collide with the next real frame; with the new pacing it doesn't
+  (4K + DLSS 5 at 65 %: 119.9 frames/s, every frame for one refresh), for +9 ms at the median (30 → 39 ms) and +1 ms at the 95th
+  percentile.
+
+#### Improved
+- **Enhanced FG no longer breaks apart on fast camera turns at a 30 fps base.** Its optical flow searched up to 128 points of its working
+  resolution per real frame (6.7 % of the width at 4K): with a 30 fps base a fast turn moves twice as far per real frame as with 60 and
+  went out of reach, so the generated frame showed the previous image in the wrong place with broken patches. Now each pair of real frames
+  first gets the camera's whole-image motion with a search of ±25 % of the width, which seeds the flow, and the flow pyramid has six
+  levels (twice the reach). Measured against the true in-between frames of real gameplay video (Fallout 4 turning twice as fast at a
+  30 fps base): error 22.4 → 18.1, the worst frames 42-46 → 20-27, broken blocks 39 % → 32 % (worst frames 73-79 % → 35-53 %); a real
+  4K30 clip at half rate 12.9 → 10.4 (worst frames 31-33 → 10-12); where the turn already fitted (GTA V, Fallout 4, Counter-Strike 2 at
+  a 30 fps base, 60 fps base) the same or 1-2 % better. It also helps low latency on fast turns (-7 %). No measurable GPU cost.
+
+#### Fixed
+- **Enhanced FG reaches its frame rate when the GPU has room: ×4 of the 30 mode and ×2 of the 60 mode, also at 1440p / 1080p with DLSS
+  and with DLSS 5.** The presentation thread dropped every generated frame still left for a real frame as soon as the next real frame
+  entered its queue, which happens right after the console frame arrives, long before it is ready. Whenever a real frame took more than
+  ~17 ms to be ready (1440p / 1080p + DLSS, DLSS 5, the first seconds after a change) the last generated frames were lost with the GPU
+  idle: in the tester's session ×4 low latency lost 10-18 % of its generated frames, the frame-rate ladder took it as "not reaching
+  120 fps" and dropped to ×2 within 2 s, and ×2 of the 60 mode on the Switch 2 lost 8 % (almost all of them in the first seconds). A real
+  frame was also taken as "late" (shown at once with no generated frames) just because the next one was already queued. Now a generated
+  frame is dropped only if it would collide with the next real frame, one that gives way to the next real frame (the game cadence) no
+  longer counts as missing, and a real frame is late only if the next one is already ready. The copy of each frame to the screen is sent
+  as soon as possible instead of right before its time, and its duration is no longer overestimated (it included the work queued ahead:
+  2-5 ms instead of ~0.5 ms, which delayed real frames). ×3 quality of the 30 mode (90 fps with VRR) is now paced by when each console
+  frame really arrived, like ×2. Measured with real gameplay video as the capture card (PresentMon on the TV at 120 Hz VRR): ×4 low
+  latency at 1080p + DLSS 119.9 → 120.0 frames/s with no skipped frame once running (147 lost in the first 3 s before); ×2 low latency of
+  the 60 mode at 1440p + DLSS 105.6 → 118.2 frames/s (worst second 63 → 119, refreshes without a new frame 12 % → 1.5 %); ×3 quality
+  with an irregular game cadence, frames more than 4 ms off their time 12 % → 0.2 %; ×3 low latency 26 % → 6.6 %; ×4 low latency + DLSS 5
+  at 4K, 119.96 frames/s with every frame for one refresh instead of one generated frame in four lost (89.9 frames/s in 1.3.1); in the
+  whole app at 1440p + DLSS M + DLSS 5 at 90 %, ×4 low latency 119.9 frames/s with every frame for one refresh and nothing lowered (64.9
+  with the old pacing).
+- **DLSS no longer smears moving floors (DLSS M / L) or the picture during and right after camera turns (DLSS K / J).** DLSS SR was
+  blending a history that did not belong to that pixel: the engine's motion vectors cannot fully explain a floor seen in perspective or a
+  camera turn, and DLSS kept mixing the shifted history in, so the road became a smooth paste (with no history at all the very same DLSS M
+  was sharper). Now, for every pixel, the engine checks whether the previous frame moved by its vector actually matches the current one;
+  where it does not, DLSS starts that pixel fresh instead of blending the wrong history. Measured on real game video against the original
+  frames: road under a moving car with DLSS M, floor sharpness 0.56 → 0.83 of the original (mid-band detail 0.56 → 0.95); Battlefront
+  camera turn with DLSS K / J 0.76 / 0.78 → 0.85 and much less shimmer; Counter-Strike 2 turns with K / J 0.72 / 0.73 → 0.79; 1440p +
+  DLSS 5 + DLSS M the same or better; still scenes unchanged. No extra sharpening and no own upscaler: only what DLSS receives changes.
+  About +0.3-0.5 ms of GPU at 1440p.
+- **Switch 2: leaving a game for the HOME menu is noticed also when the selected game's name is not on screen** (cursor on the bottom
+  bar, the name still appearing, a notification over it): the HOME menu is recognised by its top and bottom strips as well, so the app no
+  longer stays in game mode (game capture, DLSS 5, frame generation) on the HOME menu.
+- **No black screen when a game's profile is applied** (entering a game from the HOME / console menu, and going back): with the engine
+  the change happens in the same engine, so the previous picture stays until the new one instead of a black curtain; the engine also no
+  longer builds DLSS 5 for the previous capture size first (0.2-0.4 s) and starts DLSS 5 while the new capture arrives. Measured in the
+  app with real video: no black at all from the app (was a 330-690 ms black curtain plus its fade), and the first game picture ready
+  0.3 s sooner the first time.
+- A console changing video mode while a game starts (No Signal for a moment) is no longer reported as a stalled engine.
+
+#### Settings to go back
+Engine settings go at the end of the `motor_extra=` line of `consoleenhancer.ini`; the others, as their own line at the end of the file.
+- In `motor_extra`: `efg_salto_fino=0 efg_copia_pronto=0 efg_l_nuevo=0 efg_atrasada=0 efg_ritmo_x3=0 efg_cola_tele=0` (Enhanced FG pacing
+  as in 1.3.1) · `efg_retraso_dlss5=0` (×4 low latency with DLSS 5 all ahead, as in 1.3.1) ·
+  `efg_giro=0 efg_niveles=5` (the 1.3.1 optical flow) · `sr_sin_historia=0` (DLSS history as in 1.3.1; `sr_sin_historia_mov=0.5` keeps
+  the history of still areas if a dark or grainy game shimmers) · `escalera_grafica_llena=0` (lower as in 1.3.1) · `escalera_efg_p95=0`
+  (only the whole-GPU check) · `dlss5_suelo_px=0` (25 % floor) · `cambio_captura_espera=0` · `m40_reparto=0` (40 fps mode: the 2-1
+  cadence as it arrives) · `m40_ritmo=0` (each frame as soon as it is ready).
+- In the ini: `motor_uso_grafica=90.5` (the 90 % GPU limit) · `home_por_franjas=0` · `telon_home_juego=1` (the black curtain between HOME
+  and game) · `modo40_captura_120=0` (40 fps mode always captured at 60).
+- To try, in `motor_extra`: `efg_retraso_lat3=0.25` (the later real frame also in ×3 low latency: fewer glitches when turning, the same
+  pacing with the new thread, but 16 → 30 ms at 1440p + DLSS M) · `efg_retraso_lat4=0.5` (×4 low latency with the real frame two output
+  frames later: about a third fewer glitches than all-ahead and close to quality mode, +8 ms) · `efg_lat_ganancia` (how far low latency
+  predicts, 1 = default).
+
+#### Known issues
+- Enhanced FG **low latency still shows more glitches than quality mode when the camera turns**, above all from a 30 fps base (about twice
+  the badly wrong pixels in a turn, +20-50 % in calmer scenes): every generated frame is predicted 17 ms (×2) to 25 ms (×4) ahead of the
+  last real frame, and when the turn speeds up, slows down or changes that cannot be known before the next real frame arrives. Smoothing,
+  damping or accelerating the prediction made it worse, so it is unchanged; quality mode looks better when the camera moves a lot.
+- Where the camera turn already fitted (most scenes at a 60 fps base and slower turns at 30) the generated frames barely change: what
+  still shows is what gets uncovered behind close objects, thin things with parallax, the strip entering through the screen edge on a fast
+  turn and animated HUD elements; zooming maps were not measured. The graphics card's hardware optical flow is the next step.
+- Smooth Motion ×2 in the 60 fps mode with VRR at 120 Hz stays at 116 fps on the TV (58 of 59.94 real frames): the frame cap of the
+  driver / Reflex with G-SYNC; the app no longer lowers anything for it and says so.
+- The DLSS history fix is only for DLSS SR (not XeSS / FSR).
+- The 40 fps mode uses the frame generation type of the 30 fps mode (picking one changes both); the Enhanced FG multiplier is its own.
+- Everything in this version was measured with real gameplay video through the engine, not yet with the PS5 or the Switch 2.
+
+### Castellano
+
+**Enhanced FG llega a sus fps y aguanta los giros rápidos de cámara con base 30, la escalera de fps solo baja cosas si la gráfica va
+llena de verdad (y nunca en el perfil del juego), DLSS más nítido en movimiento, un modo 40 fps nuevo y la Switch 2 vuelve al HOME.**
+Medido sin la consola en una RTX 4060 Ti con una tele 4K de 120 Hz con VRR, con vídeo real de juego por el motor como si fuera la
+capturadora y los ajustes de quien la prueba con la consola. Comparado con la 1.3.1.
+
+#### Añadido
+- **Modo 40 fps**, junto al 30 y al 60 (menú de ajustes > *Modo*, el botón Menú / Options / + del mando ahora va 30 → 40 → 60 → 120 si
+  cabe, el menú de la bandeja, y el perfil del juego lo recuerda). Para los modos de 40 de los juegos de consola (los "equilibrados" de la
+  PS5 / Xbox Series, que solo existen con la consola a 120 Hz: en la PS5, *Ajustes > Pantalla y vídeo > Salida de vídeo > Salida a 120 Hz:
+  Automático* y 1440p o 1080p). Con captura de 1440p o 1080p captura a 120 Hz y se queda con una nueva de cada 3; a 4K (la capturadora no
+  da 4K a 120) captura a 60 y reparte parejas las imágenes de la cadencia 2-1. Sin generación cada imagen dura 25 ms justos en la tele (3
+  refrescos a 120 Hz); con Enhanced FG ×3 salen 120 fps (×3 es lo de serie en este modo, su multiplicador va aparte del de los otros
+  modos), ×2 da 80 fps con VRR y Smooth Motion ×2, 80; sin ×4 (160 > 120). El tipo de generación es el del modo 30. DLSS 5 empieza algo
+  más bajo que en el modo 30 (25 ms por imagen en vez de 33) y la escalera de fps apunta a 40. El aviso dice lo que hay que poner en la
+  consola ("PS5: salida a 120 Hz y el modo de 40 del juego"). El menú de la consola sigue a 4K nativo a 60 como siempre. Medido en la
+  app entera con vídeo real de juego a cadencia de 40 (1440p, tele a 120 Hz VRR): Enhanced FG ×3 119,95 imágenes/s con cada imagen un
+  refresco, ×2 80,0, Smooth Motion ×2 79,9, sin generación 40,07 con cada imagen 3 refrescos.
+
+#### Cambiado
+- **No llegar a los fps solo baja ajustes si la gráfica va llena de verdad.** Antes de bajar nada (DLSS 5, el modelo de DLSS, FSR 1, el
+  multiplicador) el motor mira lo ocupada que va la gráfica entera (el contador de NVIDIA, el de nvidia-smi): si no ha pasado del 90 %,
+  no se llega por otra cosa (el ritmo de Enhanced FG, el tope de imágenes con VRR, la fuente) y no se cambia nada; un aviso corto lo dice
+  una vez ("Enhanced FG x4 · 113 de 120 fps: no es la gráfica (al 41 %), no se cambia nada"). Antes Enhanced FG ×4 pasaba a ×2 y DLSS 5 se
+  bajaba o se apagaba con la gráfica al 40-67 %. Con Enhanced FG, si se siguen saltando inventadas mientras cada real tarda en estar (la
+  gráfica del motor por encima del 40 % de una real, como con DLSS 5), sí se baja DLSS 5 / el modelo, que es lo que lo acorta. Enhanced FG
+  no se juzga los primeros 4,5 s tras un cambio.
+- **Enhanced FG ×4 que no cabe pasa a ×3, no a ×2** (y ×3 a ×2), solo esta sesión.
+- **Lo que la app baja sola nunca se guarda en el perfil del juego**: DLSS 5 apagado por no caber es solo de esta sesión (antes se
+  guardaba), igual que las pasadas, el modo, la captura o FSR 1.
+- **DLSS 5 nunca por debajo del 33 % a 1440p** (845 píxeles de ancho: 44 % a 1080p, 25 % a 4K como antes).
+- **Un poco más de gráfica antes de bajar ajustes al aplicarlos**: el tope de la gráfica del motor es el 94 % de una imagen (antes 90 %;
+  un 90 de un ini de antes cuenta como 94).
+- **Smooth Motion ×4 quitado** (solo Smooth Motion ×2, también en el menú, L3, el mando y las listas); un Smooth Motion ×4 guardado pasa a
+  Smooth Motion ×2 y la app lo dice una vez.
+- **Enhanced FG ×4 (y ×3 del modo 40) con menos latencia en una pantalla de 120 Hz con VRR**: cuando una imagen que sale un poco tarde
+  deja otra esperando en la cola de la tele (y ahí se queda decenas de segundos), la siguiente inventada no se presenta y la tele se pone
+  al día (una cada 250 ms como mucho). Medido en la tele a 120 Hz VRR con vídeo real de juego, de la imagen de la consola a la pantalla:
+  ×4 calidad a 4K 53-67 → 39 ms, a 1440p + DLSS M 69 → 48 ms, ×4 baja latencia 25 → 23 ms, con el mismo ritmo (cada imagen un refresco,
+  119,9 imágenes/s).
+- **Enhanced FG ×4 baja latencia con DLSS 5 también enseña la real una imagen después**, como sin DLSS 5 desde la 1.3.1: la primera
+  inventada de cada grupo se interpola y las demás se adivinan menos lejos (menos fallos al girar la cámara). En la 1.3.1 se dejó fuera
+  porque las inventadas chocaban con la real siguiente; con el ritmo nuevo ya no (4K + DLSS 5 al 65 %: 119,9 imágenes/s, cada imagen un
+  refresco), a cambio de +9 ms en la mediana (30 → 39 ms) y +1 ms en el percentil 95.
+
+#### Mejorado
+- **Enhanced FG ya no se rompe en los giros rápidos de cámara con base 30.** Su flujo óptico buscaba hasta 128 puntos de su resolución de
+  trabajo por imagen real (el 6,7 % del ancho a 4K): con base 30 un giro rápido mueve el doble por imagen real que con 60 y se salía, así
+  que la inventada enseñaba la imagen anterior en el sitio equivocado con trozos rotos. Ahora cada pareja de reales calcula primero el
+  movimiento de toda la imagen (la cámara) con una búsqueda de ±25 % del ancho, que sirve de semilla al flujo, y la pirámide del flujo
+  tiene seis niveles (el doble de alcance). Medido contra las imágenes de en medio de verdad de vídeo real de juego (Fallout 4 girando el
+  doble de rápido con base 30): error 22,4 → 18,1, las peores 42-46 → 20-27, bloques rotos 39 % → 32 % (en las peores 73-79 % → 35-53 %);
+  un vídeo real de 4K30 a la mitad de imágenes 12,9 → 10,4 (las peores 31-33 → 10-12); donde el giro ya cabía (GTA V, Fallout 4,
+  Counter-Strike 2 con base 30, base 60) igual o un 1-2 % mejor. También ayuda a la baja latencia en los giros rápidos (-7 %). Sin coste
+  de gráfica medible.
+
+#### Arreglado
+- **Enhanced FG llega a sus fps cuando la gráfica tiene margen: ×4 del modo 30 y ×2 del modo 60, también a 1440p / 1080p con DLSS y con
+  DLSS 5.** El hilo de presentación tiraba todas las inventadas que le quedaban a una imagen real en cuanto la siguiente real entraba en
+  su cola, y eso pasa nada más llegar la imagen de la consola, mucho antes de estar lista. Siempre que una real tardaba más de ~17 ms en
+  estar (1440p / 1080p + DLSS, DLSS 5, los primeros segundos tras un cambio) se perdían las últimas inventadas con la gráfica de sobra: en
+  la sesión de prueba ×4 baja latencia perdía el 10-18 % de sus inventadas, la escalera lo tomaba por "no se llega a 120 fps" y bajaba a
+  ×2 en 2 s, y ×2 del modo 60 en la Switch 2 perdía el 8 % (casi todas en los primeros segundos). Además una real se daba por "atrasada"
+  (se enseñaba ya y sin inventadas) solo porque la siguiente ya estaba en la cola. Ahora una inventada solo se deja si chocaría con la
+  real siguiente, la que cede el sitio a la real siguiente (la cadencia del juego) ya no cuenta como que falta y una real solo va atrasada
+  si la siguiente ya está lista. La copia de cada imagen a la pantalla se manda en cuanto se puede y no justo antes de su hora, y lo que
+  tarda ya no se mide de más (contaba lo que esperaba delante en la cola: 2-5 ms en vez de ~0,5, y retrasaba las reales). ×3 calidad del
+  modo 30 (90 fps con VRR) va ahora por la hora en que llegó de verdad cada imagen de la consola, como ×2. Medido con vídeo real de juego
+  como capturadora (PresentMon en la tele a 120 Hz VRR): ×4 baja latencia a 1080p + DLSS 119,9 → 120,0 imágenes/s sin una inventada
+  saltada ya en marcha (antes 147 en los 3 primeros s); ×2 baja latencia del modo 60 a 1440p + DLSS 105,6 → 118,2 imágenes/s (el peor
+  segundo 63 → 119, refrescos sin imagen nueva 12 % → 1,5 %); ×3 calidad con una cadencia irregular del juego, imágenes a más de 4 ms de su
+  hora 12 % → 0,2 %; ×3 baja latencia 26 % → 6,6 %; ×4 baja latencia + DLSS 5 a 4K, 119,96 imágenes/s con cada imagen un refresco en vez
+  de perder una inventada de cada cuatro (89,9 imágenes/s con la 1.3.1); en la app entera a 1440p + DLSS M + DLSS 5 al 90 %, ×4 baja
+  latencia 119,9 imágenes/s con cada imagen un refresco y sin bajar nada (64,9 con el ritmo de antes).
+- **DLSS ya no emborrona el suelo en marcha (DLSS M / L) ni la imagen al girar la cámara y justo después (DLSS K / J).** DLSS SR mezclaba
+  una historia que no era la de ese punto: los vectores del motor no explican del todo un suelo en perspectiva ni un giro, y la carretera
+  quedaba en una pasta lisa (sin historia ninguna el mismo DLSS M salía más nítido). Ahora el motor mira en cada punto si la imagen
+  anterior movida con su vector casa con la de ahora; donde no casa, DLSS empieza ese punto de cero. Medido con vídeo real contra las
+  imágenes originales: carretera con DLSS M, nitidez del suelo 0,56 → 0,83 del original (detalle de banda media 0,56 → 0,95); giro de
+  Battlefront con K / J 0,76 / 0,78 → 0,85 y mucho menos parpadeo; giros de Counter-Strike 2 con K / J 0,72 / 0,73 → 0,79; 1440p + DLSS 5
+  + DLSS M igual o mejor; lo quieto, igual. Sin enfoque añadido ni reescalador propio: solo cambia lo que recibe DLSS. Unos +0,3-0,5 ms de
+  gráfica a 1440p.
+- **Switch 2: la salida de un juego al HOME se ve también sin el nombre del juego seleccionado a la vista** (el cursor en la barra de
+  abajo, el nombre apareciendo, una notificación encima): el HOME se reconoce también por sus franjas de arriba y de abajo, así la app ya
+  no se queda en el modo juego (captura del juego, DLSS 5, generación) con el HOME delante.
+- **Sin pantallazo negro al aplicar el perfil de un juego** (al entrar desde el HOME / el menú de la consola y al volver): con el motor el
+  cambio va en el mismo motor y la imagen de antes sigue hasta la nueva en vez de un telón negro; además el motor ya no crea DLSS 5 para
+  la captura de antes (0,2-0,4 s) y lo inicia mientras llega la nueva. Medido en la app con vídeo real: nada de negro de la app (antes un
+  telón negro de 330-690 ms y su fundido) y la primera imagen del juego lista 0,3 s antes la primera vez.
+- Una consola que cambia de modo de vídeo al arrancar un juego (Sin señal un momento) ya no cuenta como el motor colgado.
+
+#### Ajustes para volver atrás
+Las claves del motor van al final de la línea `motor_extra=` de `consoleenhancer.ini`; las demás, en su propia línea al final del fichero.
+- En `motor_extra`: `efg_salto_fino=0 efg_copia_pronto=0 efg_l_nuevo=0 efg_atrasada=0 efg_ritmo_x3=0 efg_cola_tele=0` (el ritmo de
+  Enhanced FG de la 1.3.1) · `efg_retraso_dlss5=0` (×4 baja latencia con DLSS 5 todo hacia delante, como la 1.3.1) · `efg_giro=0 efg_niveles=5` (el flujo óptico de la 1.3.1) · `sr_sin_historia=0` (la historia de DLSS como en la 1.3.1;
+  `sr_sin_historia_mov=0.5` deja su historia a lo quieto si un juego oscuro o con grano "hierve") · `escalera_grafica_llena=0` (bajar como
+  en la 1.3.1) · `escalera_efg_p95=0` (solo la gráfica entera) · `dlss5_suelo_px=0` (suelo del 25 %) · `cambio_captura_espera=0` ·
+  `m40_reparto=0` (modo 40: la cadencia 2-1 tal cual llega) · `m40_ritmo=0` (cada imagen en cuanto está).
+- En el ini: `motor_uso_grafica=90.5` (el tope del 90 %) · `home_por_franjas=0` · `telon_home_juego=1` (el telón negro entre el HOME y el
+  juego) · `modo40_captura_120=0` (el modo 40 siempre con la captura a 60).
+- Para probar, en `motor_extra`: `efg_retraso_lat3=0.25` (la real más tarde también en ×3 baja latencia: menos fallos al girar, el mismo
+  ritmo con el hilo nuevo, pero 16 → 30 ms a 1440p + DLSS M) · `efg_retraso_lat4=0.5` (×4 baja latencia con la real dos imágenes
+  después: un tercio menos de fallos que todo hacia delante y cerca del modo calidad, +8 ms) · `efg_lat_ganancia` (lo lejos que adivina
+  la baja latencia, 1 = lo de serie).
+
+#### Problemas conocidos
+- Enhanced FG **baja latencia sigue con más fallos que el modo calidad al girar la cámara**, sobre todo con base 30 (más o menos el doble
+  de puntos muy errados en un giro, un 20-50 % más en escenas tranquilas): cada inventada se adivina 17 ms (×2) a 25 ms (×4) por delante
+  de la última real, y cuando el giro acelera, frena o cambia eso no se puede saber hasta que llega la siguiente real. Suavizar, amortiguar
+  o acelerar la predicción salió peor, así que no cambia; con la cámara moviéndose mucho, el modo calidad se ve mejor.
+- Donde el giro ya cabía (casi todo con base 60 y los giros más lentos con base 30) las inventadas casi no cambian: lo que sigue
+  viéndose es lo que se destapa detrás de lo cercano, lo fino con paralaje, la franja que entra por el borde en un giro rápido y la
+  interfaz animada; el zoom de los mapas no se ha medido. El flujo óptico por hardware de la gráfica es lo siguiente.
+- Smooth Motion ×2 en el modo 60 con VRR a 120 Hz se queda en 116 fps en la tele (58 de 59,94 reales): el tope de imágenes del driver /
+  Reflex con G-SYNC; la app ya no baja nada por eso y lo dice.
+- El arreglo de la historia de DLSS es solo para DLSS SR (no XeSS / FSR).
+- El modo 40 usa el tipo de generación del modo 30 (elegir uno cambia los dos); el multiplicador de Enhanced FG es suyo.
+- Todo lo de esta versión se ha medido con vídeo real de juego por el motor, aún no con la PS5 ni con la Switch 2.
+
 ## [1.3.1] - 2026-11-24
 
 **Your settings kept on the PC across versions, a frame-rate ladder that keeps the multiplier, a smoother Enhanced FG and the Switch 2
