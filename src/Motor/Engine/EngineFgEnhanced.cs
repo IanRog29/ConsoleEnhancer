@@ -142,7 +142,7 @@ namespace ConsoleEnhancer.Motor
                 case "efg_sel_local": EfgSelLocal = Math.Max(0, Math.Min(3, I(val))); return true;   // (1.3.1, EFGCAL)
                 case "efg_nitido": EfgNitido = Math.Max(-1, Math.Min(1, I(val))); return true;   // (1.3.1, EFGCAL)
             }
-            return ApplyEfgRitmo(key, val) || ApplyEfgLat(key, val) || ApplyEfgGiro(key, val) || ApplyEfgPlano(key, val);   // (1.3.1: EFGCAL efg_ritmo* / efg_colchon_ms, EngineFgEnhancedRitmo.cs; EFGLAT efg_lat*, EngineFgEnhancedLat.cs; 1.3.2: EFGGIRO efg_giro*, EngineFgEnhancedGiro.cs)
+            return ApplyEfgRitmo(key, val) || ApplyEfgLat(key, val) || ApplyEfgGiro(key, val) || ApplyEfgPlano(key, val) || ApplyEfgNvof(key, val);   // (1.3.1: EFGCAL efg_ritmo* / efg_colchon_ms, EngineFgEnhancedRitmo.cs; EFGLAT efg_lat*, EngineFgEnhancedLat.cs; 1.3.2: EFGGIRO efg_giro*, EngineFgEnhancedGiro.cs)
         }
     }
 
@@ -319,6 +319,7 @@ namespace ConsoleEnhancer.Motor
             }
             EfgLatEnsure();   // (1.3.1, EFGLAT: el camino propio de la baja latencia, EngineFgEnhancedLat.cs)
             EfgGiroEnsure();   // (1.3.2, EFGGIRO: el movimiento global de la camara, EngineFgEnhancedGiro.cs)
+            EfgNvEnsure();   // (1.3.3, EFGCAL: el flujo de NVIDIA por hardware, EngineFgEnhancedNvof.cs)
             iid = typeof(ID3D12Fence).GUID;
             Hr.Check(dev.CreateFence(0, D3D12_FENCE_FLAGS.NONE, ref iid, out o), "CreateFence (Enhanced FG)");
             efgFence = (ID3D12Fence)o;
