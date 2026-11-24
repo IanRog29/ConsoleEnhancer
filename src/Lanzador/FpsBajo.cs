@@ -356,7 +356,8 @@ namespace ConsoleEnhancer
             if (a == null || p == null || (p.Name != null && p.Name != fpsSesJuego)) return;
             bool todo = fpsSesCambiando || au == null;
             if (todo || p.Capture == au.Capture) p.Capture = a.Capture;
-            if (todo || (p.Cap == au.Cap && p.Mode120 == au.Mode120)) { p.Cap = a.Cap; p.Mode120 = a.Mode120; }
+            // (1.3.2, INTEGRA9: con el modo 40 de MODO40 -Cap + Mode40-: el modo entero, si no un 40 elegido despues quedaria a medias)
+            if (todo || (p.Cap == au.Cap && p.Mode120 == au.Mode120 && p.Mode40 == au.Mode40)) { p.Cap = a.Cap; p.Mode120 = a.Mode120; p.Mode40 = a.Mode40; }
             if (todo || p.Passes == au.Passes) p.Passes = a.Passes;
             if (todo || (p.Scaler == au.Scaler && p.ScalerPick == au.ScalerPick)) { p.Scaler = a.Scaler; p.ScalerPick = a.ScalerPick; }
         }

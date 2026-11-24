@@ -200,7 +200,7 @@ namespace ConsoleEnhancer
                                            "se esta apagando", "preparando para apagar", "preparandose para apagar", "preparing to turn off",
                                            "cable de alimentacion", "ac power cord" },
             TextosMarca = new string[] { "ps5", "playstation 5", "playstation store", "playstation plus", "dualsense", "playstation" },
-            AjustesVideo = "Ajustes > Pantalla y vídeo > Salida de vídeo", ConsejoVideo = "Resolución 2160p, salida de 120 Hz desactivada, HDR desactivado, rango RGB automático; HDCP desactivado (Ajustes > Sistema > HDMI)",
+            AjustesVideo = "Ajustes > Pantalla y vídeo > Salida de vídeo", ConsejoVideo = "Resolución 2160p, salida de 120 Hz desactivada (para el modo 40 de la app: activada -Automático- y 1440p o 1080p), HDR desactivado, rango RGB automático; HDCP desactivado (Ajustes > Sistema > HDMI)",   // (1.3.2, INTEGRA9: el modo 40 de MODO40 necesita la salida de 120 Hz)
         };
 
         public static readonly ConsolaPerfil Ps4 = new ConsolaPerfil
@@ -238,7 +238,7 @@ namespace ConsoleEnhancer
             TextosMarca = new string[] { "xbox series", "game pass", "xbox" },
             // (con la GC573, 120 Hz solo a 1440p o 1080p y entonces sin HDR: el HDR de la Series solo va en el modo 4K)
             AjustesVideo = "Configuración > General > Opciones de TV y pantalla",
-            ConsejoVideo = "Resolución 4K UHD, frecuencia 60 Hz, HDR10 y HDR automático desactivados, espacio de color Estándar",
+            ConsejoVideo = "Resolución 4K UHD, frecuencia 60 Hz (para el modo 40 de la app: 120 Hz y 1440p o 1080p), HDR10 y HDR automático desactivados, espacio de color Estándar",
             ConsejoAudio = "Configuración > General > Opciones de volumen y salida de audio: Estéreo sin comprimir",
         };
 
