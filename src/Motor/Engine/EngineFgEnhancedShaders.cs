@@ -310,7 +310,10 @@ void main(uint3 id : SV_DispatchThreadID)
     }
     // (1.3.3, EFGMAPA) paneo plano (un mapa / menu que se desplaza entero, EngineFgEnhancedPlano.cs): el global preciso es candidato y los
     // demas pagan por apartarse de el (las lineas rectas no resbalan), salvo en la interfaz quieta. Solo al interpolar
-    if (Extrap == 0 && (Opts & 4096) != 0 && Glob[uint2(8, 0)] > 0 && !StillAt(x))
+    bool cerca = false;
+    if (Extrap == 0 && (Opts & 4096) != 0 && Glob[uint2(8, 0)] > 0)
+        [unroll] for (int ci = 0; ci < 9; ci++) cerca = cerca || StillAt(x + float2(ci % 3 - 1, ci / 3 - 1) * Glob[uint2(15, 0)]);
+    if (Extrap == 0 && (Opts & 4096) != 0 && Glob[uint2(8, 0)] > 0 && !cerca)
     {
         pw = Glob[uint2(8, 0)]; pm = -float2(Glob[uint2(9, 0)], Glob[uint2(10, 0)]);
         Try(x, pm);
@@ -412,7 +415,18 @@ void main(uint3 id : SV_DispatchThreadID)
     float3 zp = Prev.Load(P).rgb, zc = Cur.Load(P).rgb;
     float2 st = St.Load(int3(min(int2(id.xy) / 2, int2(W0 - 1, H0 - 1)), 0));
     e[4] = abs(Y(zp) - Y(zc)) + (st.x >= StillN ? 0 : ZeroPen);
-    if ((FOpts & 2) && Extrap == 0 && st.x < StillN) e[4] += Glob[uint2(13, 0)];   // (1.3.3, EFGMAPA) en un paneo plano el 0 solo vale en lo quieto
+    if ((FOpts & 2) && Extrap == 0 && st.x < StillN && Glob[uint2(13, 0)] > 0)
+    {
+        // (1.3.3, EFGMAPA) en un paneo plano el 0 solo vale en lo quieto: paga de mas, salvo cerca de la interfaz quieta con borde (el texto
+        // sobre un panel translucido: sus bordes cambian con el mapa de debajo)
+        int2 q0 = int2(id.xy) / 2, mxq = int2(W0 - 1, H0 - 1); int rq = (int)Glob[uint2(15, 0)]; bool cerca = false;
+        [unroll] for (int ci = 0; ci < 9; ci++)
+        {
+            float2 sq = St.Load(int3(clamp(q0 + int2(ci % 3 - 1, ci / 3 - 1) * rq, int2(0, 0), mxq), 0));
+            cerca = cerca || (sq.x >= StillN && sq.y > 0.5);
+        }
+        if (!cerca) e[4] += Glob[uint2(13, 0)];
+    }
     o[4] = Extrap != 0 ? zc : lerp(zp, zc, T);
     bw[4] = 0.5;
     float em = min(min(min(e[0], e[1]), min(e[2], e[3])), e[4]);
