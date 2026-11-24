@@ -99,9 +99,9 @@ namespace ConsoleEnhancer
             return CeFijoCuenta();
         }
 
-        // (1.3.2, FPS) motor_60sm_refresco_fijo=0|1 (de serie 0). Smooth Motion x2 en el modo 60 con VRR: el driver lo topa a 116 en la tele
+        // (1.3.2, FPS) motor_60sm_refresco_fijo=auto|1|0 (de serie auto). Smooth Motion x2 en el modo 60 con VRR: el driver lo topa a 116 en la tele
         // (120 - 120^2/3600) -con o sin el dormir de Reflex: medido 24-11 03:29-03:31, 58,0 reales de 59,94 y 116,1/s, 2 imagenes de la
-        // consola perdidas por segundo = un tiron cada ~0,5 s-. Con 1, el motor de Smooth Motion en el modo 60 se abre como Enhanced FG x2 /
+        // consola perdidas por segundo = un tiron cada ~0,5 s-. Con auto / 1, el motor de Smooth Motion en el modo 60 se abre como Enhanced FG x2 /
         // DLSS FG en el 60 (motor_60fg_refresco_fijo): G-SYNC apagado SOLO en el perfil de ConsoleEnhancerEngine.exe -sin el tope-, la
         // sincronizacion forzada de Smooth Motion a cada refresco y el motor presentando con ella (refresco_fijo=1 + sm=1, EngineLatencia.cs).
         // Con las mismas cuentas que el auto de arriba (NVIDIA, VRR del motor, >= 100 Hz, el tope no deja pasar 2 x las de la captura y la
