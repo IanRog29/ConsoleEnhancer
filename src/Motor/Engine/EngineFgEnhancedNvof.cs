@@ -25,7 +25,7 @@ namespace ConsoleEnhancer.Motor
     // espera como mucho a NVIDIA por pareja), efg_nvof_hud (puntos quietos con borde de un bloque para dejarle su vector; 0 = nunca).
     partial class Settings
     {
-        public int EfgNvof = 0, EfgNvofPerf = 10, EfgNvofHud = 4;
+        public int EfgNvof = 0, EfgNvofPerf = 10, EfgNvofHud = 4, EfgNvofSentidos = 3;
         public float EfgNvofMs = 20;
 
         bool ApplyEfgNvof(string key, string val)
@@ -36,6 +36,7 @@ namespace ConsoleEnhancer.Motor
                 case "efg_nvof_perf": { int p = I(val); EfgNvofPerf = p <= 5 ? 5 : p >= 20 ? 20 : 10; return true; }
                 case "efg_nvof_ms": EfgNvofMs = (float)Math.Max(2, Math.Min(100, D(val))); return true;
                 case "efg_nvof_hud": EfgNvofHud = Math.Max(0, Math.Min(64, I(val))); return true;
+                case "efg_nvof_sentidos": EfgNvofSentidos = Math.Max(1, Math.Min(3, I(val))); return true;
             }
             return false;
         }
@@ -57,7 +58,7 @@ void main(uint3 id : SV_DispatchThreadID)
 
         // ---- los vectores de NVIDIA (R16G16_SINT, 1/32 de punto, rejilla 4x4 de L0; FW x 2FH: C2P arriba, P2C debajo) a los bloques de 8x8 de L0
         public const string Inject = @"
-cbuffer C : register(b0) { uint BX, BY, FW, FH; uint LW, LH, MinQ, Q0; float Thr, Grad, StillN, Q1; uint4 Q2; }
+cbuffer C : register(b0) { uint BX, BY, FW, FH; uint LW, LH, MinQ, Dirs; float Thr, Grad, StillN, Q1; uint4 Q2; }
 Texture2D<int2> Nv : register(t0);
 Texture2D<float> Lc : register(t1);
 Texture2D<float> Lp : register(t2);
@@ -91,8 +92,9 @@ void main(uint3 id : SV_DispatchThreadID)
     }
     int2 lim = int2(FW - 1, FH - 1);
     int2 g0 = min(int2(id.xy) * 2, lim), g1 = min(g0 + 1, lim);
-    float4 f = F0[id.xy]; f.xy = Avg(g0, g1, 0); F0[id.xy] = f;
-    f = F1[id.xy]; f.xy = Avg(g0, g1, (int)FH); F1[id.xy] = f;
+    float4 f;
+    if (Dirs & 1) { f = F0[id.xy]; f.xy = Avg(g0, g1, 0); F0[id.xy] = f; }
+    if (Dirs & 2) { f = F1[id.xy]; f.xy = Avg(g0, g1, (int)FH); F1[id.xy] = f; }
 }";
     }
 
@@ -285,7 +287,7 @@ void main(uint3 id : SV_DispatchThreadID)
             EB(efgNvF, D3D12_RESOURCE_STATES.COPY_DEST, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE);
             uint* k = stackalloc uint[16];
             EfgZero(k);
-            k[0] = (uint)efgBx[0]; k[1] = (uint)efgBy[0]; k[2] = (uint)efgNvFw; k[3] = (uint)efgNvFh; k[4] = (uint)efgLw[0]; k[5] = (uint)efgLh[0]; k[6] = (uint)s.EfgNvofHud;
+            k[0] = (uint)efgBx[0]; k[1] = (uint)efgBy[0]; k[2] = (uint)efgNvFw; k[3] = (uint)efgNvFh; k[4] = (uint)efgLw[0]; k[5] = (uint)efgLh[0]; k[6] = (uint)s.EfgNvofHud; k[7] = (uint)s.EfgNvofSentidos;
             k[8] = F(s.EfgStillDiff); k[9] = F(s.EfgStillGrad); k[10] = F(s.EfgStillN);
             for (int d = 0; d < 2; d++) EB(efgF[c, d, 0], D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.UNORDERED_ACCESS);
             efgList.SetDescriptorHeaps(1, ref efgNvHeapPtr);
@@ -341,15 +343,18 @@ void main(uint3 id : SV_DispatchThreadID)
                         NvD2D(f.pA, f.strideIn, b.pB, b.strideIn, W, H);
                         NvCu.ExecIn ei = new NvCu.ExecIn { inputFrame = f.inA, referenceFrame = f.inB }; NvCu.ExecOut eo = new NvCu.ExecOut { outputBuffer = f.outF };
                         NvCk(efgNvExec(f.h, ref ei, ref eo), "nvOFExecute (C2P)");
+                        bool both = (s.EfgNvofSentidos & 2) != 0;
+                        if (both) {
                         NvCu.ExecIn bi = new NvCu.ExecIn { inputFrame = b.inA, referenceFrame = b.inB }; NvCu.ExecOut bo = new NvCu.ExecOut { outputBuffer = b.outF };
-                        NvCk(efgNvExec(b.h, ref bi, ref bo), "nvOFExecute (P2C)");
+                        NvCk(efgNvExec(b.h, ref bi, ref bo), "nvOFExecute (P2C)"); }
                         ulong rp = efgNvUpFoot.Footprint.RowPitch; IntPtr up0 = efgNvUpPtr + (int)efgNvUpFoot.Offset;
                         NvCu.CUDA_MEMCPY2D d0 = new NvCu.CUDA_MEMCPY2D { srcMemoryType = 2, srcDevice = f.pOut, srcPitch = f.strideOut, dstMemoryType = 1, dstHost = up0, dstPitch = rp,
                                                                            WidthInBytes = (ulong)(efgNvFw * 4), Height = (ulong)efgNvFh };
                         NvCk(NvCu.cuMemcpy2D_v2(ref d0), "cuMemcpy2D (C2P)");
+                        if (both) {
                         NvCu.CUDA_MEMCPY2D d1 = new NvCu.CUDA_MEMCPY2D { srcMemoryType = 2, srcDevice = b.pOut, srcPitch = b.strideOut, dstMemoryType = 1, dstHost = up0 + (int)(rp * (ulong)efgNvFh), dstPitch = rp,
                                                                            WidthInBytes = (ulong)(efgNvFw * 4), Height = (ulong)efgNvFh };
-                        NvCk(NvCu.cuMemcpy2D_v2(ref d1), "cuMemcpy2D (P2C)");
+                        NvCk(NvCu.cuMemcpy2D_v2(ref d1), "cuMemcpy2D (P2C)"); }
                         efgNvLastMs = (float)Clock.SinceMs(t0);
                         efgNvOk = true;
                     }
