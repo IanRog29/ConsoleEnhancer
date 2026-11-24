@@ -31,7 +31,7 @@ namespace ConsoleEnhancer
 
         // Lo que se quiere ahora: cadena de generacion, Smooth Motion y refresco fijo (como CheckEngineFfx / Smooth / Fixed)
         int WantChain { get { return cfg.EngineFgChain; } }
-        int WantFixed { get { return cfg.EngineSmoothMode == 0 && cfg.EngineFixedWanted ? 1 : 0; } }
+        int WantFixed { get { return cfg.EngineFixedWant; } }   // (1.3.2, FPS: tambien Smooth Motion x2 en el 60, motor_60sm_refresco_fijo)
 
         // El motor que hace la imagen (p) se abrio con otra identidad de la que toca: por que (null = vale). Con cfg ya preparada
         string EngineIdentityDiff(Process p)
@@ -42,7 +42,7 @@ namespace ConsoleEnhancer
             int smRun = Config.EngineSmoothRunning;
             if (smRun >= 0 && (cfg.EngineSmoothAny || smRun > 0) && cfg.EngineSmoothMode != smRun) return "Smooth Motion " + smRun + " -> " + cfg.EngineSmoothMode;
             int fx = Config.EngineFixedOf(p);
-            if (fx >= 0 && (cfg.EngineFixedWanted || fx != 0) && fx != WantFixed) return "refresco " + (fx > 0 ? "fijo" : "VRR") + " -> " + (WantFixed > 0 ? "fijo" : "VRR");
+            if (fx >= 0 && (WantFixed > 0 || fx != 0) && fx != WantFixed) return "refresco " + (fx > 0 ? "fijo" : "VRR") + " -> " + (WantFixed > 0 ? "fijo" : "VRR");
             return null;
         }
 

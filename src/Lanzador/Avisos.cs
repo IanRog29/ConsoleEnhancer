@@ -560,6 +560,7 @@ namespace ConsoleEnhancer
                 fallos += AvisosNoPuede(sb, fallosTxt, baseCfg, ref n);
                 fallos += AvisosEscalera(sb, fallosTxt, ref n);   // (1.3.1, FPS)
                 fallos += AvisosFpsSesion(sb, fallosTxt, baseCfg, ref n);   // (1.3.2, FPS)
+                fallos += AvisosSmFijo(sb, fallosTxt, ref n);   // (1.3.2, FPS)
                 fallos += AvisosSesion(sb, fallosTxt, baseCfg, informe, ref n);
             }
             catch (Exception ex) { fallos++; sb.AppendLine("FALLO: " + ex); fallosTxt.Add("excepcion: " + ex.Message); }
@@ -1099,6 +1100,52 @@ namespace ConsoleEnhancer
             n += 6;
             foreach (string x in r) { fallos++; fallosTxt.Add("sesion FPS: " + x); }
             sb.AppendLine(r.Count == 0 ? "      DLSS 5 apagado esta sesion, modo y captura bajados: nada al perfil; lo del usuario despues, si" : "FALLO " + string.Join(" | ", r.ToArray()));
+            return fallos;
+        }
+
+        // (1.3.2, FPS) motor_60sm_refresco_fijo: cuando se abre el motor de Smooth Motion con el refresco fijo (sin el tope de 116 de G-SYNC).
+        // Solo la cuenta (sin tocar el driver ni la tele: Pantalla.HzPrueba)
+        static int AvisosSmFijo(StringBuilder sb, List<string> fallosTxt, ref int n)
+        {
+            int fallos = 0;
+            sb.AppendLine("== motor_60sm_refresco_fijo: Smooth Motion con el refresco fijo");
+            List<string> r = new List<string>();
+            int hzAntes = Pantalla.HzPrueba;
+            try
+            {
+                // caso | clave | Hz | modo 30 | modo 120 | VRR | generacion del modo | sm esperado | fijo esperado
+                object[][] casos = {
+                    new object[] { "60 Smooth Motion, clave 0 (como la 1.3.1)", "0", 120, false, false, 1, "smooth", 1, 0 },
+                    new object[] { "60 Smooth Motion, clave 1", "1", 120, false, false, 1, "smooth", 1, 1 },
+                    new object[] { "60 Smooth Motion, auto (de serie)", "auto", 120, false, false, 1, "smooth", 1, 1 },
+                    new object[] { "30 Smooth Motion a 60 Hz (forzada), auto: sin medir, no", "auto", 60, true, false, 1, "smooth", 1, 0 },
+                    new object[] { "60 Smooth Motion, clave 1, sin VRR", "1", 120, false, false, 0, "smooth", 1, 0 },
+                    new object[] { "60 Smooth Motion, clave 1, modo 120", "1", 120, false, true, 1, "smooth", 0, 0 },
+                    new object[] { "30 Smooth Motion a 120 Hz (cada 2 refrescos), clave 1", "1", 120, true, false, 1, "smooth", 2, 0 },
+                    new object[] { "30 Smooth Motion a 60 Hz (forzada), clave 1", "1", 60, true, false, 1, "smooth", 1, 1 },
+                    new object[] { "30 Smooth Motion a 60 Hz (forzada), clave 0", "0", 60, true, false, 1, "smooth", 1, 0 },
+                    new object[] { "60 a 60 Hz (sin generacion), clave 1", "1", 60, false, false, 1, "smooth", 0, 0 },
+                    new object[] { "60 Smooth Motion a 144 Hz (2 x 59,94 cabe en 138), clave 1", "1", 144, false, false, 1, "smooth", 1, 0 },
+                };
+                foreach (object[] k in casos)
+                {
+                    Config c = new Config();
+                    c.CeSmRefrescoFijo = (string)k[1]; Pantalla.HzPrueba = (int)k[2];
+                    c.CapMode = (bool)k[3]; c.Mode120 = (bool)k[4]; c.EngineVrr = (int)k[5]; c.FgOff = false; c.HomeNative = false;
+                    c.FgPick60 = (string)k[6]; c.FgPick30 = (string)k[6]; c.Framerate = "60000/1001";
+                    if (!Config.GenPuedeIr("smooth", c.VideoSize)) { r.Add("Smooth Motion no puede ir en este PC: no se prueba"); break; }
+                    int sm = c.EngineSmoothMode, fx = c.EngineFixedWant;
+                    n++;
+                    if (sm != (int)k[7] || fx != (int)k[8]) r.Add(k[0] + ": sm " + sm + " fijo " + fx + " (se esperaba sm " + k[7] + " fijo " + k[8] + ")");
+                }
+                // Enhanced FG x2 en el 60 sigue con el fijo de motor_60fg_refresco_fijo=auto, tenga o no la clave nueva
+                Config e = new Config();
+                Pantalla.HzPrueba = 120; e.EngineVrr = 1; e.CapMode = false; e.Mode120 = false; e.FgOff = false; e.HomeNative = false; e.FgPick60 = "efg";
+                if (Config.GenPuedeIr("efg", e.VideoSize)) { n++; if (e.EngineFixedWant != 1) r.Add("Enhanced FG x2 en el 60: sin el refresco fijo (antes si)"); }
+            }
+            finally { Pantalla.HzPrueba = hzAntes; }
+            foreach (string x in r) { fallos++; fallosTxt.Add("sm fijo: " + x); }
+            sb.AppendLine(r.Count == 0 ? "      el fijo de serie (auto) y con 1 en el 60 a 120 Hz, en el 30 a 60 Hz solo con 1; con 0, sin VRR, a 144 Hz, en el 120 y cada 2 refrescos, no; Enhanced FG x2 en el 60 como antes" : "FALLO " + string.Join(" | ", r.ToArray()));
             return fallos;
         }
 

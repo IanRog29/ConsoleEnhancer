@@ -2434,11 +2434,45 @@ namespace ConsoleEnhancer
                 if (ok) engineFixedState = on ? 1 : 0;
                 else if (on) EngineFixedBroken = true;
                 if (ok) CeImagen.MarcaRefrescoFijo(on); // (ConsoleEnhancer: en data\picture_restore.txt: si la app se cae, se quita al volver a abrirla)
-                Log.Write("NVIDIA: refresco fijo (G-SYNC apagado) para ConsoleEnhancerEngine.exe " + (on ? "puesto (60 con DLSS FG)" : "quitado (VRR)") +
+                Log.Write("NVIDIA: refresco fijo (G-SYNC apagado) para ConsoleEnhancerEngine.exe " + (on ? "puesto (modo 60 con generacion)" : "quitado (VRR)") +
                           (ok ? "" : " NO SE PUDO") + " en " + sw.ElapsedMilliseconds + " ms");
                 return ok;
             }
         }
+        // (1.3.2, FPS) --test-sm-fijo-driver[=<informe>]: Smooth Motion (con la sincronizacion forzada) y el refresco fijo JUNTOS en el perfil de
+        // ConsoleEnhancerEngine.exe, como los pone motor_60sm_refresco_fijo=1 antes de abrir el motor; leidos otra vez del driver y vuelta a lo
+        // de antes. Toca el driver de verdad (solo con el turno de la grafica y sin el motor abierto)
+        public static int SmFijoDriverPrueba(string informe)
+        {
+            StringBuilder sb = new StringBuilder("# SMFIJO: Smooth Motion + refresco fijo en el perfil del motor (" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture) + ")" + Environment.NewLine);
+            int fallos = 0, sm0;
+            bool fx0;
+            lock (smoothSync) { sm0 = EngineSmoothRead(); fx0 = FixedRw(-1); engineSmoothState = sm0; engineFixedState = fx0 ? 1 : 0; }
+            sb.AppendLine("antes:  Smooth Motion " + sm0 + " (0 no, 1 forzada, 2 cada 2 refrescos, 3 sin sincronizacion), refresco fijo " + (fx0 ? "si" : "no"));
+            try
+            {
+                Stopwatch sw = Stopwatch.StartNew();
+                bool a = SetEngineSmooth(1), b = SetEngineFixed(true);
+                int sm1; bool fx1;
+                lock (smoothSync) { sm1 = EngineSmoothRead(); fx1 = FixedRw(-1); }
+                sb.AppendLine("puesto: " + (a ? "ok" : "NO") + " / " + (b ? "ok" : "NO") + " en " + sw.ElapsedMilliseconds + " ms -> leido: Smooth Motion " + sm1 + ", refresco fijo " + (fx1 ? "si" : "no"));
+                if (!a || !b || sm1 != 1 || !fx1) { fallos++; sb.AppendLine("FALLO: los dos juntos no quedan en el perfil"); }
+            }
+            finally
+            {
+                bool c = SetEngineSmooth(sm0), d = SetEngineFixed(fx0);
+                int sm2; bool fx2;
+                lock (smoothSync) { sm2 = EngineSmoothRead(); fx2 = FixedRw(-1); }
+                sb.AppendLine("vuelta: " + (c ? "ok" : "NO") + " / " + (d ? "ok" : "NO") + " -> leido: Smooth Motion " + sm2 + ", refresco fijo " + (fx2 ? "si" : "no"));
+                if (sm2 != sm0 || fx2 != fx0) { fallos++; sb.AppendLine("FALLO: no vuelve a lo de antes"); }
+            }
+            sb.AppendLine(fallos == 0 ? "Todo bien" : "Fallos: " + fallos);
+            string txt = sb.ToString();
+            Console.Write(txt);
+            try { if (!string.IsNullOrEmpty(informe)) File.WriteAllText(informe, txt, new UTF8Encoding(false)); } catch { }
+            return fallos == 0 ? 0 : 1;
+        }
+
         // op -1 = mirar, 1 = poner, 0 = quitar
         static bool FixedRw(int op)
         {
@@ -10182,7 +10216,7 @@ namespace ConsoleEnhancer
             else
             {
                 if (!opts.Contains("smooth")) return;
-                altSm = cfg.CapMode ? (Pantalla.Hz() >= 100 ? 2 : 1) : (Pantalla.Hz() >= 100 ? 1 : 0); altFixed = 0;
+                altSm = cfg.CapMode ? (Pantalla.Hz() >= 100 ? 2 : 1) : (Pantalla.Hz() >= 100 ? 1 : 0); altFixed = altSm == 1 && cfg.EngineFixedSmPosible ? 1 : 0;   // (1.3.2, FPS: Smooth Motion x2 en el 60 con motor_60sm_refresco_fijo=1)
             }
             if (altSm == smRun && altCh == chRun) return;
             string key = smRun + ">" + altSm + "|" + altFixed + "|c" + chRun + ">" + altCh + "|" + cfg.CaptureNow + "|" + (cfg.CapMode ? 30 : 60);
@@ -10366,16 +10400,16 @@ namespace ConsoleEnhancer
         void CheckEngineFixed(DateTime now)
         {
             int have = Config.EngineFixedOf(mpv);
-            if (have < 0 || (!cfg.EngineFixed60Fg && have == 0)) { fixedDiffSince = DateTime.MinValue; return; }
+            if (have < 0 || (!cfg.EngineFixed60Fg && cfg.CeSmRefrescoFijo == "0" && have == 0)) { fixedDiffSince = DateTime.MinValue; return; }
             if (!ipcUp || !lsReady || homeBusy || passesBusy || relaunchEngine || relaunchSize != null || relevo != null)
             { fixedDiffSince = DateTime.MinValue; return; }
             PrepareCfg();
-            int want = cfg.EngineSmoothMode == 0 && cfg.EngineFixedWanted ? 1 : 0;
+            int want = cfg.EngineFixedWant;   // (1.3.2, FPS: con Smooth Motion x2 en el 60, motor_60sm_refresco_fijo)
             if (want == have || cfg.EngineSmoothMode != Config.EngineSmoothRunning) { fixedDiffSince = DateTime.MinValue; return; }   // (lo de Smooth Motion primero)
             if (fixedDiffSince == DateTime.MinValue) { fixedDiffSince = now; return; }
             if ((now - fixedDiffSince).TotalSeconds < 0.5) return;
             fixedDiffSince = DateTime.MinValue;
-            Log.Write("Refresco del motor: " + (want > 0 ? "fijo (" + (cfg.CapMode ? "modo 30 con DLSS FG x4 del motor" : "modo 60 con DLSS FG") + ": sin el tope de 116 de Reflex con VRR)" : "VRR (" + (cfg.CapMode ? "modo 30" : cfg.FgOff ? "sin generacion" : "otra generacion") + ")") +
+            Log.Write("Refresco del motor: " + (want > 0 ? "fijo (" + (cfg.CapMode ? "modo 30 con DLSS FG x4 del motor" : cfg.EngineSmoothMode == 1 ? "modo 60 con Smooth Motion x2, motor_60sm_refresco_fijo" : "modo 60 con generacion del motor") + ": sin el tope de 116 de Reflex con VRR)" : "VRR (" + (cfg.CapMode ? "modo 30" : cfg.FgOff ? "sin generacion" : "otra generacion") + ")") +
                       ": el driver solo lo mira al abrirlo, se vuelve a abrir el motor");
             ReabrirMotorSmooth(cfg.EngineSmoothMode, null, null);
         }
@@ -10570,7 +10604,7 @@ namespace ConsoleEnhancer
             else sm = 0;
             Config.EngineSmoothLaunched = sm;
             // 20-11 (LATENCIA5): refresco fijo en el perfil del motor en el 60 con DLSS FG (motor_60fg_refresco_fijo); quitado si no toca
-            bool fixedRefresh = fixedOverride >= 0 ? (fixedOverride > 0 && sm == 0) : (sm == 0 && cfg.EngineFixedWanted);
+            bool fixedRefresh = fixedOverride >= 0 ? (fixedOverride > 0 && (sm == 0 || (sm == 1 && cfg.EngineFixedSmPosible))) : cfg.EngineFixedConSm(sm);   // (1.3.2, FPS: tambien Smooth Motion x2 en el 60 con motor_60sm_refresco_fijo=1)
             if (fixedRefresh || NvProfiles.EngineFixedOn) { if (!NvProfiles.SetEngineFixed(fixedRefresh)) fixedRefresh = false; }
             Config.EngineFixedLaunched = fixedRefresh ? 1 : 0;
             // 21-11 (1.0.9): FSR 3 FG en el motor (1.2.4 MOTORFG: XeSS FG; src\Lanzador\MotorFg.cs). (1.2.4, integracion: el de reserva -Smooth
@@ -12023,7 +12057,7 @@ namespace ConsoleEnhancer
                         KillStandby("Smooth Motion: el motor en espera se abrio " + (standbySmooth > 0 ? "con el (" + standbySmooth + ")" : "sin el"));
                     // 20-11 (LATENCIA5): y uno abierto con otro refresco (fijo en el 60 con DLSS FG / VRR) tampoco
                     if (eng && !puenteCaida && adopted == null && standbyEngine != null && Config.EngineFixedOf(standbyEngine) >= 0 &&
-                        Config.EngineFixedOf(standbyEngine) != (cfg.EngineSmoothMode == 0 && cfg.EngineFixedWanted ? 1 : 0))
+                        Config.EngineFixedOf(standbyEngine) != cfg.EngineFixedWant)   // (1.3.2, FPS: EngineFixedWant)
                         KillStandby("refresco: el motor en espera se abrio " + (Config.EngineFixedOf(standbyEngine) > 0 ? "con el refresco fijo" : "con VRR"));
                     // 21-11 (1.0.9): y uno abierto con otra generacion de motor (FSR 3 FG / la de siempre): la cadena no se cambia en marcha
                     if (eng && !puenteCaida && adopted == null && standbyEngine != null && Config.EngineFfxOf(standbyEngine) >= 0 &&
@@ -12553,6 +12587,8 @@ namespace ConsoleEnhancer
                 if (arg == "--test-solo-motor" || arg.StartsWith("--test-solo-motor=")) return Config.SoloMotorPrueba(arg.Length > 18 ? arg.Substring(18) : null);
                 // 23-11 (1.2.4 ronda 6, SMX4): cuando hay Smooth Motion x4 y que va al perfil y al motor: --test-smooth-x4[=<informe>] (SmoothX4.cs)
                 if (arg == "--test-smooth-x4" || arg.StartsWith("--test-smooth-x4=")) return Config.SmoothX4Prueba(arg.Length > 17 ? arg.Substring(17) : null);
+                // (1.3.2, FPS) Smooth Motion + refresco fijo juntos en el perfil del motor, de verdad en el driver: --test-sm-fijo-driver[=<informe>]
+                if (arg == "--test-sm-fijo-driver" || arg.StartsWith("--test-sm-fijo-driver=")) return NvProfiles.SmFijoDriverPrueba(arg.Length > 22 ? arg.Substring(22) : null);
                 // 23-11 (1.2.4 ronda 7, TEXTOS): los avisos al aplicar (menu de ajustes, botones, bandeja) contra lo que va de verdad, todas las
                 // combinaciones del menu, sin abrir nada: --test-avisos[=<informe>] (src\Lanzador\Avisos.cs; con --datos=<copia>: escribe lo elegido)
                 if (arg == "--test-avisos" || arg.StartsWith("--test-avisos=")) return TrayApp.AvisosPrueba(arg.Length > 14 ? arg.Substring(14) : null);
