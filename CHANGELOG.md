@@ -7,10 +7,11 @@ publicada es una etiqueta `vX.Y.Z` de git; GitHub Actions monta su zip y copia a
 
 ## [1.3.2] - 2026-11-24
 
-**Enhanced FG reaches its frame rate and holds together on fast camera turns at a 30 fps base, the frame-rate ladder only lowers
-things when the GPU is really full (and never into the game profile), DLSS sharper in motion, a new 40 fps mode and the Switch 2 back
-to HOME.** Measured without the console on an RTX 4060 Ti with a 4K 120 Hz VRR TV, with real gameplay video played through the engine
-like the capture card and the settings of the person who tests it with the console. Compared with 1.3.1. *En castellano, más abajo.*
+**Enhanced FG reaches its frame rate and holds together on fast camera turns at a 30 fps base, the frame-rate ladder only lowers things
+when the GPU is really full (and never into the game profile), DLSS sharper in motion, Smooth Motion ×2 at 120 fps in the 60 fps mode, a
+new 40 fps mode and the Switch 2 back to HOME.** Measured without the console on an RTX 4060 Ti with a 4K 120 Hz VRR TV, with real
+gameplay video played through the engine like the capture card and the settings of the person who tests it with the console. Compared
+with 1.3.1. *En castellano, más abajo.*
 
 ### English
 
@@ -102,6 +103,11 @@ like the capture card and the settings of the person who tests it with the conso
   app with real video: no black at all from the app (was a 330-690 ms black curtain plus its fade), and the first game picture ready
   0.3 s sooner the first time.
 - A console changing video mode while a game starts (No Signal for a moment) is no longer reported as a stalled engine.
+- **Smooth Motion ×2 in the 60 fps mode reaches 120 fps on a 120 Hz VRR TV** (it stayed at 116: 58 of the console's 59.94 frames, a
+  hitch every ~0.5 s, and the frame-rate ladder lowered DLSS 5 and the model for it): with G-SYNC + V-Sync the driver caps the output at
+  116, so, like Enhanced FG in that mode, it now runs at a fixed refresh rate (G-SYNC off only in the engine's own NVIDIA profile while you
+  play like this). Measured in the whole app with real gameplay video: 59.94 real frames and 119.9 fps on the TV, none lost (35-39 lost
+  every 20 s before), at 1440p + DLSS 5 and at 1080p; the median latency about the same, the 95th percentile 8-12 ms higher.
 
 #### Settings to go back
 Engine settings go at the end of the `motor_extra=` line of `consoleenhancer.ini`; the others, as their own line at the end of the file.
@@ -111,8 +117,9 @@ Engine settings go at the end of the `motor_extra=` line of `consoleenhancer.ini
   the history of still areas if a dark or grainy game shimmers) · `escalera_grafica_llena=0` (lower as in 1.3.1) · `escalera_efg_p95=0`
   (only the whole-GPU check) · `dlss5_suelo_px=0` (25 % floor) · `cambio_captura_espera=0` · `m40_reparto=0` (40 fps mode: the 2-1
   cadence as it arrives) · `m40_ritmo=0` (each frame as soon as it is ready).
-- In the ini: `motor_uso_grafica=90.5` (the 90 % GPU limit) · `home_por_franjas=0` · `telon_home_juego=1` (the black curtain between HOME
-  and game) · `modo40_captura_120=0` (40 fps mode always captured at 60).
+- In the ini: `motor_uso_grafica=90.5` (the 90 % GPU limit) · `motor_60sm_refresco_fijo=0` (Smooth Motion ×2 of the 60 fps mode with
+  VRR, 116 fps) · `home_por_franjas=0` · `telon_home_juego=1` (the black curtain between HOME and game) · `modo40_captura_120=0` (40 fps
+  mode always captured at 60).
 - To try, in `motor_extra`: `efg_retraso_lat3=0.25` (the later real frame also in ×3 low latency: fewer glitches when turning, the same
   pacing with the new thread, but 16 → 30 ms at 1440p + DLSS M) · `efg_retraso_lat4=0.5` (×4 low latency with the real frame two output
   frames later: about a third fewer glitches than all-ahead and close to quality mode, +8 ms) · `efg_lat_ganancia` (how far low latency
@@ -126,8 +133,6 @@ Engine settings go at the end of the `motor_extra=` line of `consoleenhancer.ini
 - Where the camera turn already fitted (most scenes at a 60 fps base and slower turns at 30) the generated frames barely change: what
   still shows is what gets uncovered behind close objects, thin things with parallax, the strip entering through the screen edge on a fast
   turn and animated HUD elements; zooming maps were not measured. The graphics card's hardware optical flow is the next step.
-- Smooth Motion ×2 in the 60 fps mode with VRR at 120 Hz stays at 116 fps on the TV (58 of 59.94 real frames): the frame cap of the
-  driver / Reflex with G-SYNC; the app no longer lowers anything for it and says so.
 - The DLSS history fix is only for DLSS SR (not XeSS / FSR).
 - The 40 fps mode uses the frame generation type of the 30 fps mode (picking one changes both); the Enhanced FG multiplier is its own.
 - Everything in this version was measured with real gameplay video through the engine, not yet with the PS5 or the Switch 2.
@@ -135,7 +140,8 @@ Engine settings go at the end of the `motor_extra=` line of `consoleenhancer.ini
 ### Castellano
 
 **Enhanced FG llega a sus fps y aguanta los giros rápidos de cámara con base 30, la escalera de fps solo baja cosas si la gráfica va
-llena de verdad (y nunca en el perfil del juego), DLSS más nítido en movimiento, un modo 40 fps nuevo y la Switch 2 vuelve al HOME.**
+llena de verdad (y nunca en el perfil del juego), DLSS más nítido en movimiento, Smooth Motion ×2 a 120 fps en el modo 60, un modo 40 fps
+nuevo y la Switch 2 vuelve al HOME.**
 Medido sin la consola en una RTX 4060 Ti con una tele 4K de 120 Hz con VRR, con vídeo real de juego por el motor como si fuera la
 capturadora y los ajustes de quien la prueba con la consola. Comparado con la 1.3.1.
 
@@ -223,16 +229,23 @@ capturadora y los ajustes de quien la prueba con la consola. Comparado con la 1.
   la captura de antes (0,2-0,4 s) y lo inicia mientras llega la nueva. Medido en la app con vídeo real: nada de negro de la app (antes un
   telón negro de 330-690 ms y su fundido) y la primera imagen del juego lista 0,3 s antes la primera vez.
 - Una consola que cambia de modo de vídeo al arrancar un juego (Sin señal un momento) ya no cuenta como el motor colgado.
+- **Smooth Motion ×2 en el modo 60 llega a 120 fps en una tele de 120 Hz con VRR** (se quedaba en 116: 58 de las 59,94 imágenes de la
+  consola, un tirón cada ~0,5 s, y la escalera bajaba DLSS 5 y el modelo por eso): con G-SYNC + V-Sync el driver topa la salida a 116, así
+  que, como Enhanced FG en ese modo, ahora va con refresco fijo (G-SYNC apagado solo en el perfil de NVIDIA del motor mientras juegas
+  así). Medido en la app entera con vídeo real de juego: 59,94 reales y 119,9 en la tele, ninguna perdida (antes 35-39 cada 20 s), a 1440p
+  + DLSS 5 y a 1080p; la latencia en la mediana parecida, en el percentil 95 8-12 ms más.
 
 #### Ajustes para volver atrás
 Las claves del motor van al final de la línea `motor_extra=` de `consoleenhancer.ini`; las demás, en su propia línea al final del fichero.
 - En `motor_extra`: `efg_salto_fino=0 efg_copia_pronto=0 efg_l_nuevo=0 efg_atrasada=0 efg_ritmo_x3=0 efg_cola_tele=0` (el ritmo de
-  Enhanced FG de la 1.3.1) · `efg_retraso_dlss5=0` (×4 baja latencia con DLSS 5 todo hacia delante, como la 1.3.1) · `efg_giro=0 efg_niveles=5` (el flujo óptico de la 1.3.1) · `sr_sin_historia=0` (la historia de DLSS como en la 1.3.1;
-  `sr_sin_historia_mov=0.5` deja su historia a lo quieto si un juego oscuro o con grano "hierve") · `escalera_grafica_llena=0` (bajar como
-  en la 1.3.1) · `escalera_efg_p95=0` (solo la gráfica entera) · `dlss5_suelo_px=0` (suelo del 25 %) · `cambio_captura_espera=0` ·
-  `m40_reparto=0` (modo 40: la cadencia 2-1 tal cual llega) · `m40_ritmo=0` (cada imagen en cuanto está).
-- En el ini: `motor_uso_grafica=90.5` (el tope del 90 %) · `home_por_franjas=0` · `telon_home_juego=1` (el telón negro entre el HOME y el
-  juego) · `modo40_captura_120=0` (el modo 40 siempre con la captura a 60).
+  Enhanced FG de la 1.3.1) · `efg_retraso_dlss5=0` (×4 baja latencia con DLSS 5 todo hacia delante, como la 1.3.1) · `efg_giro=0
+  efg_niveles=5` (el flujo óptico de la 1.3.1) · `sr_sin_historia=0` (la historia de DLSS como en la 1.3.1; `sr_sin_historia_mov=0.5`
+  deja su historia a lo quieto si un juego oscuro o con grano "hierve") · `escalera_grafica_llena=0` (bajar como en la 1.3.1) ·
+  `escalera_efg_p95=0` (solo la gráfica entera) · `dlss5_suelo_px=0` (suelo del 25 %) · `cambio_captura_espera=0` · `m40_reparto=0`
+  (modo 40: la cadencia 2-1 tal cual llega) · `m40_ritmo=0` (cada imagen en cuanto está).
+- En el ini: `motor_uso_grafica=90.5` (el tope del 90 %) · `motor_60sm_refresco_fijo=0` (Smooth Motion ×2 del modo 60 con VRR, a 116) ·
+  `home_por_franjas=0` · `telon_home_juego=1` (el telón negro entre el HOME y el juego) · `modo40_captura_120=0` (el modo 40 siempre con
+  la captura a 60).
 - Para probar, en `motor_extra`: `efg_retraso_lat3=0.25` (la real más tarde también en ×3 baja latencia: menos fallos al girar, el mismo
   ritmo con el hilo nuevo, pero 16 → 30 ms a 1440p + DLSS M) · `efg_retraso_lat4=0.5` (×4 baja latencia con la real dos imágenes
   después: un tercio menos de fallos que todo hacia delante y cerca del modo calidad, +8 ms) · `efg_lat_ganancia` (lo lejos que adivina
@@ -246,8 +259,6 @@ Las claves del motor van al final de la línea `motor_extra=` de `consoleenhance
 - Donde el giro ya cabía (casi todo con base 60 y los giros más lentos con base 30) las inventadas casi no cambian: lo que sigue
   viéndose es lo que se destapa detrás de lo cercano, lo fino con paralaje, la franja que entra por el borde en un giro rápido y la
   interfaz animada; el zoom de los mapas no se ha medido. El flujo óptico por hardware de la gráfica es lo siguiente.
-- Smooth Motion ×2 en el modo 60 con VRR a 120 Hz se queda en 116 fps en la tele (58 de 59,94 reales): el tope de imágenes del driver /
-  Reflex con G-SYNC; la app ya no baja nada por eso y lo dice.
 - El arreglo de la historia de DLSS es solo para DLSS SR (no XeSS / FSR).
 - El modo 40 usa el tipo de generación del modo 30 (elegir uno cambia los dos); el multiplicador de Enhanced FG es suyo.
 - Todo lo de esta versión se ha medido con vídeo real de juego por el motor, aún no con la PS5 ni con la Switch 2.

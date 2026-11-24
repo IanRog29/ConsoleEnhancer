@@ -255,7 +255,8 @@ with help a lot too.
   the driver allow it; on AMD / Intel, enable it in the wizard (`vrr=1`). Also in tray > Picture > VRR. When on, the built-in engine
   presents each frame as soon as it is done (without waiting for the refresh) and, with frame generation, syncs only where needed
   (`motor_vrr_fg_vsync=-1`); only if the display reports VRR, so as not to cause stutter on one that doesn't have it. In 60 mode with
-  XeSS FG or FSR 3 FG on a 120 Hz G-SYNC display, the engine runs at a **fixed refresh rate** (G-SYNC is turned off only in the NVIDIA profile for its
+  frame generation (Enhanced FG, and since 1.3.2 Smooth Motion ×2: 59.94 real frames and 119.9 fps on the TV instead of 58 and 116,
+  `motor_60sm_refresco_fijo=auto`) on a 120 Hz G-SYNC display, the engine runs at a **fixed refresh rate** (G-SYNC is turned off only in the NVIDIA profile for its
   exe while you play like this; it is restored on exit, and if the app crashes, the next time it opens): with G-SYNC, Reflex capped the
   output at ~116 frames/s and ~2 console frames per second were lost; this way all of them come through, with less latency
   (`motor_60fg_refresco_fijo=auto`; at 144 Hz or more, at 119.88 Hz, without VRR or without NVIDIA nothing is changed; never in the
@@ -884,8 +885,9 @@ y contar en qué PC y con qué consola lo usas.
 - **VRR** (`vrr=auto`): se enciende solo si la pantalla tiene VRR (G-SYNC / G-SYNC Compatible / FreeSync / HDMI VRR) y Windows y el
   driver lo permiten; en AMD / Intel, actívalo en el asistente (`vrr=1`). También en bandeja > Imagen > VRR. Encendido, el motor propio
   presenta cada imagen en cuanto la acaba (sin esperar al refresco) y, con la generación, sincroniza solo donde haría falta
-  (`motor_vrr_fg_vsync=-1`); solo si la pantalla dice tener VRR, para no dar cortes en una que no lo tenga. En el modo 60 con XeSS FG o
-  FSR 3 FG y una pantalla de 120 Hz con G-SYNC, el motor va con **refresco fijo** (G-SYNC apagado solo en el perfil de NVIDIA de su exe mientras
+  (`motor_vrr_fg_vsync=-1`); solo si la pantalla dice tener VRR, para no dar cortes en una que no lo tenga. En el modo 60 con generación
+  (Enhanced FG y, desde la 1.3.2, Smooth Motion ×2: 59,94 reales y 119,9 en la tele en vez de 58 y 116, `motor_60sm_refresco_fijo=auto`)
+  y una pantalla de 120 Hz con G-SYNC, el motor va con **refresco fijo** (G-SYNC apagado solo en el perfil de NVIDIA de su exe mientras
   juegas así; se quita al salir, y si la app se cae, al volver a abrirla): con G-SYNC, Reflex limita la salida a ~116 imágenes/s y se
   perdían ~2 imágenes de la consola por segundo; así salen todas y con menos retraso (`motor_60fg_refresco_fijo=auto`; con 144 Hz o
   más, a 119,88 Hz, sin VRR o sin NVIDIA no se toca nada; nunca en el modo 120, que siempre sigue con VRR).
