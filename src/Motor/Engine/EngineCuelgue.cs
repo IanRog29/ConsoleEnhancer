@@ -121,7 +121,10 @@ namespace ConsoleEnhancer.Motor
                     }
                     TestOffStep();
                     // Sin pintar a proposito (en espera, entrando o saliendo de ella, sin ventana aun, sin imagen aun): nada que mirar
-                    if (inStandby || standbyPending > 0 || windowPending || pr == 0)
+                    // (1.3.2, SWITCH2: y sin la pantalla No Signal a proposito -la ultima imagen, nosigSilencio, 5 s como mucho- o esperando la captura
+                    // nueva de un cambio -CambioEsperando, EngineCambioCaptura.cs-: el 24-11 01:40:28 "grafica colgada (3819 ms)" al arrancar RESIDENT
+                    // EVIL requiem -su cambio de modo de video- y el lanzador preparando un telon congelado para una caida que no era)
+                    if (inStandby || standbyPending > 0 || windowPending || pr == 0 || nosigSilencio || CambioEsperando)
                     {
                         fiAt = prAt = now;
                         if (gpuState == GpuStalled) SetGpuState(GpuOk, "sin pintar a proposito");

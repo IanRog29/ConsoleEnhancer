@@ -315,7 +315,7 @@ namespace ConsoleEnhancer
                 case "relevo_generacion_antes": RelevoGenAntes = ParseBool(val); return true;
                 case "relevo_pintadas": { int n; if (int.TryParse((val ?? "").Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out n)) RelevoPintadas = Math.Max(1, Math.Min(30, n)); return true; }
             }
-            return false;
+            return ParseSalidaHome(key, val);   // (1.3.2, SWITCH2: telon_home_juego, home_por_franjas; SalidaHome.cs)
         }
     }
 }

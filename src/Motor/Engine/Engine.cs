@@ -1135,6 +1135,8 @@ namespace ConsoleEnhancer.Motor
                             slotFence[slot] = ulong.MaxValue;
                         }
                     }
+                    // (1.3.2, SWITCH2: con un cambio de captura pedido, la imagen de la de antes no se pinta con los ajustes nuevos: EngineCambioCaptura.cs)
+                    if (slot >= 0 && CambioTira(slotW[slot], slotH[slot])) { lock (slotLock) slotState[slot] = Free; slot = -1; continue; }
                     if (slot >= 0) { latPickup = Clock.Now; break; }
                     if (frameEvent.WaitOne(20)) { if (pendingSize > slotBytes || standbyPending > 0 || reopenAsked) break; continue; }
                     // Sin imagen nueva: se repinta la ultima si el aviso se mueve o lleva 100 ms quieta (para que la tele no se quede sin nada)
@@ -1143,7 +1145,7 @@ namespace ConsoleEnhancer.Motor
                     // una, y con la sincronizacion la cola de la tele crecia y tardaba ~1 min en vaciarse (ver EngineLatencia.cs)
                     double sl;
                     bool osdRepaint = osd.Opacity(out sl) > 0 && (s.OsdRepaintMs <= 0 || latLastReal == 0 || Clock.SinceMs(latLastReal) > s.OsdRepaintMs);
-                    if (lastShown != 0 && (osdRepaint || Clock.SinceMs(lastShown) > 250)) { repaint = true; break; }
+                    if (lastShown != 0 && (osdRepaint || Clock.SinceMs(lastShown) > 250) && !CambioSinRepintar()) { repaint = true; break; }   // (1.3.2, SWITCH2: ni repintar con un cambio de captura pedido)
                     if (lastShown == 0 && Clock.SinceMs(lastSecond) > 1000) { repaint = inW > 0; break; }
                     ApplyPending();
                     SecondTick();
