@@ -134,6 +134,11 @@ Engine settings go at the end of the `motor_extra=` line of `consoleenhancer.ini
   still shows is what gets uncovered behind close objects, thin things with parallax, the strip entering through the screen edge on a fast
   turn and animated HUD elements; zooming maps were not measured. The graphics card's hardware optical flow is the next step.
 - The DLSS history fix is only for DLSS SR (not XeSS / FSR).
+- Smooth Motion ×2 of the 60 fps mode with the fixed refresh at 1440p + DLSS 5 runs the GPU at 98-99 % on an RTX 4060 Ti (with VRR the
+  ladder used to drop to DLSS K for the 58 frames): no margin for spikes. If it starts losing real frames the ladder lowers DLSS 5 / the
+  model as usual (the GPU is full), not yet measured in that state; `motor_60sm_refresco_fijo=0` goes back to VRR (116 fps).
+- With the TV in standby at 60 Hz, the 30 fps mode with Smooth Motion got ~10 real frames/s; 1.3.1 did the same in the same state
+  (seen only with the TV off, not looked into yet).
 - The 40 fps mode uses the frame generation type of the 30 fps mode (picking one changes both); the Enhanced FG multiplier is its own.
 - Everything in this version was measured with real gameplay video through the engine, not yet with the PS5 or the Switch 2.
 
@@ -260,6 +265,11 @@ Las claves del motor van al final de la línea `motor_extra=` de `consoleenhance
   viéndose es lo que se destapa detrás de lo cercano, lo fino con paralaje, la franja que entra por el borde en un giro rápido y la
   interfaz animada; el zoom de los mapas no se ha medido. El flujo óptico por hardware de la gráfica es lo siguiente.
 - El arreglo de la historia de DLSS es solo para DLSS SR (no XeSS / FSR).
+- Smooth Motion ×2 del modo 60 con el refresco fijo a 1440p + DLSS 5 lleva la gráfica al 98-99 % en una RTX 4060 Ti (con VRR la escalera
+  bajaba a DLSS K por las 58): sin margen para picos. Si empieza a perder reales, la escalera baja DLSS 5 / el modelo como siempre (la
+  gráfica va llena), aún sin medir en ese caso; `motor_60sm_refresco_fijo=0` vuelve al VRR (116 fps).
+- Con la tele en reposo a 60 Hz, el modo 30 con Smooth Motion daba ~10 imágenes reales/s; la 1.3.1 hacía lo mismo en ese estado (visto solo
+  con la tele apagada, sin mirar aún).
 - El modo 40 usa el tipo de generación del modo 30 (elegir uno cambia los dos); el multiplicador de Enhanced FG es suyo.
 - Todo lo de esta versión se ha medido con vídeo real de juego por el motor, aún no con la PS5 ni con la Switch 2.
 
