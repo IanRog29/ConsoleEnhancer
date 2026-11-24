@@ -142,7 +142,7 @@ namespace ConsoleEnhancer.Motor
                 case "efg_sel_local": EfgSelLocal = Math.Max(0, Math.Min(3, I(val))); return true;   // (1.3.1, EFGCAL)
                 case "efg_nitido": EfgNitido = Math.Max(-1, Math.Min(1, I(val))); return true;   // (1.3.1, EFGCAL)
             }
-            return ApplyEfgRitmo(key, val) || ApplyEfgLat(key, val) || ApplyEfgGiro(key, val);   // (1.3.1: EFGCAL efg_ritmo* / efg_colchon_ms, EngineFgEnhancedRitmo.cs; EFGLAT efg_lat*, EngineFgEnhancedLat.cs; 1.3.2: EFGGIRO efg_giro*, EngineFgEnhancedGiro.cs)
+            return ApplyEfgRitmo(key, val) || ApplyEfgLat(key, val) || ApplyEfgGiro(key, val) || ApplyEfgPlano(key, val);   // (1.3.1: EFGCAL efg_ritmo* / efg_colchon_ms, EngineFgEnhancedRitmo.cs; EFGLAT efg_lat*, EngineFgEnhancedLat.cs; 1.3.2: EFGGIRO efg_giro*, EngineFgEnhancedGiro.cs)
         }
     }
 

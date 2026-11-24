@@ -187,6 +187,7 @@ namespace ConsoleEnhancer.Motor
                     EfgZero(k); k[0] = (uint)efgLw[0]; k[1] = (uint)efgLh[0]; k[2] = (uint)efgBx[0]; k[3] = (uint)efgBy[0]; k[4] = F(s.EfgBeta);
                     EfgRun(psoEfgProp, c, EfgTabProp(d), k, Groups(efgBx[0], 8), Groups(efgBy[0], 8), efgF[c, d, 0]);
                 }
+                EfgPlanoFit(c, true);   // (1.3.3, EFGMAPA: el paneo plano, EngineFgEnhancedPlano.cs)
                 EfgZero(k); k[0] = (uint)efgBx[0]; k[1] = (uint)efgBy[0]; k[4] = F(0.06f); k[5] = F(0.02f);
                 EfgRun(psoEfgCut, c, EfgTabCut, k, 1, 1, efgCut[c]);
             }
@@ -221,7 +222,7 @@ namespace ConsoleEnhancer.Motor
                 k[4] = F(t); k[5] = F(s.EfgKappa); k[6] = F(s.EfgTau); k[7] = F(s.EfgStillN);
                 k[8] = (uint)efgLw[0]; k[9] = (uint)efgLh[0]; k[10] = extrap ? 1u : 0u;
                 // (1.3.1, EFGCAL) solo al interpolar: los 3x3 bloques de alrededor y la busqueda local +-N en la eleccion (EfgShaders.Sel)
-                k[11] = extrap ? 0u : (uint)(Math.Max(0, Math.Min(3, s.EfgSelLocal)) | (s.EfgSelVecinos ? 256 : 0)) | EfgGiroSelOpts();   // (1.3.2, EFGGIRO: bits 9-11)
+                k[11] = extrap ? 0u : (uint)(Math.Max(0, Math.Min(3, s.EfgSelLocal)) | (s.EfgSelVecinos ? 256 : 0)) | EfgGiroSelOpts() | EfgPlanoSelOpts();   // (1.3.2, EFGGIRO: bits 9-11; 1.3.3, EFGMAPA: bit 12)
                 k[12] = (uint)efgBx[1]; k[13] = (uint)efgBy[1]; k[14] = (uint)efgBx[3]; k[15] = (uint)efgBy[3];
                 EfgRun(psoEfgSel, c, EfgTabSel, k, Groups(efgQw, 16), Groups(efgQh, 8), efgSel);
             }
@@ -230,7 +231,7 @@ namespace ConsoleEnhancer.Motor
             k[4] = F(hasPrev ? t : 1f); k[5] = F(s.EfgZeroPen); k[6] = F(s.EfgStillN); k[7] = F(s.EfgSigma);
             k[8] = extrap || !hasPrev ? 1u : 0u; k[9] = dup || cutCpu ? 1u : 0u; k[10] = (uint)efgLw[0]; k[11] = (uint)efgLh[0];
             k[12] = F(s.EfgCutThr); k[13] = F(s.EfgTau);
-            k[14] = extrap || !hasPrev ? 0u : (s.EfgNitidoOn ? 1u : 0u);   // (1.3.1, EFGCAL) Catmull-Rom para el candidato que mas pesa (solo al interpolar)
+            k[14] = extrap || !hasPrev ? 0u : ((s.EfgNitidoOn ? 1u : 0u) | EfgPlanoFinOpts());   // (1.3.3, EFGMAPA: bit 2)   // (1.3.1, EFGCAL) Catmull-Rom para el candidato que mas pesa (solo al interpolar)
             EfgRun(psoEfgFin, c, EfgTabFin, k, Groups(outW, 16), Groups(outH, 8), null);
             EB(efgRing[p], D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.COMMON);
             EB(efgRing[c], D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.COMMON);

@@ -308,6 +308,13 @@ void main(uint3 id : SV_DispatchThreadID)
         int2 bq = clamp(int2(floor(x / 8 - 0.5)), int2(0, 0), int2(BX - 1, BY - 1));
         pw = Glob[uint2(4, 0)] * max(0, 1 - Fc.Load(int3(bq, 0)).w / max(Glob[uint2(5, 0)], 1e-4));
     }
+    // (1.3.3, EFGMAPA) paneo plano (un mapa / menu que se desplaza entero, EngineFgEnhancedPlano.cs): el global preciso es candidato y los
+    // demas pagan por apartarse de el (las lineas rectas no resbalan), salvo en la interfaz quieta. Solo al interpolar
+    if (Extrap == 0 && (Opts & 4096) != 0 && Glob[uint2(8, 0)] > 0 && !StillAt(x))
+    {
+        pw = Glob[uint2(8, 0)]; pm = -float2(Glob[uint2(9, 0)], Glob[uint2(10, 0)]);
+        Try(x, pm);
+    }
     if (Opts & 256)
     {
         // (EFGCAL) los 3x3 bloques alrededor (no solo los 2x2 mas cercanos): el vector bueno de un borde a veces es de un bloque mas alla
@@ -359,6 +366,7 @@ Texture2D<float4> Sel : register(t2);
 Texture2D<float2> St : register(t3);
 Texture2D<float> CutT : register(t4);
 RWTexture2D<unorm float4> Out : register(u0);
+RWTexture2D<float> Glob : register(u1);   // (1.3.3, EFGMAPA) la del movimiento global / paneo plano: [13] castigo del 0, con FOpts 2
 SamplerState Lin : register(s0);
 float Y(float3 c) { return dot(c, float3(0.299, 0.587, 0.114)); }
 // (1.3.1, EFGCAL) Catmull-Rom con 5 muestras bilineales (sin las 4 esquinas, que pesan casi nada): la textura fina no se lava al llevarla
@@ -404,6 +412,7 @@ void main(uint3 id : SV_DispatchThreadID)
     float3 zp = Prev.Load(P).rgb, zc = Cur.Load(P).rgb;
     float2 st = St.Load(int3(min(int2(id.xy) / 2, int2(W0 - 1, H0 - 1)), 0));
     e[4] = abs(Y(zp) - Y(zc)) + (st.x >= StillN ? 0 : ZeroPen);
+    if ((FOpts & 2) && Extrap == 0 && st.x < StillN) e[4] += Glob[uint2(13, 0)];   // (1.3.3, EFGMAPA) en un paneo plano el 0 solo vale en lo quieto
     o[4] = Extrap != 0 ? zc : lerp(zp, zc, T);
     bw[4] = 0.5;
     float em = min(min(min(e[0], e[1]), min(e[2], e[3])), e[4]);

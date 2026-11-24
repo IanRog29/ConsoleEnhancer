@@ -44,7 +44,7 @@ namespace ConsoleEnhancer.Motor
 
     unsafe partial class Engine
     {
-        const int EfgGiroTabCost = 0, EfgGiroTabGlobal = 1, EfgGiroTabs = 2;
+        const int EfgGiroTabCost = 0, EfgGiroTabGlobal = 1, EfgGiroTabPlanoFit = 2, EfgGiroTabPlanoCost = 3, EfgGiroTabPlanoFin = 4, EfgGiroTabs = 5;   // (1.3.3, EFGMAPA: las del paneo plano)
         ID3D12PipelineState psoEfgGiroCost, psoEfgGiroGlobal;
         ID3D12Resource efgGiroCost;
         readonly ID3D12Resource[] efgGiroG = new ID3D12Resource[EfgSets];
@@ -79,6 +79,7 @@ namespace ConsoleEnhancer.Motor
                 byte[][] cs = new byte[2][];
                 System.Threading.Tasks.Parallel.For(0, 2, delegate (int i) { cs[i] = CompileCs(EfgGiroNames[i], src[i]); });
                 psoEfgGiroCost = Pso(cs[0]); psoEfgGiroGlobal = Pso(cs[1]);
+                EfgPlanoPsos();   // (1.3.3, EFGMAPA: el paneo plano, EngineFgEnhancedPlano.cs)
                 Log.Write("Enhanced FG giro: shaders (" + Clock.SinceMs(t0).ToString("0", CultureInfo.InvariantCulture) + " ms)");
             }
             catch (Exception ex) { efgGiroBroken = true; Log.Write("Enhanced FG giro: sin el movimiento global (" + ex.Message + ")"); }
@@ -90,6 +91,7 @@ namespace ConsoleEnhancer.Motor
             string[] src = EfgGiroSources();
             for (int i = 0; i < src.Length && !Program.Quit; i++)
                 if (!CsCached(EfgGiroNames[i], src[i])) { CompileCs(EfgGiroNames[i], src[i]); n++; }
+            if (s.EfgPlano != 0 && !Program.Quit) n += EfgPlanoPrecompile();   // (1.3.3, EFGMAPA)
             return n;
         }
 
@@ -105,7 +107,7 @@ namespace ConsoleEnhancer.Motor
                 efgGiroR = Math.Max(4, Math.Min(32, (int)Math.Ceiling(s.EfgGiroRadio * efgLw[efgGiroLv])));
                 efgGiroN = 2 * efgGiroR + 1;
                 efgGiroCost = Tex(DXGI_FORMAT.R32_FLOAT, efgGiroN, efgGiroN, true, D3D12_RESOURCE_STATES.UNORDERED_ACCESS, "Enhanced FG: giro, coste");
-                for (int c = 0; c < EfgSets; c++) efgGiroG[c] = Tex(DXGI_FORMAT.R32_FLOAT, 8, 1, true, D3D12_RESOURCE_STATES.UNORDERED_ACCESS, "Enhanced FG: giro " + c);
+                for (int c = 0; c < EfgSets; c++) efgGiroG[c] = Tex(DXGI_FORMAT.R32_FLOAT, 16, 1, true, D3D12_RESOURCE_STATES.UNORDERED_ACCESS, "Enhanced FG: giro " + c);   // (1.3.3, EFGMAPA: 8 -> 16, [8]-[14] del paneo plano)
                 D3D12_DESCRIPTOR_HEAP_DESC hd = new D3D12_DESCRIPTOR_HEAP_DESC();
                 hd.Type = D3D12_DESCRIPTOR_HEAP_TYPE.CBV_SRV_UAV;
                 hd.NumDescriptors = (uint)(EfgSets * EfgGiroTabs * Shaders.TableSize);
@@ -138,6 +140,7 @@ namespace ConsoleEnhancer.Motor
                     for (int d = 0; d < 2; d++)
                         for (int l = 0; l < efgLv; l++) EfgUav(c, EfgTabFlow(d, l), 1, efgGiroG[c], R);
                     EfgUav(c, EfgTabSel, 1, efgGiroG[c], R);
+                    EfgPlanoTables(c, p);   // (1.3.3, EFGMAPA)
                 }
                 {
                     D3D12_RESOURCE_DESC rd; efgGiroG[0].GetDesc(out rd);
@@ -207,6 +210,7 @@ namespace ConsoleEnhancer.Motor
                 double m = Math.Sqrt(rb[0] * rb[0] + rb[1] * rb[1]);
                 if (m > efgGiroMax) efgGiroMax = m;
                 if (m > (8 << (efgLv - 1)) * 0.75) efgGiroLejos++;   // (cerca o fuera del alcance de la busqueda por bloques: +-8 del nivel mas grueso)
+                EfgPlanoNote(rb);   // (1.3.3, EFGMAPA)
             }
             efgGiroPairs++;
             if (efgGiroLogAt == 0 || Clock.SinceMs(efgGiroLogAt) > 10000)
@@ -214,7 +218,7 @@ namespace ConsoleEnhancer.Motor
                 efgGiroLogAt = Clock.Now;
                 Log.Write("Enhanced FG giro: global de la ultima pareja (" + rb[0].ToString("0", CultureInfo.InvariantCulture) + ", " + rb[1].ToString("0", CultureInfo.InvariantCulture) +
                           ") puntos de L0, coste " + rb[2].ToString("0.000", CultureInfo.InvariantCulture) + " (0: " + rb[3].ToString("0.000", CultureInfo.InvariantCulture) + "); mayor " +
-                          efgGiroMax.ToString("0", CultureInfo.InvariantCulture) + ", " + efgGiroLejos + " de " + efgGiroPairs + " parejas lejos (> 3/4 del alcance por bloques)");
+                          efgGiroMax.ToString("0", CultureInfo.InvariantCulture) + ", " + efgGiroLejos + " de " + efgGiroPairs + " parejas lejos (> 3/4 del alcance por bloques)" + EfgPlanoLog(rb));
                 efgGiroMax = 0;
             }
             EB(efgGiroG[c], D3D12_RESOURCE_STATES.UNORDERED_ACCESS, D3D12_RESOURCE_STATES.COPY_SOURCE);
