@@ -1136,7 +1136,9 @@ namespace ConsoleEnhancer.Motor
                         }
                     }
                     // (1.3.2, SWITCH2: con un cambio de captura pedido, la imagen de la de antes no se pinta con los ajustes nuevos: EngineCambioCaptura.cs)
-                    if (slot >= 0 && CambioTira(slotW[slot], slotH[slot])) { lock (slotLock) slotState[slot] = Free; slot = -1; continue; }
+                    // (y lo pendiente se aplica igual: el cambio de captura -que vuelve a abrir la fuente- va en ApplyPending; sin esto, con las imagenes de
+                    // antes llegando, no se aplicaba hasta pasar cambio_captura_espera_ms: medido 2,6 s en la app con el video de prueba)
+                    if (slot >= 0 && CambioTira(slotW[slot], slotH[slot])) { lock (slotLock) slotState[slot] = Free; slot = -1; ApplyPending(); CambioSinRepintar(); if (pendingSize > slotBytes || standbyPending > 0 || reopenAsked) break; continue; }
                     if (slot >= 0) { latPickup = Clock.Now; break; }
                     if (frameEvent.WaitOne(20)) { if (pendingSize > slotBytes || standbyPending > 0 || reopenAsked) break; continue; }
                     // Sin imagen nueva: se repinta la ultima si el aviso se mueve o lleva 100 ms quieta (para que la tele no se quede sin nada)
