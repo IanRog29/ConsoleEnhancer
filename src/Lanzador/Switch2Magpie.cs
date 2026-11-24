@@ -2439,6 +2439,40 @@ namespace ConsoleEnhancer
                 return ok;
             }
         }
+        // (1.3.2, FPS) --test-sm-fijo-driver[=<informe>]: Smooth Motion (con la sincronizacion forzada) y el refresco fijo JUNTOS en el perfil de
+        // ConsoleEnhancerEngine.exe, como los pone motor_60sm_refresco_fijo=1 antes de abrir el motor; leidos otra vez del driver y vuelta a lo
+        // de antes. Toca el driver de verdad (solo con el turno de la grafica y sin el motor abierto)
+        public static int SmFijoDriverPrueba(string informe)
+        {
+            StringBuilder sb = new StringBuilder("# SMFIJO: Smooth Motion + refresco fijo en el perfil del motor (" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture) + ")" + Environment.NewLine);
+            int fallos = 0, sm0;
+            bool fx0;
+            lock (smoothSync) { sm0 = EngineSmoothRead(); fx0 = FixedRw(-1); engineSmoothState = sm0; engineFixedState = fx0 ? 1 : 0; }
+            sb.AppendLine("antes:  Smooth Motion " + sm0 + " (0 no, 1 forzada, 2 cada 2 refrescos, 3 sin sincronizacion), refresco fijo " + (fx0 ? "si" : "no"));
+            try
+            {
+                Stopwatch sw = Stopwatch.StartNew();
+                bool a = SetEngineSmooth(1), b = SetEngineFixed(true);
+                int sm1; bool fx1;
+                lock (smoothSync) { sm1 = EngineSmoothRead(); fx1 = FixedRw(-1); }
+                sb.AppendLine("puesto: " + (a ? "ok" : "NO") + " / " + (b ? "ok" : "NO") + " en " + sw.ElapsedMilliseconds + " ms -> leido: Smooth Motion " + sm1 + ", refresco fijo " + (fx1 ? "si" : "no"));
+                if (!a || !b || sm1 != 1 || !fx1) { fallos++; sb.AppendLine("FALLO: los dos juntos no quedan en el perfil"); }
+            }
+            finally
+            {
+                bool c = SetEngineSmooth(sm0), d = SetEngineFixed(fx0);
+                int sm2; bool fx2;
+                lock (smoothSync) { sm2 = EngineSmoothRead(); fx2 = FixedRw(-1); }
+                sb.AppendLine("vuelta: " + (c ? "ok" : "NO") + " / " + (d ? "ok" : "NO") + " -> leido: Smooth Motion " + sm2 + ", refresco fijo " + (fx2 ? "si" : "no"));
+                if (sm2 != sm0 || fx2 != fx0) { fallos++; sb.AppendLine("FALLO: no vuelve a lo de antes"); }
+            }
+            sb.AppendLine(fallos == 0 ? "Todo bien" : "Fallos: " + fallos);
+            string txt = sb.ToString();
+            Console.Write(txt);
+            try { if (!string.IsNullOrEmpty(informe)) File.WriteAllText(informe, txt, new UTF8Encoding(false)); } catch { }
+            return fallos == 0 ? 0 : 1;
+        }
+
         // op -1 = mirar, 1 = poner, 0 = quitar
         static bool FixedRw(int op)
         {
@@ -12531,6 +12565,8 @@ namespace ConsoleEnhancer
                 if (arg == "--test-solo-motor" || arg.StartsWith("--test-solo-motor=")) return Config.SoloMotorPrueba(arg.Length > 18 ? arg.Substring(18) : null);
                 // 23-11 (1.2.4 ronda 6, SMX4): cuando hay Smooth Motion x4 y que va al perfil y al motor: --test-smooth-x4[=<informe>] (SmoothX4.cs)
                 if (arg == "--test-smooth-x4" || arg.StartsWith("--test-smooth-x4=")) return Config.SmoothX4Prueba(arg.Length > 17 ? arg.Substring(17) : null);
+                // (1.3.2, FPS) Smooth Motion + refresco fijo juntos en el perfil del motor, de verdad en el driver: --test-sm-fijo-driver[=<informe>]
+                if (arg == "--test-sm-fijo-driver" || arg.StartsWith("--test-sm-fijo-driver=")) return NvProfiles.SmFijoDriverPrueba(arg.Length > 22 ? arg.Substring(22) : null);
                 // 23-11 (1.2.4 ronda 7, TEXTOS): los avisos al aplicar (menu de ajustes, botones, bandeja) contra lo que va de verdad, todas las
                 // combinaciones del menu, sin abrir nada: --test-avisos[=<informe>] (src\Lanzador\Avisos.cs; con --datos=<copia>: escribe lo elegido)
                 if (arg == "--test-avisos" || arg.StartsWith("--test-avisos=")) return TrayApp.AvisosPrueba(arg.Length > 14 ? arg.Substring(14) : null);
