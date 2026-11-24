@@ -50,9 +50,9 @@ namespace ConsoleEnhancer.Motor
         // (1.3.2, FPS; el usuario: "el dlss 5 a 1440p evita que sea menor que 33%") el suelo de DLSS 5 en pixeles de ancho: nunca por debajo
         // de 845 de ancho (el 33 % de 2560) ni del 25 %: 4K 25 % (960), 1440p 33 %, 1080p 44 %, 720p 66 %. 0 = el 25 % siempre (como la 1.3.1)
         public int NrSueloPx = 845;
-        // (1.3.2, FPS) smooth60_reflex=0: con Smooth Motion en el modo 60, sin el dormir de Reflex (su tope con VRR deja 58 reales de 59,94;
-        // ver SmReflexFuera). 1 = como la 1.3.1
-        public bool Sm60Reflex = true;
+        // (1.3.2, FPS) escalera_efg_p95: con Enhanced FG y solo inventadas saltadas, si la grafica del MOTOR por real (p95) pasa de este % del
+        // tiempo de una real, la real tarda en estar lista (L) y bajar DLSS 5 / el modelo SI ayuda aunque la grafica entera no vaya llena
+        public int EscEfgP95 = 40;
 
         bool ApplyEscalera(string key, string val)
         {
@@ -65,7 +65,7 @@ namespace ConsoleEnhancer.Motor
                 case "escalera_log": EscLog = val.Trim() == "1"; return true;
                 case "escalera_grafica_uso": EscGpuUso = val.Trim() != "0"; return true;   // (1.3.2, FPS)
                 case "escalera_grafica_llena": if (int.TryParse(val.Trim().TrimEnd('%'), NumberStyles.Integer, CultureInfo.InvariantCulture, out n)) EscGpuLlena = Math.Max(0, Math.Min(100, n)); return true;
-                case "smooth60_reflex": Sm60Reflex = val.Trim() != "0"; return true;   // (1.3.2, FPS)
+                case "escalera_efg_p95": if (int.TryParse(val.Trim().TrimEnd('%'), NumberStyles.Integer, CultureInfo.InvariantCulture, out n)) EscEfgP95 = Math.Max(0, Math.Min(100, n)); return true;   // (1.3.2, FPS)
                 case "dlss5_suelo_px": if (int.TryParse(val.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out n)) NrSueloPx = Math.Max(0, Math.Min(3840, n)); return true;   // (1.3.2, FPS)
                 case "escalera_perdidas": if (int.TryParse(val.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out n)) EscPerdidas = Math.Max(1, Math.Min(10, n)); return true;
                 case "escalera_subir_s": if (int.TryParse(val.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out n)) EscSubirS = Math.Max(5, Math.Min(600, n)); return true;
@@ -260,26 +260,27 @@ namespace ConsoleEnhancer.Motor
             }
             else if (max >= s.EscGpuLlena) return false;                 // (llena: es la grafica)
             if (p95 > 0 && p95 > tope) return false;                     // (el motor solo ya no cabe en su tope)
+            // (Enhanced FG, sobre todo baja latencia: las inventadas se saltan cuando la real tarda en estar lista -L > ~17 ms-; con la grafica del
+            // motor por real alta -DLSS 5 a 4K: 16-18 ms de 33- bajar DLSS 5 acorta L aunque la grafica entera vaya al 70 %: medido 24-11 03:28,
+            // 4K + DLSS 5 al 65 % + x4 baja latencia, 68-73 % y 1 de cada 4 inventadas saltadas (90/s); en la 1.3.1 al 25 % cabia: 113,9/s)
+            if (efg && v.Salt > v.Falta && s.EscEfgP95 > 0 && p95 >= 1000.0 / EscObjetivo * s.EscEfgP95 / 100.0) return false;
             escN = 0;
             EscCalma(2000);
             escRitmoN++;
             if (escRitmoClave == escClave && escRitmoAt != 0 && Clock.SinceMs(escRitmoAt) < 30000) return true;
             // por que, para el aviso: las inventadas de Enhanced FG saltadas (su ritmo), Reflex durmiendo (su tope con VRR) o el motor tirando reales
-            string causa = efg && v.Salt > v.Falta ? "efg" : escRxMs >= 4 && s.SmoothMode > 0 ? "reflex" : "tarde";
+            // (Smooth Motion en el modo 60 con VRR: la tele no pasa de 116 -120 - 120^2/3600-, con o sin el dormir de Reflex: medido 24-11 03:30,
+            // 1440p + DLSS 5, 58,0 reales y 116,1/s en la tele las dos veces; sin dormir, la latencia mediana 26 ms en vez de 12)
+            string causa = efg && v.Salt > v.Falta ? "efg" : s.SmoothMode > 0 && (s.Mode == 60 || escRxMs >= 4) ? "reflex" : "tarde";
             double vistas = efg && v.Segs > 0 ? (v.Pres + v.Inv) / v.Segs : reales * (s.SmoothMode > 0 ? 2 : 1);
             Log.Write(string.Format(CultureInfo.InvariantCulture, "Escalera: no se llega ({0}) pero la grafica entera no va llena ({1} en 2,5 s; llena = {2} %{3}): no se baja nada ({4}){5}",
                 por, GpuUsoTxt(2500), s.EscGpuLlena, s.SmoothMode > 0 ? ", Reflex duerme " + escRxMs.ToString("0.0", IC) + " ms por imagen" : "",
-                causa == "efg" ? "el ritmo de Enhanced FG" : causa == "reflex" ? "el tope de imagenes de Reflex con VRR" : "el ritmo de la presentacion o la fuente",
+                causa == "efg" ? "el ritmo de Enhanced FG" : causa == "reflex" ? "el tope de 116 imagenes por segundo con VRR y Smooth Motion (Reflex / el driver)" : "el ritmo de la presentacion o la fuente",
                 escRitmoN > 1 && escRitmoClave == escClave ? " [" + escRitmoN + " veces con esta clave]" : ""));
             escRitmoClave = escClave; escRitmoAt = now;
             Ev("switch2-fps", "ritmo", reales.ToString("0.0", IC), EscObjetivo.ToString("0.00", IC), p95.ToString("0.0", IC), Math.Max(0, max).ToString(IC), vistas.ToString("0.0", IC), causa);
             return true;
         }
-
-        // (1.3.2, FPS) Smooth Motion en el modo 60 (59,94 -> 119,88) y Reflex: con G-SYNC Reflex limita la salida a 116 (120 - 120^2/3600) y, con
-        // Smooth Motion doblando, el motor a 58: duerme ~10-14 ms por imagen con la de la captura ya llegada y la cola de la tele tira 2 por
-        // segundo (la sesion del usuario 01:26-01:27 con Ocarina, y en el HOME: "58.0 de 59.94"). smooth60_reflex=0: sin dormir en ese caso
-        bool SmReflexFuera { get { return !s.Sm60Reflex && s.SmoothMode > 0 && s.Mode == 60; } }
 
         // (1.3.2, FPS) el suelo del % de DLSS 5 con esta entrada (NrSueloPx: 4K 25 %, 1440p 33 %, 1080p 44 %, 720p 66 %)
         int NrSuelo { get { return NrSueloPara(inW > 0 ? inW : s.CapW); } }

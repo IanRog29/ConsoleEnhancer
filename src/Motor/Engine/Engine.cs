@@ -1114,7 +1114,7 @@ namespace ConsoleEnhancer.Motor
                 LatQueueWait();   // 18-11 (LATENCIA, cola_max=): la swapchain con espera
                 // 18-11 (LATENCIA, reflex_dormir=0): sin dormir de Reflex (1.2.4 ronda 6: antes siempre con DLSS-G, que lo necesitaba)
                 latSleepMs = 0;
-                if (reflexOk && token != IntPtr.Zero && s.ReflexSleep && !SmReflexFuera) { long tz = Clock.Now; Sl.ReflexSleep(token); latSleepMs = Clock.SinceMs(tz); }   // (1.3.2, FPS: SmReflexFuera, EngineEscalera.cs)
+                if (reflexOk && token != IntPtr.Zero && s.ReflexSleep) { long tz = Clock.Now; Sl.ReflexSleep(token); latSleepMs = Clock.SinceMs(tz); }
                 XeFgSleep();   // 22-11 (1.2.4 MOTORFG, EngineFgXe.cs): XeLL en vez de Reflex con XeSS FG
 
                 // La imagen mas nueva (las anteriores que no se pintaron se sueltan)

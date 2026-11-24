@@ -303,7 +303,7 @@ namespace ConsoleEnhancer
             int uso = int.Parse(m.Groups[4].Value, CultureInfo.InvariantCulture);
             string causa = m.Groups[6].Value;
             Log.Write("Fps: el motor no llega (" + m.Groups[1].Value + " de " + m.Groups[2].Value + " reales/s, " + vistas.ToString("0", CultureInfo.InvariantCulture) + " de " + salida +
-                      " en la tele) con la grafica entera al " + uso + " % como mucho: no es la grafica (" + (causa == "efg" ? "el ritmo de Enhanced FG" : causa == "reflex" ? "el tope de Reflex con VRR" : "el ritmo de la presentacion o la fuente") +
+                      " en la tele) con la grafica entera al " + uso + " % como mucho: no es la grafica (" + (causa == "efg" ? "el ritmo de Enhanced FG" : causa == "reflex" ? "el tope de 116 con VRR y Smooth Motion" : "el ritmo de la presentacion o la fuente") +
                       "): no se cambia nada" + (InHome || homeBusy || passesBusy || relaunchSize != null || relaunchEngine || userExit || ajustesAbierto ? " (algo esta cambiando: sin aviso)" : ""));
             if (InHome || homeBusy || passesBusy || relaunchSize != null || relaunchEngine || userExit || ajustesAbierto) return;
             string clave = quien + "|" + cfg.VideoSize + "|" + (cfg.MotorD5Simple ? "d5" : "-");
