@@ -50,7 +50,9 @@ namespace ConsoleEnhancer
             "pasadas_vigilancia_imagen_umbral", "pasadas_vigilancia_prueba", "pasadas_vigilancia_reinicios", "puente_ligero",
             "telon_esperar_magpie_max_ms", "rtx_hdr_metodo",
             // (SINMPV / INTEGRA6: las de mpv, que ya no se abre)
-            "mpv_path", "test_mpv_args", "mpv_cola_ms", "mpv_cscale", "mpv_sin_marco", "captura_png" };
+            "mpv_path", "test_mpv_args", "mpv_cola_ms", "mpv_cscale", "mpv_sin_marco", "captura_png",
+            // (1.3.2, FPS: Smooth Motion x4 quitado; smooth_x4=1 se lee antes -CeParseSmoothX4- para pasarlo a x2 y decirlo)
+            "smooth_x4", "smooth_x4_dlss5" };
         // (fase 2) y todas las magpie_* (ritmo, VRR, cola, nitidez... de Magpie: ninguna la lee ya nadie)
         public static bool ClaveRetirada(string key)
         {

@@ -41,11 +41,11 @@ namespace ConsoleEnhancer
             if (CeParseEscalas(key, val)) return true;  // (20-11: escalas_adaptables..., src\Escalas.cs)
             if (CeParseLatencia(key, val)) return true; // (21-11, 1.2.1: mpv_cola_ms, audio_bloque_ms, audio_cola_*_ms, src\Latencia.cs)
             if (CeParseRitmo(key, val)) return true;    // (22-11, 1.2.2: magpie_vrr_30*, magpie_fijo_30_dlss, magpie_ritmo_margen_fg..., src\Ritmo.cs)
+            if (CeParseSmoothX4(key, val)) return true;   // (1.3.2, FPS: antes que las retiradas: smooth_x4=1 -> Smooth Motion x2 y se dice; SmoothX4.cs)
             if (ClaveRetirada(key)) return true;        // (1.2.4 ronda 6, QUITAFG: lo de DLSS FG y x3 / x4 de un ini de antes, src\Lanzador\CalidadFg.cs)
             if (CeParseTipos(key, val)) return true;    // (xess_fg_1080, proteccion*, motor_xefg_dlss5: src\Lanzador\TiposGeneracion.cs)
             if (key == "motor_fg_multi") { MotorFgMulti = val.Trim() != "0"; return true; }   // (1.2.4 MOTORFG: XeSS FG en el motor; 0 = por Magpie. src\Lanzador\MotorFg.cs)
             if (CeParseReescalado(key, val)) return true; // (22-11, 1.2.2: magpie_nitidez_transformer..., src\Lanzador\Reescalado.cs)
-            if (CeParseSmoothX4(key, val)) return true;   // (1.2.4 ronda 6, SMX4: smooth_x4, src\Lanzador\SmoothX4.cs)
             switch (key)
             {
                 case "device_path": DevicePath = val.Trim(); return true;

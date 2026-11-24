@@ -74,13 +74,14 @@ namespace ConsoleEnhancer.Motor
                 x4Hist = ((x4Hist << 1) | (mal ? 1 : 0)) & 0x7;
                 x4Hist6 = ((x4Hist6 << 1) | (mal ? 1 : 0)) & 0x3F;
                 x4OkN = mal ? 0 : x4OkN + 1;
-                int pct = Math.Max(25, Math.Min(100, s.NrPct));
-                if (Bits(x4Hist) >= 2 && (pct > 25 || s.NrPasses > 1))
+                int suelo = NrSuelo;   // (1.3.2, FPS: el suelo de DLSS 5 con esta entrada, EngineEscalera.cs)
+                int pct = Math.Max(suelo, Math.Min(100, s.NrPct));
+                if (Bits(x4Hist) >= 2 && (pct > suelo || s.NrPasses > 1))
                 {
                     string por = string.Format(CultureInfo.InvariantCulture, "reales {0:0.0}{1}{2}", rate, late > 0 ? ", tarde " + late : "", s.Efg >= 3 ? ", inventadas saltadas " + dSk + " de " + (dGn + dSk) : "");
-                    if (pct > 25)
+                    if (pct > suelo)
                     {
-                        int sig = Math.Max(25, pct - 10);
+                        int sig = Math.Max(suelo, pct - 10);
                         if (s.Adapta && adTabla != null && adClave.Length > 0) AdaptaTecho("pct", pct);
                         s.NrPct = sig;
                         Log.Write("x4 con DLSS 5: no cabe (" + por + "; grafica del motor p95 " + stats.LastGpuP95.ToString("0.0", IC) + " ms): DLSS 5 al " + pct + " % -> " + sig + " %");
@@ -94,7 +95,7 @@ namespace ConsoleEnhancer.Motor
                     x4CalmaDesde = Clock.Now; x4Hist = x4Hist6 = x4OkN = 0;
                     return;
                 }
-                if (pct <= 25 && s.NrPasses <= 1 && Bits(x4Hist6) >= 4 && (x4NoAt == 0 || Clock.SinceMs(x4NoAt) > 30000))
+                if (pct <= suelo && s.NrPasses <= 1 && Bits(x4Hist6) >= 4 && (x4NoAt == 0 || Clock.SinceMs(x4NoAt) > 30000))
                 {
                     x4NoAt = Clock.Now; x4Hist = x4Hist6 = 0;
                     Log.Write("x4 con DLSS 5: no llega ni con DLSS 5 al 25 % (reales " + rate.ToString("0.0", IC) + "): aviso al lanzador (x2)");

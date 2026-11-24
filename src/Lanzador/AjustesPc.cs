@@ -463,6 +463,9 @@ namespace ConsoleEnhancer
             foreach (string s in l) Log.Write(s);
             Log.Write("Ajustes en " + Paths.Datos + " (" + (Modo.Length > 0 ? Modo : "?") + ")");
             try { PonerAlDia(Path.Combine(Paths.Datos, "games"), true); } catch (Exception ex) { Log.Error("Ajustes: poniendo al dia lo guardado", ex); }
+            // (1.3.2, FPS) Smooth Motion x4 quitado: smooth_x4=1 del ini -> Smooth Motion x2 (SmoothX4.cs), una vez en pantalla
+            try { if (Config.SmoothX4AlDia()) Avisa("Smooth Motion x4 ya no está: va Smooth Motion x2", "Smooth Motion x4 is gone: using Smooth Motion x2"); }
+            catch (Exception ex) { Log.Error("Ajustes: Smooth Motion x4", ex); }
         }
 
         // ¿Este tipo guardado ya no existe (o esta quitado) y por cual se cambia? null = se queda
