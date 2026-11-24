@@ -319,7 +319,9 @@ void main(uint3 id : SV_DispatchThreadID)
         }
     if (Extrap == 0 && (Opts & 4096) != 0 && Glob[uint2(8, 0)] > 0 && !cerca)
     {
-        pw = Glob[uint2(8, 0)]; pm = -float2(Glob[uint2(9, 0)], Glob[uint2(10, 0)]);
+        // (ronda 10d) el modelo en este punto (con zoom: t + s u + r perp(u))
+        float2 zu = (x - float2(Glob[uint2(23, 0)], Glob[uint2(24, 0)])) / 512.0;
+        pw = Glob[uint2(8, 0)]; pm = -(float2(Glob[uint2(9, 0)], Glob[uint2(10, 0)]) + Glob[uint2(21, 0)] * zu + Glob[uint2(22, 0)] * float2(-zu.y, zu.x));
         Try(x, pm);
     }
     if (Opts & 256)
@@ -378,7 +380,12 @@ SamplerState Lin : register(s0);
 float Y(float3 c) { return dot(c, float3(0.299, 0.587, 0.114)); }
 // (1.3.3, EFGMAPA) aceleracion de un paneo plano (arrancar / frenar el joystick): lo que se mueve va a M T - A T (1 - T) / 2 de la anterior
 // (A = la diferencia de movimiento con la pareja anterior); las dos muestras se corren lo mismo. Lo quieto (|M| < 1 punto de salida), no
-float2 Acel(float2 M) { return ((FOpts & 2) && Extrap == 0 && Glob[uint2(19, 0)] > 0.5 && dot(M, M) > 1) ? float2(Glob[uint2(17, 0)], Glob[uint2(18, 0)]) * (T * (1 - T)) : float2(0, 0); }
+float2 Acel(float2 M, float2 X)
+{
+    if (!((FOpts & 2) && Extrap == 0 && Glob[uint2(19, 0)] > 0.5 && dot(M, M) > 1)) return float2(0, 0);
+    float2 u = (X * 0.5 - float2(Glob[uint2(23, 0)], Glob[uint2(24, 0)])) / 512.0;   // (ronda 10d: con zoom, la de este punto; X en puntos de la salida)
+    return (float2(Glob[uint2(17, 0)], Glob[uint2(18, 0)]) + Glob[uint2(25, 0)] * u + Glob[uint2(26, 0)] * float2(-u.y, u.x)) * (T * (1 - T));
+}
 // (1.3.1, EFGCAL) Catmull-Rom con 5 muestras bilineales (sin las 4 esquinas, que pesan casi nada): la textura fina no se lava al llevarla
 // a medio punto (la bilineal es una media de 2 puntos ahi)
 float3 Cr(Texture2D<float4> tx, float2 p, float2 sz)
@@ -411,7 +418,7 @@ void main(uint3 id : SV_DispatchThreadID)
         int2 q = clamp(q0 + int2(i & 1, i >> 1), int2(0, 0), int2(QW - 1, QH - 1));
         float4 s = Sel.Load(int3(q, 0));
         float2 M = s.xy * 2;
-        float2 ac = Acel(M);
+        float2 ac = Acel(M, X);
         float3 cp = Prev.SampleLevel(Lin, (X - T * M + ac) * inv, 0).rgb;
         float3 cc = Cur.SampleLevel(Lin, (X + (1 - T) * M + ac) * inv, 0).rgb;
         bool two = Extrap != 0 ? s.w < TauF * 0.9 : abs(s.z - T) < 0.001;
@@ -449,7 +456,7 @@ void main(uint3 id : SV_DispatchThreadID)
         if (kb >= 0)
         {
             float2 sz = float2(W, H);
-            float2 acb = Acel(Mb);
+            float2 acb = Acel(Mb, X);
             float3 ob = lerp(Cr(Prev, X - T * Mb + acb, sz), Cr(Cur, X + (1 - T) * Mb + acb, sz), Wb);
             [unroll] for (int k2 = 0; k2 < 4; k2++) if (k2 == kb) o[k2] = ob;
         }

@@ -28,6 +28,7 @@ namespace ConsoleEnhancer.Motor
     {
         public int EfgPlano = 1;
         public float EfgPlanoPeso = 0.01f, EfgPlanoCero = 0.1f, EfgPlanoParte = 0.5f, EfgPlanoCerca = 2f, EfgPlanoQuieto = 10f;
+        public int EfgPlanoZoom = 0;   // (ronda 10d) 1 = semejanza (zoom + paneo) en vez de traslacion; 2 = tambien giro
         public bool EfgPlanoAcel = true;   // (ronda 10c) con la hora del contenido de las dos parejas: mide mejor con llegadas regulares e irregulares
 
         bool ApplyEfgPlano(string key, string val)
@@ -39,6 +40,7 @@ namespace ConsoleEnhancer.Motor
                 case "efg_plano_cero": EfgPlanoCero = (float)Math.Max(0, Math.Min(1, D(val))); return true;
                 case "efg_plano_cerca": EfgPlanoCerca = (float)Math.Max(0, Math.Min(8, D(val))); return true;
                 case "efg_plano_quieto": EfgPlanoQuieto = (float)Math.Max(1, Math.Min(60, D(val))); return true;
+                case "efg_plano_zoom": EfgPlanoZoom = Math.Max(0, Math.Min(2, I(val))); return true;
                 case "efg_plano_acel": EfgPlanoAcel = B(val); return true;
                 case "efg_plano_parte": EfgPlanoParte = (float)Math.Max(0.2, Math.Min(0.95, D(val))); return true;
             }
@@ -112,7 +114,7 @@ namespace ConsoleEnhancer.Motor
         {
             if (s.EfgPlano == 0 || psoEfgPlanoFin == null) return;
             const DXGI_FORMAT R = DXGI_FORMAT.R32_FLOAT;
-            if (efgPlanoCost == null) efgPlanoCost = Tex(R, 64, 1, true, D3D12_RESOURCE_STATES.UNORDERED_ACCESS, "Enhanced FG: plano, coste");
+            if (efgPlanoCost == null) efgPlanoCost = Tex(R, 72, 1, true, D3D12_RESOURCE_STATES.UNORDERED_ACCESS, "Enhanced FG: plano, coste");
             EfgGiroSrv(c, EfgGiroTabPlanoFit, 0, efgF[c, 0, 0], DXGI_FORMAT.R16G16B16A16_FLOAT); EfgGiroUav(c, EfgGiroTabPlanoFit, 0, efgGiroG[c], R);
             EfgGiroSrv(c, EfgGiroTabPlanoCost, 0, efgL[c, 0], DXGI_FORMAT.R16_FLOAT); EfgGiroSrv(c, EfgGiroTabPlanoCost, 1, efgL[p, 0], DXGI_FORMAT.R16_FLOAT);
             EfgGiroUav(c, EfgGiroTabPlanoCost, 0, efgGiroG[c], R); EfgGiroUav(c, EfgGiroTabPlanoCost, 1, efgPlanoCost, R);
@@ -134,7 +136,7 @@ namespace ConsoleEnhancer.Motor
             efgList.SetDescriptorHeaps(1, ref efgGiroHeapPtr);
             EfgGiroUavBarrier(efgGiroG[c]);
             EfgZero(k);
-            k[0] = (uint)efgBx[0]; k[1] = (uint)efgBy[0]; k[4] = F(0.02f); k[5] = F(0.06f); k[6] = F(12f); k[7] = F(s.EfgPlanoParte);
+            k[0] = (uint)efgBx[0]; k[1] = (uint)efgBy[0]; k[2] = (uint)Math.Max(0, Math.Min(2, s.EfgPlanoZoom)); k[8] = F(efgLw[0] * 0.5f); k[9] = F(efgLh[0] * 0.5f); k[4] = F(0.02f); k[5] = F(0.06f); k[6] = F(12f); k[7] = F(s.EfgPlanoParte);
             efgList.SetPipelineState(psoEfgPlanoFit);
             efgList.SetComputeRootDescriptorTable(1, EfgGiroGpu(c, EfgGiroTabPlanoFit));
             efgList.SetComputeRoot32BitConstants(0, 16, k, 0);
