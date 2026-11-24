@@ -356,7 +356,7 @@ namespace ConsoleEnhancer.Motor
                     bool stale = false;
                     lock (efgJobs)
                     {
-                        if (efgJobs.Count > 0) { j = efgJobs.Dequeue(); stale = efgJobs.Count > 0; }
+                        if (efgJobs.Count > 0) { j = efgJobs.Dequeue(); stale = EfgAtrasada(); }   // (1.3.2, EFGRITMO: solo si la siguiente ya esta lista)
                         else efgIdle.Set();
                     }
                     if (j == null) { efgJobEv.WaitOne(100); continue; }
@@ -399,6 +399,7 @@ namespace ConsoleEnhancer.Motor
             long tReady = j.ReadyAt != 0 ? j.ReadyAt : Clock.Now;
             if (efgQueue != null) efgQueue.Wait(fence, j.Fence);
             double readyMs = Clock.Ms(j.Arrival, tReady);
+            EfgRitmoNuevo(j);   // (1.3.2, EFGRITMO: tras un hueco o con otro xN, L y la ventana de "lista" de nuevo; EngineFgEnhancedRitmo.cs)
             efgReadyWin[efgReadyN % efgReadyWin.Length] = Math.Max(0, Math.Min(100, readyMs));
             efgReadyN++;
             int c = j.W;
@@ -430,7 +431,7 @@ namespace ConsoleEnhancer.Motor
                 B = EfgAt(Clock.Now, need0 + s.EfgMarginMs);
             }
             // (1.3.1, ronda 8, EFGCAL) el ritmo por la hora del contenido y el hueco de verdad (EngineFgEnhancedRitmo.cs; efg_ritmo=0 = lo de abajo)
-            if (s.EfgRitmo > 0 && (k == 2 || s.EfgRitmo >= 2) && !stale && EfgPhaseOfMode(k))   // (INTEGRA8: no con efg_retraso_lat4 / _lat3)
+            if (s.EfgRitmo > 0 && (k == 2 || s.EfgRitmo >= 2 || (k == 3 && !vs && s.EfgRitmoX3 && nReal == k - 1)) && !stale && EfgPhaseOfMode(k))   // (INTEGRA8: no con efg_retraso_lat4 / _lat3; 1.3.2 EFGRITMO: x3 calidad sin sincronizacion)
             {
                 bool done = nReal == k - 1 && nReal > 0 ? EfgDoJobRitmoCalidad(j, c, flow, hasPrev, k, step, readyMs, vs, sy, fl)
                           : nReal == 0 ? EfgDoJobRitmoLatencia(j, c, flow, hasPrev, k, step, readyMs, vs, sy, fl, B) : false;
@@ -454,7 +455,7 @@ namespace ConsoleEnhancer.Motor
                 bool real = i == nReal;
                 float t = (float)(1.0 + (i - nReal) / (double)k);
                 bool dup = !flow;
-                bool skip = !real && (stale || !genReady);
+                bool skip = !real && (stale || !genReady), cede = false;
                 long ti = EfgAt(B, i * step);
                 // (otra real esperando: lo de despues de esta sobra. 1.2.4 ronda 7, EFGFIX: solo si iria a la vez o despues de la primera de la
                 // siguiente -su llegada + L-: la siguiente entra en la cola en cuanto el motor la manda, mucho antes de estar; con la baja latencia
@@ -466,20 +467,22 @@ namespace ConsoleEnhancer.Motor
                         if (efgJobs.Count > 0)
                         {
                             EfgJob nx = efgJobs.Peek();
-                            if (nx.Show || !s.EfgSaltoFino || ti + (long)(step * 0.5 / Clock.TickMs) > EfgAt(nx.Arrival, efgLcur)) skip = true;
+                            if (nx.Show || !s.EfgSaltoFino) skip = true;
+                            else if (ti + (long)(step * 0.5 / Clock.TickMs) > EfgAt(nx.Arrival, efgLcur)) skip = cede = true;
                         }
                     }
                 if (!skip && !real && Clock.SinceMs(ti) > step * 0.5) skip = true;   // (ya es tarde para esta)
-                if (skip) { efgSkipped++; genReady = false; }
+                // (1.3.2, EFGRITMO) la que cede el sitio a la real siguiente (llega antes: la cadencia del juego) no es falta de grafica: no cuenta
+                // como saltada (lo que mira la escalera), sino como "dejada por la real siguiente"
+                if (skip) { if (cede) { efgRitmoSalta += k - i; break; } efgSkipped++; genReady = false; }   // (las de detras de una que cede, tambien: sin hacerlas)
                 else
                 {
-                    EfgWaitUntil(EfgAt(ti, -(efgCopyMs + 0.5)));
-                    long tSub = Clock.Now;
-                    ulong v = EfgCopyList(c, !real);
-                    bool ok = EfgWaitOwn(v, Math.Max(4, Clock.Ms(Clock.Now, ti) + 30));
-                    if (ok) efgCopyMs = efgCopyMs * 0.9 + Math.Min(Clock.SinceMs(tSub), 10) * 0.1;
+                    EfgCopyTimed(c, !real, ti);   // (1.3.2, EFGRITMO: la copia en cuanto se puede, EngineFgEnhancedRitmo.cs)
                     if (!real) EfgStampsRead(i == 0 && nReal > 0 && flow, !dup);
                     EfgWaitUntil(ti);
+                    if (!real && EfgColaTele(sy)) genReady = false;   // (1.3.2, EFGRITMO: la tele va una imagen atrasada: esta no, para alcanzarla)
+                    else
+                    {
                     long call = Clock.Now;
                     int hr = swap.Present(sy, (DXGI_PRESENT)fl);
                     efgLastPresent = Clock.Now; efgLastCall = call;
@@ -487,6 +490,7 @@ namespace ConsoleEnhancer.Motor
                     if (real) { efgReals++; efgPrevRealAt = call; } else if (dup) efgDups++; else efgGens++;
                     EfgCsvRow(j, i, real ? 'r' : dup ? 'd' : 'g', t, call, readyMs);
                     genReady = false;
+                    }
                 }
                 // lo de la siguiente: el flujo (modo latencia: tras la real) y su inventada, mientras esta se ve
                 if (!flowSent) { EfgFlowList(c, flow); flowSent = true; }

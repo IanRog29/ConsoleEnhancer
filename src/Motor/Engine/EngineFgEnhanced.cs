@@ -88,10 +88,15 @@ namespace ConsoleEnhancer.Motor
         // el error no baja (5,40 -> 5,40 / 7,80 -> 7,85) y los puntos muy errados suben un 2 %: no es claramente mejor; queda para probar a ojo
         public int EfgNitido = 0;
         public bool EfgNitidoOn { get { return EfgNitido > 0 || (EfgNitido < 0 && Efg <= 2); } }
-        public bool EfgSaltoFino = false;       // (1.2.4 ronda 7, EFGFIX) efg_salto_fino=1: con otra real en la cola solo se saltan las inventadas que llegarian a
+        public bool EfgSaltoFino = true;        // (1.2.4 ronda 7, EFGFIX) efg_salto_fino=1: con otra real en la cola solo se saltan las inventadas que llegarian a
                                                 // la siguiente real. (1.3, RELEASE13) de serie 0 = como antes: medido con video real, x4 baja latencia + DLSS 5 al 65 %
                                                 // a 4K, sin saltos pero la grafica se colgo a los 37 s (DXGI_ERROR_DEVICE_HUNG, nvlddmkm 153); con 0, sin cuelgue y
                                                 // el vigilante de x4 + DLSS 5 baja DLSS 5 al 35 % (EngineX4D5.cs)
+                                                // (1.3.2, ronda 9, EFGRITMO) de serie 1 otra vez: con 0 se saltaban TODAS las inventadas que quedaban de una real en
+                                                // cuanto la siguiente entraba en la cola (en cuanto el motor la manda, ~1 ms tras llegar, mucho antes de estar):
+                                                // en baja latencia, siempre que L pase de ~17 ms (1440p / 1080p + DLSS SR, DLSS 5): x4 de la PS5 del usuario con
+                                                // 50-240 saltadas / 10 s y la grafica de sobra, la escalera a x2 en 2 s; x2 del modo 60 (Switch 2) 33-46
+                                                // saltadas en tramos sueltos. Ver EngineFgEnhancedRitmo.cs y notas\EFGRITMO.md
 
         bool ApplyEfg(string key, string val)
         {
