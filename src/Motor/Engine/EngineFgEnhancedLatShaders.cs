@@ -15,6 +15,7 @@ namespace ConsoleEnhancer.Motor
 cbuffer C : register(b0) { uint BX, BY, W0, H0; uint Iter, Order, Valid, Pad0; float C0, C1, MinW, Pad1; uint4 P3; }
 Texture2D<float4> F : register(t0);
 RWTexture2D<float4> Gm : register(u0);
+RWTexture2D<float> PG : register(u1);   // (1.3.3, EFGLAT r10) la textura del movimiento global de efg_giro: [8] > 0 = paneo plano (EFGMAPA), [9] [10] = su global preciso (C2P)
 groupshared float sh[33 * 128];
 static float G[12];
 void Basis(float2 p, out float b[6])
@@ -109,11 +110,13 @@ void main(uint3 tid : SV_GroupThreadID)
     }
     bool ok = wsum >= MinW;
     [unroll] for (int k8 = 0; k8 < 6; k8++) { if (!(abs(X[k8]) < 1e4) || !(abs(Y[k8]) < 1e4)) ok = false; }
-    if (!ok) { Gm[uint2(0, 0)] = 0; Gm[uint2(1, 0)] = 0; Gm[uint2(2, 0)] = 0; Gm[uint2(3, 0)] = float4(0, wsum, 0, 0); return; }
+    // (1.3.3, EFGLAT r10) PANEO PLANO (Pad0 = efg_lat_plano): el global preciso de EFGMAPA en [3].zw (m = -C2P; 0 = no es un paneo plano)
+    float2 pl = Pad0 != 0 && PG[uint2(8, 0)] > 0 ? -float2(PG[uint2(9, 0)], PG[uint2(10, 0)]) : float2(0, 0);
+    if (!ok) { Gm[uint2(0, 0)] = 0; Gm[uint2(1, 0)] = 0; Gm[uint2(2, 0)] = 0; Gm[uint2(3, 0)] = float4(0, wsum, pl); return; }
     Gm[uint2(0, 0)] = float4(X[0], X[1], X[2], X[3]);
     Gm[uint2(1, 0)] = float4(X[4], X[5], Y[0], Y[1]);
     Gm[uint2(2, 0)] = float4(Y[2], Y[3], Y[4], Y[5]);
-    Gm[uint2(3, 0)] = float4(1, wsum, 0, 0);
+    Gm[uint2(3, 0)] = float4(1, wsum, pl);
 }";
 
         // ---- La ELECCION hacia delante (T = 1 + t > 1) a un cuarto de resolucion: la del modo calidad (EfgShaders.Sel) con Extrap fijo (la
@@ -152,6 +155,11 @@ static float2 bestM;
 static float G[12], Gp[12];
 static bool gOk, gpOk, useZ, useN;
 static float sc;
+static float2 plG;
+static bool plOn;
+#ifndef PlW
+#define PlW 0.01
+#endif
 #ifndef RevThr
 #define RevThr 0.04
 #endif
@@ -180,6 +188,7 @@ void LoadG()
     float4 a = Gm[uint2(0, 0)], b = Gm[uint2(1, 0)], c = Gm[uint2(2, 0)], d = Gm[uint2(3, 0)];
     G[0] = a.x; G[1] = a.y; G[2] = a.z; G[3] = a.w; G[4] = b.x; G[5] = b.y; G[6] = b.z; G[7] = b.w; G[8] = c.x; G[9] = c.y; G[10] = c.z; G[11] = c.w;
     gOk = d.x > 0.5;
+    plG = d.zw; plOn = any(plG != 0);   // (1.3.3, EFGLAT r10) paneo plano
     a = Gm[uint2(0, 1)]; b = Gm[uint2(1, 1)]; c = Gm[uint2(2, 1)]; d = Gm[uint2(3, 1)];
     Gp[0] = a.x; Gp[1] = a.y; Gp[2] = a.z; Gp[3] = a.w; Gp[4] = b.x; Gp[5] = b.y; Gp[6] = b.z; Gp[7] = b.w; Gp[8] = c.x; Gp[9] = c.y; Gp[10] = c.z; Gp[11] = c.w;
     gpOk = d.x > 0.5;
@@ -244,6 +253,13 @@ float Cost(float2 x, float2 m)
             float pr = ZP * (1 - tw0) * min(length(m - pRef), 16);
             S2 += pr; S1 += pr;
         }
+        if (plOn && !StillAt(x))
+        {
+            // (1.3.3, EFGLAT r10) PANEO PLANO (mapa / menu que se desplaza entero): todo lo que no es la interfaz quieta paga por apartarse
+            // del global preciso (sin baldosas sueltas que van y vienen)
+            float pp2 = PlW * min(length(m - plG), 16);
+            S2 += pp2; S1 += pp2;
+        }
         r = min(S1, S2);
     }
     return r;
@@ -278,6 +294,7 @@ void main(uint3 id : SV_DispatchThreadID)
         Try(x, -Fc.Load(int3(b, 0)).xy);
     }
     Try(x, float2(0, 0));
+    if (plOn) Try(x, plG);   // (1.3.3, EFGLAT r10) paneo plano: el global preciso como candidato
     float2 u1 = x / (16.0 * float2(b1));
     Try(x, Fp1.SampleLevel(Lin, u1, 0).xy * 2);
     Try(x, -Fc1.SampleLevel(Lin, u1, 0).xy * 2);

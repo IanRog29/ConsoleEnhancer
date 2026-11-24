@@ -56,6 +56,9 @@ namespace ConsoleEnhancer.Motor
         public float EfgLatRefLam = 0.01f;
         // (1.3.3, EFGLAT r10) efg_lat_destapado: lo que la actual tiene y la anterior no (recien destapado, animado) se mueve con la camara
         public bool EfgLatRev = true;
+        // (1.3.3, EFGLAT r10) efg_lat_plano: en un paneo plano (mapa / menu; lo detecta efg_plano de EFGMAPA en la textura de efg_giro) el global
+        // preciso es candidato y lo demas paga 0,01 por punto de diferencia (salvo la interfaz quieta)
+        public bool EfgLatPlano = false;   // medido en el mapa sintetico: temblor -1 a -4 %, HUD algo peor: no de serie
 
         bool ApplyEfgLat(string key, string val)
         {
@@ -74,6 +77,7 @@ namespace ConsoleEnhancer.Motor
                 case "efg_lat_fin": EfgLatFin = Math.Max(0, Math.Min(1, I(val))); return true;
                 case "efg_lat_liso_local": EfgLatSmoothLocal = B(val); return true;
                 case "efg_lat_revisa": EfgLatRef = Math.Max(0, Math.Min(4, I(val))); return true;   // (1.3.3, EFGLAT r10)
+                case "efg_lat_plano": EfgLatPlano = B(val); return true;
                 case "efg_lat_destapado": EfgLatRev = B(val); return true;
                 case "efg_lat_revisa_peso": EfgLatRefLam = (float)Math.Max(0, Math.Min(0.1, D(val))); return true;
                 case "efg_lat_ganancia": EfgLatGain = (float)Math.Max(0, Math.Min(2, D(val))); return true;   // (1.3.2, EFGLAT r9)
@@ -92,7 +96,7 @@ namespace ConsoleEnhancer.Motor
         IntPtr efgLatHeapPtr;
         D3D12_CPU_DESCRIPTOR_HANDLE efgLatCpu0;
         D3D12_GPU_DESCRIPTOR_HANDLE efgLatGpu0;
-        bool efgLatReady, efgLatBroken;
+        bool efgLatReady, efgLatBroken, efgLatPlanoBound;
 
         static readonly string[] EfgLatNames = { "efg_lat_ajuste", "efg_lat_eleccion", "efg_lat_inventada", "efg_lat_revisa" };
         static string[] EfgLatSources() { return new string[] { EfgLatShaders.Fit, EfgLatShaders.Sel, EfgLatShaders.Fin, EfgLatShaders.Ref }; }
@@ -221,6 +225,12 @@ namespace ConsoleEnhancer.Motor
         {
             if (!EfgLatOn() || !EfgLatWanted()) return;
             uint* k = stackalloc uint[16];
+            if (!efgLatPlanoBound && efgGiroG[0] != null)
+            {
+                // (1.3.3, EFGLAT r10) la textura de efg_giro se crea despues que lo mio (EfgGiroEnsure va detras): su vista, la primera vez
+                for (int c2 = 0; c2 < EfgSets; c2++) if (efgGiroG[c2] != null) EfgLatUav(c2, EfgLatTabFit, 1, efgGiroG[c2], DXGI_FORMAT.R32_FLOAT);
+                efgLatPlanoBound = true;
+            }
             efgList.SetDescriptorHeaps(1, ref efgLatHeapPtr);
             EfgLatUavBarrier(efgGm);
             int iters = flow ? 4 : 1;
@@ -228,7 +238,7 @@ namespace ConsoleEnhancer.Motor
             {
                 EfgZero(k);
                 k[0] = (uint)efgBx[0]; k[1] = (uint)efgBy[0]; k[2] = (uint)efgLw[0]; k[3] = (uint)efgLh[0];
-                k[4] = (uint)it; k[5] = (uint)s.EfgLatOrder; k[6] = flow ? 1u : 0u;
+                k[4] = (uint)it; k[5] = (uint)s.EfgLatOrder; k[6] = flow ? 1u : 0u; k[7] = s.EfgLatPlano && efgGiroG[c] != null ? 1u : 0u;
                 k[8] = F(1.5f); k[9] = F(0.05f); k[10] = F(8f);
                 EfgLatRun(psoEfgLatFit, c, EfgLatTabFit, k, 1, 1);
                 EfgLatUavBarrier(efgGm);
