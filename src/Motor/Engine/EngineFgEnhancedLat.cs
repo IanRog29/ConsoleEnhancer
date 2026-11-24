@@ -37,6 +37,11 @@ namespace ConsoleEnhancer.Motor
         public float EfgLatStretch = 3f, EfgLatZLam = 0.01f, EfgLatZHole = 0.005f, EfgLatZD = 0.25f, EfgLatZP = 0f;
         public int EfgLatFin = 1;
         public bool EfgLatSmoothLocal = true;   // efg_lat_liso_local=1: lo liso tira hacia el vector grueso de L3 de ese sitio (0 = hacia el global)
+        // (1.3.2, ronda 9, EFGLAT) efg_lat_ganancia: lo lejos que se extrapola cada inventada (t - 1 por este factor; 1 = lo que toca, de
+        // serie). Solo para pruebas: medido con video real (simulador) 0,75 / 1,15 / 1,3 salen PEOR que 1 en Fallout 4 (14,75 / 12,99 / 15,05
+        // frente a 11,75) y 1,25 apenas mejor en GTA V (11,29 frente a 11,43): el movimiento de la pareja anterior tal cual es lo mejor que se
+        // puede adivinar (notas\EFGLAT.md, ronda 9)
+        public float EfgLatGain = 1f;
 
         bool ApplyEfgLat(string key, string val)
         {
@@ -54,6 +59,7 @@ namespace ConsoleEnhancer.Motor
                 case "efg_lat_hueco": EfgLatZHole = (float)Math.Max(0, Math.Min(0.1, D(val))); return true;
                 case "efg_lat_fin": EfgLatFin = Math.Max(0, Math.Min(1, I(val))); return true;
                 case "efg_lat_liso_local": EfgLatSmoothLocal = B(val); return true;
+                case "efg_lat_ganancia": EfgLatGain = (float)Math.Max(0, Math.Min(2, D(val))); return true;   // (1.3.2, EFGLAT r9)
             }
             return false;
         }
@@ -213,6 +219,7 @@ namespace ConsoleEnhancer.Motor
         {
             uint* k = stackalloc uint[16];
             int p = (c + EfgSets - 1) % EfgSets;
+            if (s.EfgLatGain != 1f) t = 1f + s.EfgLatGain * (t - 1f);   // (1.3.2, EFGLAT r9: efg_lat_ganancia; 1 = como la 1.3.1)
             EfgBegin();
             efgList.SetDescriptorHeaps(1, ref efgLatHeapPtr);
             EfgStamp(2);
