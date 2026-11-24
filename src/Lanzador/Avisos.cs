@@ -550,6 +550,7 @@ namespace ConsoleEnhancer
                 fallos += AvisosUnaVez(sb, fallosTxt, baseCfg, ref n);
                 fallos += AvisosNoPuede(sb, fallosTxt, baseCfg, ref n);
                 fallos += AvisosEscalera(sb, fallosTxt, ref n);   // (1.3.1, FPS)
+                fallos += AvisosFpsSesion(sb, fallosTxt, baseCfg, ref n);   // (1.3.2, FPS)
                 fallos += AvisosSesion(sb, fallosTxt, baseCfg, informe, ref n);
             }
             catch (Exception ex) { fallos++; sb.AppendLine("FALLO: " + ex); fallosTxt.Add("excepcion: " + ex.Message); }
@@ -1048,6 +1049,45 @@ namespace ConsoleEnhancer
                 }
             }
             Idioma.Poner("es");
+            return fallos;
+        }
+
+        // (1.3.2, FPS) Lo que la app baja sola es de esta sesion: DLSS 5 apagado por no llegar (D5NoLlegaAnota) no cambia lo elegido ni lo que se
+        // guardaria en el perfil, y el modo / la captura bajados por FpsBaja (FpsSesionAntes / Despues) tampoco; si el usuario lo cambia despues, eso si
+        static int AvisosFpsSesion(StringBuilder sb, List<string> fallosTxt, Config baseCfg, ref int n)
+        {
+            int fallos = 0;
+            sb.AppendLine("== lo que la app baja sola: solo esta sesion (nada al perfil)");
+            TrayApp t = AvisoApp(baseCfg, new object[] { "2560x1440", "60", "smooth", 2, true, "dlss:M", true });
+            t.curGame = "Juego de prueba FPS";
+            Config c = t.cfg;
+            List<string> r = new List<string>();
+            int antes = c.Dlss5PassesNow;
+            Config.D5NoLlegaAnota(c);
+            string porque;
+            bool va = c.Dlss5Va(out porque);
+            GameProfile p = t.CurrentProfile(t.curGame);
+            if (c.Dlss5PassesNow != 0 || va) r.Add("DLSS 5 apagado esta sesion y sigue yendo (pasadas " + c.Dlss5PassesNow + ")");
+            if (!p.Dlss5 || c.Dlss5Off) r.Add("DLSS 5 apagado esta sesion y llega al perfil / a lo elegido");
+            if (porque == null || porque.IndexOf("sesi", StringComparison.Ordinal) < 0) r.Add("el motivo no dice que es de esta sesion: " + (porque ?? "(nada)"));
+            c.VideoSize = "1920x1080"; t.PrepareCfg();
+            if (c.Dlss5PassesNow != antes) r.Add("con otra captura DLSS 5 no vuelve (" + c.Dlss5PassesNow + " de " + antes + ")");
+            c.VideoSize = "2560x1440"; t.PrepareCfg();
+            Config.D5NoLlegaOlvida("prueba");
+            // el modo y la captura bajados por la app: el perfil se escribe con lo de antes; lo que cambie el usuario despues, si
+            t.FpsSesionAntes();
+            c.CapMode = true; c.VideoSize = "1920x1080";
+            t.FpsSesionDespues();
+            p = t.CurrentProfile(t.curGame);
+            if (p.Cap || p.Capture != "2560x1440") r.Add("modo / captura bajados por la app en el perfil: " + (p.Cap ? "30" : "60") + " " + p.Capture);
+            c.VideoSize = "3840x2160";
+            p = t.CurrentProfile(t.curGame);
+            if (p.Capture != "3840x2160" || p.Cap) r.Add("la captura elegida despues por el usuario no va al perfil (" + p.Capture + ") o el modo si (" + (p.Cap ? "30" : "60") + ")");
+            p = t.CurrentProfile("Otro juego");
+            if (!p.Cap) r.Add("otro juego: se le ponia lo de este (el modo de antes)");
+            n += 6;
+            foreach (string x in r) { fallos++; fallosTxt.Add("sesion FPS: " + x); }
+            sb.AppendLine(r.Count == 0 ? "      DLSS 5 apagado esta sesion, modo y captura bajados: nada al perfil; lo del usuario despues, si" : "FALLO " + string.Join(" | ", r.ToArray()));
             return fallos;
         }
 
