@@ -137,7 +137,8 @@ void main(uint3 tid : SV_GroupThreadID)
         //             sueltos (lo que se veia al girar la camara en x3 / x4). Los huecos (no llega nada), como en 16.
         // Sel = (m en L0, 1, coste)
         public const string Sel = @"
-cbuffer C : register(b0) { uint QW, QH, BX, BY; float T, Kappa, Tau, StillN; uint W0, H0, Flags; float ZD; float ZLam, ZHole, ZSat, ZP; }
+cbuffer C : register(b0) { uint QW, QH, BX, BY; float T, Kappa, Tau, StillN; uint W0, H0, Flags; float ZD; float ZLam, ZHole; uint MandoPk; float ZP; }
+#define ZSat (8.0 * W0 / 1920.0)
 Texture2D<float> Lp : register(t0);
 Texture2D<float> Lc : register(t1);
 Texture2D<float4> Fp : register(t2);
@@ -304,6 +305,13 @@ void main(uint3 id : SV_DispatchThreadID)
     Try(x, Fp.SampleLevel(Lin, (x - T * m0) * invB, 0).xy);
     Try(x, -Fc.SampleLevel(Lin, (x + (1 - T) * m0) * invB, 0).xy);
     if (gOk && (Flags & 1)) Try(x, EvalG(x - t * gX, false));
+    if (gOk && (Flags & 1024) != 0)
+    {
+        // (1.3.3, EFGLAT r10) EL STICK DEL MANDO (efg_lat_mando=2, EngineFgEnhancedMando.cs): lo que va con la camara corrige su global con lo
+        // que el stick ya ha pedido y la imagen aun no ensena
+        float2 gc = EvalG(x - t * gX, false);
+        if (length(bestM - gc) < 2 + 0.25 * length(gc)) bestM += float2(f16tof32(MandoPk & 0xFFFF), f16tof32(MandoPk >> 16));
+    }
     if ((plOn || plPrev) && gOk && gpOk && (Flags & 256) != 0)
     {
         // (1.3.3, EFGLAT r10) FRENADA en un paneo plano (mapa / menu): si el paneo va mas lento que en la pareja anterior, se supone que sigue
@@ -355,6 +363,12 @@ void main(uint3 id : SV_DispatchThreadID)
         [unroll] for (int j2 = 0; j2 < 9; j2++) sm += min(length(n[k] - n[j2]), RCAP);
         float tot = c + RLAM * sm / 9;
         if (tot < bT) { bT = tot; bS = c; bM = n[k]; }
+    }
+    if (gOk && (Flags & 1024) != 0)
+    {
+        // (1.3.3, EFGLAT r10) el stick del mando, en la ULTIMA vuelta (la revision prefiere los vectores sin corregir: deshacia la correccion)
+        float2 gc = EvalG(x - (T - 1) * gX, false);
+        if (length(bM - gc) < 2 + 0.25 * length(gc)) bM += float2(f16tof32(MandoPk & 0xFFFF), f16tof32(MandoPk >> 16));
     }
     Sel[id.xy] = float4(bM, 1, bS);
 }";

@@ -209,6 +209,7 @@ namespace ConsoleEnhancer.Motor
                 if (m > (8 << (efgLv - 1)) * 0.75) efgGiroLejos++;   // (cerca o fuera del alcance de la busqueda por bloques: +-8 del nivel mas grueso)
             }
             efgGiroPairs++;
+            EfgMandoPair(rb[0], rb[1], efgGiroPairs > 1 && rb[7] > 0.5f);   // (1.3.3, EFGLAT r10: el stick del mando aprende con el global)
             if (efgGiroLogAt == 0 || Clock.SinceMs(efgGiroLogAt) > 10000)
             {
                 efgGiroLogAt = Clock.Now;
