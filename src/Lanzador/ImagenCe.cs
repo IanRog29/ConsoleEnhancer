@@ -78,7 +78,7 @@ namespace ConsoleEnhancer
                 case "auto_hdr": case "auto_hdr_posible": return true;   // (de una prueba del 20-11 que se quito: Auto HDR no se pone)
                 // (fusion G, LATENCIA5 de Prisma) auto | 0 | 1; la de Prisma (1 de serie) era 0|1: aqui va antes y la tapa
                 case "motor_60fg_refresco_fijo": CeRefrescoFijo = v == "0" || v == "1" ? v : "auto"; EngineFixed60Fg = CeRefrescoFijo != "0"; return true;
-                case "motor_60sm_refresco_fijo": CeSmRefrescoFijo = v == "1" || v == "auto" ? "1" : "0"; return true;   // (1.3.2, FPS)
+                case "motor_60sm_refresco_fijo": CeSmRefrescoFijo = v == "0" || v == "1" ? v : "auto"; return true;   // (1.3.2, FPS)
             }
             return false;
         }
@@ -106,12 +106,14 @@ namespace ConsoleEnhancer
         // sincronizacion forzada de Smooth Motion a cada refresco y el motor presentando con ella (refresco_fijo=1 + sm=1, EngineLatencia.cs).
         // Con las mismas cuentas que el auto de arriba (NVIDIA, VRR del motor, >= 100 Hz, el tope no deja pasar 2 x las de la captura y la
         // pantalla va mas rapida que la salida). Enhanced FG x2 en el 60 ya iba asi (log del usuario 24-11 01:25: 60 reales/s con el fijo)
-        public string CeSmRefrescoFijo = "0";
+        // auto (de serie) = el modo 60 a >= 100 Hz (medido 24-11 04:38-04:48: 59,94 reales y 119,9/s en vez de 58 y 116,1, 0 perdidas en vez de
+        // 36-39 cada 20 s); 1 = tambien el modo 30 a menos de 100 Hz (sin medir: la tele en reposo sin VRR); 0 = nunca (como la 1.3.1)
+        public string CeSmRefrescoFijo = "auto";
         // (Smooth Motion "1" -la sincronizacion forzada, la salida = 2 x la captura cerca del refresco- es el del modo 60 a >= 100 Hz y tambien el
         // del modo 30 con la pantalla a menos de 100 Hz: 29,97 -> 59,94 a 60 Hz, que con VRR topa igual, a 59 = 60 - 60^2/3600; el "2" -cada 2
         // refrescos, el 30 a 120 Hz- no topa: 59,94 de 116)
-        public bool EngineFixedSmPosible { get { return CeSmRefrescoFijo == "1" && !Ce.NoNvidia && !Mode120 && !FgOff && CeFijoCuenta(false) && !NvProfiles.EngineFixedBroken; } }
-        public bool EngineFixedSmWanted { get { return EngineSmoothFor(CapMode) && (!CapMode || Pantalla.Hz() < 100) && EngineFixedSmPosible; } }
+        public bool EngineFixedSmPosible { get { return CeSmRefrescoFijo != "0" && (!CapMode || (CeSmRefrescoFijo == "1" && Pantalla.Hz() < 100)) && !Ce.NoNvidia && !Mode120 && !FgOff && CeFijoCuenta(false) && !NvProfiles.EngineFixedBroken; } }
+        public bool EngineFixedSmWanted { get { return EngineSmoothFor(CapMode) && EngineFixedSmPosible; } }
         // El refresco fijo con el que se abre un motor con este Smooth Motion (0 sin el, 1 el de la sincronizacion forzada; 2 -cada 2 refrescos- y 3: VRR)
         public bool EngineFixedConSm(int sm) { return sm == 0 ? EngineFixedWanted : sm == 1 && EngineFixedSmWanted; }
         public int EngineFixedWant { get { return EngineFixedConSm(EngineSmoothMode) ? 1 : 0; } }

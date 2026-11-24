@@ -10381,7 +10381,7 @@ namespace ConsoleEnhancer
         void CheckEngineFixed(DateTime now)
         {
             int have = Config.EngineFixedOf(mpv);
-            if (have < 0 || (!cfg.EngineFixed60Fg && cfg.CeSmRefrescoFijo != "1" && have == 0)) { fixedDiffSince = DateTime.MinValue; return; }
+            if (have < 0 || (!cfg.EngineFixed60Fg && cfg.CeSmRefrescoFijo == "0" && have == 0)) { fixedDiffSince = DateTime.MinValue; return; }
             if (!ipcUp || !lsReady || homeBusy || passesBusy || relaunchEngine || relaunchSize != null || relevo != null)
             { fixedDiffSince = DateTime.MinValue; return; }
             PrepareCfg();
@@ -10390,7 +10390,7 @@ namespace ConsoleEnhancer
             if (fixedDiffSince == DateTime.MinValue) { fixedDiffSince = now; return; }
             if ((now - fixedDiffSince).TotalSeconds < 0.5) return;
             fixedDiffSince = DateTime.MinValue;
-            Log.Write("Refresco del motor: " + (want > 0 ? "fijo (" + (cfg.CapMode ? "modo 30 con DLSS FG x4 del motor" : cfg.EngineSmoothMode == 1 ? "modo 60 con Smooth Motion x2, motor_60sm_refresco_fijo=1" : "modo 60 con generacion del motor") + ": sin el tope de 116 de Reflex con VRR)" : "VRR (" + (cfg.CapMode ? "modo 30" : cfg.FgOff ? "sin generacion" : "otra generacion") + ")") +
+            Log.Write("Refresco del motor: " + (want > 0 ? "fijo (" + (cfg.CapMode ? "modo 30 con DLSS FG x4 del motor" : cfg.EngineSmoothMode == 1 ? "modo 60 con Smooth Motion x2, motor_60sm_refresco_fijo" : "modo 60 con generacion del motor") + ": sin el tope de 116 de Reflex con VRR)" : "VRR (" + (cfg.CapMode ? "modo 30" : cfg.FgOff ? "sin generacion" : "otra generacion") + ")") +
                       ": el driver solo lo mira al abrirlo, se vuelve a abrir el motor");
             ReabrirMotorSmooth(cfg.EngineSmoothMode, null, null);
         }

@@ -1106,6 +1106,8 @@ namespace ConsoleEnhancer
                 object[][] casos = {
                     new object[] { "60 Smooth Motion, clave 0 (como la 1.3.1)", "0", 120, false, false, 1, "smooth", 1, 0 },
                     new object[] { "60 Smooth Motion, clave 1", "1", 120, false, false, 1, "smooth", 1, 1 },
+                    new object[] { "60 Smooth Motion, auto (de serie)", "auto", 120, false, false, 1, "smooth", 1, 1 },
+                    new object[] { "30 Smooth Motion a 60 Hz (forzada), auto: sin medir, no", "auto", 60, true, false, 1, "smooth", 1, 0 },
                     new object[] { "60 Smooth Motion, clave 1, sin VRR", "1", 120, false, false, 0, "smooth", 1, 0 },
                     new object[] { "60 Smooth Motion, clave 1, modo 120", "1", 120, false, true, 1, "smooth", 0, 0 },
                     new object[] { "30 Smooth Motion a 120 Hz (cada 2 refrescos), clave 1", "1", 120, true, false, 1, "smooth", 2, 0 },
@@ -1132,7 +1134,7 @@ namespace ConsoleEnhancer
             }
             finally { Pantalla.HzPrueba = hzAntes; }
             foreach (string x in r) { fallos++; fallosTxt.Add("sm fijo: " + x); }
-            sb.AppendLine(r.Count == 0 ? "      el fijo con la clave en el 60 a 120 Hz y en el 30 a 60 Hz; sin la clave, sin VRR, a 144 Hz, en el 120 y cada 2 refrescos, no; Enhanced FG x2 en el 60 como antes" : "FALLO " + string.Join(" | ", r.ToArray()));
+            sb.AppendLine(r.Count == 0 ? "      el fijo de serie (auto) y con 1 en el 60 a 120 Hz, en el 30 a 60 Hz solo con 1; con 0, sin VRR, a 144 Hz, en el 120 y cada 2 refrescos, no; Enhanced FG x2 en el 60 como antes" : "FALLO " + string.Join(" | ", r.ToArray()));
             return fallos;
         }
 
