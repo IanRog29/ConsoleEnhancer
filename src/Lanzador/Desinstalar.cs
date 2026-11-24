@@ -121,6 +121,7 @@ namespace ConsoleEnhancer
             // (1.2.3: iniciar_con_windows=0 tambien, en los ajustes que se guardan: una copia nueva que los herede no se pone sola en el inicio)
             try { Ce.IniPoner("escritorio_negro", "0"); Ce.IniPoner("apagar_pc", "0"); Ce.IniPoner("iniciar_con_windows", "0"); } catch { }
             cfg.BlackDesktop = false; cfg.ShutdownPc = false; cfg.StartWithWindows = 0;
+            PanelAjustes.SteamAlDesinstalar();   // (1.3.3, VARIOS: el acceso de Steam, si se puso y Steam esta cerrado)
             try { Escritorio.Cambiar(false); } catch (Exception ex) { Log.Error("Desinstalar: escritorio", ex); }
             CeEspera.PlanDeAntes("desinstalar");
 

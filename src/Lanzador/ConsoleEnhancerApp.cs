@@ -426,7 +426,7 @@ namespace ConsoleEnhancer
         }
 
         // (22-11, 1.2.2) lo elegido en la bandeja / el panel / el asistente que puede estar en una linea del base.ini viejo (ActualizarIni)
-        static readonly string[] ClavesElegidas = { "apagar_pc_modo", "apagar_pc_aviso_s", "escritorio_negro" };
+        static readonly string[] ClavesElegidas = { "apagar_pc_modo", "apagar_pc_aviso_s", "escritorio_negro", "steam_acceso" };   // (1.3.3: steam_acceso, el panel)
 
         // (22-11, 1.2.4 SOLOMOTOR) las claves que ya no existen y se quitan de todo el ini al ponerlo al dia: motor_dlss5=0|1|auto (la eleccion
         // del DLSS 5 por el motor o por Magpie)

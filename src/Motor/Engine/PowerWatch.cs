@@ -52,6 +52,7 @@ namespace ConsoleEnhancer.Motor
         int nsN; long nsT0; byte[] nsFp; bool nsStill = true; string nsSrc; bool nsSoundSaid;
         // ultima muestra
         double sAvg, sMax; byte[] sFp; long sT;
+        bool sLiso = true; long lisoAt;   // (1.3.3, VARIOS: la imagen entera negra lisa, ver Liso)
         long lastFrames = -1;
         long lastSampleAt;
         volatile bool suspended;
@@ -176,10 +177,18 @@ namespace ConsoleEnhancer.Motor
                     n++;
                 }
             }
+            // 24-11 (1.3.3, VARIOS): negro en la rejilla (1296 puntos sueltos) -> la imagen entera, como mucho una vez por segundo: un HUD
+            // quieto, un logo o un texto sobre negro (que la rejilla no ve) no es la consola apagada; apagada = negro liso (Liso)
+            bool liso = sLiso;
+            if (sum / n < BlackLuma && mx < BlackLuma * 3)
+            {
+                if (lisoAt == 0 || Clock.Ms(lisoAt, now) >= 900) { liso = Liso(data, pitch, w, h, fmt); lisoAt = now; }
+            }
+            else { liso = false; lisoAt = 0; }
             lock (sync)
             {
                 if (suspended) return;
-                sAvg = sum / n; sMax = mx; sFp = fp; sT = now;
+                sAvg = sum / n; sMax = mx; sFp = fp; sT = now; sLiso = liso;
                 if (!consoleSeen && !triggered)
                 {
                     // Arranque: con imagen de la consola (ni "No Signal" ni negra) se da por encendida
@@ -381,7 +390,7 @@ namespace ConsoleEnhancer.Motor
 
                 if (sFp != null && Secs(sT) < 3)
                 {
-                    lastBlack = noSignalShown || nsN > 0 || (sAvg < BlackLuma && sMax < BlackLuma * 3);
+                    lastBlack = noSignalShown || nsN > 0 || (sAvg < BlackLuma && sMax < BlackLuma * 3 && sLiso);   // (1.3.3: y liso en toda la imagen)
                     bool frozen = lastFp != null && Equal(sFp, lastFp);
                     lastFp = sFp;
                     frozenN = (frozen && silent == true) ? frozenN + 1 : 0;
@@ -414,6 +423,38 @@ namespace ConsoleEnhancer.Motor
                 else if (blackN >= BlackSecs) Trigger("black", "");
                 else if (frozenN >= FrozenSecs) Trigger("frozen", "");
             }
+        }
+
+        // 24-11 (1.3.3, VARIOS): ¿negro LISO en toda la imagen? (como NegroLiso.cs del lanzador): a saltos (~500.000 muestras: 1 de cada 4
+        // filas y columnas a 4K, ~0,5 ms), el valor mas repetido negro (luma <= 24, tambien el 16 del rango limitado) y nada a mas de 10 niveles
+        // de el salvo 2 muestras sueltas. La consola apagada da negro liso (o "No Signal"); un HUD, un logo, un texto o una carga oscura, no
+        public static bool Liso(byte* data, int pitch, int w, int h, int fmt)
+        {
+            if (data == null || w <= 0 || h <= 0) return true;
+            if (fmt != Shaders.FmtBgr24 && fmt != Shaders.FmtBgrx32 && fmt != Shaders.FmtYuy2 && fmt != Shaders.FmtNv12) return true;   // (como antes)
+            int paso = Math.Max(1, (int)Math.Ceiling(Math.Sqrt((double)w * h / 500000)));
+            int* hist = stackalloc int[256];
+            for (int v = 0; v < 256; v++) hist[v] = 0;
+            int n = 0;
+            for (int y = 0; y < h; y += paso)
+            {
+                byte* row = data + (long)y * pitch;
+                for (int x = 0; x < w; x += paso)
+                {
+                    int l;
+                    if (fmt == Shaders.FmtBgr24) { byte* p = row + x * 3; l = (19 * p[0] + 183 * p[1] + 54 * p[2]) >> 8; }
+                    else if (fmt == Shaders.FmtBgrx32) { byte* p = row + x * 4; l = (19 * p[0] + 183 * p[1] + 54 * p[2]) >> 8; }
+                    else if (fmt == Shaders.FmtYuy2) l = row[x * 2];
+                    else l = row[x];
+                    hist[l]++;
+                    n++;
+                }
+            }
+            int fondo = 0;
+            for (int v = 1; v < 256; v++) if (hist[v] > hist[fondo]) fondo = v;
+            int fuera = 0;
+            for (int v = 0; v < 256; v++) if (v < fondo - 10 || v > fondo + 10) fuera += hist[v];
+            return n > 0 && fondo <= 24 && fuera <= 2;
         }
 
         void Trigger(string reason, string detail)
