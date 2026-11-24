@@ -548,7 +548,7 @@ namespace ConsoleEnhancer.Motor
             }
         }
 
-        bool DedupeNow { get { return s.Dedupe == 1 || (s.Dedupe < 0 && (s.Mode == 30 || s.Fg)); } }
+        bool DedupeNow { get { return s.Mode == 40 || s.Dedupe == 1 || (s.Dedupe < 0 && (s.Mode == 30 || s.Fg)); } }   // (1.3.2, MODO40: en el modo 40 siempre)
 
         // ¿Igual que la anterior? Compara 1 de cada 8 filas (la captura HDMI es exacta: una imagen repetida es identica)
         bool IsDuplicate(byte* p, int pitch, int rowBytes, int h)
@@ -595,11 +595,13 @@ namespace ConsoleEnhancer.Motor
             // Como el filtro de mpv: sin las repetidas (una copia si llevan 2 sin pasar); en el modo 30, ademas, como mucho
             // 1 de cada 2 (una nueva si han pasado 2 desde la ultima que paso, o cualquiera a las 3)
             capN++;
-            if (DedupeNow && fmt != Shaders.FmtNv12)
+            double m40d = 0;
+            if (DedupeNow && (fmt != Shaders.FmtNv12 || s.Mode == 40))   // (1.3.2, MODO40: con NV12 la luma)
             {
                 bool isNew = !IsDuplicate(src, pitch, rowBytes, h);
                 long since = capN - lastPassed;
-                bool pass = s.Mode == 30 ? (s.Dedupe30 >= 2 ? Pass30(isNew, since) : (isNew && since >= 2) || since >= 3) : isNew || since >= 2;
+                bool pass = s.Mode == 40 ? Pass40(isNew, since, arrival) : s.Mode == 30 ? (s.Dedupe30 >= 2 ? Pass30(isNew, since) : (isNew && since >= 2) || since >= 3) : isNew || since >= 2;
+                if (pass && s.Mode == 40) { arrival = M40Hora(arrival, since, isNew); m40d = m40LastDelay; }   // (1.3.2, MODO40: la cadencia 2-1 pareja, EngineModo40.cs)
                 EfgNoteCapture(seq, arrival, isNew, pass);   // (1.3.1, EFGCAL: la hora del contenido para el ritmo de Enhanced FG)
                 if (!pass) { stats.Captured(true); return; }
                 lastPassedNew = isNew;
@@ -627,6 +629,7 @@ namespace ConsoleEnhancer.Motor
                 }
                 if (slot < 0 || reallocating) { stats.Late(); return; }
                 slotState[slot] = Writing;
+                m40SlotDelay[slot] = m40d;   // (1.3.2, MODO40)
             }
             long tCopy = Clock.Now;   // 20-11 (LATENCIA4): lo de antes de la copia y la copia, para la linea del banco
             if (CopyBands(slot, src, pitch, dstPitch, rowBytes, rows, w, h, fmt, seq, arrival, cut, tCopy)) return;   // 20-11 (LATENCIA7): copia_bandas (EngineCopia.cs)
@@ -1197,6 +1200,7 @@ namespace ConsoleEnhancer.Motor
                 // (EngineLatencia.cs VrrPresentArgs); vrr=0 como antes
                 uint syncNow, flagsNow;
                 VrrPresentArgs(out syncNow, out flagsNow);
+                M40Espera(slot, arrival);   // (1.3.2, MODO40: sin generacion, cada real a su hora; EngineModo40.cs)
                 long submitAt = Clock.Now;
                 XeFgBeforePresent();
                 // (ScPresent = la cadena de XeSS FG, la de Streamline o la de siempre; FmPresent = FSR FG x2 / x3 / x4 del motor, EngineFsrMultiHilo.cs;
@@ -1241,6 +1245,7 @@ namespace ConsoleEnhancer.Motor
         void SecondTick()
         {
             EscCuarto();    // (1.3.1, FPS: cada 250 ms, ver en 1-2 s que no se llega; EngineEscalera.cs)
+            M40Tick();      // (1.3.2, MODO40)
             string t = stats.Tick();
             if (t == null) return;
             lastSecond = Clock.Now;

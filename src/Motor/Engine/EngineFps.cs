@@ -22,7 +22,7 @@ namespace ConsoleEnhancer.Motor
             if (clave != fpsClave) { fpsClave = clave; fpsCalmaDesde = Clock.Now; fpsMalN = 0; fpsHist = 0; }
             if (inStandby || noSignalScreen || nosigSilencio || lastCapture == 0 || Clock.SinceMs(lastCapture) > 1500 || Clock.SinceMs(fpsCalmaDesde) < 10000)
             { fpsMalN = 0; fpsHist = 0; return; }
-            double objetivo = s.Mode == 30 ? 29.97 : s.Mode >= 100 ? 119.88 : 59.94;
+            double objetivo = s.Mode == 40 ? 39.96 : s.Mode == 30 ? 29.97 : s.Mode >= 100 ? 119.88 : 59.94;   // (1.3.2, MODO40)
             double tope = 1000.0 / objetivo;
             bool bajo = stats.LastRate < objetivo * 0.9;
             // (1.2.4 ronda 5, XEFGM) con XeSS FG (y la generacion propia, quitada en la ronda 6) las reales tambien se pierden por el pintado / la presentacion

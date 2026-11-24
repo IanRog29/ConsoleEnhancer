@@ -69,7 +69,7 @@ namespace ConsoleEnhancer
             get
             {
                 if (!SmoothX4) return "smooth_x4=0";
-                if (FgOff || HomeNative || Mode120 || !CapMode) return Tx.T("solo en el modo 30", "only in the 30 fps mode");
+                if (FgOff || HomeNative || Mode120 || !CapMode || Mode40) return Tx.T("solo en el modo 30", "only in the 30 fps mode");   // (1.3.2, MODO40: no en el 40)
                 if (!EngineSmoothFor(true)) return Tx.T("la generación del modo 30 no es Smooth Motion", "the 30 fps mode generation is not Smooth Motion");
                 if (Ce.NoNvidia || NvProfiles.EngineSmoothBroken) return Tx.T("Smooth Motion no se puede poner en este PC", "Smooth Motion can't be set on this PC");
                 if (Pantalla.Hz() < 119) return Tx.T("la pantalla no va a 120 Hz", "the screen is not at 120 Hz");

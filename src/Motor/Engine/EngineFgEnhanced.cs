@@ -429,7 +429,7 @@ namespace ConsoleEnhancer.Motor
             j.W = show ? efgShowW : efgW; j.Arrival = efgJobArrival; j.Content = show ? 0 : efgJobContent; j.Fence = fenceValue; j.Reset = efgJobReset; j.Seq = show ? efgSeq : ++efgSeq;
             j.Sync = sync; j.Flags = flags; j.K = Math.Max(2, Math.Min(4, s.Efg));
             j.Phase = EfgPhaseFor(j.K);
-            j.RealMs = 1000.0 / Math.Max(1.0, (s.FpsNum > 0 ? s.FpsNum / (double)Math.Max(1, s.FpsDen) : 59.94) * (s.Mode == 30 ? 0.5 : 1));
+            j.RealMs = 1000.0 / Math.Max(1.0, (s.FpsNum > 0 ? s.FpsNum / (double)Math.Max(1, s.FpsDen) : 59.94) * ModoFactor);   // (1.3.2, MODO40: ModoFactor, EngineModo40.cs; antes 0,5 en el 30 y 1 en el resto)
             j.Ready = new ManualResetEvent(false);
             lock (efgWatchQ) efgWatchQ.Enqueue(j);   // (el vigilante apunta cuando la grafica la acaba: EngineFgEnhancedHilo.cs)
             efgWatchEv.Set();

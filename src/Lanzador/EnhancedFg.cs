@@ -66,7 +66,7 @@ namespace ConsoleEnhancer
         // al 80 %. Si con DLSS 5 no llega, el motor baja DLSS 5 -EngineX4D5.cs- y, si ni asi, x2 esta sesion -EfgNoLlegaAnota-, diciendolo.
         // efg_multi_dlss5=0 = como antes: x2 con DLSS 5)
         public static volatile bool EfgMultiDlss5 = true;
-        public int EfgMultNow { get { return CapMode && !Mode120 && EfgMultFalta(MotorD5Simple, VideoSize).Length == 0 ? EfgMult : 2; } }
+        public int EfgMultNow { get { return CapMode && !Mode120 && EfgMultFalta(MotorD5Simple, VideoSize).Length == 0 ? (Mode40 ? EfgMult40 : EfgMult) : 2; } }   // (1.3.2, MODO40: en el 40 el suyo, x2 / x3)
         // (EFGFIX) x3 / x4 que no llego a las reales ni con DLSS 5 al 25 % (switch2-x4d5 no) o por FpsBajo: x2 esta sesion con esa captura y DLSS 5
         static string efgNoLlega = "";
         public static void EfgNoLlegaAnota(bool d5, string cap) { efgNoLlega = (cap ?? "") + "|" + (d5 ? "d5" : "-"); }
@@ -78,8 +78,8 @@ namespace ConsoleEnhancer
             if (d5 && !EfgMultiDlss5) return Tx.T("con DLSS 5 va x2: la gráfica no llega (sin DLSS 5, x3 / x4)", "with DLSS 5 it runs x2: the GPU can't keep up (x3 / x4 without DLSS 5)");
             string c = string.IsNullOrEmpty(cap) ? VideoSize : cap;
             if (efgNoLlega.Length > 0 && efgNoLlega == (c ?? "") + "|" + (d5 ? "d5" : "-"))
-                return d5 ? Tx.T("con DLSS 5 a " + Smx4Cap(c) + " no llegó a 30 ni al 25 %: x2 esta sesión", "with DLSS 5 at " + Smx4Cap(c) + " it couldn't keep 30 fps even at 25 %: x2 this session")
-                          : Tx.T("a " + Smx4Cap(c) + " no llegó a 30: x2 esta sesión", "at " + Smx4Cap(c) + " it couldn't keep 30 fps: x2 this session");
+                return d5 ? Tx.T("con DLSS 5 a " + Smx4Cap(c) + " no llegó a " + ModoFps + " ni al 25 %: x2 esta sesión", "with DLSS 5 at " + Smx4Cap(c) + " it couldn't keep " + ModoFps + " fps even at 25 %: x2 this session")
+                          : Tx.T("a " + Smx4Cap(c) + " no llegó a " + ModoFps + ": x2 esta sesión", "at " + Smx4Cap(c) + " it couldn't keep " + ModoFps + " fps: x2 this session");
             return "";
         }
 
@@ -148,18 +148,20 @@ namespace ConsoleEnhancer
             bool on = tipo != null && tipo.Visible && tipo.Val == "efg" && modoSel != "120";
             bool fgSi = fg == null || fg.Val == "1";
             mul.Visible = lat.Visible = on;
-            mul.Activa = on && fgSi && modoSel == "30";
+            bool m40 = modoSel == "40";   // (1.3.2, MODO40: x2 / x3, el suyo -de serie x3 = 120-; x4 no cabe)
+            mul.Activa = on && fgSi && (modoSel == "30" || m40);
             // (1.2.4 ronda 7, INTEGRA7: con DLSS 5 elegido en el menu, x3 / x4 con candado y la fila enseña x2 -lo que va a ir- sin contar como
             // cambio: lo guardado se queda y vuelve solo sin DLSS 5. Como Smooth Motion x4, SmoothX4.cs)
             bool d5Sel = d5 != null && d5.Visible ? d5.Val == "1" : cfg.MotorD5Simple;
             FilaAjuste capF = AjFila("cap");
             string no = cfg.EfgMultFalta(d5Sel && Integrado.Dlss5Available, capF != null ? capF.Val : cfg.VideoSize);
-            string guardado = Config.EfgMult.ToString(CultureInfo.InvariantCulture);
-            if (efgQuiere == null) efgQuiere = guardado;
-            mul.Bloq = new List<string> { "", no, no };
+            string guardado = (m40 ? Config.EfgMult40 : Config.EfgMult).ToString(CultureInfo.InvariantCulture);
+            if (efgQuiere == null || (m40 && efgQuiere == "4")) efgQuiere = guardado;
+            if (m40 != efgModo40) { efgModo40 = m40; efgQuiere = guardado; }
+            mul.Bloq = new List<string> { "", no, m40 ? Tx.T("en el modo 40 como mucho x3 (120 fps)", "at most x3 in 40 fps mode (120 fps)") : no };
             if (no.Length > 0) { mul.Sel = 0; mul.Orig = 0; }
             else { mul.Sel = Math.Max(0, mul.Vals.IndexOf(efgQuiere)); mul.Orig = Math.Max(0, mul.Vals.IndexOf(guardado)); }
-            mul.Nota = !on ? "" : modoSel != "30" ? Tx.T("x2 en el modo 60", "x2 in 60 fps mode") : !fgSi ? Tx.T("Con la generación encendida", "With frame generation on") :
+            mul.Nota = !on ? "" : modoSel != "30" && !m40 ? Tx.T("x2 en el modo 60", "x2 in 60 fps mode") : !fgSi ? Tx.T("Con la generación encendida", "With frame generation on") :
                        no.Length > 0 ? (efgQuiere != "2" ? Tx.T("x" + efgQuiere + " vuelve cuando se pueda · ", "x" + efgQuiere + " comes back when possible · ") : "") + no.Substring(0, 1).ToUpperInvariant() + no.Substring(1) :
                        mul.Val != "2" && d5Sel && Integrado.Dlss5Available ? Tx.T("x" + mul.Val + " con DLSS 5: DLSS 5 se baja lo que haga falta para que quepa", "x" + mul.Val + " with DLSS 5: DLSS 5 is lowered as needed to fit") : "";
             lat.Activa = on && fgSi;
@@ -167,12 +169,26 @@ namespace ConsoleEnhancer
         }
 
         // (AjustesPonerTodo) lo elegido en sus filas; el motor lo recibe en marcha (EngineLive -> SyncEngine)
+        bool efgModo40;
         void EfgAplicar(Dictionary<string, string> e)
         {
             string a = AjVal(e, "efgmul"), b = AjVal(e, "efglat");
             // (1.2.4 ronda 7, INTEGRA7: sin tocarla, nada: con DLSS 5 la fila enseña x2 pero lo guardado -x3 / x4- se queda)
             FilaAjuste fm = AjFila("efgmul");
             if (fm != null && !fm.Cambiada) a = null;
+            // (1.3.2, MODO40: con el modo 40 elegido en el menu, el multiplicador es el del 40 -games\efg40.txt-; el de los demas no cambia)
+            string mo = AjVal(e, "modo") ?? cfg.ModoFps.ToString(CultureInfo.InvariantCulture);
+            if (mo == "40" && a != null)
+            {
+                int n40;
+                if (int.TryParse(a, NumberStyles.Integer, CultureInfo.InvariantCulture, out n40) && Math.Min(3, n40) != Config.EfgMult40)
+                {
+                    Config.EfgSet40(n40);
+                    Log.Write("Enhanced FG del modo 40: x" + Config.EfgMult40.ToString(CultureInfo.InvariantCulture));
+                }
+                a = null;
+                if (b == null) return;
+            }
             if (a == null && b == null) return;
             int m = Config.EfgMult; bool low = Config.EfgLow;
             int n; if (a != null && int.TryParse(a, NumberStyles.Integer, CultureInfo.InvariantCulture, out n)) m = n;

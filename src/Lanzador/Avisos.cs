@@ -58,7 +58,7 @@ namespace ConsoleEnhancer
         }
 
         // Las imagenes reales del modo (sin generacion: las que se ven)
-        public int GenBase { get { return Mode120 ? 120 : CapMode ? 30 : 60; } }
+        public int GenBase { get { return ModoFps; } }
 
         // Lo pedido en este modo (lo elegido con L3 / el menu / el perfil del juego; si no, el del ini) y su multiplicador elegido
         public string GenPedida(out int mult)
@@ -66,7 +66,7 @@ namespace ConsoleEnhancer
             string t = CapMode ? FgPick30 : FgPick60;
             if (!TipoGen(t)) t = CapMode ? FgType30 : FgType60;
             if (!TipoGen(t)) t = FgType;
-            mult = t == "smooth" ? (SmoothX4 && CapMode ? 4 : 2) : t == "fsr3" ? FsrMult : t == "efg" ? EfgMult : 2;
+            mult = t == "smooth" ? (SmoothX4 && CapMode && !Mode40 ? 4 : 2) : t == "fsr3" ? (Mode40 ? 2 : FsrMult) : t == "efg" ? (Mode40 ? EfgMult40 : EfgMult) : 2;   // (1.3.2, MODO40: en el 40 Enhanced FG con lo suyo, x2-x3)
             return TipoGen(t) ? t : "";
         }
 
@@ -137,6 +137,7 @@ namespace ConsoleEnhancer
         {
             if (pedido <= va) return null;
             if (!CapMode) return Tx.T("solo en el modo 30", "only in 30 fps mode");
+            if (Mode40 && pedido > 3) return Tx.T("en el modo 40 como mucho x3 (120 fps)", "at most x3 in 40 fps mode (120 fps)");   // (1.3.2, MODO40)
             string r = "";
             if (t == "smooth") r = SmoothX4Falta;
             else if (t == "fsr3") r = FsrMulNoPorQue(true);
@@ -297,7 +298,7 @@ namespace ConsoleEnhancer
         void AjAvisoCalcula(AvisoFoto antes, HashSet<string> cambiadas, string capV, int modo, int modoPedido, out string tit, out string det)
         {
             Config c = AvisoConfig();
-            c.VideoSize = capV; c.CapMode = modo == 30; c.Mode120 = modo == 120;
+            c.VideoSize = capV; c.CapMode = modo == 30 || modo == 40; c.Mode40 = modo == 40; c.Mode120 = modo == 120;
             AvisoFoto d = AvisoFoto.De(c);
             List<string> si = new List<string>();
             Func<string[], bool> alguna = delegate (string[] ids) { foreach (string id in ids) if (cambiadas.Contains(id)) return true; return false; };
@@ -349,12 +350,20 @@ namespace ConsoleEnhancer
         {
             Config c = AvisoConfig();
             AvisoFoto d = AvisoFoto.De(c);
-            tit = fps == 120 ? Tx.T("Modo 120 fps (esports)", "120 fps mode (esports)") : fps == 30 ? Tx.T("Modo 30 fps", "30 fps mode") : Tx.T("Modo 60 fps", "60 fps mode");
+            tit = Config.ModoTitulo(fps);   // (1.3.2, MODO40: tambien "Modo 40 fps")
             int m; string no;
             string va = c.GenVa(out m, out no);
             if (fps == 120) det = AvisoJunta(Tx.T("sin generación · baja latencia", "no frame generation · low latency"), AvisoCambios(antes, d, null, "gen"));
             else if (va == "no" && c.FgOff) det = AvisoJunta(Tx.T("sin generación", "no frame generation"), AvisoCambios(antes, d, null, "gen"));
             else det = AvisoCambios(antes, d, "gen", null);
+            // (1.3.2, MODO40: lo que hay que poner en la consola, si cabe en la pastilla)
+            if (fps == 40 && string.IsNullOrEmpty(nota))
+            {
+                string pista = c.Modo40Pista(c.VideoSize);
+                float w = float.MaxValue;
+                try { w = AvisoAncho(PillText(tit, AvisoJunta(det, pista)), 2f); } catch { }
+                if (pista.Length > 0 && w <= AvisoMaxW) nota = pista;
+            }
             if (!string.IsNullOrEmpty(nota)) det = AvisoJunta(det, nota);
         }
 
@@ -445,7 +454,7 @@ namespace ConsoleEnhancer
             AjAvisoCalcula(antes, cambiadas, capV, modo, modoPedido, out tit, out det);
             if (prueba)
             {
-                cfg.VideoSize = capV; cfg.CapMode = modo == 30; cfg.Mode120 = modo == 120;
+                cfg.VideoSize = capV; cfg.CapMode = modo == 30 || modo == 40; cfg.Mode40 = modo == 40; cfg.Mode120 = modo == 120;
                 if (cfg.Mode120 && !cfg.Captura120Ok(capV)) { cfg.Mode120 = false; cfg.CapMode = false; }
             }
         }
@@ -589,7 +598,7 @@ namespace ConsoleEnhancer
             string[] tipos = { "smooth", "xess", "fsr3", "efg" };
             string[] caps = { "3840x2160", "2560x1440", "1920x1080" };
             string[] escs = { "dlss:auto", "dlss:K", "pick:fsr", "pick:xess", "pick:ninguno" };
-            string[] modos = { "30", "60", "120" };
+            string[] modos = { "30", "40", "60", "120" };   // (1.3.2, MODO40)
             foreach (object[] pa in AvisoPartidas)
             {
                 foreach (string cap in caps)
@@ -646,12 +655,13 @@ namespace ConsoleEnhancer
             t.lsReady = true;
             string cap = (string)pa[0], modo = (string)pa[1], tipo = (string)pa[2];
             int mult = (int)pa[3];
-            c.VideoSize = cap; c.CapMode = modo == "30"; c.Mode120 = modo == "120";
+            c.VideoSize = cap; c.CapMode = modo == "30" || modo == "40"; c.Mode40 = modo == "40"; c.Mode120 = modo == "120";
             t.fgWanted = (bool)pa[6]; t.dlss5Shown = (bool)pa[4]; t.dlss5Level = 4; t.dlss5Passes = 1;
             c.FgPick30 = tipo; c.FgPick60 = tipo;
             c.SmoothX4 = tipo == "smooth" && mult == 4;
             Config.FsrMultSet(tipo == "fsr3" ? mult : 2);
             Config.EfgSet(tipo == "efg" ? mult : 2, false);
+            Config.EfgSet40(tipo == "efg" ? Math.Min(3, mult) : 3);   // (1.3.2, MODO40)
             t.AjEscPoner((string)pa[5]);
             t.PrepareCfg();
             return t;
@@ -693,7 +703,7 @@ namespace ConsoleEnhancer
             Func<string, string> tok = delegate (string k) { Match mm = Regex.Match(live, "(?:^| )" + k + "=([^ ]*)"); return mm.Success ? mm.Groups[1].Value : null; };
             bool fg1 = tok("fg") == "1";
             m.Modo = tok("mode") ?? "";
-            m.Base = m.Modo == "120" ? 120 : m.Modo == "30" ? 30 : 60;
+            m.Base = m.Modo == "120" ? 120 : m.Modo == "40" ? 40 : m.Modo == "30" ? 30 : 60;   // (1.3.2, MODO40)
             m.Upscaler = tok("upscaler") ?? ""; m.Preset = tok("preset") ?? "";
             m.Dlss5 = tok("dlss5") == "1";
             int p; if (int.TryParse(tok("dlss5_pasadas") ?? "", out p)) m.Pasadas = p;
@@ -892,8 +902,9 @@ namespace ConsoleEnhancer
                     case "vista": t.fgWanted = !t.fgWanted; t.AvisoVista(antes, out tit, out det); break;
                     case "menu":
                         {
-                            int cur = t.cfg.Mode120 ? 120 : t.cfg.CapMode ? 30 : 60, next = cur == 30 ? 60 : 30;
-                            t.cfg.CapMode = next == 30; t.cfg.Mode120 = false;
+                            int cur = t.cfg.ModoFps, next = t.Modo40Siguiente(cur);   // (1.3.2, MODO40: 30 -> 40 -> 60 -> 30, sin el 120 en la prueba)
+                            if (next == 120) next = 30;
+                            t.cfg.CapMode = next == 30 || next == 40; t.cfg.Mode40 = next == 40; t.cfg.Mode120 = false;
                             t.AvisoModo(antes, next, null, out tit, out det); break;
                         }
                     case "a": t.SetDlss5State(!t.dlss5Shown); t.AvisoDlss5Boton(antes, out tit, out det); gen = false; d5 = true; break;

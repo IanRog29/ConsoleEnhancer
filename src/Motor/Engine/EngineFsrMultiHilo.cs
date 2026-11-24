@@ -88,7 +88,7 @@ namespace ConsoleEnhancer.Motor
             if (!fmHold) { FmhDrain(); return swap.Present(sync, (DXGI_PRESENT)flags); }
             fmHold = false;
             int k = FmK;
-            double real = 1000.0 / Math.Max(1.0, (s.FpsNum > 0 ? s.FpsNum / (double)Math.Max(1, s.FpsDen) : 59.94) * (s.Mode == 30 ? 0.5 : 1));
+            double real = 1000.0 / Math.Max(1.0, (s.FpsNum > 0 ? s.FpsNum / (double)Math.Max(1, s.FpsDen) : 59.94) * ModoFactor);   // (1.3.2, MODO40)
             double step = real / k;
             if (fmhHzAt == 0 || Clock.SinceMs(fmhHzAt) > 2000) { fmhHz = DisplayHz(); fmhHzAt = Clock.Now; }
             bool vs = s.FsrMultiVsync == 1 || (s.FsrMultiVsync < 0 && (sync > 0 || (k * 1000.0 / real) > fmhHz * 0.9));

@@ -104,7 +104,7 @@ namespace ConsoleEnhancer.Motor
             if (hasta > escCalmaHasta) escCalmaHasta = hasta;
         }
 
-        double EscObjetivo { get { return s.Mode == 30 ? 29.97 : s.Mode >= 100 ? 119.88 : 59.94; } }
+        double EscObjetivo { get { return s.Mode == 40 ? 39.96 : s.Mode == 30 ? 29.97 : s.Mode >= 100 ? 119.88 : 59.94; } }   // (1.3.2, MODO40: 39,96)
 
         // Desde SecondTick (cada vuelta del bucle): un cuarto cada 250 ms
         void EscCuarto()

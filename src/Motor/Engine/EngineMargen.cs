@@ -55,7 +55,7 @@ namespace ConsoleEnhancer.Motor
         // El tope (ms de grafica, p95) del modo de ahora; ver arriba
         double TopeGpu()
         {
-            double periodo = s.Mode == 30 ? 2000.0 / 59.94 : s.Is120 ? 1000.0 / 119.88 : 1000.0 / 59.94;
+            double periodo = s.Mode == 40 ? ModoPeriodoMs : s.Mode == 30 ? 2000.0 / 59.94 : s.Is120 ? 1000.0 / 119.88 : 1000.0 / 59.94;   // (1.3.2, MODO40: 25,03 ms)
             double t = periodo * Math.Max(0.5, Math.Min(0.98, s.UsoGrafica));
             if (s.Is120) return t;   // (a 120 sin generacion)
             double q = Math.Max(0.1, outW * (double)outH / (3840.0 * 2160.0));
@@ -112,7 +112,7 @@ namespace ConsoleEnhancer.Motor
             string k = s.Mode + "|" + (s.Is120 ? 1 : 0) + "|" + XeFgMultNow + "|" + s.SmoothMode + "|" + outW + "x" + outH + "|" + margenInventadas + margenFgTipo + "|" + FgReservaTxt();
             if (k == topeVisto) return;
             topeVisto = k;
-            double periodo = s.Mode == 30 ? 2000.0 / 59.94 : s.Is120 ? 1000.0 / 119.88 : 1000.0 / 59.94;
+            double periodo = s.Mode == 40 ? ModoPeriodoMs : s.Mode == 30 ? 2000.0 / 59.94 : s.Is120 ? 1000.0 / 119.88 : 1000.0 / 59.94;   // (1.3.2, MODO40: 25,03 ms)
             double t = TopeGpu();
             Log.Write(string.Format(CultureInfo.InvariantCulture, "Margen: tope de grafica {0:0.0} ms de {1:0.0} ({2:0} %; uso_grafica {3:0.00}, gpu_indice {4:0.00}{5})",
                 t, periodo, 100 * t / periodo, s.UsoGrafica, s.GpuIndice, (s.SmoothMode > 0 ? ", Smooth Motion" + (s.SmoothMode == 3 ? " x4" : "") : "") + FgReservaTxt()));   // (FGREAL: y lo reservado para la generacion del motor)

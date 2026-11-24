@@ -63,7 +63,7 @@ namespace ConsoleEnhancer
                 p = PerfilDePartida(c.PerfilConsola, out deOtra);
                 // 1.2.3 (JUEGO; lo vio MULTI en la 1.2.2): al abrir la app esto va antes de leer games\mode.txt (Worker): el perfil nuevo salia
                 // con el modo 60 de partida y, abajo, pisaba el modo guardado. El modo guardado manda (1.3.1: si es de esta consola)
-                if (deOtra == null && ModoGuardado(p)) Log.Write("Consola " + c.Corto + ": perfil \"" + p.Name + "\" nuevo con el modo guardado (" + (p.Mode120 ? "120" : p.Cap ? "30" : "60") + ")");
+                if (deOtra == null && ModoGuardado(p)) Log.Write("Consola " + c.Corto + ": perfil \"" + p.Name + "\" nuevo con el modo guardado (" + p.ModoFps + ")");
                 p.NameSure = true;
                 p.Capture = c.CapturaCercana(p.Capture);
                 GameProfiles.Save(p);
@@ -79,7 +79,8 @@ namespace ConsoleEnhancer
                 bool pm120 = p.Mode120 && Puede120(c.CapturaCercana(p.Capture)); // 20-11 (HZ120): 120 solo si la captura/consola/tele lo admiten
                 cfg.CapMode = p.Cap && !pm120;
                 cfg.Mode120 = pm120;
-                SaveText(Paths.ModeFile, pm120 ? "120" : cfg.CapMode ? "30" : "60");
+                cfg.Mode40 = p.Mode40 && cfg.CapMode;   // (1.3.2, MODO40)
+                SaveText(Paths.ModeFile, cfg.ModoFps.ToString(CultureInfo.InvariantCulture));
                 want30 = cfg.CapMode;
                 slow30 = fast60 = 0;
                 cfg.VideoSize = c.CapturaCercana(p.Capture);

@@ -90,7 +90,7 @@ namespace ConsoleEnhancer
         // Lo que va (para los avisos de la escalera): "Smooth Motion x4", "Enhanced FG x3", "XeSS FG", "30 fps"...
         public static string EscaleraQuien(Config c)
         {
-            int modo = c.Mode120 ? 120 : c.CapMode ? 30 : 60;
+            int modo = c.ModoFps;
             if (c.FgOff || c.Mode120) return modo + " fps";
             string t = c.FgTypeNow;
             if (t == "smooth") return "Smooth Motion x" + (c.SmoothX4Now ? 4 : 2);
@@ -179,7 +179,7 @@ namespace ConsoleEnhancer
         void FpsBaja(double real, double obj, double gpu, string quien)
         {
             PrepareCfg();
-            int modo = cfg.Mode120 ? 120 : cfg.CapMode ? 30 : 60;
+            int modo = cfg.ModoFps;
             int salida = cfg.Mode120 || cfg.FgOff ? modo : modo * cfg.FgMultNow;
             string vista = Math.Round(fpsAgotado && fpsAgVistas > 0 ? fpsAgVistas : real * (cfg.Mode120 || cfg.FgOff ? 1 : cfg.FgMultNow)).ToString(CultureInfo.InvariantCulture);
             // (1.2.1: el aviso en el idioma elegido; antes solo en espanol)

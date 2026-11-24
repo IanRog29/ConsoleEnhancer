@@ -64,8 +64,7 @@ namespace ConsoleEnhancer
             p.Dlss5 = f[4].Trim() != "0";
             p.Scaler = f[5].Trim() != "0";
             if (f[5].Trim() == "fsr" || f[5].Trim() == "ninguno" || f[5].Trim() == "xess") p.ScalerPick = f[5].Trim();
-            p.Cap = f.Length > 6 && f[6].Trim() == "30";
-            p.Mode120 = f.Length > 6 && f[6].Trim() == "120";
+            p.PonModo(f.Length > 6 ? f[6] : "");   // (1.3.2, MODO40: 30 / 40 / 60 / 120)
             p.Fg = !(f.Length > 7 && f[7].Trim() == "0");
             p.NameSure = f.Length > 8 && f[8].Trim() == "1" && !GameNames.IsGeneric(p.Name);
             if (f.Length > 9) p.ParsePick(f[9].Trim());

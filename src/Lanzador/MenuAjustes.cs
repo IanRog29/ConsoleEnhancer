@@ -485,7 +485,7 @@ namespace ConsoleEnhancer
         {
             PrepareCfg();
             ajFilas.Clear();
-            int modo = cfg.Mode120 ? 120 : cfg.CapMode ? 30 : 60;
+            int modo = cfg.ModoFps;
             bool sino;
 
             FilaAjuste cap = new FilaAjuste { Id = "cap", Nombre = Tx.T("Captura", "Capture") };
@@ -500,7 +500,7 @@ namespace ConsoleEnhancer
             cap.Poner(cv, ct, cfg.VideoSize, cfg.VideoSize);
 
             FilaAjuste mo = new FilaAjuste { Id = "modo", Nombre = Tx.T("Modo", "Mode") };
-            mo.Poner(new List<string> { "30", "60", "120" }, new List<string> { "30 fps", "60 fps", "120 fps" }, modo.ToString(), modo.ToString());
+            mo.Poner(new List<string> { "30", "40", "60", "120" }, new List<string> { "30 fps", "40 fps", "60 fps", "120 fps" }, modo.ToString(), modo.ToString());   // (1.3.2, MODO40)
 
             FilaAjuste fg = new FilaAjuste { Id = "fg", Nombre = Tx.T("Generación de fotogramas", "Frame generation") };
             sino = fgWanted && cfg.FgAvailable;
@@ -640,11 +640,11 @@ namespace ConsoleEnhancer
         {
             FilaAjuste cap = AjFila("cap"), mo = AjFila("modo"), fg = AjFila("fg"), tipo = AjFila("tipo"), d5 = AjFila("d5");
             string capSel = cap != null ? cap.Val : cfg.VideoSize;
-            int modoAhora = cfg.Mode120 ? 120 : cfg.CapMode ? 30 : 60;
+            int modoAhora = cfg.ModoFps;
             if (mo != null)
             {
                 string m = mo.Val;
-                List<string> v = new List<string> { "30", "60" }, t = new List<string> { "30 fps", "60 fps" };
+                List<string> v = new List<string> { "30", "40", "60" }, t = new List<string> { "30 fps", "40 fps", "60 fps" };   // (1.3.2, MODO40)
                 // (1.2.01: a 4K el 120 no se ofrece aunque se este en el 120: la capturadora no da 4K a 120 y la app se quedaba cargando)
                 if (Puede120(capSel) || (modoAhora == 120 && cfg.Captura120Ok(capSel))) { v.Add("120"); t.Add(Tx.T("120 fps", "120 fps")); }
                 if (!v.Contains(m)) m = "60";
@@ -655,7 +655,7 @@ namespace ConsoleEnhancer
             if (fg != null) { fg.Activa = !a120; fg.Nota = a120 ? Tx.T("No a 120 fps", "Not at 120 fps") : ""; }
             if (tipo != null)
             {
-                bool cap30 = modoSel == "30";
+                bool cap30 = modoSel == "30" || modoSel == "40";   // (1.3.2, MODO40: el 40 con los tipos del 30)
                 List<string> opts = a120 ? new List<string>() : GenOptionsFor(cap30, capSel);
                 string ahora = AjTipoDe(cap30);
                 string sel = inicio ? ahora : tipo.Val;
@@ -822,7 +822,7 @@ namespace ConsoleEnhancer
         // El modo que va a quedar (120 con una captura que no lo da: 60) y la captura; modoPedido = el del menu
         int AjModoDe(Dictionary<string, string> e, out string capV, out int modoPedido)
         {
-            int modoAhora = cfg.Mode120 ? 120 : cfg.CapMode ? 30 : 60;
+            int modoAhora = cfg.ModoFps;
             capV = AjVal(e, "cap") ?? cfg.VideoSize;
             string modoV = AjVal(e, "modo") ?? modoAhora.ToString();
             int modo = int.Parse(modoV);
@@ -858,7 +858,7 @@ namespace ConsoleEnhancer
             if ((v = AjVal(e, "tipo")) != null && v.Length > 0 && v != "\u0000" && modo != 120)
             {
                 if (v == "efg") { FilaAjuste ft = AjFila("tipo"); if (ft == null || ft.Cambiada) Config.EfgReintenta("menu de ajustes"); }   // (1.2.4 ronda 7, EFGFIX)
-                if (modo == 30) SetPicks(cfg.FgPick60, v); else SetPicks(v, cfg.FgPick30);
+                if (modo == 30 || modo == 40) SetPicks(cfg.FgPick60, v); else SetPicks(v, cfg.FgPick30);   // (1.3.2, MODO40)
             }
             FsrMulAplicar(e);   // (1.2.4 ronda 6, FGMULTI: MultiFsr.cs)
             EfgAplicar(e);   // (1.2.4 ronda 6, ENHANCED: EnhancedFg.cs)
@@ -880,7 +880,7 @@ namespace ConsoleEnhancer
             else if (!AjEsperarParaAplicar()) return;
             // (1.2.4 ronda 7, TEXTOS: el aviso, de lo que va a quedar de verdad -no de lo pedido- frente a lo de antes; src\Lanzador\Avisos.cs)
             AvisoFoto antes = AvisoAhora();
-            int modoAhora = cfg.Mode120 ? 120 : cfg.CapMode ? 30 : 60;
+            int modoAhora = cfg.ModoFps;
             string capV;
             int modoPedido;
             int modo = AjModoDe(e, out capV, out modoPedido);

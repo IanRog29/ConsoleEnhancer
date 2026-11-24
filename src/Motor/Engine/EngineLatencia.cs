@@ -352,7 +352,7 @@ namespace ConsoleEnhancer.Motor
                 latQPeriodAt = Clock.Now;
                 double hz = DisplayHz();
                 double p = hz >= 20 ? (s.SmoothMode == 2 ? 4 : 2) * 1000.0 / hz : -1;
-                double frame = (s.FpsNum > 0 ? 1000.0 * s.FpsDen / s.FpsNum : 16.683) * (s.Mode == 30 ? 2 : 1);
+                double frame = (s.FpsNum > 0 ? 1000.0 * s.FpsDen / s.FpsNum : 16.683) / ModoFactor;   // (1.3.2, MODO40: antes x2 en el 30)
                 if (p > frame * 1.05 || p < frame * 0.9) p = -1;
                 if ((p < 0) != (latQPeriodMs < 0) && latQPeriodMs != 0)
                     Log.Write(string.Format(CultureInfo.InvariantCulture, "Cola de la tele: {0} (tele a {1:0.000} Hz, imagenes cada {2:0.0} ms)",
@@ -479,8 +479,8 @@ namespace ConsoleEnhancer.Motor
             {
                 vrrRoomAt = Clock.Now;
                 double hz = DisplayHz();
-                double rate = Math.Max(2, FgFactor) * (s.FpsNum > 0 ? s.FpsNum / (double)Math.Max(1, s.FpsDen) : 59.94) * (s.Mode == 30 ? 0.5 : 1);
-                vrrRoom = hz > 20 ? rate <= hz * 0.9 : s.Mode == 30;
+                double rate = Math.Max(2, FgFactor) * (s.FpsNum > 0 ? s.FpsNum / (double)Math.Max(1, s.FpsDen) : 59.94) * ModoFactor;   // (1.3.2, MODO40)
+                vrrRoom = hz > 20 ? rate <= hz * 0.9 : ModoLento;
             }
             return vrrRoom;
         }

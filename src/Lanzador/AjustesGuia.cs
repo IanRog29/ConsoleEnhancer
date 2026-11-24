@@ -253,8 +253,8 @@ namespace ConsoleEnhancer
                 if (!preparando || (lsReady && !passesBusy && !homeBusy)) return false;
                 string v;
                 if (e.TryGetValue("cap", out v) && v != cfg.VideoSize) return false;
-                int modoAhora = cfg.Mode120 ? 120 : cfg.CapMode ? 30 : 60;
-                if (e.TryGetValue("modo", out v) && v != modoAhora.ToString(CultureInfo.InvariantCulture) && (v == "120" || modoAhora == 120)) return false;
+                int modoAhora = cfg.ModoFps;
+                if (e.TryGetValue("modo", out v) && v != modoAhora.ToString(CultureInfo.InvariantCulture) && (v == "120" || modoAhora == 120 || v == "40" || modoAhora == 40)) return false;   // (1.3.2, MODO40: el 40 a 1440p / 1080p captura a 120)
                 return true;
             }
             catch { return false; }

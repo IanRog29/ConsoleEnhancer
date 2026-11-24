@@ -107,7 +107,7 @@ namespace ConsoleEnhancer.Motor
         // 20-11 16:05 (DLSS5VEC): con DLSS 5 en el modo 30, completos (mv_ligero_dlss5=0, de serie): hay ~17 ms libres de los 33
         bool MvLightNow { get { return MvLightSize && (mvForceLight || !MvFullWanted); } }
         bool MvLightSize { get { return s.MvLightPx > 0 && (long)inW * inH >= s.MvLightPx; } }
-        bool MvFullForDlss5 { get { return s.Nr && s.Mode == 30 && !s.MvLightDlss5; } }
+        bool MvFullForDlss5 { get { return s.Nr && ModoLento && !s.MvLightDlss5; } }   // (1.3.2, MODO40: el 40 como el 30)
         // 20-11 (SR45): DLSS SR al reescalar (DLSS 4.5 L/M de 1440p a 4K) tambien con los completos en los modos de mv_completo_sr: con los
         // ligeros el borde de lo que se mueve temblaba al mover la camara (paralaje 1440p -> 4K, temblor ligeros / completos: L 2,52 / 0,97,
         // M 2,46 / 1,03, K 3,27 / 0,88; 1080p, que siempre los tuvo, L 0,92). La generacion sigue con los ligeros de siempre (la doble pasada
@@ -115,7 +115,7 @@ namespace ConsoleEnhancer.Motor
         // MvSrFallback), vuelven a ser ligeros para ese modo y modelo
         bool MvFullWanted { get { return MvFullForDlss5 || MvFullForSr; } }
         bool MvFullForSr { get { return (s.MvFullSr & MvSrModeBit) != 0 && (s.Upscaler == "dlss" && dlssOk && !dlssBroken || SrXessFfxFull) && (inW != outW || inH != outH) && !(fgApplied && s.FgVec == 1) && !mvSrLight.Contains(MvSrKey); } }
-        int MvSrModeBit { get { return s.Is120 ? 16 : (s.Mode == 30 ? 1 : 4) << (fgApplied ? 1 : 0); } }   // (Common.cs MvModes: 30 30fg 60 60fg 120)
+        int MvSrModeBit { get { return s.Is120 ? 16 : (ModoLento ? 1 : 4) << (fgApplied ? 1 : 0); } }   // (1.3.2, MODO40: el 40 como el 30)   // (Common.cs MvModes: 30 30fg 60 60fg 120)
         string MvSrKey { get { return CapKey + "|" + s.Preset; } }
         readonly System.Collections.Generic.HashSet<string> mvSrLight = new System.Collections.Generic.HashSet<string>();
         int mvSrSaid = -1;          // lo ultimo dicho al registro (0 nada, 1 ligeros, 2 completos)
@@ -299,7 +299,7 @@ namespace ConsoleEnhancer.Motor
             // solo con DLSS o DLSS-G: XeSS y FSR reescalaban con los vectores a 0 (medido: el volcado de mvec, todo 0 en un paneo) y lo que se
             // mueve dejaba rastro y se emborronaba; FSR 3 FG generaba sin vectores. mvsr_xess_ffx=0 = como antes
             bool srTemporal = (inW != outW || inH != outH) && (scalerNow == "dlss" || (s.MvXessFfx && (scalerNow == "xess" || scalerNow == "ffx")));
-            bool on = s.Motion && newFrame && (srTemporal || fgApplied || (s.MvXessFfx && ExtFgOn) || (s.MvNativeNr && s.Nr && s.Mode == 30));   // (1.2.4 ronda 6, QUITAFG: fuera la generacion propia, EngineFgPropia.cs)   // (1.0.5: mv_nativo_dlss5, DLSS 5 a 4K nativo sin FG)
+            bool on = s.Motion && newFrame && (srTemporal || fgApplied || (s.MvXessFfx && ExtFgOn) || (s.MvNativeNr && s.Nr && ModoLento));   // (1.2.4 ronda 6, QUITAFG: fuera la generacion propia, EngineFgPropia.cs)   // (1.0.5: mv_nativo_dlss5, DLSS 5 a 4K nativo sin FG)
             // 22-11 (1.2.1): si solo los usa la generacion con el vector de la camara (fg_global, EngineFgGlobal.cs) y nadie mas los vectores
             // por bloque (4K nativo sin DLSS 5, o un escalador espacial), sin la busqueda por bloques: solo la piramide de luma. Medido a 4K,
             // modo 30 + DLSS-G (3 pasadas de cada, grafica compartida): grafica por imagen real 9,1 -> 7,1 ms, la seccion de vectores 5,5 ->
@@ -308,7 +308,7 @@ namespace ConsoleEnhancer.Motor
             // (1.2.4 ronda 5, INTEGRA5: dlss5_vec_camara=1) con DLSS 5 y DLSS-G a entrada = salida, DLSS 5 con los vectores de la generacion (el de la
             // camara y lo quieto a 0) en vez de la busqueda por bloques: con ella encendida salian inventadas malas sueltas de DLSS-G (FGCAL)
             bool d5Cam = s.D5CamVec && s.Nr && fgApplied && FgOnlyCamNow && !srTemporal;
-            bool onlyCam = on && FgOnlyCamNow && !srTemporal && (!(s.MvNativeNr && s.Nr && s.Mode == 30) || d5Cam);
+            bool onlyCam = on && FgOnlyCamNow && !srTemporal && (!(s.MvNativeNr && s.Nr && ModoLento) || d5Cam);
             bool quality = on && QualityMotion && !onlyCam;
             if (quality) EnsureQualityPsos();
             bool info = quality;    // el nivel fino escribe blockInfo (para las mascaras y la interfaz)
