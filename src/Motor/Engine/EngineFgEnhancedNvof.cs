@@ -21,7 +21,8 @@ namespace ConsoleEnhancer.Motor
     //     salvo en la interfaz quieta (>= efg_nvof_hud puntos del bloque quietos con borde, con la cuenta de la anterior): su vector propio
     //     (lo de EFGQ2 "nv:17", lo medido). Lo demas (eleccion, inventada, paneo plano de EFGMAPA, ...) igual.
     //  Si no hay NVIDIA, CUDA o NVOF (o falla, o no llega a tiempo), el flujo propio de siempre.
-    // Claves (motor): efg_nvof (0 = no, 1 = si, 2 = auto: si con NVIDIA), efg_nvof_perf (5 lento / 10 medio / 20 rapido), efg_nvof_ms (lo que se
+    // Solo x2 con base 30 (con x3 / x4 / base 60 no cabe: ver EfgNvOn); +5-7 ms de latencia.
+    // Claves (motor): efg_nvof (0 = no, de serie; 1 = si, 2 = auto: si con NVIDIA), efg_nvof_perf (5 lento / 10 medio / 20 rapido), efg_nvof_ms (lo que se
     // espera como mucho a NVIDIA por pareja), efg_nvof_hud (puntos quietos con borde de un bloque para dejarle su vector; 0 = nunca).
     partial class Settings
     {
@@ -172,7 +173,10 @@ void main(uint3 id : SV_DispatchThreadID)
             if (s.EfgNvof == 2 && !gpu.IsNvidia) return false;
             return true;
         }
-        bool EfgNvOn() { return efgNvReady && !efgNvBroken && EfgNvWanted() && EfgPhaseOfMode(Math.Max(2, Math.Min(4, s.Efg))); }
+        // solo x2 con base 30 (medido en la tele: con x3 salen menos inventadas, con x4 se saltan y con base 60 casi no hay inventadas: los ~7 ms
+        // de NVIDIA por pareja no caben); la base se mide aqui (lo que hay entre una real y la siguiente, suavizado)
+        bool EfgNvOn() { return efgNvReady && !efgNvBroken && EfgNvWanted() && s.Efg == 2 && EfgPhaseOfMode(2) && efgNvRealMs >= 25; }
+        long efgNvLastKick; double efgNvRealMs;
 
         D3D12_CPU_DESCRIPTOR_HANDLE EfgNvCpu(int set, int tab, int slot) { return efgNvCpu0.Offset((set * EfgNvTabs + tab) * Shaders.TableSize + slot, inc); }
         D3D12_GPU_DESCRIPTOR_HANDLE EfgNvGpu(int set, int tab) { return efgNvGpu0.Offset((set * EfgNvTabs + tab) * Shaders.TableSize, inc); }
@@ -242,6 +246,8 @@ void main(uint3 id : SV_DispatchThreadID)
         void EfgNvKick(int c, bool flow)
         {
             efgNvPending = false;
+            if (efgNvLastKick != 0) { double d = Clock.SinceMs(efgNvLastKick); if (d < 200) efgNvRealMs = efgNvRealMs <= 0 ? d : efgNvRealMs + (d - efgNvRealMs) * 0.1; }
+            efgNvLastKick = Clock.Now;
             if (!EfgNvOn()) return;
             if (efgNvBusy) { efgNvLate++; efgNvHaveCurReset = true; return; }   // (el anterior aun no ha acabado: este sin NVOF)
             uint* k = stackalloc uint[16];
