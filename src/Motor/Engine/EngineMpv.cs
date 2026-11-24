@@ -152,6 +152,7 @@ namespace ConsoleEnhancer.Motor
             if (aw != null && (aw == w + "x" + h || Capture.DsCapture.LastSizeSwap == aw + ">" + w + "x" + h))
             {
                 awaitSwitch = null;
+                CambioLlego(aw);   // (1.3.2, SWITCH2: EngineCambioCaptura.cs)
                 Ev("switch2-switched", aw);
                 Log.Write("Captura cambiada a " + aw);
             }
@@ -343,6 +344,7 @@ namespace ConsoleEnhancer.Motor
                         if (size != null)
                         {
                             awaitSwitch = size;
+                            CambioPedido();   // (1.3.2, SWITCH2: EngineCambioCaptura.cs)
                             // (21-11, 1.2.1: con la capturadora -no una fuente de prueba- tambien la velocidad y el formato de demuxer-lavf-o)
                             bool cap = !url.StartsWith("av://lavfi", StringComparison.Ordinal);
                             string fps = cap ? pendingLavfFps : null, fmt = cap ? pendingLavfFmt : null;

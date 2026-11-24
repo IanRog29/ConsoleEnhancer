@@ -70,7 +70,7 @@ namespace ConsoleEnhancer.Motor
                 case "test_archivo_registro": FileLog = val.Trim().Trim('"'); return true;
                 case "test_archivo_cadencia": FileCadence = val.Trim().ToLowerInvariant(); return true;   // (EFGCAL)
             }
-            return false;
+            return ApplyCambioCaptura(key, val);   // (1.3.2, SWITCH2: cambio_captura_espera*, EngineCambioCaptura.cs)
         }
 
         public bool IsFileTest { get { return Test.StartsWith("archivo:", StringComparison.OrdinalIgnoreCase); } }

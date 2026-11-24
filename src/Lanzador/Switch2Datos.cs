@@ -1083,6 +1083,8 @@ namespace ConsoleEnhancer
 
                 // ---- 9-11. 1.3.1: el primer juego de la Switch 2 tras la PS5 (23-11 20:22:38-52, la 1.3) ----
                 Switch2Prueba131(sb, check, tmp, datosUsuario, viejo);
+                // ---- 12. 1.3.2: jugando, la vuelta al HOME tambien por sus franjas (SalidaHome.cs) ----
+                Switch2Prueba132(sb, check, datosUsuario, viejo);
             }
             catch (Exception ex) { check("Excepcion: " + ex, false); }
             finally

@@ -8497,6 +8497,16 @@ namespace ConsoleEnhancer
                         if (homeHits >= 2) { homeHits = 0; goHome = true; }
                         else confirm = true;
                     }
+                    // 1.3.2 (SWITCH2, "al salir de un juego a veces se le olvida volver al modo home"): jugando, el HOME por sus franjas casi
+                    // iguales a las suyas (HomeDiff <= 6, "muy claro") aunque no se vea el nombre cian en su fila (o no se lea su hora): antes eso
+                    // no contaba para nada y la app seguia en el juego. Con otra captura a los 0,15 s, como lo demas (SalidaHome.cs)
+                    else if (inGame && HomePorFranjas(strips, hd))
+                    {
+                        homeHits++;
+                        if (homeHits == 1) homeSeen = homeFirstHit = DateTime.Now;
+                        if (homeHits >= 2) { homeHits = 0; goHome = true; HomePorFranjasLog(hd); }
+                        else confirm = true;
+                    }
                     else if (lab != null)
                     {
                         bool mantenerSel = false;   // (1.3.1, SWITCH2: la seleccion reconocida sigue, ver SalidaConElReconocido)
@@ -9401,7 +9411,10 @@ namespace ConsoleEnhancer
             // 16-11 (velocidad, dlss5_sin_telon_entrada): al juego con un motor en espera listo, sin telon: la imagen de la consola sigue
             // hasta que el motor da la suya encima (el telon lo pone, si hace falta, lo que falle)
             bool early = !toHome && !fromGrace && BridgeEntryReady();
-            if (!frozen && !early) ShowCurtain(); // negro liso, sin texto: al entrar en un juego o volver al HOME no se ve nada mas
+            // (1.3.2, SWITCH2: con el motor propio el cambio es en el mismo motor -ajustes y captura-: sin el telon negro, la ultima imagen
+            // sigue a la vista hasta la nueva; el telon solo si hay que reabrir la imagen. telon_home_juego=1 = como antes. SalidaHome.cs)
+            bool sinTelon = !frozen && !early && SinTelonHomeJuego();
+            if (!frozen && !early && !sinTelon) ShowCurtain(); // negro liso, sin texto: al entrar en un juego o volver al HOME no se ve nada mas
             Thread t = new Thread(delegate ()
             {
                 Stopwatch sw = Stopwatch.StartNew();
@@ -9437,7 +9450,7 @@ namespace ConsoleEnhancer
                         // 16-11 (velocidad, dlss5_sin_telon_entrada): al motor sin telon, como DLSS 5 apagado con el boton A: el motor despierta
                         // detras de mpv (la consola sigue a la vista) y se pone delante en cuanto da imagen; si no, el telon de siempre
                         if (early && cfg.EngineNow && StartRelevoToEngine(title, subtitle, p)) return;
-                        if (early) ShowCurtain();
+                        if (early || sinTelon) ShowCurtain();
                         relaunchEngine = true;
                         QuitMpvForRelaunch();
                         return;
@@ -9452,13 +9465,14 @@ namespace ConsoleEnhancer
                             if (frozen) Thread.Sleep(80);
                             HideCurtain(frozen ? cfg.CurtainFrozenFadeMs : 250);
                             curtainOff = true;
-                            Log.Write("HOME a la vista: " + sw.ElapsedMilliseconds + " ms" + (frozen ? " (imagen congelada hasta aqui, luego " + cfg.CurtainFrozenFadeMs + " ms de fundido)" : ""));
+                            Log.Write("HOME a la vista: " + sw.ElapsedMilliseconds + " ms" + (frozen ? " (imagen congelada hasta aqui, luego " + cfg.CurtainFrozenFadeMs + " ms de fundido)" : sinTelon ? " (sin telon: la ultima imagen hasta la del HOME)" : ""));
                         }
                     }
                     if (!switched)
                     {
                         capEnSitioFallo = true; // 21-11 (1.2.1): la reapertura se vigila con menos tiempo (CapturaSegura.cs)
                         Log.Write("mpv no ha podido cambiar sin cerrarse: se reabre");
+                        if (sinTelon) ShowCurtain();   // (1.3.2, SWITCH2: se reabre la imagen: ahora si el telon)
                         relaunched = true;
                         switchUntil = DateTime.MinValue;
                         relaunchSize = cfg.CaptureNow;
@@ -9479,7 +9493,7 @@ namespace ConsoleEnhancer
                     passesBusy = false;
                     homeBusy = false;
                     if (gate) ReleaseGate();
-                    Log.Write((toHome ? "HOME a 4K nativo" : title) + " listo: " + sw.ElapsedMilliseconds + " ms");
+                    Log.Write((toHome ? "HOME a 4K nativo" : title) + " listo: " + sw.ElapsedMilliseconds + " ms" + (sinTelon && !relaunched ? " (sin telon)" : ""));
                 }
             });
             t.IsBackground = true;
@@ -9518,7 +9532,9 @@ namespace ConsoleEnhancer
                 if (reload)
                 {
                     cmdQueue.Add(JsonCmd("script-message", "switch2-switching", SwitchSecs.ToString(CultureInfo.InvariantCulture)));
-                    if (cfg.TestSource.Length == 0) cmdQueue.Add(JsonCmd("set", "demuxer-lavf-o", LavfOptions(cfg)));
+                    // (1.3.2, SWITCH2: en pruebas con la fuente del motor -test_motor-, el motor tambien saca de aqui el tamaño, como en el cambio de
+                    // captura del menu; sin esto la entrada en un juego con el video de prueba no cambiaba de captura y a los 5 s se reabria el motor)
+                    if (cfg.TestSource.Length == 0 || (Config.EngineActive && cfg.TestMotor.Length > 0)) cmdQueue.Add(JsonCmd("set", "demuxer-lavf-o", LavfOptions(cfg)));
                     cmdQueue.Add(JsonCmd("loadfile", SourceUrl(cfg), "replace"));
                 }
             }
