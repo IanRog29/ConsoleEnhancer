@@ -312,7 +312,11 @@ void main(uint3 id : SV_DispatchThreadID)
     // demas pagan por apartarse de el (las lineas rectas no resbalan), salvo en la interfaz quieta. Solo al interpolar
     bool cerca = false;
     if (Extrap == 0 && (Opts & 4096) != 0 && Glob[uint2(8, 0)] > 0)
-        [unroll] for (int ci = 0; ci < 9; ci++) cerca = cerca || StillAt(x + float2(ci % 3 - 1, ci / 3 - 1) * Glob[uint2(15, 0)]);
+        [unroll] for (int ci = 0; ci < 9; ci++)
+        {
+            float2 sq = St.Load(int3(clamp(int2(x + float2(ci % 3 - 1, ci / 3 - 1) * Glob[uint2(15, 0)]), int2(0, 0), int2(W0 - 1, H0 - 1)), 0));
+            cerca = cerca || (sq.x >= Glob[uint2(16, 0)] && sq.y > 0.5);
+        }
     if (Extrap == 0 && (Opts & 4096) != 0 && Glob[uint2(8, 0)] > 0 && !cerca)
     {
         pw = Glob[uint2(8, 0)]; pm = -float2(Glob[uint2(9, 0)], Glob[uint2(10, 0)]);
@@ -423,7 +427,7 @@ void main(uint3 id : SV_DispatchThreadID)
         [unroll] for (int ci = 0; ci < 9; ci++)
         {
             float2 sq = St.Load(int3(clamp(q0 + int2(ci % 3 - 1, ci / 3 - 1) * rq, int2(0, 0), mxq), 0));
-            cerca = cerca || (sq.x >= StillN && sq.y > 0.5);
+            cerca = cerca || (sq.x >= Glob[uint2(16, 0)] && sq.y > 0.5);
         }
         if (!cerca) e[4] += Glob[uint2(13, 0)];
     }

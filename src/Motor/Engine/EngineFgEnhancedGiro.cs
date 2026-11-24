@@ -107,7 +107,7 @@ namespace ConsoleEnhancer.Motor
                 efgGiroR = Math.Max(4, Math.Min(32, (int)Math.Ceiling(s.EfgGiroRadio * efgLw[efgGiroLv])));
                 efgGiroN = 2 * efgGiroR + 1;
                 efgGiroCost = Tex(DXGI_FORMAT.R32_FLOAT, efgGiroN, efgGiroN, true, D3D12_RESOURCE_STATES.UNORDERED_ACCESS, "Enhanced FG: giro, coste");
-                for (int c = 0; c < EfgSets; c++) efgGiroG[c] = Tex(DXGI_FORMAT.R32_FLOAT, 16, 1, true, D3D12_RESOURCE_STATES.UNORDERED_ACCESS, "Enhanced FG: giro " + c);   // (1.3.3, EFGMAPA: 8 -> 16, [8]-[14] del paneo plano)
+                for (int c = 0; c < EfgSets; c++) efgGiroG[c] = Tex(DXGI_FORMAT.R32_FLOAT, 32, 1, true, D3D12_RESOURCE_STATES.UNORDERED_ACCESS, "Enhanced FG: giro " + c);   // (1.3.3, EFGMAPA: 8 -> 32, [8]-[16] del paneo plano)
                 D3D12_DESCRIPTOR_HEAP_DESC hd = new D3D12_DESCRIPTOR_HEAP_DESC();
                 hd.Type = D3D12_DESCRIPTOR_HEAP_TYPE.CBV_SRV_UAV;
                 hd.NumDescriptors = (uint)(EfgSets * EfgGiroTabs * Shaders.TableSize);

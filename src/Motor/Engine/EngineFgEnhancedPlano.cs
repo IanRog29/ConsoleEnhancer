@@ -24,7 +24,7 @@ namespace ConsoleEnhancer.Motor
     partial class Settings
     {
         public int EfgPlano = 1;
-        public float EfgPlanoPeso = 0.01f, EfgPlanoCero = 0.1f, EfgPlanoParte = 0.5f, EfgPlanoCerca = 2f;
+        public float EfgPlanoPeso = 0.01f, EfgPlanoCero = 0.1f, EfgPlanoParte = 0.5f, EfgPlanoCerca = 2f, EfgPlanoQuieto = 10f;
 
         bool ApplyEfgPlano(string key, string val)
         {
@@ -34,6 +34,7 @@ namespace ConsoleEnhancer.Motor
                 case "efg_plano_peso": EfgPlanoPeso = (float)Math.Max(0, Math.Min(0.1, D(val))); return true;
                 case "efg_plano_cero": EfgPlanoCero = (float)Math.Max(0, Math.Min(1, D(val))); return true;
                 case "efg_plano_cerca": EfgPlanoCerca = (float)Math.Max(0, Math.Min(8, D(val))); return true;
+                case "efg_plano_quieto": EfgPlanoQuieto = (float)Math.Max(1, Math.Min(60, D(val))); return true;
                 case "efg_plano_parte": EfgPlanoParte = (float)Math.Max(0.2, Math.Min(0.95, D(val))); return true;
             }
             return false;
@@ -120,7 +121,7 @@ namespace ConsoleEnhancer.Motor
             efgList.Dispatch((uint)EfgPlanoN, (uint)EfgPlanoN, 1);
             EfgGiroUavBarrier(efgPlanoCost);
             EfgZero(k);
-            k[0] = (uint)EfgPlanoN; k[4] = F(0.125f); k[5] = F(s.EfgPlanoPeso); k[6] = F(s.EfgPlanoCero); k[7] = F(s.EfgPlanoCerca);
+            k[0] = (uint)EfgPlanoN; k[4] = F(0.125f); k[5] = F(s.EfgPlanoPeso); k[6] = F(s.EfgPlanoCero); k[7] = F(s.EfgPlanoCerca); k[8] = F(s.EfgPlanoQuieto);
             efgList.SetPipelineState(psoEfgPlanoFin);
             efgList.SetComputeRootDescriptorTable(1, EfgGiroGpu(c, EfgGiroTabPlanoFin));
             efgList.SetComputeRoot32BitConstants(0, 16, k, 0);

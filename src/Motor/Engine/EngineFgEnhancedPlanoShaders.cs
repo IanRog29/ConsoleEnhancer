@@ -5,7 +5,8 @@ namespace ConsoleEnhancer.Motor
     // comun del motor). Escriben en la textura del movimiento global de EFGGIRO (efgGiroG, R32_FLOAT de 16x1; [0]-[7] son de EFGGIRO):
     // [8] peso de la eleccion (0 = no es un paneo plano), [9] gx, [10] gy = el global PRECISO (C2P: actual -> anterior, puntos de L0),
     // [11] la parte de los bloques con textura que lo llevan, [12] cuantos bloques con textura, [13] castigo del 0 en la inventada,
-    // [14] 1 = la parte llega (antes del refinado), [15] radio (puntos de L0) de "cerca de la interfaz quieta" (ni candidato ni castigo del 0)
+    // [14] 1 = la parte llega (antes del refinado), [15] radio (puntos de L0) de "cerca de la interfaz quieta" (ni candidato ni castigo del 0), [16] cuantas reales seguidas sin cambiar hacen falta para eso (en un mapa
+    // con grano un punto junto a un borde casa 3 seguidas por casualidad: con 10, no)
     static class EfgPlanoShaders
     {
         // ---- Un grupo: media recortada de los vectores de L0 (C2P, tras el apoyo) de los bloques con textura que casan, desde el global
@@ -88,7 +89,7 @@ void main(uint3 gid : SV_GroupID, uint3 t : SV_GroupThreadID)
 
         // ---- Un hilo: el minimo de la rejilla de costes, parabola en x (su fila) y en y (su columna), y el peso de la eleccion y el castigo del 0
         public const string Fin = @"
-cbuffer C : register(b0) { uint N, P0, P1, P2; float Step, Mu, ZeroPen, Cerca; uint4 P4; uint4 P5; }
+cbuffer C : register(b0) { uint N, P0, P1, P2; float Step, Mu, ZeroPen, Cerca; float CercaN, P6, P7, P8; uint4 P5; }
 RWTexture2D<float> G : register(u0);
 RWTexture2D<float> Cost : register(u1);
 float Cs(int x, int y) { return Cost[uint2(y * (int)N + x, 0)]; }
@@ -103,7 +104,7 @@ void main()
     if (bx > 0 && bx < n - 1) { float l = Cs(bx - 1, by), r = Cs(bx + 1, by), den = l - 2 * bv + r; if (den > 1e-9) ox += Step * clamp(0.5 * (l - r) / den, -0.5, 0.5); }
     if (by > 0 && by < n - 1) { float u = Cs(bx, by - 1), dd = Cs(bx, by + 1), den = u - 2 * bv + dd; if (den > 1e-9) oy += Step * clamp(0.5 * (u - dd) / den, -0.5, 0.5); }
     G[uint2(9, 0)] = G[uint2(9, 0)] + ox; G[uint2(10, 0)] = G[uint2(10, 0)] + oy;
-    G[uint2(8, 0)] = Mu; G[uint2(13, 0)] = ZeroPen; G[uint2(15, 0)] = Cerca;
+    G[uint2(8, 0)] = Mu; G[uint2(13, 0)] = ZeroPen; G[uint2(15, 0)] = Cerca; G[uint2(16, 0)] = CercaN;
 }";
     }
 }
