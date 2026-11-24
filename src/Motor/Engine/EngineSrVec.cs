@@ -62,6 +62,26 @@ namespace ConsoleEnhancer.Motor
         public bool SrVecSmooth = false;
         // 23-11 (ronda 7, SRBLUR) sr_vec_brillo=1: Lucas-Kanade con un cambio de brillo de la casilla (no lo toma por movimiento)
         public bool SrVecBright = false;
+        // 24-11 (1.3.2 ronda 9, SRBLUR) sr_vec_interp=1: el vector de cada punto interpolado entre los centros de las 4 casillas vecinas del
+        // mismo movimiento (el vector entero, no solo la correccion como sr_vec_suave): sin escalones de 8x8 en un suelo en perspectiva.
+        // sr_vec_rel=X: "el mismo movimiento" = 0,5 px + X x |v| (de serie 0 = 0,5 px, como antes)
+        public bool SrVecInterp = false;
+        public double SrVecRel = 0;
+        // 24-11 (1.3.2 ronda 9, SRBLUR; el usuario: "Dlss m borrosidad suelo" y "Dlss k y j borrosidad al girar la camara").
+        // CAUSA (medido con video real: GTA V conduciendo 720p -> 1080p, la misma proporcion que 1440p -> 4K, contra el 1080p original; los
+        // UGC 4K -> 1440p -> 4K contra el 4K): DLSS SR mezclaba una historia que no era la de ese punto. Nuestros vectores (la busqueda de
+        // 8x8 + el afinado) no explican el suelo en marcha (perspectiva: cada trozo corre a otra velocidad y se agranda) ni los giros de
+        // camara y lo que viene justo despues (vectores a 0 o cortos en lo de poco contraste), y DLSS no lo nota: la carretera de GTA V con M
+        // quedaba en una pasta lisa (suelo: nitidez 0,54 de la del original, banda media 0,56) cuando el MISMO DLSS M sin historia (un corte de
+        // escena cada imagen) la da a 0,70 / 0,85. M y L (los que mas se fian de la historia) lo sufren mas en el suelo (K 0,69, E 0,59, L
+        // 0,64); con K, en un giro de Battlefront y lo que sigue, nitidez 0,51-0,65 en las imagenes tras el giro.
+        // ARREGLO sr_sin_historia=E (px; 0 = no): con el vector final de cada punto (SrVecApplyShader) se mira si la anterior movida casa con
+        // la de ahora: residuo en 3x3 de la luma desenfocada > sr_sin_historia_min (niveles, el ruido) y > E px de desajuste equivalente
+        // frente al detalle de ahi (residuo > E^2 x gradiente^2). Donde no casa, el vector va fuera de la imagen (como mvmask_modo=1) y DLSS
+        // empieza ese punto de cero en vez de mezclar una historia equivocada; donde casa (lo quieto, el HUD, un paneo limpio) sigue igual.
+        // sr_sin_historia_mov=V: solo donde el vector es de V px o mas (0 = tambien con vector 0: lo que se mueve y la busqueda dejo a 0).
+        // Solo con DLSS SR (XeSS / FSR sin medir). Mvec (DLSS 5, la generacion) no cambia.
+        public double SrNoHist = 0, SrNoHistMin = 1.5, SrNoHistMov = 0.5;
 
         bool ApplySrVec(string key, string val)
         {
@@ -88,6 +108,11 @@ namespace ConsoleEnhancer.Motor
                 case "sr_aa_dlss5": SrAaNr = B(val); return true;
                 case "sr_vec_suave": SrVecSmooth = B(val); return true;
                 case "sr_vec_brillo": SrVecBright = B(val); return true;
+                case "sr_vec_interp": SrVecInterp = B(val); return true;
+                case "sr_vec_rel": SrVecRel = Math.Max(0, Math.Min(2.5, D(val))); return true;
+                case "sr_sin_historia": SrNoHist = Math.Max(0, Math.Min(12.7, D(val))); return true;
+                case "sr_sin_historia_min": SrNoHistMin = Math.Max(0, Math.Min(25.5, D(val))); return true;
+                case "sr_sin_historia_mov": SrNoHistMov = Math.Max(0, Math.Min(3.75, D(val))); return true;
             }
             return ApplySrBanco(key, val);   // (23-11 ronda 7, SRBLUR: EngineSrBanco.cs)
         }
@@ -138,6 +163,9 @@ SamplerState Lin : register(s0);
 
 float LdC(int2 p) { return Cur.Load(int3(clamp(p, int2(0, 0), int2(W - 1, H - 1)), 0)); }
 float2 MvAt(int2 p) { return Mv.Load(int3(clamp(p, int2(0, 0), int2(W - 1, H - 1)), 0)); }
+// (24-11 ronda 9: sr_vec_rel) 'el mismo movimiento': 0,5 px y, con sr_vec_rel, ademas una parte del propio vector (un suelo en perspectiva
+// cambia de una casilla a la de al lado mas de 0,5 px cuando corre deprisa)
+float Same(float2 v) { return 0.5 + ((P1 >> 8) & 255) * 0.01 * (abs(v.x) + abs(v.y)); }
 
 [numthreads(8, 8, 1)]
 void main(uint3 id : SV_DispatchThreadID)
@@ -166,7 +194,7 @@ void main(uint3 id : SV_DispatchThreadID)
                     if (it == 0 || ti > 64)
                     {
                         float2 dq = MvAt(q) - v0;
-                        if (abs(dq.x) + abs(dq.y) > 0.5) { if (ti <= 64) { if (word == 0) skip.x |= 1u << bit; else skip.y |= 1u << bit; } continue; }   // (otra cosa: otro movimiento)
+                        if (abs(dq.x) + abs(dq.y) > Same(v0)) { if (ti <= 64) { if (word == 0) skip.x |= 1u << bit; else skip.y |= 1u << bit; } continue; }   // (otra cosa: otro movimiento)
                     }
                     else if (((word == 0 ? skip.x : skip.y) >> bit) & 1) continue;
                     float cc = LdC(q);
@@ -226,42 +254,86 @@ void main(uint3 id : SV_DispatchThreadID)
     // la correccion a los puntos de la casilla que llevan ese movimiento (los vectores por punto interpolados siguen igual de suaves); los
     // de otro movimiento (la interfaz quieta, el borde del personaje) tal cual
     float2 dv = best - v0;
-    if (P1 & 1) { TileOut[id.xy] = float4(dv, v0); return; }   // (sr_vec_suave: la correccion de la casilla, se reparte en SrVecApplyShader)
+    if (P1 & 13) { TileOut[id.xy] = float4(dv, v0); return; }   // (sr_vec_suave / sr_vec_interp / sr_sin_historia: la casilla, se reparte en SrVecApplyShader)
     [loop] for (int j2 = 0; j2 < ts; j2++)
         [loop] for (int i2 = 0; i2 < ts; i2++)
         {
             int2 p = t0 + int2(i2, j2);
             if (p.x >= (int)W || p.y >= (int)H) continue;
             float2 m = MvAt(p), dm = m - v0;
-            Out[p] = abs(dm.x) + abs(dm.y) <= 0.5 ? m + dv : m;
+            Out[p] = abs(dm.x) + abs(dm.y) <= Same(v0) ? m + dv : m;
         }
 }";
 
-        // (sr_vec_suave) la correccion de cada punto: la de las 4 casillas vecinas con el mismo movimiento, con el peso bilineal de su centro
+        // (sr_vec_suave) la correccion de cada punto: la de las 4 casillas vecinas con el mismo movimiento, con el peso bilineal de su centro.
+        // (24-11 ronda 9) sr_vec_interp: el vector entero interpolado; sin ninguno de los dos (con sr_sin_historia), la casilla propia como
+        // siempre. sr_sin_historia (P1 & 8): donde ni el vector final explica la imagen (la anterior movida con el no casa: residuo en 3x3 de la
+        // luma desenfocada > el suelo de ruido y > E px de desajuste equivalente frente al detalle de ahi), el vector fuera de la imagen: DLSS
+        // empieza de cero en ese punto en vez de mezclar una historia que no es la suya (el suelo en marcha se emborronaba)
         const string SrVecApplyShader = @"
 cbuffer C : register(b0) { uint W, H, TW, TH; float MaxD, Gain, Lambda, Floor; uint Iter, WinR, Step, Esm; uint Tile, P1, P2, P3; }
+Texture2D<float> Cur : register(t0);
+Texture2D<float> Prev : register(t1);
 Texture2D<float2> Mv : register(t2);
 Texture2D<float4> Tiles : register(t3);
 RWTexture2D<float2> Out : register(u0);
+SamplerState Lin : register(s0);
+float LdC(int2 p) { return Cur.Load(int3(clamp(p, int2(0, 0), int2(W - 1, H - 1)), 0)); }
 [numthreads(16, 8, 1)]
 void main(uint3 id : SV_DispatchThreadID)
 {
     if (id.x >= W || id.y >= H) return;
     float2 m = Mv.Load(int3(id.xy, 0));
-    float2 f = (float2(id.xy) + 0.5) / (float)Tile - 0.5;
-    int2 t0 = int2(floor(f)); float2 w = f - t0;
-    float2 acc = 0; float ws = 0;
-    [unroll] for (int j = 0; j < 2; j++)
-        [unroll] for (int i = 0; i < 2; i++)
-        {
-            int2 t = clamp(t0 + int2(i, j), int2(0, 0), int2(TW - 1, TH - 1));
-            float4 r = Tiles.Load(int3(t, 0));
-            float2 d = m - r.zw;
-            if (abs(d.x) + abs(d.y) > 0.5) continue;   // (otro movimiento: la interfaz quieta, el borde del personaje)
-            float k = (i ? w.x : 1 - w.x) * (j ? w.y : 1 - w.y) + 1e-4;
-            acc += r.xy * k; ws += k;
-        }
-    Out[id.xy] = ws > 0 ? m + acc / ws : m;
+    float same = 0.5 + ((P1 >> 8) & 255) * 0.01 * (abs(m.x) + abs(m.y));   // (como Same() de la casilla)
+    float2 o = m;
+    if (P1 & 5)
+    {
+        float2 f = (float2(id.xy) + 0.5) / (float)Tile - 0.5;
+        int2 t0 = int2(floor(f)); float2 w = f - t0;
+        float2 acc = 0; float ws = 0;
+        bool full = (P1 & 4) != 0;
+        [unroll] for (int j = 0; j < 2; j++)
+            [unroll] for (int i = 0; i < 2; i++)
+            {
+                int2 t = clamp(t0 + int2(i, j), int2(0, 0), int2(TW - 1, TH - 1));
+                float4 r = Tiles.Load(int3(t, 0));
+                float2 d = m - r.zw;
+                if (abs(d.x) + abs(d.y) > same) continue;   // (otro movimiento: la interfaz quieta, el borde del personaje)
+                float k = (i ? w.x : 1 - w.x) * (j ? w.y : 1 - w.y) + 1e-4;
+                // (24-11 ronda 9, sr_vec_interp) el vector entero de las casillas vecinas del mismo movimiento, no solo su correccion: un
+                // campo suave (el suelo en perspectiva) en vez de escalones de 8x8
+                acc += (full ? r.zw + r.xy : r.xy) * k; ws += k;
+            }
+        o = ws > 0 ? (full ? acc / ws : m + acc / ws) : m;
+    }
+    else
+    {
+        float4 r = Tiles.Load(int3(min(id.xy / Tile, uint2(TW - 1, TH - 1)), 0));
+        float2 d = m - r.zw;
+        if (abs(d.x) + abs(d.y) <= same) o = m + r.xy;
+    }
+    if (P1 & 8)
+    {
+        float emax = ((P1 >> 16) & 255) * 0.05, fl = ((P1 >> 24) & 255) * 0.1 / 255.0;
+        float2 inv = 1.0 / float2(W, H);
+        float res = 0, gr = 0;
+        float k5[25];
+        [unroll] for (int j5 = 0; j5 < 25; j5++) k5[j5] = LdC(int2(id.xy) + int2(j5 % 5 - 2, j5 / 5 - 2));
+        [unroll] for (int y = -1; y <= 1; y++)
+            [unroll] for (int x = -1; x <= 1; x++)
+            {
+                int2 q = int2(id.xy) + int2(x, y);
+                int i5 = (y + 2) * 5 + x + 2;
+                float c = k5[i5];
+                float pp = Prev.SampleLevel(Lin, (float2(q) + 0.5 + o) * inv, 0);
+                float gx = 0.5 * (k5[i5 + 1] - k5[i5 - 1]), gy = 0.5 * (k5[i5 + 5] - k5[i5 - 5]);
+                res += (c - pp) * (c - pp); gr += gx * gx + gy * gy;
+            }
+        res /= 9; gr /= 9;
+        float vmin = ((P1 >> 4) & 15) * 0.25;   // (sr_sin_historia_mov: solo donde se mueve; lo quieto se queda su historia, que quita el ruido)
+        if (res > fl * fl && res > emax * emax * gr && abs(o.x) + abs(o.y) >= vmin) o = float2(2.0 * W, 2.0 * H);   // (fuera de la imagen: sin historia aqui)
+    }
+    Out[id.xy] = o;
 }";
         ID3D12PipelineState psoSrApply;
         ID3D12Resource srTiles;
@@ -312,7 +384,9 @@ void main(uint3 id : SV_DispatchThreadID)
                 long t = Clock.Now;
                 psoSrVec = Pso(CompileCs("srvec", SrVecShader));
                 psoSrBlur = Pso(CompileCs("srblur", SrBlurShader));
-                Log.Write("Vectores de DLSS SR afinados (sr_vectores=" + s.SrVec + (s.SrVecIncert > 0 ? ", solo los fiables: sr_vec_incert=" + s.SrVecIncert.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture) + " px" : "") + "): shaders en " + Clock.SinceMs(t).ToString("0") + " ms");
+                Log.Write("Vectores de DLSS SR afinados (sr_vectores=" + s.SrVec + (s.SrVecIncert > 0 ? ", solo los fiables: sr_vec_incert=" + s.SrVecIncert.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture) + " px" : "") +
+                    (s.SrNoHist > 0 ? string.Format(System.Globalization.CultureInfo.InvariantCulture, "; sin historia donde el vector no explica la imagen (sr_sin_historia={0:0.##} px, desde {1:0.#} niveles, si se mueve {2:0.##} px o mas{3})", s.SrNoHist, s.SrNoHistMin, s.SrNoHistMov, scalerNow == "dlss" ? "" : ": solo con DLSS SR, aqui no") : "") +
+                    (s.SrVecInterp ? "; vectores interpolados entre casillas (sr_vec_interp)" : "") + "): shaders en " + Clock.SinceMs(t).ToString("0") + " ms");
             }
             int w = lw[0], h = lh[0];
             // la luma desenfocada de las dos imagenes (la de ahora y la anterior: barato, y asi no depende de lo que se hizo antes)
@@ -327,14 +401,17 @@ void main(uint3 id : SV_DispatchThreadID)
                 Barrier(srBlur[st], D3D12_RESOURCE_STATES.UNORDERED_ACCESS, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE);
             }
             int tile = s.SrVecTile, tw = (w + tile - 1) / tile, th = (h + tile - 1) / tile;
-            bool suave = s.SrVecSmooth && srTiles != null;
+            // (24-11 ronda 9) sr_sin_historia solo con DLSS SR (XeSS / FSR 3.1-4 sin medir con vectores fuera de la imagen)
+            bool noHist = s.SrNoHist > 0 && scalerNow == "dlss";
+            bool suave = (s.SrVecSmooth || s.SrVecInterp || noHist) && srTiles != null;
             if (suave && psoSrApply == null) psoSrApply = Pso(CompileCs("srvecreparto", SrVecApplyShader));
             Barrier(mvecSr, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.UNORDERED_ACCESS);
             if (suave) Barrier(srTiles, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.UNORDERED_ACCESS);
             for (int i = 0; i < 16; i++) c[i] = 0;
             c[0] = (uint)w; c[1] = (uint)h; c[2] = (uint)tw; c[3] = (uint)th;
             c[4] = F((float)s.SrVecMax); c[5] = F((float)s.SrVecGain); c[6] = F((float)s.SrVecLambda); c[7] = F((float)(s.SrVecFloor / 255.0 * s.SrVecFloor / 255.0));
-            c[8] = (uint)s.SrVecIter; c[9] = (uint)s.SrVecRadius; c[10] = (uint)s.SrVecStep; c[11] = s.SrVecEsm ? 1u : 0u; c[12] = (uint)tile; c[13] = (suave ? 1u : 0u) | (s.SrVecBright ? 2u : 0u);
+            c[8] = (uint)s.SrVecIter; c[9] = (uint)s.SrVecRadius; c[10] = (uint)s.SrVecStep; c[11] = s.SrVecEsm ? 1u : 0u; c[12] = (uint)tile; c[13] = (suave && s.SrVecSmooth ? 1u : 0u) | (s.SrVecBright ? 2u : 0u) | (suave && s.SrVecInterp ? 4u : 0u) | (suave && noHist ? 8u : 0u) | ((uint)Math.Round(s.SrNoHistMov * 4) << 4) | ((uint)Math.Round(s.SrVecRel * 100) << 8) |
+                    ((uint)Math.Round(s.SrNoHist * 20) << 16) | ((uint)Math.Round(s.SrNoHistMin * 10) << 24);
             c[14] = F((float)(s.SrVecTex / 255.0 * s.SrVecTex / 255.0)); c[15] = F(SrVecIncertNow);   // (23-11 ronda 7: sr_vec_textura, sr_vec_incert)
             BindCompute(psoSrVec, TSrVec + cur, c, 16);
             list.Dispatch(Groups(tw, 8), Groups(th, 8), 1);
