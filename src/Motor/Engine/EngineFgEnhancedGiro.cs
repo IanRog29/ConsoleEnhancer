@@ -213,6 +213,7 @@ namespace ConsoleEnhancer.Motor
                 EfgPlanoNote(rb);   // (1.3.3, EFGMAPA)
             }
             efgGiroPairs++;
+            EfgMandoPair(rb[0], rb[1], efgGiroPairs > 1 && rb[7] > 0.5f);   // (1.3.3, EFGLAT r10: el stick del mando aprende con el global)
             if (efgGiroLogAt == 0 || Clock.SinceMs(efgGiroLogAt) > 10000)
             {
                 efgGiroLogAt = Clock.Now;

@@ -85,7 +85,7 @@ namespace ConsoleEnhancer.Motor
                 case "efg_lat_revisa_peso": EfgLatRefLam = (float)Math.Max(0, Math.Min(0.1, D(val))); return true;
                 case "efg_lat_ganancia": EfgLatGain = (float)Math.Max(0, Math.Min(2, D(val))); return true;   // (1.3.2, EFGLAT r9)
             }
-            return false;
+            return EfgMandoKey(key.Trim().ToLowerInvariant(), val);   // (1.3.3, EFGLAT r10: EngineFgEnhancedMando.cs)
         }
     }
 
@@ -275,7 +275,10 @@ namespace ConsoleEnhancer.Motor
                 k[8] = (uint)efgLw[0]; k[9] = (uint)efgLh[0];
                 k[10] = (s.EfgLatGlobal ? 1u : 0u) | (s.EfgLatBorder ? 2u : 0u) | (s.EfgLatZ == 1 ? 16u : 0u) | (s.EfgLatZ == 2 ? 32u : 0u) | (s.EfgLatSmoothLocal ? 64u : 0u) | (s.EfgLatRev ? 128u : 0u) | (s.EfgLatFrena ? 256u : 0u) | (s.EfgLatPlano ? 512u : 0u);
                 k[11] = F(s.EfgLatZD);
-                k[12] = F(s.EfgLatZLam); k[13] = F(s.EfgLatZHole); k[14] = F(8f * efgLw[0] / 1920f); k[15] = F(s.EfgLatZP);
+                float mdx, mdy; bool md = EfgMandoDelta(t, out mdx, out mdy);   // (1.3.3, EFGLAT r10) el stick del mando
+                int nrefM = (s.EfgLatRef + 1) / 2 * 2;
+                if (md && nrefM == 0) k[10] |= 1024u;   // (con la revision, el stick va en su ultima vuelta)
+                k[12] = F(s.EfgLatZLam); k[13] = F(s.EfgLatZHole); k[14] = md ? Half2(mdx, mdy) : 0u; k[15] = F(s.EfgLatZP);
                 EB(efgSel, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.UNORDERED_ACCESS);
                 EfgLatUavBarrier(efgGm);
                 EfgLatRun(psoEfgLatSel, c, EfgLatTabSel, k, Groups(efgQw, 16), Groups(efgQh, 8));
@@ -288,6 +291,7 @@ namespace ConsoleEnhancer.Motor
                     k[10] &= ~32u; k[11] = F(s.EfgLatRefLam);
                     for (int r = 0; r < nref; r++)
                     {
+                        if (md && r == nref - 1) k[10] |= 1024u;
                         ID3D12Resource dst = (r & 1) == 0 ? efgLatSel2 : efgSel, src = (r & 1) == 0 ? efgSel : efgLatSel2;
                         EB(dst, D3D12_RESOURCE_STATES.NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATES.UNORDERED_ACCESS);
                         EfgLatRun(psoEfgLatRef, c, (r & 1) == 0 ? EfgLatTabRef1 : EfgLatTabRef2, k, Groups(efgQw, 16), Groups(efgQh, 8));
