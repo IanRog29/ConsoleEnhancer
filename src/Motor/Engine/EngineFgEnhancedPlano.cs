@@ -20,13 +20,15 @@ namespace ConsoleEnhancer.Motor
     //  - en la inventada (EfgShaders.Fin, FOpts 2) el vector 0 paga efg_plano_cero de mas fuera de lo quieto (en un paneo el 0 solo vale en la
     //    interfaz).
     // Solo al interpolar (modo calidad; la baja latencia tiene su camino propio, EngineFgEnhancedLat.cs). Necesita efg_giro (su textura y su global grueso).
+    // (ronda 10c) efg_plano_acel=1 (de serie): al arrancar / frenar el paneo la inventada va donde iria con aceleracion constante, con los
+    // intervalos de verdad entre las tres ultimas reales (la hora del contenido, la del ritmo); sin hora fiable o con un hueco > 1,5x, sin ella.
     // Claves (motor): efg_plano (1 de serie; 0 = como la 1.3.2), efg_plano_peso=0.01, efg_plano_cero=0.1, efg_plano_parte=0.5,
     // efg_plano_cerca=2 y efg_plano_quieto=10 (la interfaz quieta que no se toca: radio en puntos de L0 y reales quietas).
     partial class Settings
     {
         public int EfgPlano = 1;
         public float EfgPlanoPeso = 0.01f, EfgPlanoCero = 0.1f, EfgPlanoParte = 0.5f, EfgPlanoCerca = 2f, EfgPlanoQuieto = 10f;
-        public bool EfgPlanoAcel = false;
+        public bool EfgPlanoAcel = true;   // (ronda 10c) con la hora del contenido de las dos parejas: mide mejor con llegadas regulares e irregulares
 
         bool ApplyEfgPlano(string key, string val)
         {
@@ -50,7 +52,29 @@ namespace ConsoleEnhancer.Motor
         ID3D12PipelineState psoEfgPlanoFit, psoEfgPlanoCost, psoEfgPlanoFin;
         ID3D12Resource efgPlanoCost;
         bool efgPlanoReady;
-        long efgPlanoPairs, efgPlanoSi;
+        readonly long[] efgPlanoHoraT = new long[3];
+        int efgPlanoHoras;
+
+        // EfgDoJob, por cada real: su hora del contenido (la del ritmo, EngineFgEnhancedRitmo.cs) en la historia de las 3 ultimas reales
+        // seguidas con flujo. Sin hora fiable o sin flujo, la historia empieza de nuevo
+        void EfgPlanoHora(EfgJob j, bool flow)
+        {
+            bool ok = j.Content != 0 && j.Content <= j.Arrival && Clock.Ms(j.Content, j.Arrival) <= j.RealMs * 1.2;
+            if (!flow || !ok) { efgPlanoHoras = ok ? 1 : 0; efgPlanoHoraT[2] = j.Content; return; }
+            efgPlanoHoraT[0] = efgPlanoHoraT[1]; efgPlanoHoraT[1] = efgPlanoHoraT[2]; efgPlanoHoraT[2] = j.Content;
+            efgPlanoHoras = Math.Min(3, efgPlanoHoras + 1);
+        }
+
+        // los dos intervalos (ms) de la pareja anterior y de esta; false si no hay los tres o el hueco es muy irregular (> 1,5x)
+        bool EfgPlanoIntervalos(out double i1, out double i2)
+        {
+            i1 = i2 = 0;
+            if (efgPlanoHoras < 3) return false;
+            i1 = Clock.Ms(efgPlanoHoraT[0], efgPlanoHoraT[1]); i2 = Clock.Ms(efgPlanoHoraT[1], efgPlanoHoraT[2]);
+            if (i1 < 2 || i2 < 2 || i1 > 200 || i2 > 200) return false;
+            return Math.Max(i1, i2) <= 1.5 * Math.Min(i1, i2) + 0.5;
+        }
+        long efgPlanoPairs, efgPlanoSi, efgPlanoAcelN, efgPlanoAcelNo;
 
         static readonly string[] EfgPlanoNames = { "efg_plano_ajuste", "efg_plano_coste", "efg_plano_fin" };
         static string[] EfgPlanoSources() { return new string[] { EfgPlanoShaders.Fit, EfgPlanoShaders.Cost, EfgPlanoShaders.Fin }; }
@@ -124,7 +148,9 @@ namespace ConsoleEnhancer.Motor
             efgList.Dispatch((uint)EfgPlanoN, (uint)EfgPlanoN, 1);
             EfgGiroUavBarrier(efgPlanoCost);
             EfgZero(k);
-            k[0] = (uint)EfgPlanoN; k[1] = s.EfgPlanoAcel ? 1u : 0u; k[9] = F(0.6f); k[4] = F(0.125f); k[5] = F(s.EfgPlanoPeso); k[6] = F(s.EfgPlanoCero); k[7] = F(s.EfgPlanoCerca); k[8] = F(s.EfgPlanoQuieto);
+            double pi1 = 0, pi2 = 0; bool acel = s.EfgPlanoAcel && EfgPlanoIntervalos(out pi1, out pi2);
+            if (acel) efgPlanoAcelN++; else if (s.EfgPlanoAcel) efgPlanoAcelNo++;
+            k[0] = (uint)EfgPlanoN; k[1] = acel ? 1u : 0u; k[9] = F(0.6f); k[10] = F(acel ? (float)pi1 : 1f); k[11] = F(acel ? (float)pi2 : 1f); k[4] = F(0.125f); k[5] = F(s.EfgPlanoPeso); k[6] = F(s.EfgPlanoCero); k[7] = F(s.EfgPlanoCerca); k[8] = F(s.EfgPlanoQuieto);
             efgList.SetPipelineState(psoEfgPlanoFin);
             efgList.SetComputeRootDescriptorTable(1, EfgGiroGpu(c, EfgGiroTabPlanoFin));
             efgList.SetComputeRoot32BitConstants(0, 16, k, 0);
@@ -144,8 +170,9 @@ namespace ConsoleEnhancer.Motor
         {
             if (!EfgPlanoOn()) return "";
             string r = "; plano: " + efgPlanoSi + " de " + efgPlanoPairs + " parejas (la ultima: global (" + rb[9].ToString("0.00", IC) + ", " + rb[10].ToString("0.00", IC) +
-                       "), " + (rb[11] * 100).ToString("0", IC) + " % de " + rb[12].ToString("0", IC) + " bloques" + (rb[8] > 0 ? ", si)" : ", no)");
-            efgPlanoPairs = 0; efgPlanoSi = 0;
+                       "), " + (rb[11] * 100).ToString("0", IC) + " % de " + rb[12].ToString("0", IC) + " bloques" + (rb[8] > 0 ? ", si)" : ", no)") +
+                       (s.EfgPlanoAcel ? "; aceleracion con la hora del contenido en " + efgPlanoAcelN + " parejas (sin ella " + efgPlanoAcelNo + ": sin hora, sin las 3 reales seguidas o hueco > 1,5x)" : "");
+            efgPlanoPairs = 0; efgPlanoSi = 0; efgPlanoAcelN = 0; efgPlanoAcelNo = 0;
             return r;
         }
     }

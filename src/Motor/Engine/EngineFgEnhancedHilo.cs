@@ -408,6 +408,7 @@ namespace ConsoleEnhancer.Motor
             int c = j.W;
             bool hasPrev = efgPrevSeq == j.Seq - 1;
             bool flow = hasPrev && !j.Reset;
+            EfgPlanoHora(j, flow);   // (1.3.3, EFGMAPA: la hora del contenido de las ultimas reales, para la aceleracion del paneo plano)
             int k = j.K;
             double step = j.RealMs / k;
             int nReal = (int)Math.Round(j.Phase * k);

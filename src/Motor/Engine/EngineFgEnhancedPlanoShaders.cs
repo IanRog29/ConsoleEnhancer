@@ -91,7 +91,7 @@ void main(uint3 gid : SV_GroupID, uint3 t : SV_GroupThreadID)
 
         // ---- Un hilo: el minimo de la rejilla de costes, parabola en x (su fila) y en y (su columna), y el peso de la eleccion y el castigo del 0
         public const string Fin = @"
-cbuffer C : register(b0) { uint N, Acel, P1, P2; float Step, Mu, ZeroPen, Cerca; float CercaN, AcLim, P7, P8; uint4 P5; }
+cbuffer C : register(b0) { uint N, Acel, P1, P2; float Step, Mu, ZeroPen, Cerca; float CercaN, AcLim, I1, I2; uint4 P5; }
 RWTexture2D<float> G : register(u0);
 RWTexture2D<float> Cost : register(u1);
 float Cs(int x, int y) { return Cost[uint2(y * (int)N + x, 0)]; }
@@ -117,8 +117,9 @@ void main()
     float2 g = float2(G[uint2(9, 0)], G[uint2(10, 0)]);
     if (Acel != 0 && pv)
     {
-        // A = M2 - M1 (movimiento = -C2P), acotada a AcLim x (|M1| + |M2|): la inventada del instante T va a M T - A T (1 - T) / 2
-        float2 A = -(g - pg); float lim = AcLim * sqrt(dot(g, g) + dot(pg, pg)), al = length(A);
+        // con los intervalos de verdad (hora del contenido, ms): v = d / I, a = (v2 - v1) / ((I1 + I2) / 2) y A = a I2^2 (con I1 = I2,
+        // A = M2 - M1; movimiento = -C2P), acotada a AcLim x (|M1| + |M2|): la inventada del instante T va a M T - A T (1 - T) / 2
+        float2 A = (-g / I2 + pg / I1) * (2 * I2 * I2 / (I1 + I2)); float lim = AcLim * sqrt(dot(g, g) + dot(pg, pg)), al = length(A);
         if (al > lim && al > 0) A *= lim / al;
         G[uint2(17, 0)] = A.x; G[uint2(18, 0)] = A.y; G[uint2(19, 0)] = 1;
     }
