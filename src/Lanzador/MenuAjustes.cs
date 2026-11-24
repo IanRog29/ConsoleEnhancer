@@ -649,6 +649,9 @@ namespace ConsoleEnhancer
                 if (Puede120(capSel) || (modoAhora == 120 && cfg.Captura120Ok(capSel))) { v.Add("120"); t.Add(Tx.T("120 fps", "120 fps")); }
                 if (!v.Contains(m)) m = "60";
                 mo.Poner(v, t, m, modoAhora.ToString());
+                // (1.3.2, MODO40: con el 40, a que va la captura y lo de la consola)
+                mo.Nota = mo.Val != "40" ? "" : cfg.Modo40A120(capSel) ? Tx.T("Captura a 120 Hz · la consola a 120 Hz y el modo de 40 del juego", "Capture at 120 Hz · console at 120 Hz and the game's 40 fps mode")
+                                                                        : Tx.T("Captura a 60 Hz: los 40 se reparten parejos (mejor 1440p / 1080p)", "Capture at 60 Hz: 40 fps evened out (better 1440p / 1080p)");
             }
             string modoSel = mo != null ? mo.Val : modoAhora.ToString();
             bool a120 = modoSel == "120";
