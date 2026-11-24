@@ -166,7 +166,7 @@ namespace ConsoleEnhancer
             string vrr = o.Vrr == "1" ? Tx.T("encendido", "on") : o.Vrr == "0" ? Tx.T("apagado", "off") : Tx.T("automático", "automatic") + " (" + (p.VrrDeSerie ? Tx.T("encendido", "on") : Tx.T("apagado", "off")) + ")";
             string hdr = o.RtxHdr && p.RtxHdrPosible ? "RTX HDR " + p.RtxHdrNits + " nits" : Tx.T("no", "no");
             return "\r\n" + Tx.T("Elegido: HDR añadido ", "Chosen: added HDR ") + hdr + " · VRR " + vrr + " · " + Tx.T("botones ", "buttons ") +
-                   (o.Botones == "prisma" ? "Prisma" : BotonesCe.NombreMenu(kindMando, true) + Tx.T(" = modo 30/60, ", " = 30/60 mode, ") + BotonesCe.NombreVista(kindMando, true) + Tx.T(" = generación", " = frame gen")) +
+                   (o.Botones == "prisma" ? "Prisma" : BotonesCe.NombreMenu(kindMando, true) + Tx.T(" = modo 30/40/60, ", " = 30/40/60 mode, ") + BotonesCe.NombreVista(kindMando, true) + Tx.T(" = generación", " = frame gen")) +
                    " · " + Tx.T("escalas: estimadas para esta gráfica y ajustadas jugando", "scales: estimated for this GPU and adjusted while playing") + "\r\n";
         }
 

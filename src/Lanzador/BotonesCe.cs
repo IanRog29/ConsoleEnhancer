@@ -94,12 +94,12 @@ namespace ConsoleEnhancer
             string lt = PadNames.TriggerName(k, true), rt = PadNames.TriggerName(k, false);
             string cap = NombreCaptura(k, screen);
             if (en)
-                return "Menu button " + NombreMenu(k, screen) + " = 30 / 60 fps mode (toggles), " + NombreVista(k, screen) + " = frame generation on/off" +
+                return "Menu button " + NombreMenu(k, screen) + " = 30 / 40 / 60 fps mode (toggles), " + NombreVista(k, screen) + " = frame generation on/off" +
                        (cap.Length > 0 ? " (also " + cap + ")" : "") + ", d-pad = capture size, " +
                        PadNames.Name(k, PadBtn.X, false) + "/" + PadNames.Name(k, PadBtn.Y, false) + "/" + PadNames.Name(k, PadBtn.B, false) + " = 1/2/3 DLSS 5 passes, " +
                        PadNames.Name(k, PadBtn.A, false) + " = DLSS 5 on/off, " + PadNames.Name(k, PadBtn.LB, false) + "/" + lt + "/" + rt + "/" + PadNames.Name(k, PadBtn.RB, false) +
                        " = level 1-4, L3 = frame generation type (hold 1 s = dither filter), R3 = scaler";
-            return NombreMenu(k, screen) + " = modo 30 / 60 fps (alterna), " + NombreVista(k, screen) + " = generacion de fotogramas si/no" +
+            return NombreMenu(k, screen) + " = modo 30 / 40 / 60 fps (alterna), " + NombreVista(k, screen) + " = generacion de fotogramas si/no" +
                    (cap.Length > 0 ? " (tambien " + cap + ")" : "") + ", cruceta = captura, " +
                    PadNames.Name(k, PadBtn.X, false) + "/" + PadNames.Name(k, PadBtn.Y, false) + "/" + PadNames.Name(k, PadBtn.B, false) + " = 1/2/3 pasadas de DLSS 5, " +
                    PadNames.Name(k, PadBtn.A, false) + " = DLSS 5 si/no, " + PadNames.Name(k, PadBtn.LB, false) + "/" + lt + "/" + rt + "/" + PadNames.Name(k, PadBtn.RB, false) +
@@ -114,7 +114,7 @@ namespace ConsoleEnhancer
             Func<uint, string> n = delegate(uint b) { return NombreBoton(k, b); };
             return new string[][]
             {
-                new[] { NombreMenuLargo(k), En ? "30 / 60 fps mode (each press toggles)" : "Modo 30 / 60 fps (cada pulsación alterna)" },
+                new[] { NombreMenuLargo(k), En ? "30 / 40 / 60 fps mode (each press goes to the next)" : "Modo 30 / 40 / 60 fps (cada pulsación pasa al siguiente)" },
                 new[] { NombreVistaLargo(k) + (cap.Length > 0 ? (En ? " or " : " o ") + cap : ""), En ? "Frame generation on / off" : "Generación de fotogramas sí / no" },
                 new[] { "L3", En ? "Frame generation type (hold 1 s: dither filter)" : "Tipo de generación (mantenido 1 s: filtro de tramado)" },
                 new[] { En ? "D-pad ← ↑ → ↓" : "Cruceta ← ↑ → ↓", En ? "Capture 720p / 1080p / 1440p / 4K" : "Captura 720p / 1080p / 1440p / 4K" },

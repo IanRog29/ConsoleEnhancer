@@ -880,7 +880,7 @@ namespace ConsoleEnhancer
             ToolStripMenuItem v1 = new ToolStripMenuItem(Idioma.T("Encendido (reabre la app)"), null, delegate { CeCambiar("vrr", "1", true); });
             ToolStripMenuItem v0 = new ToolStripMenuItem(Idioma.T("Apagado (reabre la app)"), null, delegate { CeCambiar("vrr", "0", true); });
             vrr.DropDownItems.AddRange(new ToolStripItem[] { vA, v1, v0 });
-            ToolStripMenuItem bot = new ToolStripMenuItem(Idioma.T("Botones: Menú = modo 30/60, Vista = generación"), null, delegate
+            ToolStripMenuItem bot = new ToolStripMenuItem(Idioma.T("Botones: Menú = modo 30/40/60, Vista = generación"), null, delegate
             {
                 BotonesCe.Prisma = !BotonesCe.Prisma;
                 Ce.IniPoner("mando_botones", BotonesCe.Prisma ? "prisma" : "ce");
