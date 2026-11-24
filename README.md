@@ -31,7 +31,7 @@ Created and maintained by **IanRog29** · [Source and downloads](https://github.
 
 ## Quick start
 
-1. Download the latest **`ConsoleEnhancer-v1.3.2.zip`** (or newer) from
+1. Download the latest **`ConsoleEnhancer-v1.3.3.zip`** (or newer) from
    **[Releases](https://github.com/IanRog29/ConsoleEnhancer/releases)** (not the green "Code" button: that is the source code).
 2. **Unzip** it into one of your own folders: Documents, the Desktop, `D:\Juegos`... (not in *Program Files*).
 3. Open **`ConsoleEnhancer.exe`** and follow the wizard. Done: turn the console on.
@@ -268,6 +268,18 @@ with help a lot too.
   for that session only (×4 → ×3 → ×2; see *Checks that your frame rate is reached*). Since 1.3 there is no DLSS Frame Generation and no old ×3 / ×4 (they didn't work well); game profiles and settings
   that used them switch by themselves to the closest type (on NVIDIA, Smooth Motion) and keep everything else. If a frame generation
   type loses the GPU in the engine, the rest of the session uses another one (FSR 3 FG ×3 / ×4: ×2), still in the engine.
+- **Enhanced RT (Experimental)** (1.3.3): row at the end of the controller settings menu that adds screen-space ray traced lighting
+  to the console image: contact shadows (ambient occlusion) and one-bounce light traced over a relief estimated from the image itself
+  (consoles don't send depth), with its own motion vectors, temporal accumulation (no noise, no trails) and the HUD / text protected; no
+  reflections. Off by default (`enhanced_rt=0`; the menu choice wins); about 0.7 ms of GPU per real frame (~1.1 ms at 4K with Enhanced
+  FG ×4, ~1 ms more latency). It switches on / off without reopening the picture. Stronger: `motor_extra=rt_fuerza=1.5`.
+- **Flat pans** (1.3.3): when you scroll a map or a menu with the stick, Enhanced FG (quality mode) measures that single movement
+  precisely and follows it, also when the pan starts and stops, so roads and text no longer shake; the still HUD is left untouched
+  (`efg_plano=0` = as 1.3.2). For maps, quality mode works better than low latency.
+- **Add to Steam** (1.3.3): in the settings panel (ConsoleEnhancer Settings.exe, "Steam" section), adds ConsoleEnhancer to your Steam
+  library as a non-Steam game with its icon (the same as Steam's "Add a Non-Steam Game"), without duplicating it and with a backup of
+  Steam's list first; "Remove from Steam" takes it out. If Steam is open it offers to restart it. If the controller acts oddly when
+  opened from Steam, turn Steam Input off for that shortcut.
 - **40 fps mode** (1.3.2): for console games' 40 fps modes (the "balanced" modes of PS5 / Xbox Series). Set the console to 120 Hz
   output (PS5: Settings > Screen and Video > Video Output > 120 Hz Output: Automatic; for everything else the advice stays 4K at 60) and
   1440p or 1080p, pick the game's 40 fps / balanced mode and, in ConsoleEnhancer, 40 fps (settings menu, or the Menu button: 30 → 40 →
@@ -467,7 +479,8 @@ the same way. If it says it can't write, the folder is read-only (Program Files)
 **Black screen or "No Signal".** Check that the picture shows in the wizard's *Test picture*. Close any program using the capture card
 (OBS, the vendor's software, Discord with the camera...). If the console encrypts its output (**HDCP**), the picture is black: turn it
 off in the console (PS5: Settings > System > HDMI > *Enable HDCP*). ConsoleEnhancer does not remove copy protection. The HDCP warning
-only shows with a truly black picture and a silent console for 20 s in a row (`hdcp_aviso_s`; `hdcp_aviso=0` turns it off): a dark
+only shows with a flat black picture across the whole frame (since 1.3.3 a still HUD, logo or text on black doesn't count) and a
+silent console for 20 s in a row (`hdcp_aviso_s`; `hdcp_aviso=0` turns it off): a dark
 scene or a fade no longer triggers it.
 
 **No sound.** Since 1.3 the console sound goes through the engine (`ConsoleEnhancerEngine.exe --audio`). Look at
@@ -571,7 +584,7 @@ build_prismanr.bat              :: bin\engine\PrismaNr.dll (C++, Visual Studio)
 build_fsrfg.bat                 :: bin\engine\CeFsrFg.dll (C++, Visual Studio, git; AMD FidelityFX SDK v1.1.4 + parches\fidelityfx-fi-multi.patch)
 tests\build_deteccion.bat       :: tests\bin\DeteccionTest.exe
 tests\bin\DeteccionTest.exe --simula=todo --sin-d3d12 --salida=deteccion.txt   :: 23 PCs simulados
-powershell -ExecutionPolicy Bypass -File scripts\empaquetar.ps1 -Zip -Version v1.3.2   :: dist\ConsoleEnhancer\ y dist\ConsoleEnhancer-v1.3.2.zip
+powershell -ExecutionPolicy Bypass -File scripts\empaquetar.ps1 -Zip -Version v1.3.3   :: dist\ConsoleEnhancer\ y dist\ConsoleEnhancer-v1.3.3.zip
 ```
 
 - **The engine's own native pieces** (C++; Visual Studio 2022 or its Build Tools with C++). `src\PrismaNr` needs NVIDIA's two public
@@ -607,7 +620,7 @@ powershell -ExecutionPolicy Bypass -File scripts\empaquetar.ps1 -Zip -Version v1
 | ini: `test_source=barras`, `apagar_pc=0` and in `motor_extra` `power_test=1 prueba_cuelgue_ms=4000` or `prueba_apagado_s=35 prueba_apagado_modo=corta` (or `nosignal`) | The engine, with the test picture, simulates the GPU stalling for 4 s (the app must not close) or the console turning off (it must) |
 | `--iniciar-con-windows=1` / `=0` | Adds or removes start with Windows and exits |
 | `--test-consolas=<informe>` | Console profiles and their detection with a fake clock |
-| `--test-tipos-generacion`, `--test-solo-motor`, `--test-motor-dlss5`, `--test-smooth-x4`, `--test-avisos`, `--test-menu-ajustes`, `--test-perfiles`, `--test-juegos-consola`, `--test-ps5`, `--test-deteccion`, `--test-nombres`, `--test-entrada`, `--test-home`, `--test-extras-guardados`, `--test-buscar-extras`, `--test-juego-en-marcha`, `--test-modo40` (`=<informe>`, with `--datos=<carpeta>`) | Tests without the console or the GPU: frame generation types and old-profile migration, what goes to the engine, DLSS 5, Smooth Motion ×4 gone (a saved one becomes ×2), the 40 fps mode, the on-screen notices against what really runs, the settings menu, profiles, console menus and game detection with saved real captures; exit code = failures |
+| `--test-tipos-generacion`, `--test-solo-motor`, `--test-motor-dlss5`, `--test-smooth-x4`, `--test-avisos`, `--test-menu-ajustes`, `--test-perfiles`, `--test-juegos-consola`, `--test-ps5`, `--test-deteccion`, `--test-nombres`, `--test-entrada`, `--test-home`, `--test-extras-guardados`, `--test-buscar-extras`, `--test-juego-en-marcha`, `--test-modo40`, `--test-negro-liso`, `--test-steam` (fake Steam folder only) (`=<informe>`, with `--datos=<carpeta>`) | Tests without the console or the GPU: frame generation types and old-profile migration, what goes to the engine, DLSS 5, Smooth Motion ×4 gone (a saved one becomes ×2), the 40 fps mode, the on-screen notices against what really runs, the settings menu, profiles, console menus and game detection with saved real captures; exit code = failures |
 | ini `test_source=<file>` and `test_motor=archivo:<file>` (`.y4m`, or `.mp4` / `.mkv` / `.webm` through Media Foundation) | The engine plays a video file as if it were the capture card (same 59.94 pace, YUY2 at the capture size), to test the whole app without a console; in `motor_extra`, `test_archivo_paso=N` (one of every N file frames reaches the game: with 60 fps footage and N=2 the game runs at 30 and the frame in between is the truth of the generated one), `test_archivo_desde` / `_hasta` (seconds, looped), `_quieto`, `_codigo`, `_filtro`, `_hw`, `_registro` |
 | `--restaurar-escritorio` / `--escritorio-negro` | The normal or the black desktop, by hand |
 
@@ -660,7 +673,7 @@ Creado y mantenido por **IanRog29** · [Código y descargas](https://github.com/
 
 ## Inicio rápido
 
-1. Baja el último **`ConsoleEnhancer-v1.3.2.zip`** (o uno más nuevo) de
+1. Baja el último **`ConsoleEnhancer-v1.3.3.zip`** (o uno más nuevo) de
    **[Releases](https://github.com/IanRog29/ConsoleEnhancer/releases)** (no el botón verde "Code": eso es el código fuente).
 2. **Descomprímelo** en una carpeta tuya: Documentos, el Escritorio, `D:\Juegos`... (no en *Archivos de programa*).
 3. Abre **`ConsoleEnhancer.exe`** y sigue el asistente. Ya está: enciende la consola.
@@ -898,6 +911,19 @@ y contar en qué PC y con qué consola lo usas.
   solo esa sesión (×4 → ×3 → ×2; ver *Comprueba que se llegan los fps*). Desde la 1.3 no hay DLSS Frame Generation ni los ×3 / ×4 de antes (no iban bien); los perfiles y ajustes que los
   usaban pasan solos al tipo más parecido (en NVIDIA, Smooth Motion) y conservan todo lo demás. Si un tipo de generación pierde la
   gráfica en el motor, el resto de la sesión va otro (FSR 3 FG ×3 / ×4: ×2), también en el motor.
+- **Enhanced RT (experimental)** (1.3.3): fila al final del menú de ajustes del mando que añade a la imagen de la consola luz trazada
+  en espacio de pantalla: sombras de contacto (oclusión ambiental) y luz rebotada de un rebote sobre un relieve estimado de la propia
+  imagen (la consola no da profundidad), con vectores de movimiento propios, acumulación temporal (sin ruido ni estelas) y el HUD / texto
+  protegidos; sin reflejos. Apagada de serie (`enhanced_rt=0`; manda lo elegido en el menú); unos 0,7 ms de gráfica por imagen real
+  (~1,1 ms a 4K con Enhanced FG ×4, ~1 ms más de latencia). Se enciende / apaga sin reabrir la imagen. Más fuerte:
+  `motor_extra=rt_fuerza=1.5`.
+- **Paneos planos** (1.3.3): al desplazar un mapa o un menú con el joystick, Enhanced FG (modo calidad) mide ese movimiento único con
+  precisión y lo sigue, también al arrancar y frenar, así que carreteras y textos ya no tiemblan; la interfaz quieta no se toca
+  (`efg_plano=0` = como la 1.3.2). Para mapas va mejor el modo calidad que la baja latencia.
+- **Añadir a Steam** (1.3.3): en el panel de ajustes (ConsoleEnhancer Settings.exe, sección "Steam"), pone ConsoleEnhancer en tu
+  biblioteca de Steam como juego ajeno con su icono (lo mismo que "Añadir un juego ajeno" de Steam), sin duplicarlo y con una copia de
+  seguridad antes de la lista de Steam; "Quitar de Steam" lo quita. Si Steam está abierto ofrece reiniciarlo. Si el mando hace cosas
+  raras abierto desde Steam, desactiva Steam Input para ese acceso.
 - **Modo 40 fps** (1.3.2): para los modos de 40 de los juegos de consola (los "equilibrados" de la PS5 / Xbox Series). Pon la consola
   con salida a 120 Hz (PS5: Ajustes > Pantalla y vídeo > Salida de vídeo > Salida a 120 Hz: Automático; para todo lo demás el consejo
   sigue siendo 4K a 60) y 1440p o 1080p, elige el modo de 40 / equilibrado del juego y, en ConsoleEnhancer, 40 fps (menú de ajustes o el
@@ -1099,7 +1125,8 @@ igual. Si dice que no puede escribir, la carpeta es de solo lectura (Archivos de
 **Pantalla negra o "No Signal".** Comprueba que la imagen se ve en el *Probar imagen* del asistente. Cierra cualquier programa que use
 la capturadora (OBS, el software del fabricante, Discord con la cámara...). Si la consola cifra la salida (**HDCP**), la imagen sale
 negra: apágalo en la consola (PS5: Ajustes > Sistema > HDMI > *Activar HDCP*). ConsoleEnhancer no quita protecciones anticopia.
-El aviso de HDCP solo sale con la imagen negra de verdad y la consola en silencio 20 s seguidos (`hdcp_aviso_s`; `hdcp_aviso=0` lo
+El aviso de HDCP solo sale con la imagen negra lisa en todo el cuadro (desde la 1.3.3 un HUD, logo o texto quieto sobre negro no
+cuenta) y la consola en silencio 20 s seguidos (`hdcp_aviso_s`; `hdcp_aviso=0` lo
 quita): una escena oscura o un fundido ya no lo hacen saltar.
 
 **No hay sonido.** Desde la 1.3 el sonido de la consola va por el motor (`ConsoleEnhancerEngine.exe --audio`). Mira
@@ -1203,7 +1230,7 @@ build_prismanr.bat              :: bin\engine\PrismaNr.dll (C++, Visual Studio)
 build_fsrfg.bat                 :: bin\engine\CeFsrFg.dll (C++, Visual Studio, git; AMD FidelityFX SDK v1.1.4 + parches\fidelityfx-fi-multi.patch)
 tests\build_deteccion.bat       :: tests\bin\DeteccionTest.exe
 tests\bin\DeteccionTest.exe --simula=todo --sin-d3d12 --salida=deteccion.txt   :: 23 PCs simulados
-powershell -ExecutionPolicy Bypass -File scripts\empaquetar.ps1 -Zip -Version v1.3.2   :: dist\ConsoleEnhancer\ y dist\ConsoleEnhancer-v1.3.2.zip
+powershell -ExecutionPolicy Bypass -File scripts\empaquetar.ps1 -Zip -Version v1.3.3   :: dist\ConsoleEnhancer\ y dist\ConsoleEnhancer-v1.3.3.zip
 ```
 
 - **Las piezas nativas propias del motor** (C++; Visual Studio 2022 o sus Build Tools con C++). `src\PrismaNr` necesita las dos
@@ -1238,7 +1265,7 @@ powershell -ExecutionPolicy Bypass -File scripts\empaquetar.ps1 -Zip -Version v1
 | ini: `test_source=barras`, `apagar_pc=0` y en `motor_extra` `power_test=1 prueba_cuelgue_ms=4000` o `prueba_apagado_s=35 prueba_apagado_modo=corta` (o `nosignal`) | El motor con la imagen de prueba simula la gráfica parada 4 s (la app no debe cerrarse) o la consola apagada (sí) |
 | `--iniciar-con-windows=1` / `=0` | Pone o quita el inicio con Windows y sale |
 | `--test-consolas=<informe>` | Perfiles de consola y su detección con un reloj falso |
-| `--test-tipos-generacion`, `--test-solo-motor`, `--test-motor-dlss5`, `--test-smooth-x4`, `--test-avisos`, `--test-menu-ajustes`, `--test-perfiles`, `--test-juegos-consola`, `--test-ps5`, `--test-deteccion`, `--test-nombres`, `--test-entrada`, `--test-home`, `--test-extras-guardados`, `--test-buscar-extras`, `--test-juego-en-marcha`, `--test-modo40` (`=<informe>`, con `--datos=<carpeta>`) | Pruebas sin la consola ni la gráfica: los tipos de generación y la migración de los perfiles viejos, lo que va al motor, DLSS 5, Smooth Motion ×4 quitado (uno guardado pasa a ×2), el modo 40, los avisos en pantalla contra lo que va de verdad, el menú de ajustes, los perfiles, los menús de las consolas y la detección del juego con capturas reales guardadas; código de salida = fallos |
+| `--test-tipos-generacion`, `--test-solo-motor`, `--test-motor-dlss5`, `--test-smooth-x4`, `--test-avisos`, `--test-menu-ajustes`, `--test-perfiles`, `--test-juegos-consola`, `--test-ps5`, `--test-deteccion`, `--test-nombres`, `--test-entrada`, `--test-home`, `--test-extras-guardados`, `--test-buscar-extras`, `--test-juego-en-marcha`, `--test-modo40`, `--test-negro-liso`, `--test-steam` (solo con una carpeta de Steam falsa) (`=<informe>`, con `--datos=<carpeta>`) | Pruebas sin la consola ni la gráfica: los tipos de generación y la migración de los perfiles viejos, lo que va al motor, DLSS 5, Smooth Motion ×4 quitado (uno guardado pasa a ×2), el modo 40, los avisos en pantalla contra lo que va de verdad, el menú de ajustes, los perfiles, los menús de las consolas y la detección del juego con capturas reales guardadas; código de salida = fallos |
 | ini `test_source=<fichero>` y `test_motor=archivo:<fichero>` (`.y4m`, o `.mp4` / `.mkv` / `.webm` por Media Foundation) | El motor reproduce un vídeo como si fuera la capturadora (al mismo ritmo de 59,94, YUY2 al tamaño de la captura), para probar la app entera sin la consola; en `motor_extra`, `test_archivo_paso=N` (solo 1 de cada N imágenes del fichero llega al juego: con un vídeo de 60 y N=2 el juego va a 30 y la de en medio es la verdad de la inventada), `test_archivo_desde` / `_hasta` (segundos, en bucle), `_quieto`, `_codigo`, `_filtro`, `_hw`, `_registro` |
 | `--restaurar-escritorio` / `--escritorio-negro` | El escritorio normal o el negro a mano |
 

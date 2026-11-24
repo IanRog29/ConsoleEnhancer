@@ -5,6 +5,153 @@ publicada es una etiqueta `vX.Y.Z` de git; GitHub Actions monta su zip y copia a
 
 ## [Sin publicar]
 
+## [1.3.3] - 2026-11-24
+
+**Enhanced RT (experimental) adds screen-space ray traced lighting to the console image, Enhanced FG no longer shakes when you scroll a
+map or menu with the stick, the low latency mode leaves fewer broken patches, the HDCP warning only shows on flat black and ConsoleEnhancer
+can be added to Steam.** Measured without the console on an RTX 4060 Ti with a 4K 120 Hz VRR TV, with real gameplay video and a test map
+scrolled like with the stick.
+
+### English
+
+#### Added
+- **Enhanced RT (Experimental)**: new row at the end of the controller settings menu (Guide / PS / HOME button) that adds screen-space
+  ray traced lighting to the console image: contact shadows (ambient occlusion) and one-bounce light (global illumination) traced over a
+  relief estimated from the captured image (consoles don't send depth), with its own motion vectors and temporal accumulation (no noise, no
+  trails) and HUD / text protection. Blacks, sky and flat areas are left alone and the effect doesn't cross object edges; no reflections
+  (without real depth they don't look believable). It runs on the new real frames before upscaling and frame generation, so Enhanced FG /
+  Smooth Motion get a stable image. Off by default (`enhanced_rt=0` in the ini; the menu choice wins). About 0.7 ms of GPU per real frame
+  (about 1.1 ms at 4K alongside Enhanced FG ×4; about 1 ms more latency, same frame pacing). Applying only this row switches it on the fly
+  without reopening the image. Tuning through `motor_extra=`: `rt_fuerza=1` (e.g. 1.5 for a stronger effect), `rt_ao=0.9`, `rt_gi=0.45`.
+- **Add to Steam** in the settings panel (ConsoleEnhancer Settings.exe, new "Steam" section): adds ConsoleEnhancer to your Steam library
+  as a non-Steam game with its icon, the same thing Steam's own "Add a Non-Steam Game" does. It never duplicates the entry (an existing one
+  is updated in place and keeps its id, so playtime and collections stay), backs up Steam's list first (`shortcuts.vdf.antes-ce` and
+  `shortcuts.vdf.ce-copia`), refuses to touch a file it doesn't fully understand, and if Steam is open offers to restart it so the entry
+  shows. "Update in Steam" fixes the path after downloading a new version to another folder; "Remove from Steam" takes only our entry out.
+  Key `steam_acceso` (0 by default; the panel sets it): with 1 the path is fixed when the app opens with Steam closed and the entry is
+  removed on uninstall.
+
+#### Fixed
+- **Enhanced FG no longer shakes when you scroll a map or a menu with the stick (quality mode).** On a map everything is thin, sharp
+  lines (roads, text, icon edges); the per-block motion carried a quarter-point error, both samples of the generated frame stopped matching
+  on such an edge and the "not moving" candidate won there, so pieces of road and letters vanished in every generated frame and came back
+  in the real one. Now, when one movement explains most of the picture (a flat pan), Enhanced FG measures it precisely over the whole
+  image (to ~1/20 of a point), prefers it everywhere and stops using "not moving" outside the still HUD, which it leaves untouched. It also
+  follows the stick when the pan starts and stops: using the real timing of the last three frames it places each generated frame where a
+  constant acceleration would put it (with no reliable timing or a gap over 1.5× it falls back to the plain flat pan). Measured on a test
+  map scrolled like with the stick with a fixed HUD on top (×2 / ×4, 30 and 60 fps base, 4K and 1440p): frame-to-frame shake 0.21-0.62
+  instead of 0.40-0.95 points (0.24 instead of 0.87 with uneven frame arrival), at constant speed 0-11 % of frames off by more than 0.3
+  points instead of 1-57 %; real gameplay video is unchanged (it never triggers there). About 0.1-0.2 ms of GPU only while scrolling.
+  `efg_plano=0` goes back to 1.3.2, `efg_plano_acel=0` keeps the flat pan without the acceleration.
+- **The red "HDCP" warning (PS5 / PS4) no longer appears on a black game screen with a still HUD, logo or text** (e.g. GTA VI). It now
+  needs the whole frame to be flat black, which is what HDCP gives; dark loading screens and HUDs on black no longer count (checked with
+  30 synthetic cases and 346 real captures: 0 false alarms, real black still detected).
+- **Switch 2 / Xbox: 30 s of a silent black screen with a small HUD could be taken as the console turning off** (and close the app or
+  shut down the PC if so set). "Black" now means flat black across the whole image.
+
+#### Improved
+- **Enhanced FG low latency: fewer broken patches in the generated frames.** What the current real frame shows but the previous one did
+  not (just uncovered, or animated) is now assumed to move with the camera instead of being replaced by a patch of the flat background next
+  to it, and every choice is checked again against its neighbours, so stray vectors no longer leave blotches on flat walls and around the
+  weapon that change from frame to frame. Measured against the true frames of real gameplay video (×2 / ×3 / ×4, 30 and 60 fps base): 9-25 %
+  fewer false edges, local error 1-4 % lower, same average error, same latency, +0.4-0.9 ms of GPU per generated frame at 4K.
+  `efg_lat_destapado=0 efg_lat_revisa=0` goes back to 1.3.2.
+
+#### Settings to go back
+- `enhanced_rt=0` (ini, default) or "No" in the menu: Enhanced RT off.
+- `motor_extra=efg_plano=0`: Enhanced FG without the flat pan (as 1.3.2); `efg_plano_acel=0`: flat pan without acceleration.
+- `motor_extra=efg_lat_destapado=0 efg_lat_revisa=0`: low latency as 1.3.2 (saves 0.4-0.9 ms of GPU per generated frame at 4K).
+- New test keys, off by default: `efg_lat_plano=1` (the precise flat pan also in low latency: only 1-4 % less shake on maps),
+  `efg_lat_frena=1` (braking at the end of a flat pan in low latency).
+
+#### Known issues
+- Enhanced RT is an estimate from the image: a dark pattern on a flat surface can sink a little, and HUD elements that move with the scene
+  (markers over objects) are not protected. At 4K with Enhanced FG ×4 the GPU is already tight: with it on, the frame-rate ladder may lower
+  DLSS 5 / the multiplier earlier.
+- For maps, quality mode is the one that goes well: in low latency the generated frame still runs a little behind when the pan starts and
+  overshoots when the stick is released (predicting 17-25 ms of a movement that changes). Maps that zoom while moving or have big animated
+  parts don't trigger the flat pan (they stay as in 1.3.2). A translucent panel's text can look moved during the first third of a second
+  after opening the map.
+- Low latency ×4: the last generated frame (+25 ms) can still break up in very fast turns; `efg_retraso_lat4=0.5` (+8 ms) lowers that.
+- Enhanced FG quality mode: very fast turns with objects very close to the camera still break (they move several times more than the
+  background); the hardware optical flow is not in the engine yet.
+- Add to Steam: when opened from Steam, Steam Input may take over the controller; turn Steam Input off for that shortcut in Steam if the
+  controller behaves oddly. Not checked against a real Steam library on this PC.
+- Nothing tested with the PS5 / Switch 2 connected: all by the engine with real video.
+
+### Castellano
+
+**Enhanced RT (experimental) añade a la imagen de la consola luz trazada en espacio de pantalla, Enhanced FG ya no tiembla al desplazar
+un mapa o un menú con el joystick, el modo baja latencia deja menos remiendos rotos, el aviso de HDCP solo sale con negro liso y
+ConsoleEnhancer se puede añadir a Steam.** Medido sin la consola en una RTX 4060 Ti con una tele 4K de 120 Hz con VRR, con vídeo real de
+juego y un mapa de prueba desplazado como con el joystick.
+
+#### Añadido
+- **Enhanced RT (experimental)**: fila nueva al final del menú de ajustes del mando (botón central) que añade a la imagen de la consola
+  luz trazada en espacio de pantalla: sombras de contacto (oclusión ambiental) y luz rebotada de un rebote (iluminación global) trazadas
+  sobre un relieve estimado de la propia captura (la consola no da profundidad), con vectores de movimiento propios y acumulación temporal
+  (sin ruido ni estelas) y el HUD / texto protegidos. No toca negros, cielo ni zonas lisas y el efecto no cruza los bordes de los objetos;
+  sin reflejos (sin profundidad de verdad no salen creíbles). Va en las imágenes reales nuevas, antes del reescalado y de la generación, así
+  que Enhanced FG / Smooth Motion reciben una imagen estable. Apagada de serie (`enhanced_rt=0` en el ini; manda lo elegido en el menú). Unos
+  0,7 ms de gráfica por imagen real (~1,1 ms a 4K junto a Enhanced FG ×4; ~1 ms más de latencia, mismo ritmo). Aplicar solo esa fila la
+  enciende / apaga al momento, sin reabrir la imagen. Para afinar, por `motor_extra=`: `rt_fuerza=1` (p. ej. 1,5 para más efecto),
+  `rt_ao=0.9`, `rt_gi=0.45`.
+- **Añadir a Steam** en el panel de ajustes (ConsoleEnhancer Settings.exe, sección nueva "Steam"): pone ConsoleEnhancer en tu biblioteca
+  de Steam como juego ajeno, con su icono, lo mismo que hace "Añadir un juego ajeno a Steam" de Steam. Nunca duplica la entrada (si ya hay
+  una se actualiza en su sitio y conserva su id: las horas y colecciones se quedan), hace antes una copia de seguridad de la lista de Steam
+  (`shortcuts.vdf.antes-ce` y `shortcuts.vdf.ce-copia`), no toca un archivo que no entienda entero y, si Steam está abierto, ofrece
+  reiniciarlo para que se vea. "Actualizar en Steam" corrige la ruta si bajas una versión nueva en otra carpeta; "Quitar de Steam" quita
+  solo nuestra entrada. Clave `steam_acceso` (0 de serie; la pone el panel): con 1 se corrige la ruta al abrir la app con Steam cerrado y
+  se quita la entrada al desinstalar.
+
+#### Arreglado
+- **Enhanced FG ya no tiembla al desplazar un mapa o un menú con el joystick (modo calidad).** En un mapa todo son líneas finas y nítidas
+  (carreteras, texto, bordes de iconos); el movimiento por bloques llevaba un cuarto de punto de error, las dos muestras de la inventada
+  dejaban de casar en esos bordes y ganaba el candidato "quieto", así que trozos de carretera y letras desaparecían en cada inventada y
+  volvían en la real. Ahora, cuando un solo movimiento explica casi toda la imagen (un paneo plano), Enhanced FG lo mide con precisión en
+  toda la imagen (a ~1/20 de punto), lo prefiere en todas partes y deja de usar "quieto" fuera de la interfaz quieta, que no toca. También
+  sigue al joystick al arrancar y frenar: con la hora real de las tres últimas imágenes coloca cada inventada donde la pondría una
+  aceleración constante (sin hora fiable o con un hueco de más de 1,5× vuelve al paneo plano normal). Medido con un mapa de prueba
+  desplazado como con el joystick y una interfaz fija encima (×2 / ×4, base 30 y 60, 4K y 1440p): el temblor entre imágenes 0,21-0,62 en
+  vez de 0,40-0,95 puntos (0,24 en vez de 0,87 con llegadas irregulares), a velocidad constante un 0-11 % de imágenes desviadas más de 0,3
+  puntos en vez de un 1-57 %; con vídeo real de juego, igual (ahí no se activa). Unos 0,1-0,2 ms de gráfica solo mientras se desplaza.
+  `efg_plano=0` vuelve a la 1.3.2, `efg_plano_acel=0` deja el paneo plano sin la aceleración.
+- **El aviso rojo de "HDCP" (PS5 / PS4) ya no sale en una pantalla negra de un juego con el HUD, un logo o un texto quieto** (p. ej. GTA
+  VI). Ahora todo el cuadro tiene que ser negro liso, que es lo que da el HDCP; una carga oscura o un HUD sobre negro ya no cuentan
+  (comprobado con 30 casos sintéticos y 346 capturas reales: 0 falsas alarmas y el negro de verdad se sigue viendo).
+- **Switch 2 / Xbox: 30 s de pantalla negra en silencio con un HUD pequeño podían tomarse como la consola apagada** (y cerrar la app o
+  apagar el PC si así está puesto). "Negro" ahora es negro liso en toda la imagen.
+
+#### Mejorado
+- **Enhanced FG baja latencia: menos remiendos rotos en las inventadas.** Lo que la real de ahora tiene y la anterior no (recién
+  destapado, o animado) se supone que va con la cámara en vez de sustituirlo un remiendo del fondo liso de al lado, y cada elección se
+  revisa con las de al lado, así que los vectores sueltos ya no dejan manchas en paredes lisas y alrededor del arma que cambian de una
+  imagen a otra. Medido contra las imágenes de verdad de vídeo real de juego (×2 / ×3 / ×4, base 30 y 60): un 9-25 % menos de bordes
+  falsos, el error local un 1-4 % menor, el mismo error medio, la misma latencia, +0,4-0,9 ms de gráfica por inventada a 4K.
+  `efg_lat_destapado=0 efg_lat_revisa=0` vuelve a la 1.3.2.
+
+#### Ajustes para volver atrás
+- `enhanced_rt=0` (ini, de serie) o "No" en el menú: Enhanced RT apagado.
+- `motor_extra=efg_plano=0`: Enhanced FG sin el paneo plano (como la 1.3.2); `efg_plano_acel=0`: paneo plano sin aceleración.
+- `motor_extra=efg_lat_destapado=0 efg_lat_revisa=0`: la baja latencia como la 1.3.2 (ahorra 0,4-0,9 ms de gráfica por inventada a 4K).
+- Claves nuevas de prueba, apagadas de serie: `efg_lat_plano=1` (el paneo plano preciso también en baja latencia: solo un 1-4 % menos de
+  temblor en mapas), `efg_lat_frena=1` (frenada al final de un paneo plano en baja latencia).
+
+#### Problemas conocidos
+- Enhanced RT es una estimación sacada de la imagen: un dibujo oscuro sobre una superficie lisa puede hundirse un poco y el HUD que se
+  mueve con la escena (marcadores sobre objetos) no se protege. A 4K con Enhanced FG ×4 la gráfica ya va justa: encendido, la escalera de
+  fps puede bajar antes DLSS 5 / el multiplicador.
+- Para mapas, el modo calidad es el que va bien: en baja latencia la inventada aún va algo por detrás al arrancar el paneo y se pasa al
+  soltar el joystick (adivinar 17-25 ms de un movimiento que cambia). Los mapas que hacen zoom mientras se mueven o con partes animadas
+  grandes no activan el paneo plano (quedan como en la 1.3.2). El texto de un panel translúcido puede verse movido el primer tercio de
+  segundo tras abrir el mapa.
+- Baja latencia ×4: la última inventada (+25 ms) aún puede romperse en giros muy rápidos; `efg_retraso_lat4=0.5` (+8 ms) lo baja.
+- Modo calidad de Enhanced FG: los giros muy rápidos con cosas muy cerca de la cámara aún se rompen (se mueven varias veces más que el
+  fondo); el flujo óptico por hardware aún no está en el motor.
+- Añadir a Steam: abierto desde Steam, Steam Input puede quedarse el mando; si el mando hace cosas raras, desactiva Steam Input para ese
+  acceso en Steam. No comprobado con una biblioteca de Steam de verdad en este PC.
+- Nada probado con la PS5 / Switch 2 conectadas: todo por el motor con vídeo real.
+
 ## [1.3.2] - 2026-11-24
 
 **Enhanced FG reaches its frame rate and holds together on fast camera turns at a 30 fps base, the frame-rate ladder only lowers things
