@@ -461,6 +461,8 @@ namespace ConsoleEnhancer
             caliente("Motor reabriendose, con otra captura", cal(a, cap), false);
             Dictionary<string, string> m120 = new Dictionary<string, string>(nivel); m120["modo"] = "120";
             caliente("Motor reabriendose, al modo 120", cal(a, m120), false);
+            Dictionary<string, string> m40 = new Dictionary<string, string>(nivel); m40["modo"] = "40";   // (1.3.2, MODO40: puede cambiar la velocidad de captura)
+            caliente("Motor reabriendose, al modo 40", cal(a, m40), false);
             Dictionary<string, string> m60 = new Dictionary<string, string>(nivel); m60["modo"] = "60";
             caliente("Motor reabriendose, al modo 60", cal(a, m60), true);
             a = jugando(); a.cfg.VideoSize = "3840x2160"; a.cfg.CapMode = true; a.homeBusy = true; a.homeSwitchToHome = false; a.lsReady = false;

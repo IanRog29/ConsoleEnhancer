@@ -322,8 +322,10 @@ namespace ConsoleEnhancer
             double secs = (now - fps40Since).TotalSeconds;
             if (fps40Said || secs < 20) return;
             fps40Said = true;
-            Log.Write("Juego a 40 imagenes por segundo (" + f.ToString("0.0", CultureInfo.InvariantCulture) + "): la consola sale a 120 Hz y la captura va a 60, " +
-                      "se ve a tirones. Mejor la consola a 60 Hz o el modo de 60 del juego");
+            // (1.3.2, MODO40: con el modo 40 se ve bien -una de cada 3 a 120 Hz o la cadencia 2-1 repartida-; si no, se dice que existe)
+            if (cfg.Mode40Now) Log.Write("Juego a 40 imagenes por segundo (" + f.ToString("0.0", CultureInfo.InvariantCulture) + ") en el modo 40, captura a " + cfg.FramerateNow);
+            else Log.Write("Juego a 40 imagenes por segundo (" + f.ToString("0.0", CultureInfo.InvariantCulture) + ") en el modo " + cfg.ModoFps + ": " +
+                           "se ve a tirones. Mejor el modo 40 de la app (Menu del mando o el menu de ajustes)");
             Consolas.VistaCadencia(f, secs);
         }
 

@@ -210,7 +210,7 @@ namespace ConsoleEnhancer
             string antes = File.Exists(f) ? File.ReadAllText(f) : null;
             try
             {
-                string[][] casos = { new[] { "30", "30" }, new[] { "120", "120" }, new[] { "60", "60" }, new[] { "basura", "60" } };
+                string[][] casos = { new[] { "30", "30" }, new[] { "40", "40" }, new[] { "120", "120" }, new[] { "60", "60" }, new[] { "basura", "60" } };   // (1.3.2, MODO40: y el 40)
                 foreach (string[] q in casos)
                 {
                     Directory.CreateDirectory(Path.GetDirectoryName(f));
@@ -218,7 +218,7 @@ namespace ConsoleEnhancer
                     GameProfile p = new GameProfile();
                     p.Name = "Consola"; p.Cap = false; p.Mode120 = false;   // (lo de partida antes de leer mode.txt)
                     TrayApp.ModoGuardadoPrueba(p);
-                    string got = p.Mode120 ? "120" : p.Cap ? "30" : "60";
+                    string got = p.ModoFps.ToString(CultureInfo.InvariantCulture);
                     Mira(got == q[1], "mode.txt \"" + q[0] + "\": el perfil nuevo queda en el modo " + got);
                 }
             }

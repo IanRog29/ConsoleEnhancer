@@ -137,6 +137,7 @@ namespace ConsoleEnhancer.Motor
                 ulong v = fenceValue;
                 if (fence.GetCompletedValue() < v)
                 {
+                    m40FenceEv.Reset();   // (una señal vieja de una espera que ya vencio no vale)
                     fence.SetEventOnCompletion(v, m40FenceEv.SafeWaitHandle.DangerousGetHandle());
                     m40FenceEv.WaitOne(40);
                 }
